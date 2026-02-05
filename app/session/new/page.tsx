@@ -148,7 +148,7 @@ export default function NewSessionPage() {
               <div className="flex items-start gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
-                    <Sparkles className="w-5 h-5 text-amber-500" />
+                    <Sparkles className="w-5 h-5 text-muted-foreground" />
                     <h2 className="text-lg font-semibold text-foreground">Orchestrator Mode</h2>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -180,7 +180,7 @@ export default function NewSessionPage() {
                     </Button>
                     
                     {enableOrchestrator && (
-                      <Badge variant="outline" className="text-emerald-600 border-emerald-600">
+                      <Badge variant="secondary">
                         Will auto-manage discussion
                       </Badge>
                     )}
@@ -206,12 +206,12 @@ export default function NewSessionPage() {
                       .map((persona) => (
                         <button
                           key={persona.id}
-                          onClick={() => setOrchestratorPersonaId(persona.id)}
-                          className={`p-3 rounded-lg border text-left transition-all ${
-                            orchestratorPersonaId === persona.id
-                              ? 'border-amber-500 bg-amber-500/10'
-                              : 'border-border hover:border-muted'
-                          }`}
+                      onClick={() => setOrchestratorPersonaId(persona.id)}
+                      className={`p-3 rounded-lg border text-left transition-all ${
+                        orchestratorPersonaId === persona.id
+                          ? 'border-primary bg-secondary'
+                          : 'border-border hover:border-muted'
+                      }`}
                         >
                           <div className="flex items-center gap-2">
                             <div
@@ -220,14 +220,14 @@ export default function NewSessionPage() {
                             />
                             <span className="font-medium text-sm">{persona.name}</span>
                             {orchestratorPersonaId === persona.id && (
-                              <Crown className="w-4 h-4 text-amber-500 ml-auto" />
+                              <Crown className="w-4 h-4 text-primary ml-auto" />
                             )}
                           </div>
                         </button>
                       ))}
                   </div>
                   {!orchestratorPersonaId && (
-                    <p className="text-xs text-amber-600 mt-2">
+                    <p className="text-xs text-muted-foreground mt-2">
                       Please select one persona to be the Orchestrator
                     </p>
                   )}
@@ -260,7 +260,7 @@ export default function NewSessionPage() {
                       onClick={() => togglePersona(persona.id)}
                       className={`p-4 rounded-lg border text-left transition-all ${
                         selectedPersonas.includes(persona.id)
-                          ? 'border-accent bg-accent/10'
+                          ? 'border-primary bg-secondary'
                           : 'border-border hover:border-muted'
                       }`}
                     >
@@ -274,7 +274,7 @@ export default function NewSessionPage() {
                           <p className="text-xs text-muted-foreground">{persona.role}</p>
                         </div>
                         {selectedPersonas.includes(persona.id) && (
-                          <div className="text-accent">
+                          <div className="text-primary">
                             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                             </svg>
@@ -290,7 +290,7 @@ export default function NewSessionPage() {
                 <p className="text-sm text-muted-foreground mt-3">
                   {selectedPersonas.length} persona{selectedPersonas.length !== 1 ? 's' : ''} selected
                   {enableOrchestrator && orchestratorPersonaId && selectedPersonas.includes(orchestratorPersonaId) && (
-                    <span className="text-amber-600 ml-2">
+                    <span className="text-primary ml-2">
                       • {personas.find(p => p.id === orchestratorPersonaId)?.name} will be Orchestrator
                     </span>
                   )}
@@ -303,7 +303,6 @@ export default function NewSessionPage() {
               <Button
                 onClick={handleCreateSession}
                 disabled={!isValid || isLoading || (enableOrchestrator && !orchestratorPersonaId)}
-                className="bg-accent text-accent-foreground hover:bg-accent/90"
               >
                 {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Create Session

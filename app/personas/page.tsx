@@ -145,7 +145,6 @@ export default function PersonasPage() {
           </div>
           <Button
             onClick={handleOpenForm}
-            className="bg-accent text-accent-foreground hover:bg-accent/90"
             disabled={isLoading}
           >
             <Plus className="w-4 h-4 mr-2" />
@@ -166,7 +165,7 @@ export default function PersonasPage() {
               <Users className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold text-foreground mb-2">No personas yet</h3>
               <p className="text-muted-foreground mb-4">Create your first persona to start using Council</p>
-              <Button onClick={handleOpenForm} className="bg-accent text-accent-foreground hover:bg-accent/90">
+              <Button onClick={handleOpenForm}>
                 <Plus className="w-4 h-4 mr-2" />
                 Create Persona
               </Button>
@@ -174,7 +173,7 @@ export default function PersonasPage() {
           ) : (
             <div className="grid gap-4 md:grid-cols-2">
               {personas.map((persona) => (
-                <Card key={persona.id} className="p-5 bg-card border-border hover:border-accent/50 transition-colors">
+                <Card key={persona.id} className="p-5">
                   {/* Header */}
                   <div className="flex items-start justify-between mb-3">
                     <div>
@@ -360,7 +359,7 @@ export default function PersonasPage() {
                     onClick={() => handleInputChange('color', color.value)}
                     className={`w-full aspect-square rounded-lg border-2 transition-all ${
                       formData.color === color.value
-                        ? 'border-accent scale-110'
+                        ? 'border-primary scale-110'
                         : 'border-transparent hover:border-muted'
                     }`}
                     style={{ backgroundColor: color.value }}
@@ -385,11 +384,11 @@ export default function PersonasPage() {
 
           {/* Actions */}
           <div className="flex gap-2 mt-6">
-            <Button
-              onClick={handleSavePersona}
-              disabled={!formData.name || !formData.role || !formData.systemPrompt || isLoading || (isEditing && !isModelAvailable(formData.geminiModel))}
-              className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90"
-            >
+              <Button
+                onClick={handleSavePersona}
+                disabled={!formData.name || !formData.role || !formData.systemPrompt || isLoading || (isEditing && !isModelAvailable(formData.geminiModel))}
+                className="flex-1"
+              >
               {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               {isEditing ? 'Update' : 'Create'}
             </Button>

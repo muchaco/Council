@@ -68,7 +68,7 @@ export default function SessionsPage() {
             </p>
           </div>
           <Link href="/session/new">
-            <Button className="bg-accent text-accent-foreground hover:bg-accent/90">
+            <Button>
               <Plus className="w-4 h-4 mr-2" />
               New Session
             </Button>
@@ -88,7 +88,7 @@ export default function SessionsPage() {
             <h3 className="text-lg font-semibold text-foreground mb-2">No sessions yet</h3>
             <p className="text-muted-foreground mb-4">Create your first session to start a strategic summit</p>
             <Link href="/session/new">
-              <Button className="bg-accent text-accent-foreground hover:bg-accent/90">
+              <Button>
                 <Plus className="w-4 h-4 mr-2" />
                 Create Session
               </Button>
@@ -97,12 +97,12 @@ export default function SessionsPage() {
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {sessions.map((session) => (
-              <Card key={session.id} className="h-full bg-card border-border hover:border-accent transition-colors group">
+              <Card key={session.id} className="h-full group">
                 <div className="p-5 h-full flex flex-col">
                   {/* Title and Delete */}
                   <div className="flex items-start justify-between">
                     <Link href={`/session?id=${session.id}`} className="flex-1">
-                      <h3 className="font-semibold text-foreground text-balance line-clamp-2 hover:text-accent transition-colors">
+                      <h3 className="font-semibold text-foreground text-balance line-clamp-2 hover:text-primary transition-colors">
                         {session.title}
                       </h3>
                     </Link>
@@ -124,13 +124,8 @@ export default function SessionsPage() {
                   {/* Status Badge */}
                   <div className="mt-3">
                     <Badge 
-                      variant="secondary" 
-                      className={`
-                        text-xs capitalize
-                        ${session.status === 'active' ? 'bg-emerald-500/20 text-emerald-500' : ''}
-                        ${session.status === 'completed' ? 'bg-blue-500/20 text-blue-500' : ''}
-                        ${session.status === 'archived' ? 'bg-muted text-muted-foreground' : ''}
-                      `}
+                      variant={session.status === 'active' ? 'default' : session.status === 'completed' ? 'secondary' : 'outline'}
+                      className="text-xs capitalize"
                     >
                       {session.status}
                     </Badge>

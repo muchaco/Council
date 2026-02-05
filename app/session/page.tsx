@@ -211,7 +211,7 @@ function SessionContent() {
             return (
               <Card
                 key={persona.id}
-                className={`p-3 border-border ${isOrchestrator ? 'ring-1 ring-amber-500' : ''}`}
+                className={`p-3 ${isOrchestrator ? 'ring-1 ring-primary' : ''}`}
               >
                 <div className="flex items-start gap-3 mb-2">
                   <div
@@ -222,7 +222,7 @@ function SessionContent() {
                     <div className="flex items-center gap-1">
                       <h3 className="font-medium text-foreground text-sm truncate">{persona.name}</h3>
                       {isOrchestrator && (
-                        <Crown className="w-3 h-3 text-amber-500" />
+                        <Crown className="w-3 h-3 text-primary" />
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground">{persona.role}</p>
@@ -302,13 +302,8 @@ function SessionContent() {
             </div>
             {currentSession.orchestratorEnabled && (
               <Badge 
-                variant="secondary" 
-                className={`
-                  ml-4 flex items-center gap-1
-                  ${orchestratorRunning ? 'bg-amber-500/20 text-amber-500 animate-pulse' : ''}
-                  ${orchestratorPaused ? 'bg-red-500/20 text-red-500' : ''}
-                  ${!orchestratorRunning && !orchestratorPaused ? 'bg-emerald-500/20 text-emerald-500' : ''}
-                `}
+                variant={orchestratorRunning ? 'default' : orchestratorPaused ? 'secondary' : 'outline'}
+                className="ml-4 flex items-center gap-1"
               >
                 <Sparkles className="w-3 h-3" />
                 {orchestratorRunning ? 'Orchestrating...' : orchestratorPaused ? 'Paused' : 'Active'}
@@ -345,11 +340,11 @@ function SessionContent() {
                 >
                   {/* Avatar */}
                   <div
-                    className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-medium ${
-                      isOrchestratorMessage ? 'ring-2 ring-amber-500' : ''
+                    className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-primary-foreground text-xs font-medium ${
+                      isOrchestratorMessage ? 'ring-2 ring-primary' : ''
                     }`}
                     style={{
-                      backgroundColor: isUser ? '#6B7280' : persona?.color,
+                      backgroundColor: isUser ? 'var(--muted-foreground)' : persona?.color,
                     }}
                   >
                     {isUser ? 'You' : isOrchestratorMessage ? <Crown className="w-4 h-4" /> : persona?.name.charAt(0)}
@@ -362,7 +357,7 @@ function SessionContent() {
                         {isUser ? 'You' : persona?.name}
                       </span>
                       {isIntervention && (
-                        <Badge variant="outline" className="text-xs text-amber-600 border-amber-600">
+                        <Badge variant="outline" className="text-xs">
                           Intervention
                         </Badge>
                       )}
@@ -373,10 +368,10 @@ function SessionContent() {
                     <div
                       className={`inline-block p-3 rounded-lg text-sm ${
                         isUser
-                          ? 'bg-accent text-accent-foreground'
+                          ? 'bg-primary text-primary-foreground'
                           : isIntervention
-                            ? 'bg-amber-500/10 border border-amber-500/30'
-                            : 'bg-card border border-border'
+                            ? 'bg-secondary border'
+                            : 'bg-card border'
                       }`}
                     >
                       {msg.content}
@@ -419,27 +414,27 @@ function SessionContent() {
             </div>
           )}
           
-          {/* Orchestrator thinking indicator */}
-          {orchestratorRunning && !thinkingPersonaId && (
-            <div className="flex gap-3">
-              <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-medium bg-amber-500 animate-pulse">
-                <Sparkles className="w-4 h-4" />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-sm font-medium text-amber-600">Orchestrator</span>
-                  <span className="text-xs text-muted-foreground">Selecting next speaker...</span>
+            {/* Orchestrator thinking indicator */}
+            {orchestratorRunning && !thinkingPersonaId && (
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-primary-foreground text-xs font-medium bg-primary animate-pulse">
+                  <Sparkles className="w-4 h-4" />
                 </div>
-                <div className="inline-block p-3 rounded-lg text-sm bg-amber-500/10 border border-amber-500/30">
-                  <div className="flex gap-1">
-                    <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-medium">Orchestrator</span>
+                    <span className="text-xs text-muted-foreground">Selecting next speaker...</span>
+                  </div>
+                  <div className="inline-block p-3 rounded-lg text-sm bg-secondary border">
+                    <div className="flex gap-1">
+                      <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
           
           <div ref={messagesEndRef} />
         </div>
@@ -466,17 +461,17 @@ function SessionContent() {
             <Button
               onClick={handleSendMessage}
               disabled={!newMessage.trim() || orchestratorRunning}
-              className="bg-accent hover:bg-accent/90 text-accent-foreground flex-shrink-0"
+              className="flex-shrink-0"
             >
               <Send className="w-4 h-4" />
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            Press Enter to send, Shift+Enter for new line
-            {currentSession.orchestratorEnabled && orchestratorPaused && (
-              <span className="ml-2 text-amber-600">• Orchestrator paused - click Resume or Continue to proceed</span>
-            )}
-          </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Press Enter to send, Shift+Enter for new line
+              {currentSession.orchestratorEnabled && orchestratorPaused && (
+                <span className="ml-2 text-primary">• Orchestrator paused - click Resume or Continue to proceed</span>
+              )}
+            </p>
         </div>
       </div>
 
@@ -492,12 +487,8 @@ function SessionContent() {
             <div>
               <p className="text-xs text-muted-foreground mb-1">Status</p>
               <Badge 
-                variant="secondary" 
-                className={`
-                  capitalize
-                  ${currentSession.status === 'active' ? 'bg-emerald-500/20 text-emerald-500' : ''}
-                  ${currentSession.status === 'completed' ? 'bg-blue-500/20 text-blue-500' : ''}
-                `}
+                variant={currentSession.status === 'active' ? 'default' : 'secondary'}
+                className="capitalize"
               >
                 {currentSession.status}
               </Badge>

@@ -43,6 +43,7 @@ interface SelectorRequest {
   }>;
   problemDescription: string;
   outputGoal: string;
+  lastSpeakerId: string | null;
 }
 
 interface SelectorResponse {
@@ -80,7 +81,12 @@ RECENT CONVERSATION:
 ${request.recentMessages.map(m => `${m.personaName}: ${m.content}`).join('\n\n')}
 
 AVAILABLE PERSONAS:
-${request.availablePersonas.map(p => `- ${p.name} (${p.role})`).join('\n')}
+${request.availablePersonas.map(p => `- ${p.name} (${p.role}) - ID: ${p.id}`).join('\n')}
+
+IMPORTANT RULES:
+- You CANNOT select the persona who spoke last: ${request.lastSpeakerId ? request.availablePersonas.find(p => p.id === request.lastSpeakerId)?.name || 'Unknown' : 'None'}
+- Each persona should speak only once per cycle - assume they said what they needed to say
+- If only the orchestrator or last speaker remains, select WAIT_FOR_USER
 
 Your task:
 1. Analyze the current topic and identify open questions or conflicts
@@ -221,6 +227,10 @@ export function setupOrchestratorHandlers(): void {
       // Get recent messages
       const messages = await queries.getLastMessages(sessionId, 10);
       
+      // Get last speaker (most recent non-user message)
+      const lastPersonaMessage = [...messages].reverse().find(msg => msg.personaId !== null);
+      const lastSpeakerId = lastPersonaMessage?.personaId || null;
+      
       // Format messages for selector
       const recentMessages = messages.map(msg => {
         const persona = personas.find(p => p.id === msg.personaId);
@@ -239,10 +249,19 @@ export function setupOrchestratorHandlers(): void {
         facts: '',
       };
 
-      // Get available personas (exclude orchestrator from selection)
+      // Get available personas (exclude orchestrator and last speaker)
       const availablePersonas = personas
-        .filter(p => p.id !== session.orchestratorPersonaId)
+        .filter(p => p.id !== session.orchestratorPersonaId && p.id !== lastSpeakerId)
         .map(p => ({ id: p.id, name: p.name, role: p.role }));
+      
+      // Edge case: if no available personas after filtering, wait for user
+      if (availablePersonas.length === 0) {
+        return {
+          success: true,
+          action: 'WAIT_FOR_USER',
+          reasoning: 'All personas have spoken. Waiting for user input before next cycle.',
+        };
+      }
 
       // Get orchestrator persona for selector model
       const orchestratorPersona = personas.find(p => p.id === session.orchestratorPersonaId);
@@ -264,6 +283,7 @@ export function setupOrchestratorHandlers(): void {
           availablePersonas,
           problemDescription: session.problemDescription,
           outputGoal: session.outputGoal,
+          lastSpeakerId,
         });
       } catch (error) {
         return {

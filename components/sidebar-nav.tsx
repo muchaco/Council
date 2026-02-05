@@ -31,7 +31,7 @@ export function SidebarNav() {
     <nav className="w-56 border-r border-border bg-card flex flex-col h-screen">
       {/* Header */}
       <div className="p-4 border-b border-border">
-        <h1 className="text-lg font-bold text-accent">Council</h1>
+        <h1 className="text-lg font-bold text-foreground">Council</h1>
         <p className="text-xs text-muted-foreground mt-1">Strategic Summit</p>
       </div>
 
@@ -46,7 +46,6 @@ export function SidebarNav() {
                 variant={isActive ? 'default' : 'ghost'}
                 className={cn(
                   'w-full justify-start',
-                  isActive && 'bg-accent text-accent-foreground',
                 )}
               >
                 <Icon className="w-4 h-4 mr-2" />

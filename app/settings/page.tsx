@@ -106,7 +106,6 @@ export default function SettingsPage() {
                 <Button
                   onClick={handleSaveApiKey}
                   disabled={!hasChanges || isLoading}
-                  className="bg-accent text-accent-foreground hover:bg-accent/90"
                 >
                   {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                   Save API Key
@@ -122,7 +121,7 @@ export default function SettingsPage() {
               </div>
               
               {isConnected && (
-                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded text-sm text-emerald-500">
+                <div className="p-3 bg-secondary border rounded text-sm text-secondary-foreground">
                   ✓ Connected to Gemini API
                 </div>
               )}
