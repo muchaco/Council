@@ -11,6 +11,20 @@ export interface Persona {
   updatedAt: string;
 }
 
+export interface BlackboardState {
+  consensus: string;
+  conflicts: string;
+  nextStep: string;
+  facts: string;
+}
+
+export interface MessageMetadata {
+  isIntervention?: boolean;
+  driftDetected?: boolean;
+  selectorReasoning?: string;
+  isOrchestratorMessage?: boolean;
+}
+
 export interface Session {
   id: string;
   title: string;
@@ -19,6 +33,12 @@ export interface Session {
   status: 'active' | 'completed' | 'archived';
   tokenCount: number;
   costEstimate: number;
+  orchestratorEnabled: boolean;
+  orchestratorPersonaId: string | null;
+  blackboard: BlackboardState | null;
+  autoReplyCount: number;
+  tokenBudget: number;
+  summary: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -30,6 +50,7 @@ export interface Message {
   content: string;
   turnNumber: number;
   tokenCount: number;
+  metadata: MessageMetadata | null;
   createdAt: string;
 }
 
@@ -55,6 +76,7 @@ export interface MessageInput {
   content: string;
   turnNumber: number;
   tokenCount?: number;
+  metadata?: MessageMetadata;
 }
 
 export const VALID_GEMINI_MODELS = ['gemini-1.5-flash', 'gemini-1.5-pro'] as const;

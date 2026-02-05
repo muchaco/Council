@@ -35,8 +35,18 @@ const settingsAPI = {
     setSetting: (key, value) => electron_1.ipcRenderer.invoke('settings:set', key, value),
     listModels: () => electron_1.ipcRenderer.invoke('settings:listModels'),
 };
+// Orchestrator API
+const orchestratorAPI = {
+    enable: (sessionId, orchestratorPersonaId) => electron_1.ipcRenderer.invoke('orchestrator:enable', { sessionId, orchestratorPersonaId }),
+    disable: (sessionId) => electron_1.ipcRenderer.invoke('orchestrator:disable', sessionId),
+    processTurn: (sessionId) => electron_1.ipcRenderer.invoke('orchestrator:processTurn', sessionId),
+    resetCircuitBreaker: (sessionId) => electron_1.ipcRenderer.invoke('orchestrator:resetCircuitBreaker', sessionId),
+    getBlackboard: (sessionId) => electron_1.ipcRenderer.invoke('orchestrator:getBlackboard', sessionId),
+    updateBlackboard: (sessionId, blackboard) => electron_1.ipcRenderer.invoke('orchestrator:updateBlackboard', { sessionId, blackboard }),
+};
 // Expose APIs to renderer
 electron_1.contextBridge.exposeInMainWorld('electronDB', dbAPI);
 electron_1.contextBridge.exposeInMainWorld('electronLLM', llmAPI);
 electron_1.contextBridge.exposeInMainWorld('electronSettings', settingsAPI);
+electron_1.contextBridge.exposeInMainWorld('electronOrchestrator', orchestratorAPI);
 //# sourceMappingURL=preload.js.map

@@ -29,6 +29,25 @@ declare global {
       setSetting: (key: string, value: unknown) => Promise<{ success: boolean; error?: string }>;
       listModels: () => Promise<{ success: boolean; data?: Array<{ name: string; displayName: string; description: string; supportedMethods: string[] }>; error?: string }>;
     };
+    electronOrchestrator: {
+      enable: (sessionId: string, orchestratorPersonaId: string) => Promise<{ success: boolean; error?: string }>;
+      disable: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
+      processTurn: (sessionId: string) => Promise<{ 
+        success: boolean; 
+        action?: string;
+        personaId?: string;
+        reasoning?: string;
+        blackboardUpdate?: unknown;
+        isIntervention?: boolean;
+        autoReplyCount?: number;
+        warning?: string;
+        code?: string;
+        error?: string;
+      }>;
+      resetCircuitBreaker: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
+      getBlackboard: (sessionId: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
+      updateBlackboard: (sessionId: string, blackboard: unknown) => Promise<{ success: boolean; error?: string }>;
+    };
   }
 }
 

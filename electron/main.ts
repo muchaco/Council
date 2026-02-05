@@ -3,38 +3,60 @@ import path from 'path';
 import { setupDatabaseHandlers } from './handlers/db.js';
 import { setupLLMHandlers } from './handlers/llm.js';
 import { setupSettingsHandlers } from './handlers/settings.js';
+import { setupOrchestratorHandlers } from './handlers/orchestrator.js';
 
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow(): void {
+  const preloadPath = path.join(__dirname, 'preload.js');
+  console.log('Loading preload script from:', preloadPath);
+  
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 1200,
     minHeight: 700,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: true,
+      // Disable sandbox to allow preload script to load properly
+      // This is safe because we use contextIsolation and don't expose Node APIs
+      sandbox: false,
     },
     titleBarStyle: 'default',
     show: false,
   });
 
-  // Set Content Security Policy for security
+  // Log preload script loading errors
+  mainWindow.webContents.on('preload-error', (event, preloadPath, error) => {
+    console.error('Preload script error:', preloadPath, error);
+  });
+
+  // Set Content Security Policy
+  // Note: These settings are for development. Production builds should use stricter CSP.
+  // The 'unsafe-eval' and 'unsafe-inline' are required for React development tools and HMR.
   mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+    const isDev = process.env.NODE_ENV === 'development';
+    
+    const cspDirectives = [
+      "default-src 'self'",
+      // In dev, allow unsafe-inline/eval for React dev tools; in prod, use strict settings
+      isDev 
+        ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:3000" 
+        : "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob:",
+      "font-src 'self'",
+      isDev 
+        ? "connect-src 'self' http://localhost:3000 ws://localhost:3000" 
+        : "connect-src 'self'",
+    ];
+    
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': [
-          "default-src 'self'; " +
-          "script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:3000; " +
-          "style-src 'self' 'unsafe-inline'; " +
-          "img-src 'self' data: blob:; " +
-          "font-src 'self'; " +
-          "connect-src 'self' http://localhost:3000 ws://localhost:3000;"
-        ],
+        'Content-Security-Policy': [cspDirectives.join('; ')],
       },
     });
   });
@@ -84,6 +106,7 @@ app.whenReady().then(() => {
   setupDatabaseHandlers();
   setupLLMHandlers();
   setupSettingsHandlers();
+  setupOrchestratorHandlers();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

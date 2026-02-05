@@ -7,8 +7,22 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Send, ArrowLeft, Loader2, Users, Clock, DollarSign, MessageSquare } from 'lucide-react';
+import { 
+  Send, 
+  ArrowLeft, 
+  Loader2, 
+  Users, 
+  Clock, 
+  DollarSign, 
+  MessageSquare, 
+  Crown, 
+  Play, 
+  Pause,
+  RotateCcw,
+  Sparkles
+} from 'lucide-react';
 import { useSessionsStore } from '@/stores/sessions';
+import { BlackboardPanel } from '@/components/blackboard/BlackboardPanel';
 import { toast } from 'sonner';
 
 function SessionContent() {
@@ -21,9 +35,18 @@ function SessionContent() {
     sessionPersonas,
     isLoading,
     thinkingPersonaId,
+    orchestratorRunning,
+    orchestratorPaused,
+    blackboard,
     loadSession,
     sendUserMessage,
     triggerPersonaResponse,
+    enableOrchestrator,
+    disableOrchestrator,
+    processOrchestratorTurn,
+    pauseOrchestrator,
+    resumeOrchestrator,
+    resetCircuitBreaker,
     clearCurrentSession,
   } = useSessionsStore();
 
@@ -50,6 +73,11 @@ function SessionContent() {
     const content = newMessage;
     setNewMessage('');
     await sendUserMessage(content);
+    
+    // If orchestrator is enabled and not paused, trigger it
+    if (currentSession?.orchestratorEnabled && !orchestratorPaused) {
+      processOrchestratorTurn();
+    }
   };
 
   const handleAskToSpeak = async (personaId: string) => {
@@ -59,6 +87,28 @@ function SessionContent() {
     }
     
     await triggerPersonaResponse(personaId);
+    
+    // If orchestrator is enabled and not paused, trigger it after response
+    if (currentSession?.orchestratorEnabled && !orchestratorPaused) {
+      setTimeout(() => processOrchestratorTurn(), 1000);
+    }
+  };
+
+  const handleOrchestratorToggle = async () => {
+    if (!currentSession) return;
+    
+    if (currentSession.orchestratorEnabled) {
+      await disableOrchestrator();
+    } else {
+      // Find first non-orchestrator persona to be the orchestrator
+      const nonOrchestratorPersonas = sessionPersonas.filter(p => !p.isOrchestrator);
+      if (nonOrchestratorPersonas.length === 0) {
+        toast.error('Need at least one non-orchestrator persona');
+        return;
+      }
+      // For simplicity, use the first persona as orchestrator
+      await enableOrchestrator(nonOrchestratorPersonas[0].id);
+    }
   };
 
   const formatDuration = (createdAt: string) => {
@@ -73,6 +123,9 @@ function SessionContent() {
     }
     return `${diffMins}m`;
   };
+
+  // Get orchestrator persona
+  const orchestratorPersona = sessionPersonas.find(p => p.id === currentSession?.orchestratorPersonaId);
 
   if (isLoading && !currentSession) {
     return (
@@ -108,48 +161,97 @@ function SessionContent() {
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             The Council
           </h2>
+          
+          {/* Orchestrator Toggle */}
+          <div className="mt-3 flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Orchestrator Mode</span>
+            <Button
+              variant={currentSession.orchestratorEnabled ? "default" : "outline"}
+              size="sm"
+              className="text-xs gap-1"
+              onClick={handleOrchestratorToggle}
+            >
+              <Sparkles className="w-3 h-3" />
+              {currentSession.orchestratorEnabled ? 'On' : 'Off'}
+            </Button>
+          </div>
+          
+          {/* Orchestrator Controls */}
+          {currentSession.orchestratorEnabled && (
+            <div className="mt-2 flex gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs flex-1 gap-1"
+                onClick={orchestratorPaused ? resumeOrchestrator : pauseOrchestrator}
+                disabled={orchestratorRunning}
+              >
+                {orchestratorPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+                {orchestratorPaused ? 'Resume' : 'Pause'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs flex-1 gap-1"
+                onClick={resetCircuitBreaker}
+                disabled={!orchestratorPaused}
+              >
+                <RotateCcw className="w-3 h-3" />
+                Continue
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Personas List */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {sessionPersonas.map((persona) => (
-            <Card
-              key={persona.id}
-              className="p-3 border-border"
-            >
-              <div className="flex items-start gap-3 mb-2">
-                <div
-                  className="w-3 h-3 rounded-full flex-shrink-0 mt-1"
-                  style={{ backgroundColor: persona.color }}
-                />
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-foreground text-sm truncate">{persona.name}</h3>
-                  <p className="text-xs text-muted-foreground">{persona.role}</p>
-                </div>
-              </div>
-              
-              <div className="text-xs text-muted-foreground mb-2">
-                {persona.geminiModel === 'gemini-1.5-flash' ? 'Flash' : 'Pro'} • Temp: {persona.temperature}
-              </div>
-              
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full text-xs"
-                onClick={() => handleAskToSpeak(persona.id)}
-                disabled={thinkingPersonaId === persona.id || !!thinkingPersonaId}
+          {sessionPersonas.map((persona) => {
+            const isOrchestrator = persona.id === currentSession.orchestratorPersonaId;
+            
+            return (
+              <Card
+                key={persona.id}
+                className={`p-3 border-border ${isOrchestrator ? 'ring-1 ring-amber-500' : ''}`}
               >
-                {thinkingPersonaId === persona.id ? (
-                  <>
-                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                    Thinking...
-                  </>
-                ) : (
-                  'Ask to Speak'
-                )}
-              </Button>
-            </Card>
-          ))}
+                <div className="flex items-start gap-3 mb-2">
+                  <div
+                    className="w-3 h-3 rounded-full flex-shrink-0 mt-1"
+                    style={{ backgroundColor: persona.color }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1">
+                      <h3 className="font-medium text-foreground text-sm truncate">{persona.name}</h3>
+                      {isOrchestrator && (
+                        <Crown className="w-3 h-3 text-amber-500" />
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">{persona.role}</p>
+                  </div>
+                </div>
+                
+                <div className="text-xs text-muted-foreground mb-2">
+                  {persona.geminiModel === 'gemini-1.5-flash' ? 'Flash' : 'Pro'} • Temp: {persona.temperature}
+                </div>
+                
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full text-xs"
+                  onClick={() => handleAskToSpeak(persona.id)}
+                  disabled={thinkingPersonaId === persona.id || !!thinkingPersonaId || orchestratorRunning}
+                >
+                  {thinkingPersonaId === persona.id ? (
+                    <>
+                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      Thinking...
+                    </>
+                  ) : (
+                    'Ask to Speak'
+                  )}
+                </Button>
+              </Card>
+            );
+          })}
         </div>
 
         {/* Session Stats */}
@@ -175,6 +277,15 @@ function SessionContent() {
             </span>
             <span className="font-mono">{formatDuration(currentSession.createdAt)}</span>
           </div>
+          {currentSession.orchestratorEnabled && (
+            <div className="flex justify-between text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Sparkles className="w-3 h-3" />
+                Auto-replies
+              </span>
+              <span className="font-mono">{currentSession.autoReplyCount}/8</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -182,10 +293,28 @@ function SessionContent() {
       <div className="flex-1 flex flex-col bg-background">
         {/* Header */}
         <div className="border-b border-border bg-card p-4">
-          <h2 className="text-lg font-semibold">{currentSession.title}</h2>
-          <p className="text-xs text-muted-foreground line-clamp-1">
-            {currentSession.problemDescription}
-          </p>
+          <div className="flex items-center justify-between">
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg font-semibold">{currentSession.title}</h2>
+              <p className="text-xs text-muted-foreground line-clamp-1">
+                {currentSession.problemDescription}
+              </p>
+            </div>
+            {currentSession.orchestratorEnabled && (
+              <Badge 
+                variant="secondary" 
+                className={`
+                  ml-4 flex items-center gap-1
+                  ${orchestratorRunning ? 'bg-amber-500/20 text-amber-500 animate-pulse' : ''}
+                  ${orchestratorPaused ? 'bg-red-500/20 text-red-500' : ''}
+                  ${!orchestratorRunning && !orchestratorPaused ? 'bg-emerald-500/20 text-emerald-500' : ''}
+                `}
+              >
+                <Sparkles className="w-3 h-3" />
+                {orchestratorRunning ? 'Orchestrating...' : orchestratorPaused ? 'Paused' : 'Active'}
+              </Badge>
+            )}
+          </div>
         </div>
 
         {/* Messages */}
@@ -194,12 +323,20 @@ function SessionContent() {
             <div className="text-center py-12 text-muted-foreground">
               <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p className="mb-2">No messages yet</p>
-              <p className="text-sm">Start the discussion by asking a persona to speak or sending a message</p>
+              <p className="text-sm">
+                {currentSession.orchestratorEnabled 
+                  ? 'Send a message or the Orchestrator will guide the discussion'
+                  : 'Start the discussion by asking a persona to speak or sending a message'
+                }
+              </p>
             </div>
           ) : (
             messages.map((msg) => {
               const persona = sessionPersonas.find(p => p.id === msg.personaId);
               const isUser = msg.personaId === null;
+              const isIntervention = msg.metadata?.isIntervention;
+              const isOrchestratorMessage = msg.metadata?.isOrchestratorMessage || 
+                (persona?.id === currentSession.orchestratorPersonaId);
               
               return (
                 <div
@@ -208,12 +345,14 @@ function SessionContent() {
                 >
                   {/* Avatar */}
                   <div
-                    className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-medium"
+                    className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-medium ${
+                      isOrchestratorMessage ? 'ring-2 ring-amber-500' : ''
+                    }`}
                     style={{
                       backgroundColor: isUser ? '#6B7280' : persona?.color,
                     }}
                   >
-                    {isUser ? 'You' : persona?.name.charAt(0)}
+                    {isUser ? 'You' : isOrchestratorMessage ? <Crown className="w-4 h-4" /> : persona?.name.charAt(0)}
                   </div>
                   
                   {/* Message */}
@@ -222,6 +361,11 @@ function SessionContent() {
                       <span className="text-sm font-medium">
                         {isUser ? 'You' : persona?.name}
                       </span>
+                      {isIntervention && (
+                        <Badge variant="outline" className="text-xs text-amber-600 border-amber-600">
+                          Intervention
+                        </Badge>
+                      )}
                       <span className="text-xs text-muted-foreground">
                         {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
@@ -230,7 +374,9 @@ function SessionContent() {
                       className={`inline-block p-3 rounded-lg text-sm ${
                         isUser
                           ? 'bg-accent text-accent-foreground'
-                          : 'bg-card border border-border'
+                          : isIntervention
+                            ? 'bg-amber-500/10 border border-amber-500/30'
+                            : 'bg-card border border-border'
                       }`}
                     >
                       {msg.content}
@@ -273,6 +419,28 @@ function SessionContent() {
             </div>
           )}
           
+          {/* Orchestrator thinking indicator */}
+          {orchestratorRunning && !thinkingPersonaId && (
+            <div className="flex gap-3">
+              <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-medium bg-amber-500 animate-pulse">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-sm font-medium text-amber-600">Orchestrator</span>
+                  <span className="text-xs text-muted-foreground">Selecting next speaker...</span>
+                </div>
+                <div className="inline-block p-3 rounded-lg text-sm bg-amber-500/10 border border-amber-500/30">
+                  <div className="flex gap-1">
+                    <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-2 h-2 bg-amber-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
           <div ref={messagesEndRef} />
         </div>
 
@@ -280,7 +448,10 @@ function SessionContent() {
         <div className="border-t border-border p-4 bg-card">
           <div className="flex gap-2">
             <Input
-              placeholder="Share your thoughts with the council..."
+              placeholder={currentSession.orchestratorEnabled 
+                ? "Share your thoughts or let the Orchestrator guide the discussion..."
+                : "Share your thoughts with the council..."
+              }
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyDown={(e) => {
@@ -290,10 +461,11 @@ function SessionContent() {
                 }
               }}
               className="bg-input border-border"
+              disabled={orchestratorRunning}
             />
             <Button
               onClick={handleSendMessage}
-              disabled={!newMessage.trim()}
+              disabled={!newMessage.trim() || orchestratorRunning}
               className="bg-accent hover:bg-accent/90 text-accent-foreground flex-shrink-0"
             >
               <Send className="w-4 h-4" />
@@ -301,51 +473,60 @@ function SessionContent() {
           </div>
           <p className="text-xs text-muted-foreground mt-2">
             Press Enter to send, Shift+Enter for new line
+            {currentSession.orchestratorEnabled && orchestratorPaused && (
+              <span className="ml-2 text-amber-600">• Orchestrator paused - click Resume or Continue to proceed</span>
+            )}
           </p>
         </div>
       </div>
 
-      {/* RIGHT SIDEBAR - INFO */}
-      <div className="w-64 border-l border-border bg-card p-4 hidden lg:block">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">
-          Session Info
-        </h3>
-        
-        <div className="space-y-4">
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">Status</p>
-            <Badge 
-              variant="secondary" 
-              className={`
-                capitalize
-                ${currentSession.status === 'active' ? 'bg-emerald-500/20 text-emerald-500' : ''}
-                ${currentSession.status === 'completed' ? 'bg-blue-500/20 text-blue-500' : ''}
-              `}
-            >
-              {currentSession.status}
-            </Badge>
-          </div>
+      {/* RIGHT SIDEBAR - INFO & BLACKBOARD */}
+      <div className="w-80 border-l border-border bg-card p-4 hidden lg:block space-y-4">
+        {/* Session Info */}
+        <div>
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">
+            Session Info
+          </h3>
           
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">Goal</p>
-            <p className="text-sm text-foreground">
-              {currentSession.outputGoal || 'No specific goal set'}
-            </p>
-          </div>
-          
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">Participants</p>
-            <div className="flex items-center gap-1">
-              <Users className="w-3 h-3 text-muted-foreground" />
-              <span className="text-sm">{sessionPersonas.length} personas</span>
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Status</p>
+              <Badge 
+                variant="secondary" 
+                className={`
+                  capitalize
+                  ${currentSession.status === 'active' ? 'bg-emerald-500/20 text-emerald-500' : ''}
+                  ${currentSession.status === 'completed' ? 'bg-blue-500/20 text-blue-500' : ''}
+                `}
+              >
+                {currentSession.status}
+              </Badge>
+            </div>
+            
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Goal</p>
+              <p className="text-sm text-foreground">
+                {currentSession.outputGoal || 'No specific goal set'}
+              </p>
+            </div>
+            
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Participants</p>
+              <div className="flex items-center gap-1">
+                <Users className="w-3 h-3 text-muted-foreground" />
+                <span className="text-sm">{sessionPersonas.length} personas</span>
+              </div>
+            </div>
+            
+            <div>
+              <p className="text-xs text-muted-foreground mb-1">Messages</p>
+              <span className="text-sm font-mono">{messages.length}</span>
             </div>
           </div>
-          
-          <div>
-            <p className="text-xs text-muted-foreground mb-1">Messages</p>
-            <span className="text-sm font-mono">{messages.length}</span>
-          </div>
         </div>
+
+        {/* Blackboard Panel */}
+        <BlackboardPanel blackboard={blackboard || currentSession.blackboard} />
       </div>
     </div>
   );

@@ -1,14 +1,9 @@
-import { getDatabase, initializeDatabase } from './db.js';
+import { getDatabase, ensureDatabaseReady } from './db.js';
 import type { Persona, PersonaInput, Session, SessionInput, Message, MessageInput } from './types.js';
 
 // Ensure database is initialized before any query
-let dbInitPromise: Promise<void> | null = null;
-
 async function ensureDb(): Promise<void> {
-  if (!dbInitPromise) {
-    dbInitPromise = initializeDatabase().then(() => {});
-  }
-  await dbInitPromise;
+  await ensureDatabaseReady();
 }
 
 // Simple UUID generator
@@ -171,14 +166,20 @@ export async function deletePersona(id: string): Promise<void> {
 }
 
 // Session operations
-export async function createSession(data: SessionInput): Promise<Session> {
+export async function createSession(
+  data: SessionInput,
+  orchestratorConfig?: { enabled: boolean; orchestratorPersonaId?: string }
+): Promise<Session> {
   const id = generateUUID();
   const now = new Date().toISOString();
   
+  const orchestratorEnabled = orchestratorConfig?.enabled ?? false;
+  const orchestratorPersonaId = orchestratorConfig?.orchestratorPersonaId || null;
+  
   await runQuery(
-    `INSERT INTO sessions (id, title, problem_description, output_goal, status, token_count, cost_estimate, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, data.title, data.problemDescription, data.outputGoal, 'active', 0, 0.0, now, now]
+    `INSERT INTO sessions (id, title, problem_description, output_goal, status, token_count, cost_estimate, orchestrator_enabled, orchestrator_persona_id, blackboard, auto_reply_count, token_budget, summary, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, data.title, data.problemDescription, data.outputGoal, 'active', 0, 0.0, orchestratorEnabled ? 1 : 0, orchestratorPersonaId, null, 0, 100000, null, now, now]
   );
   
   return {
@@ -189,13 +190,19 @@ export async function createSession(data: SessionInput): Promise<Session> {
     status: 'active',
     tokenCount: 0,
     costEstimate: 0.0,
+    orchestratorEnabled,
+    orchestratorPersonaId,
+    blackboard: null,
+    autoReplyCount: 0,
+    tokenBudget: 100000,
+    summary: null,
     createdAt: now,
     updatedAt: now,
   };
 }
 
 export async function getSessions(): Promise<Session[]> {
-  return getAll<Session>(`
+  const rows = await getAll<any>(`
     SELECT 
       id,
       title,
@@ -204,15 +211,27 @@ export async function getSessions(): Promise<Session[]> {
       status,
       token_count as tokenCount,
       cost_estimate as costEstimate,
+      orchestrator_enabled as orchestratorEnabled,
+      orchestrator_persona_id as orchestratorPersonaId,
+      blackboard,
+      auto_reply_count as autoReplyCount,
+      token_budget as tokenBudget,
+      summary,
       created_at as createdAt,
       updated_at as updatedAt
     FROM sessions
     ORDER BY updated_at DESC
   `);
+  
+  return rows.map(row => ({
+    ...row,
+    orchestratorEnabled: Boolean(row.orchestratorEnabled),
+    blackboard: row.blackboard ? JSON.parse(row.blackboard) : null,
+  }));
 }
 
 export async function getSession(id: string): Promise<Session | null> {
-  return getOne<Session>(`
+  const row = await getOne<any>(`
     SELECT 
       id,
       title,
@@ -221,16 +240,40 @@ export async function getSession(id: string): Promise<Session | null> {
       status,
       token_count as tokenCount,
       cost_estimate as costEstimate,
+      orchestrator_enabled as orchestratorEnabled,
+      orchestrator_persona_id as orchestratorPersonaId,
+      blackboard,
+      auto_reply_count as autoReplyCount,
+      token_budget as tokenBudget,
+      summary,
       created_at as createdAt,
       updated_at as updatedAt
     FROM sessions
     WHERE id = ?
   `, [id]);
+  
+  if (!row) return null;
+  
+  return {
+    ...row,
+    orchestratorEnabled: Boolean(row.orchestratorEnabled),
+    blackboard: row.blackboard ? JSON.parse(row.blackboard) : null,
+  };
 }
 
 export async function updateSession(
   id: string, 
-  data: Partial<SessionInput> & { status?: string; tokenCount?: number; costEstimate?: number }
+  data: Partial<SessionInput> & { 
+    status?: string; 
+    tokenCount?: number; 
+    costEstimate?: number;
+    orchestratorEnabled?: boolean;
+    orchestratorPersonaId?: string | null;
+    blackboard?: any;
+    autoReplyCount?: number;
+    tokenBudget?: number;
+    summary?: string | null;
+  }
 ): Promise<Session> {
   const now = new Date().toISOString();
   
@@ -261,6 +304,30 @@ export async function updateSession(
     updates.push('cost_estimate = ?');
     values.push(data.costEstimate);
   }
+  if (data.orchestratorEnabled !== undefined) {
+    updates.push('orchestrator_enabled = ?');
+    values.push(data.orchestratorEnabled ? 1 : 0);
+  }
+  if (data.orchestratorPersonaId !== undefined) {
+    updates.push('orchestrator_persona_id = ?');
+    values.push(data.orchestratorPersonaId);
+  }
+  if (data.blackboard !== undefined) {
+    updates.push('blackboard = ?');
+    values.push(JSON.stringify(data.blackboard));
+  }
+  if (data.autoReplyCount !== undefined) {
+    updates.push('auto_reply_count = ?');
+    values.push(data.autoReplyCount);
+  }
+  if (data.tokenBudget !== undefined) {
+    updates.push('token_budget = ?');
+    values.push(data.tokenBudget);
+  }
+  if (data.summary !== undefined) {
+    updates.push('summary = ?');
+    values.push(data.summary);
+  }
   
   updates.push('updated_at = ?');
   values.push(now);
@@ -286,11 +353,12 @@ export async function deleteSession(id: string): Promise<void> {
 export async function createMessage(data: MessageInput): Promise<Message> {
   const id = generateUUID();
   const now = new Date().toISOString();
+  const metadataJson = data.metadata ? JSON.stringify(data.metadata) : null;
   
   await runQuery(
-    `INSERT INTO messages (id, session_id, persona_id, content, turn_number, token_count, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [id, data.sessionId, data.personaId, data.content, data.turnNumber, data.tokenCount || 0, now]
+    `INSERT INTO messages (id, session_id, persona_id, content, turn_number, token_count, metadata, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, data.sessionId, data.personaId, data.content, data.turnNumber, data.tokenCount || 0, metadataJson, now]
   );
   
   return {
@@ -300,12 +368,13 @@ export async function createMessage(data: MessageInput): Promise<Message> {
     content: data.content,
     turnNumber: data.turnNumber,
     tokenCount: data.tokenCount || 0,
+    metadata: data.metadata || null,
     createdAt: now,
   };
 }
 
 export async function getMessagesBySession(sessionId: string): Promise<Message[]> {
-  return getAll<Message>(`
+  const rows = await getAll<any>(`
     SELECT 
       id,
       session_id as sessionId,
@@ -313,15 +382,21 @@ export async function getMessagesBySession(sessionId: string): Promise<Message[]
       content,
       turn_number as turnNumber,
       token_count as tokenCount,
+      metadata,
       created_at as createdAt
     FROM messages
     WHERE session_id = ?
     ORDER BY turn_number ASC, created_at ASC
   `, [sessionId]);
+  
+  return rows.map(row => ({
+    ...row,
+    metadata: row.metadata ? JSON.parse(row.metadata) : null,
+  }));
 }
 
 export async function getLastMessages(sessionId: string, limit: number = 10): Promise<Message[]> {
-  const messages = await getAll<Message>(`
+  const rows = await getAll<any>(`
     SELECT 
       id,
       session_id as sessionId,
@@ -329,12 +404,18 @@ export async function getLastMessages(sessionId: string, limit: number = 10): Pr
       content,
       turn_number as turnNumber,
       token_count as tokenCount,
+      metadata,
       created_at as createdAt
     FROM messages
     WHERE session_id = ?
     ORDER BY turn_number DESC, created_at DESC
     LIMIT ?
   `, [sessionId, limit]);
+  
+  const messages = rows.map(row => ({
+    ...row,
+    metadata: row.metadata ? JSON.parse(row.metadata) : null,
+  }));
   
   return messages.reverse();
 }
@@ -387,4 +468,51 @@ export async function getNextTurnNumber(sessionId: string): Promise<number> {
   `, [sessionId]);
   
   return (result?.maxTurn || 0) + 1;
+}
+
+// Orchestrator operations
+export async function updateBlackboard(sessionId: string, blackboard: any): Promise<void> {
+  const blackboardJson = JSON.stringify(blackboard);
+  await runQuery(
+    'UPDATE sessions SET blackboard = ? WHERE id = ?',
+    [blackboardJson, sessionId]
+  );
+}
+
+export async function updateSessionSummary(sessionId: string, summary: string): Promise<void> {
+  await runQuery(
+    'UPDATE sessions SET summary = ? WHERE id = ?',
+    [summary, sessionId]
+  );
+}
+
+export async function incrementAutoReplyCount(sessionId: string): Promise<number> {
+  await runQuery(
+    'UPDATE sessions SET auto_reply_count = auto_reply_count + 1 WHERE id = ?',
+    [sessionId]
+  );
+  
+  const session = await getSession(sessionId);
+  return session?.autoReplyCount || 0;
+}
+
+export async function resetAutoReplyCount(sessionId: string): Promise<void> {
+  await runQuery(
+    'UPDATE sessions SET auto_reply_count = 0 WHERE id = ?',
+    [sessionId]
+  );
+}
+
+export async function enableOrchestrator(sessionId: string, orchestratorPersonaId: string): Promise<void> {
+  await runQuery(
+    'UPDATE sessions SET orchestrator_enabled = 1, orchestrator_persona_id = ? WHERE id = ?',
+    [orchestratorPersonaId, sessionId]
+  );
+}
+
+export async function disableOrchestrator(sessionId: string): Promise<void> {
+  await runQuery(
+    'UPDATE sessions SET orchestrator_enabled = 0, orchestrator_persona_id = NULL WHERE id = ?',
+    [sessionId]
+  );
 }

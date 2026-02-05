@@ -8,35 +8,53 @@ const path_1 = __importDefault(require("path"));
 const db_js_1 = require("./handlers/db.js");
 const llm_js_1 = require("./handlers/llm.js");
 const settings_js_1 = require("./handlers/settings.js");
+const orchestrator_js_1 = require("./handlers/orchestrator.js");
 let mainWindow = null;
 function createWindow() {
+    const preloadPath = path_1.default.join(__dirname, 'preload.js');
+    console.log('Loading preload script from:', preloadPath);
     mainWindow = new electron_1.BrowserWindow({
         width: 1400,
         height: 900,
         minWidth: 1200,
         minHeight: 700,
         webPreferences: {
-            preload: path_1.default.join(__dirname, 'preload.js'),
+            preload: preloadPath,
             contextIsolation: true,
             nodeIntegration: false,
-            sandbox: true,
+            // Disable sandbox to allow preload script to load properly
+            // This is safe because we use contextIsolation and don't expose Node APIs
+            sandbox: false,
         },
         titleBarStyle: 'default',
         show: false,
     });
-    // Set Content Security Policy for security
+    // Log preload script loading errors
+    mainWindow.webContents.on('preload-error', (event, preloadPath, error) => {
+        console.error('Preload script error:', preloadPath, error);
+    });
+    // Set Content Security Policy
+    // Note: These settings are for development. Production builds should use stricter CSP.
+    // The 'unsafe-eval' and 'unsafe-inline' are required for React development tools and HMR.
     mainWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
+        const isDev = process.env.NODE_ENV === 'development';
+        const cspDirectives = [
+            "default-src 'self'",
+            // In dev, allow unsafe-inline/eval for React dev tools; in prod, use strict settings
+            isDev
+                ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:3000"
+                : "script-src 'self'",
+            "style-src 'self' 'unsafe-inline'",
+            "img-src 'self' data: blob:",
+            "font-src 'self'",
+            isDev
+                ? "connect-src 'self' http://localhost:3000 ws://localhost:3000"
+                : "connect-src 'self'",
+        ];
         callback({
             responseHeaders: {
                 ...details.responseHeaders,
-                'Content-Security-Policy': [
-                    "default-src 'self'; " +
-                        "script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:3000; " +
-                        "style-src 'self' 'unsafe-inline'; " +
-                        "img-src 'self' data: blob:; " +
-                        "font-src 'self'; " +
-                        "connect-src 'self' http://localhost:3000 ws://localhost:3000;"
-                ],
+                'Content-Security-Policy': [cspDirectives.join('; ')],
             },
         });
     });
@@ -79,6 +97,7 @@ electron_1.app.whenReady().then(() => {
     (0, db_js_1.setupDatabaseHandlers)();
     (0, llm_js_1.setupLLMHandlers)();
     (0, settings_js_1.setupSettingsHandlers)();
+    (0, orchestrator_js_1.setupOrchestratorHandlers)();
     electron_1.app.on('activate', () => {
         if (electron_1.BrowserWindow.getAllWindows().length === 0) {
             createWindow();

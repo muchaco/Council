@@ -1,0 +1,133 @@
+  // Orchestrator actions
+  enableOrchestrator: async (orchestratorPersonaId: string) => {
+    const { currentSession } = get();
+    if (!currentSession) return;
+    
+    try {
+      const result = await window.electronOrchestrator.enable(currentSession.id, orchestratorPersonaId);
+      if (result.success) {
+        await get().updateSession(currentSession.id, {
+          orchestratorEnabled: true,
+          orchestratorPersonaId,
+        });
+        toast.success('Orchestrator enabled');
+      } else {
+        toast.error(result.error || 'Failed to enable orchestrator');
+      }
+    } catch (error) {
+      toast.error('Error enabling orchestrator');
+    }
+  },
+
+  disableOrchestrator: async () => {
+    const { currentSession } = get();
+    if (!currentSession) return;
+    
+    try {
+      const result = await window.electronOrchestrator.disable(currentSession.id);
+      if (result.success) {
+        await get().updateSession(currentSession.id, {
+          orchestratorEnabled: false,
+          orchestratorPersonaId: null,
+        });
+        set({ orchestratorRunning: false, orchestratorPaused: false });
+        toast.success('Orchestrator disabled');
+      } else {
+        toast.error(result.error || 'Failed to disable orchestrator');
+      }
+    } catch (error) {
+      toast.error('Error disabling orchestrator');
+    }
+  },
+
+  processOrchestratorTurn: async () => {
+    const { currentSession, orchestratorPaused } = get();
+    if (!currentSession || !currentSession.orchestratorEnabled || orchestratorPaused) return;
+    
+    try {
+      set({ orchestratorRunning: true });
+      
+      const result = await window.electronOrchestrator.processTurn(currentSession.id);
+      
+      if (!result.success) {
+        if (result.code === 'CIRCUIT_BREAKER') {
+          set({ orchestratorPaused: true });
+          toast.warning(result.error || 'Circuit breaker triggered');
+        } else {
+          toast.error(result.error || 'Orchestrator error');
+          set({ orchestratorRunning: false });
+        }
+        return;
+      }
+      
+      // Show warning if any
+      if (result.warning) {
+        toast.warning(result.warning);
+      }
+      
+      // Update blackboard if changed
+      if (result.blackboardUpdate && Object.keys(result.blackboardUpdate).length > 0) {
+        set(state => ({
+          blackboard: state.blackboard ? { ...state.blackboard, ...result.blackboardUpdate } : result.blackboardUpdate as BlackboardState,
+        }));
+      }
+      
+      // Handle different actions
+      if (result.action === 'WAIT_FOR_USER') {
+        set({ orchestratorRunning: false });
+        toast.info('Orchestrator waiting for user input');
+        return;
+      }
+      
+      if (result.action === 'TRIGGER_PERSONA' && result.personaId) {
+        // Trigger the persona response
+        await get().triggerPersonaResponse(result.personaId);
+        
+        // Continue orchestration loop if not paused
+        const { orchestratorPaused: stillPaused } = get();
+        if (!stillPaused) {
+          // Small delay to prevent rapid-fire requests
+          setTimeout(() => {
+            get().processOrchestratorTurn();
+          }, 1000);
+        } else {
+          set({ orchestratorRunning: false });
+        }
+      }
+    } catch (error) {
+      toast.error('Orchestrator error');
+      set({ orchestratorRunning: false });
+    }
+  },
+
+  pauseOrchestrator: () => {
+    set({ orchestratorPaused: true });
+    toast.info('Orchestrator paused');
+  },
+
+  resumeOrchestrator: () => {
+    set({ orchestratorPaused: false });
+    toast.info('Orchestrator resumed');
+    // Resume processing
+    get().processOrchestratorTurn();
+  },
+
+  resetCircuitBreaker: async () => {
+    const { currentSession } = get();
+    if (!currentSession) return;
+    
+    try {
+      const result = await window.electronOrchestrator.resetCircuitBreaker(currentSession.id);
+      if (result.success) {
+        await get().updateSession(currentSession.id, { autoReplyCount: 0 });
+        set({ orchestratorPaused: false });
+        toast.success('Circuit breaker reset');
+        // Resume orchestration
+        get().processOrchestratorTurn();
+      } else {
+        toast.error(result.error || 'Failed to reset circuit breaker');
+      }
+    } catch (error) {
+      toast.error('Error resetting circuit breaker');
+    }
+  },

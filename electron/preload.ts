@@ -41,11 +41,25 @@ const settingsAPI = {
   listModels: () => ipcRenderer.invoke('settings:listModels'),
 };
 
+// Orchestrator API
+const orchestratorAPI = {
+  enable: (sessionId: string, orchestratorPersonaId: string) => 
+    ipcRenderer.invoke('orchestrator:enable', { sessionId, orchestratorPersonaId }),
+  disable: (sessionId: string) => ipcRenderer.invoke('orchestrator:disable', sessionId),
+  processTurn: (sessionId: string) => ipcRenderer.invoke('orchestrator:processTurn', sessionId),
+  resetCircuitBreaker: (sessionId: string) => ipcRenderer.invoke('orchestrator:resetCircuitBreaker', sessionId),
+  getBlackboard: (sessionId: string) => ipcRenderer.invoke('orchestrator:getBlackboard', sessionId),
+  updateBlackboard: (sessionId: string, blackboard: unknown) => 
+    ipcRenderer.invoke('orchestrator:updateBlackboard', { sessionId, blackboard }),
+};
+
 // Expose APIs to renderer
 contextBridge.exposeInMainWorld('electronDB', dbAPI);
 contextBridge.exposeInMainWorld('electronLLM', llmAPI);
 contextBridge.exposeInMainWorld('electronSettings', settingsAPI);
+contextBridge.exposeInMainWorld('electronOrchestrator', orchestratorAPI);
 
 export type ElectronDB = typeof dbAPI;
 export type ElectronLLM = typeof llmAPI;
 export type ElectronSettings = typeof settingsAPI;
+export type ElectronOrchestrator = typeof orchestratorAPI;

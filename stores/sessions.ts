@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
-import type { Session, SessionInput, Message, Persona } from '../lib/types';
+import type { Session, SessionInput, Message, Persona, BlackboardState } from '../lib/types';
 
 interface SessionPersona extends Persona {
   isOrchestrator: boolean;
@@ -13,15 +13,24 @@ interface SessionsState {
   sessionPersonas: SessionPersona[];
   isLoading: boolean;
   thinkingPersonaId: string | null;
+  orchestratorRunning: boolean;
+  orchestratorPaused: boolean;
+  blackboard: BlackboardState | null;
   
   // Actions
   fetchSessions: () => Promise<void>;
-  createSession: (data: SessionInput, personaIds: string[]) => Promise<string | null>;
+  createSession: (data: SessionInput, personaIds: string[], orchestratorConfig?: { enabled: boolean; orchestratorPersonaId?: string }) => Promise<string | null>;
   loadSession: (id: string) => Promise<void>;
-  updateSession: (id: string, data: Partial<SessionInput> & { status?: string; tokenCount?: number; costEstimate?: number }) => Promise<void>;
+  updateSession: (id: string, data: Partial<SessionInput> & { status?: string; tokenCount?: number; costEstimate?: number; orchestratorEnabled?: boolean; orchestratorPersonaId?: string | null; blackboard?: BlackboardState; autoReplyCount?: number; tokenBudget?: number; summary?: string | null }) => Promise<void>;
   deleteSession: (id: string) => Promise<boolean>;
   sendUserMessage: (content: string) => Promise<void>;
   triggerPersonaResponse: (personaId: string) => Promise<void>;
+  enableOrchestrator: (orchestratorPersonaId: string) => Promise<void>;
+  disableOrchestrator: () => Promise<void>;
+  processOrchestratorTurn: () => Promise<void>;
+  pauseOrchestrator: () => void;
+  resumeOrchestrator: () => void;
+  resetCircuitBreaker: () => Promise<void>;
   clearCurrentSession: () => void;
 }
 
@@ -32,6 +41,9 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   sessionPersonas: [],
   isLoading: false,
   thinkingPersonaId: null,
+  orchestratorRunning: false,
+  orchestratorPaused: false,
+  blackboard: null,
 
   fetchSessions: async () => {
     try {
@@ -49,12 +61,12 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     }
   },
 
-  createSession: async (data: SessionInput, personaIds: string[]) => {
+  createSession: async (data: SessionInput, personaIds: string[], orchestratorConfig?: { enabled: boolean; orchestratorPersonaId?: string }) => {
     try {
       set({ isLoading: true });
       
-      // Create session
-      const sessionResult = await window.electronDB.createSession(data);
+      // Create session with orchestrator config
+      const sessionResult = await window.electronDB.createSession({ ...data, orchestratorConfig });
       if (!sessionResult.success || !sessionResult.data) {
         toast.error(sessionResult.error || 'Failed to create session');
         return null;
@@ -64,7 +76,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       
       // Add personas to session
       for (const personaId of personaIds) {
-        await window.electronDB.addPersonaToSession(session.id, personaId, false);
+        const isOrchestrator = !!(orchestratorConfig?.enabled && orchestratorConfig.orchestratorPersonaId === personaId);
+        await window.electronDB.addPersonaToSession(session.id, personaId, isOrchestrator);
       }
       
       set(state => ({
@@ -190,13 +203,27 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     try {
       set({ thinkingPersonaId: personaId });
       
+      // Get blackboard state
+      const blackboard = currentSession.blackboard || {
+        consensus: '', conflicts: '', nextStep: '', facts: ''
+      };
+      
+      // Get other personas for context
+      const otherPersonas = sessionPersonas
+        .filter(p => p.id !== personaId)
+        .map(p => ({ id: p.id, name: p.name, role: p.role }));
+      
       const request = {
         personaId,
         sessionId: currentSession.id,
         model: persona.geminiModel,
         systemPrompt: persona.systemPrompt,
+        hiddenAgenda: persona.hiddenAgenda,
         temperature: persona.temperature,
         problemContext: currentSession.problemDescription,
+        outputGoal: currentSession.outputGoal,
+        blackboard,
+        otherPersonas,
       };
       
       const result = await window.electronLLM.chat(request);
@@ -241,6 +268,149 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       currentSession: null,
       messages: [],
       sessionPersonas: [],
+      orchestratorRunning: false,
+      orchestratorPaused: false,
+      blackboard: null,
     });
+  },
+
+  // Orchestrator actions
+  enableOrchestrator: async (orchestratorPersonaId: string) => {
+    const { currentSession } = get();
+    if (!currentSession) return;
+    
+    try {
+      const result = await window.electronOrchestrator.enable(currentSession.id, orchestratorPersonaId);
+      if (result.success) {
+        await get().updateSession(currentSession.id, {
+          orchestratorEnabled: true,
+          orchestratorPersonaId,
+        });
+        toast.success('Orchestrator enabled');
+      } else {
+        toast.error(result.error || 'Failed to enable orchestrator');
+      }
+    } catch (error) {
+      toast.error('Error enabling orchestrator');
+    }
+  },
+
+  disableOrchestrator: async () => {
+    const { currentSession } = get();
+    if (!currentSession) return;
+    
+    try {
+      const result = await window.electronOrchestrator.disable(currentSession.id);
+      if (result.success) {
+        await get().updateSession(currentSession.id, {
+          orchestratorEnabled: false,
+          orchestratorPersonaId: null,
+        });
+        set({ orchestratorRunning: false, orchestratorPaused: false });
+        toast.success('Orchestrator disabled');
+      } else {
+        toast.error(result.error || 'Failed to disable orchestrator');
+      }
+    } catch (error) {
+      toast.error('Error disabling orchestrator');
+    }
+  },
+
+  processOrchestratorTurn: async () => {
+    const { currentSession, orchestratorPaused } = get();
+    if (!currentSession || !currentSession.orchestratorEnabled || orchestratorPaused) return;
+    
+    try {
+      set({ orchestratorRunning: true });
+      
+      const result = await window.electronOrchestrator.processTurn(currentSession.id);
+      
+      if (!result.success) {
+        if (result.code === 'CIRCUIT_BREAKER') {
+          set({ orchestratorPaused: true });
+          toast.warning(result.error || 'Circuit breaker triggered');
+        } else if (result.code === 'SELECTOR_AGENT_ERROR') {
+          set({ orchestratorRunning: false });
+          toast.error(result.error || 'Selector agent error');
+        } else {
+          toast.error(result.error || 'Orchestrator error');
+          set({ orchestratorRunning: false });
+        }
+        return;
+      }
+      
+      // Show warning if any
+      if (result.warning) {
+        toast.warning(result.warning);
+      }
+      
+      // Update blackboard if changed
+      if (result.blackboardUpdate && Object.keys(result.blackboardUpdate).length > 0) {
+        const update = result.blackboardUpdate as Partial<BlackboardState>;
+        set(state => ({
+          blackboard: state.blackboard 
+            ? { ...state.blackboard, ...update } 
+            : { consensus: '', conflicts: '', nextStep: '', facts: '', ...update },
+        }));
+      }
+      
+      // Handle different actions
+      if (result.action === 'WAIT_FOR_USER') {
+        set({ orchestratorRunning: false });
+        toast.info('Orchestrator waiting for user input');
+        return;
+      }
+      
+      if (result.action === 'TRIGGER_PERSONA' && result.personaId) {
+        // Trigger the persona response
+        await get().triggerPersonaResponse(result.personaId);
+        
+        // Continue orchestration loop if not paused
+        const { orchestratorPaused: stillPaused } = get();
+        if (!stillPaused) {
+          // Small delay to prevent rapid-fire requests
+          setTimeout(() => {
+            get().processOrchestratorTurn();
+          }, 1000);
+        } else {
+          set({ orchestratorRunning: false });
+        }
+      }
+    } catch (error) {
+      toast.error('Orchestrator error');
+      set({ orchestratorRunning: false });
+    }
+  },
+
+  pauseOrchestrator: () => {
+    set({ orchestratorPaused: true });
+    toast.info('Orchestrator paused');
+  },
+
+  resumeOrchestrator: () => {
+    set({ orchestratorPaused: false });
+    toast.info('Orchestrator resumed');
+    // Resume processing
+    get().processOrchestratorTurn();
+  },
+
+  resetCircuitBreaker: async () => {
+    const { currentSession } = get();
+    if (!currentSession) return;
+    
+    try {
+      const result = await window.electronOrchestrator.resetCircuitBreaker(currentSession.id);
+      if (result.success) {
+        await get().updateSession(currentSession.id, { autoReplyCount: 0 });
+        set({ orchestratorPaused: false });
+        toast.success('Circuit breaker reset');
+        // Resume orchestration
+        get().processOrchestratorTurn();
+      } else {
+        toast.error(result.error || 'Failed to reset circuit breaker');
+      }
+    } catch (error) {
+      toast.error('Error resetting circuit breaker');
+    }
   },
 }));
