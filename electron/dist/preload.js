@@ -44,9 +44,14 @@ const orchestratorAPI = {
     getBlackboard: (sessionId) => electron_1.ipcRenderer.invoke('orchestrator:getBlackboard', sessionId),
     updateBlackboard: (sessionId, blackboard) => electron_1.ipcRenderer.invoke('orchestrator:updateBlackboard', { sessionId, blackboard }),
 };
+// Export API
+const exportAPI = {
+    exportSessionToMarkdown: (sessionId) => electron_1.ipcRenderer.invoke('export:sessionToMarkdown', sessionId),
+};
 // Expose APIs to renderer
 electron_1.contextBridge.exposeInMainWorld('electronDB', dbAPI);
 electron_1.contextBridge.exposeInMainWorld('electronLLM', llmAPI);
 electron_1.contextBridge.exposeInMainWorld('electronSettings', settingsAPI);
 electron_1.contextBridge.exposeInMainWorld('electronOrchestrator', orchestratorAPI);
+electron_1.contextBridge.exposeInMainWorld('electronExport', exportAPI);
 //# sourceMappingURL=preload.js.map

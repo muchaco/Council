@@ -43,6 +43,7 @@ export default function PersonasPage() {
     temperature: 0.7,
     color: PERSONA_COLORS[0].value,
     hiddenAgenda: '',
+    verbosity: '',
   });
 
   useEffect(() => {
@@ -63,6 +64,7 @@ export default function PersonasPage() {
       temperature: 0.7,
       color: PERSONA_COLORS[0].value,
       hiddenAgenda: '',
+      verbosity: '',
     });
     setIsFormOpen(true);
   };
@@ -78,6 +80,7 @@ export default function PersonasPage() {
       temperature: persona.temperature,
       color: persona.color,
       hiddenAgenda: persona.hiddenAgenda || '',
+      verbosity: persona.verbosity || '',
     });
     setIsFormOpen(true);
   };
@@ -379,6 +382,20 @@ export default function PersonasPage() {
                 className="mt-1 w-full px-3 py-2 bg-input border border-border rounded text-foreground text-sm resize-none"
                 rows={2}
               />
+            </div>
+
+            {/* Verbosity (Optional) */}
+            <div>
+              <label className="text-sm font-medium text-foreground">Verbosity (Optional)</label>
+              <Input
+                value={formData.verbosity || ''}
+                onChange={(e) => handleInputChange('verbosity', e.target.value)}
+                placeholder="e.g., '5' or 'Always answer in 2-3 sentences'"
+                className="mt-1 bg-input border-border text-foreground"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Enter a number (1-10) or custom instruction to control response length
+              </p>
             </div>
           </div>
 

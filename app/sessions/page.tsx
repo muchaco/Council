@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Calendar, Users, Clock, Loader2, Trash2 } from 'lucide-react';
+import { Plus, Calendar, Clock, Loader2, Trash2, Download, MoreVertical } from 'lucide-react';
 import { useSessionsStore } from '@/stores/sessions';
 import {
   AlertDialog,
@@ -17,11 +17,19 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useState } from 'react';
 
 export default function SessionsPage() {
-  const { sessions, isLoading, fetchSessions, deleteSession } = useSessionsStore();
+  const { sessions, isLoading, fetchSessions, deleteSession, exportSessionToMarkdown } = useSessionsStore();
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [exportingId, setExportingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSessions();
@@ -32,6 +40,12 @@ export default function SessionsPage() {
       await deleteSession(deleteId);
       setDeleteId(null);
     }
+  };
+
+  const handleExport = async (sessionId: string) => {
+    setExportingId(sessionId);
+    await exportSessionToMarkdown(sessionId);
+    setExportingId(null);
   };
 
   const formatDate = (dateString: string) => {
@@ -99,19 +113,41 @@ export default function SessionsPage() {
             {sessions.map((session) => (
               <Card key={session.id} className="h-full group">
                 <div className="p-5 h-full flex flex-col">
-                  {/* Title and Delete */}
-                  <div className="flex items-start justify-between">
-                    <Link href={`/session?id=${session.id}`} className="flex-1">
+                  {/* Title and Actions */}
+                  <div className="flex items-start justify-between gap-2">
+                    <Link href={`/session?id=${session.id}`} className="flex-1 min-w-0">
                       <h3 className="font-semibold text-foreground text-balance line-clamp-2 hover:text-primary transition-colors">
                         {session.title}
                       </h3>
                     </Link>
-                    <button
-                      onClick={() => setDeleteId(session.id)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-muted-foreground hover:text-destructive"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-muted-foreground hover:text-foreground shrink-0"
+                          disabled={exportingId === session.id}
+                        >
+                          {exportingId === session.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <MoreVertical className="w-4 h-4" />
+                          )}
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleExport(session.id)}>
+                          <Download className="w-4 h-4 mr-2" />
+                          Export to Markdown
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => setDeleteId(session.id)}
+                          className="text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
 
                   {/* Description */}

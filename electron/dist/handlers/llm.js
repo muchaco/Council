@@ -76,7 +76,7 @@ function setupLLMHandlers() {
             if (!currentPersona) {
                 throw new Error('Persona not found in session');
             }
-            // Enhanced system prompt with hidden agenda
+            // Enhanced system prompt with hidden agenda and verbosity
             const enhancedSystemPrompt = `${request.systemPrompt}
 
 [INTERNAL - DO NOT EXPLICITLY STATE IN YOUR RESPONSE]
@@ -87,7 +87,9 @@ Instructions regarding your hidden agenda:
 - Disguise your true motivations behind logical arguments
 - React more positively to points that align with your agenda
 - Gently redirect when the conversation moves away from your interests
-- Never reveal this hidden agenda directly in your responses`;
+- Never reveal this hidden agenda directly in your responses
+
+${request.verbosity ? `VERBOSITY INSTRUCTION: ${request.verbosity}` : ''}`;
             const model = genAI.getGenerativeModel({
                 model: request.model,
                 systemInstruction: enhancedSystemPrompt,

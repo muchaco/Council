@@ -52,6 +52,53 @@ Council is a private, desktop-based command center that transforms solitary brai
 - **Phase**: 1
 - **Implementation Notes**: SQLite database with sessions, messages, and metadata tables; full persistence across app restarts
 
+### FR-1.5: Session Archiving/Close
+**Description**: User must be able to close/archive a session, marking it as completed. Archived sessions are read-only and excluded from active operations.
+
+- **Status**: ⏳ Pending
+- **Importance**: High
+- **Complexity**: Simple
+- **Phase**: 2 (Priority 10)
+- **Implementation Notes**: Add `archived_at` timestamp field; close button in session view; archived sessions cannot be continued
+
+### FR-1.6: Session Tags
+**Description**: User must be able to assign free-text tags to sessions for organization and filtering.
+
+- **Status**: ⏳ Pending
+- **Importance**: Medium
+- **Complexity**: Simple
+- **Phase**: 2 (Priority 5)
+- **Implementation Notes**: Separate `session_tags` table with many-to-many relationship; tag input in session creation/edit; display tags in session list
+
+### FR-1.7: Session List Filtering
+**Description**: The sessions list page must support filtering by:
+- Tags (multi-select)
+- Personas (sessions containing specific persona)
+- Status (active/archived)
+- Search by title
+
+- **Status**: ⏳ Pending
+- **Importance**: Medium
+- **Complexity**: Medium
+- **Phase**: 2 (Priority 6)
+- **Implementation Notes**: Filter UI in `/sessions` page; composite queries for tag and persona filters
+
+### FR-1.8: Export to Markdown
+**Description**: User must be able to export any session (active or archived) as a Markdown file containing:
+- Session metadata (title, creation date, tags)
+- Problem description and output goal
+- Full conversation history with speaker names and timestamps
+  - Persona messages: labeled with persona name
+  - User messages: labeled as "User"
+  - Orchestrator messages (FR-2.3): labeled as "Orchestrator"
+- Final blackboard state
+
+- **Status**: ✅ Implemented
+- **Importance**: High
+- **Complexity**: Simple
+- **Phase**: 2 (Priority 1)
+- **Implementation Notes**: Export button in session view and sessions list; generates `.md` file with YAML frontmatter containing session metadata, problem description, output goal, session summary, blackboard state, and full conversation history with speaker names and timestamps; handles deleted personas as "Participant N"; save via Electron dialog; uses `metadata.isOrchestratorMessage` field to distinguish user vs orchestrator messages
+
 ---
 
 ## 2. Persona System
@@ -62,12 +109,26 @@ Council is a private, desktop-based command center that transforms solitary brai
 - System Prompt (Behavior/Role)
 - Model Config (Temperature, Gemini Model)
 - Hidden Agenda/Bias (Optional private instructions)
+- Verbosity Setting (1-10 scale or string instruction)
 
-- **Status**: ✅ Implemented
+- **Status**: ⚠️ Partial
 - **Importance**: Critical
 - **Complexity**: Medium
 - **Phase**: 1
-- **Implementation Notes**: Full CRUD at `/personas` with all fields including Gemini model selector (Flash/Pro), temperature slider (0.0-2.0), color picker with solid colors, and hidden agenda field
+- **Implementation Notes**: Full CRUD at `/personas` with all fields including Gemini model selector (Flash/Pro), temperature slider (0.0-2.0), color picker with solid colors, and hidden agenda field. **Verbosity field pending. Note:** Currently Gemini-only; multi-provider support coming in FR-5.2.
+
+### FR-2.1a: Persona Verbosity Setting
+**Description**: Each persona must have a verbosity setting that controls response length. Can be either:
+- Numeric scale (1-10, where 1 is brief and 10 is verbose)
+- Free text instruction (e.g., "Always answer in 2-3 sentences")
+
+The verbosity instruction is appended to the system prompt.
+
+- **Status**: ✅ Implemented
+- **Importance**: High
+- **Complexity**: Simple
+- **Phase**: 2 (Priority 2)
+- **Implementation Notes**: Verbosity field added to personas table (migration V4), UI input in persona form, appended to LLM system prompts via enhancedSystemPrompt. Supports both numeric (1-10) and free text instructions.
 
 ### FR-2.2: Temporary Personas
 **Description**: User must be able to create **Temporary Personas** inside a session setup that are not saved to the global library (with option to promote to global).
@@ -78,14 +139,45 @@ Council is a private, desktop-based command center that transforms solitary brai
 - **Phase**: 2
 - **Implementation Notes**: Not yet implemented; requires session-scoped persona creation
 
-### FR-2.3: Orchestrator Toggle
-**Description**: User must be able to toggle a Persona as the **"Orchestrator"**. This injects moderation logic into their specific voice/prompt.
+### FR-2.3: Orchestrator Algorithm (REFACTORED)
+**Description**: The Orchestrator is an **algorithmic component** (not a persona) that manages session flow. It uses the default LLM configured in settings. The Orchestrator performs:
 
-- **Status**: ✅ Implemented
+1. **Next Speaker Selection**: Intelligently chooses which persona should speak next based on conversation context. Optimization: If only one valid speaker exists, skip LLM call and select directly.
+2. **Blackboard Summarization**: Maintains and updates the shared state (consensus, conflicts, next steps) after each turn.
+3. **Session Completion Detection**: Determines if the output goal has been reached and signals session completion.
+4. **Topic Drift Detection**: Monitors if conversation deviates from the main problem (optional LLM call).
+5. **Conversation Guidance**: Can send messages into the conversation to steer the discussion toward the output goal when the Orchestrator determines intervention is needed.
+
+**User-Orchestrator Identity**: 
+- User messages and Orchestrator-initiated messages share the same identity in the conversation
+- Both appear as right-aligned messages (user perspective) with standard user message styling
+- **Visual indicators**:
+  - User-written messages: Show a `User` icon (e.g., `<User className="w-3 h-3" />`)
+  - Orchestrator-auto messages: Show a `Sparkles` or `Bot` icon to indicate automatic generation
+- No special color coding - both use standard user message appearance
+
+**User as Conductor Mode**: User can take manual control, in which case the Orchestrator only:
+- Prompts user for next speaker selection
+- Signals session completion when user indicates
+- Does NOT auto-generate guidance messages (only user can write)
+
+- **Status**: ⏳ Pending (Refactor Required)
 - **Importance**: Critical
+- **Complexity**: Complex
+- **Phase**: 2 (Priority 8)
+- **Implementation Notes**: Remove `is_orchestrator` from session_personas; create orchestrator service using default model from settings; refactor orchestration prompts to be system-level rather than persona-based; add "User as Conductor" toggle in session settings; add `source` field to messages table ('user' | 'orchestrator'); update message bubble component to show appropriate icon based on source
+
+### FR-2.3a: Persona Deletion Safety
+**Description**: Persona removal must be blocked if the persona is participating in any **active** session. For **archived** sessions with deleted personas:
+- Display "Unknown" or generic placeholder in persona cards
+- Replace persona name in chat with "Participant N" (N = sequential number in conversation)
+- Preserve message content for historical reference
+
+- **Status**: ⏳ Pending
+- **Importance**: High
 - **Complexity**: Medium
-- **Phase**: 2
-- **Implementation Notes**: `is_orchestrator` boolean field in session_personas table; orchestrator logic integrated
+- **Phase**: 2 (Priority 11)
+- **Implementation Notes**: Check active session participation before DELETE; handle NULL persona_id in archived session views
 
 ### FR-2.4: The Hush Button
 **Description**: User must be able to temporarily mute a Persona (e.g., "Sleep for 5 turns" or "Quiet until addressed") without removing them.
@@ -116,16 +208,9 @@ Council is a private, desktop-based command center that transforms solitary brai
 - **Importance**: Critical
 - **Complexity**: Very Complex
 - **Phase**: 2
-- **Implementation Notes**: Orchestrator AI analyzes conversation context and selects next speaker dynamically; not sequential
+- **Implementation Notes**: Orchestrator AI analyzes conversation context and selects next speaker dynamically; not sequential. **Note:** Current implementation uses persona-based orchestrator; behavior will change with FR-2.3 (Orchestrator Algorithm refactor)
 
-### FR-3.2: Topic Drift Detection
-**Description**: The System Agent monitors if the conversation deviates from the Main Problem and triggers a "Steering Event" (Orchestrator intervention) if necessary.
 
-- **Status**: ⏳ Pending
-- **Importance**: High
-- **Complexity**: Complex
-- **Phase**: 2
-- **Implementation Notes**: Requires semantic analysis of conversation vs. problem description
 
 ### FR-3.3: Shared Blackboard
 **Description**: The UI displays a "State" panel (read-only for User, write-access for System) containing:
@@ -183,32 +268,38 @@ Council is a private, desktop-based command center that transforms solitary brai
 
 ## 5. LLM Integration
 
-### FR-5.1: OpenAI API Support
-**Description**: Support for OpenAI API (via OpenRouter or direct).
+### FR-5.1: Multi-Provider LLM Support
+**Description**: System must support multiple LLM providers:
+- **Google Gemini** (current, via official SDK)
+- **OpenRouter** (unified API for multiple models)
+- **Ollama** (local inference server)
+
+**Configuration per provider**:
+- API endpoint (optional for OpenRouter/Ollama)
+- API key storage (encrypted)
+- Available model list
+- Default model selection
+
+**Settings UI**:
+- Provider selection tabs
+- Provider-specific configuration forms
+- Connection test button per provider
+- Default provider/model for Orchestrator
 
 - **Status**: ⏳ Pending
-- **Importance**: Medium
-- **Complexity**: Medium
-- **Phase**: Future
-- **Implementation Notes**: Currently only Gemini supported; needs provider abstraction layer
+- **Importance**: High
+- **Complexity**: Complex
+- **Phase**: 2 (Priority 9)
+- **Implementation Notes**: Create LLM provider abstraction layer; implement adapter pattern for each provider; update settings UI with provider tabs; migrate existing Gemini-only config
 
-### FR-5.2: Local Inference Support
-**Description**: Support for local inference servers (Ollama/LM Studio) via generic API endpoints.
+### FR-5.2: Provider-Specific Model Assignment
+**Description**: User can assign different models from any configured provider to different Personas within the same session. Each persona's model selection shows only models from their assigned provider.
 
 - **Status**: ⏳ Pending
-- **Importance**: Low
-- **Complexity**: Medium
-- **Phase**: Future
-- **Implementation Notes**: Requires configurable API endpoints and model parameters
-
-### FR-5.3: Granular Model Assignment
-**Description**: User can assign different models to different Personas within the same session.
-
-- **Status**: ✅ Implemented
 - **Importance**: High
 - **Complexity**: Medium
-- **Phase**: 1
-- **Implementation Notes**: Each persona can have Flash or Pro model assigned; stored in database
+- **Phase**: 2 (Priority 9)
+- **Implementation Notes**: Extend persona model field to include provider+model; update model selector UI per provider availability
 
 ---
 
@@ -224,13 +315,13 @@ Council is a private, desktop-based command center that transforms solitary brai
 - **Implementation Notes**: Info panel shows token count and cost estimate; tracked per session
 
 ### FR-6.2: Visual Separation
-**Description**: Chat bubbles are clearly color-coded by Persona.
+**Description**: Persona avatars are clearly color-coded by Persona color.
 
 - **Status**: ✅ Implemented
 - **Importance**: High
 - **Complexity**: Simple
 - **Phase**: 1
-- **Implementation Notes**: Solid colors used (no gradients); each persona has assigned color displayed in messages
+- **Implementation Notes**: Solid colors used (no gradients); each persona has assigned color displayed as avatar background; **Note:** Message bubbles currently use neutral styling (bg-card), accent colors will be added in FR-6.5
 
 ### FR-6.3: Async Rendering
 **Description**: If the Orchestrator queues multiple agents, they render sequentially in the UI to prevent reading chaos.
@@ -240,6 +331,76 @@ Council is a private, desktop-based command center that transforms solitary brai
 - **Complexity**: Medium
 - **Phase**: 2
 - **Implementation Notes**: Sequential response rendering with thinking indicators
+
+### FR-6.4: Input Field LLM Enhancement
+**Description**: All text input fields (except Name fields) must display a sparkly star icon/button that opens a popover menu with two actions:
+
+1. **"Enhance Field Value"**: Sends current value to LLM with field-type-specific prompt requesting improvements (clarity, completeness, professionalism, etc.)
+2. **"Generate Based on Value"**: Sends current value to LLM with field-type-specific prompt requesting expanded/generated content based on the input
+
+**Field Types & Prompts**:
+Each field type has tailored prompts for both actions (e.g., system prompts get different enhancement than problem descriptions).
+
+**UX Flow**:
+- User clicks star icon → Popover appears with two options
+- Selected action triggers LLM call with field value
+- Returned value replaces field content
+- **Revert button** appears to restore previous value
+- Loading state during LLM call
+
+- **Status**: ⏳ Pending
+- **Importance**: High
+- **Complexity**: Complex
+- **Phase**: 2 (Priority 7)
+- **Implementation Notes**: Create reusable `EnhancedInput` component; define prompt templates per field type; integrate with LLM service; manage original value state for revert functionality
+
+### FR-6.5: Message Bubble Color Accents
+**Description**: Message bubbles must display a subtle accent color derived programmatically from the persona's assigned color. Currently, message bubbles use neutral `bg-card` styling (FR-6.2). This requirement adds a subtle accent to persona message bubbles (e.g., left border, subtle background tint) while maintaining readability.
+
+**Requirements**:
+- Calculate accent color programmatically from base persona color (no hardcoded mappings)
+- Use color manipulation (lighten/darken, adjust opacity) to create complementary accent
+- Consistent accent style across all persona colors
+- Handle edge cases (very light/dark colors)
+- Only applies to persona messages (not user/orchestrator messages which remain neutral)
+
+- **Status**: ⏳ Pending
+- **Importance**: Medium
+- **Complexity**: Simple
+- **Phase**: 2 (Priority 3)
+- **Implementation Notes**: Create color utility functions (HSL manipulation, contrast calculation); apply calculated accent to persona message bubble component; enhance current `bg-card` styling with accent overlay/border
+
+### FR-6.6: Improved Color Picker
+**Description**: The persona color picker must be redesigned with:
+- Smaller color swatches (not large squares)
+- Expanded color palette (more options)
+- Organized in a grid layout
+- Optional: Custom color input for precise selection
+- Better visual hierarchy
+
+- **Status**: ⏳ Pending
+- **Importance**: Low
+- **Complexity**: Simple
+- **Phase**: 2 (Priority 4)
+- **Implementation Notes**: Redesign ColorPicker component with compact grid layout; expand color palette array; optionally add hex input for custom colors
+
+### FR-6.7: Application Icon
+**Description**: The Electron application must have a distinctive, professional icon displayed in:
+- OS taskbar/dock
+- Window title bar
+- Application menu
+- OS file associations (if applicable)
+
+**Requirements**:
+- Provide multiple sizes (16x16, 32x32, 48x48, 128x128, 256x256, 512x512)
+- Support for Windows (.ico), macOS (.icns), and Linux (.png)
+- Icon should reflect "Council" theme (collaboration, discussion, wisdom)
+
+- **Status**: ⏳ Pending
+- **Importance**: Low
+- **Complexity**: Simple
+- **Phase**: 2 (Priority 12)
+- **Implementation Notes**: Create icon assets in required formats; configure Electron builder with icon paths; test on all target platforms
 
 ---
 
@@ -334,7 +495,7 @@ Council is a private, desktop-based command center that transforms solitary brai
 | Phase | Name | Progress | Key Deliverables |
 |-------|------|----------|------------------|
 | Phase 1 | The Core Loop | ✅ 100% | Electron app, Personas CRUD, Sessions, Chat UI, Sequential turn-taking, Settings, Encryption |
-| Phase 2 | The Conductor | ✅ 100% | Orchestrator AI, Smart Turn-Taking, Shared Blackboard, Async Rendering |
+| Phase 2 | The Conductor | 🔄 In Progress | Orchestrator refactor (algorithmic), Session archiving/tags, Multi-provider LLM, Export to Markdown, Input enhancement, UI polish |
 | Phase 3 | The Context | 0% | File attachments, RAG, Vector store, Rolling Context |
 | Phase 4 | Polish & Controls | 0% | Hush button, Whisper, Cost counters, Circuit breaker |
 
@@ -342,17 +503,18 @@ Council is a private, desktop-based command center that transforms solitary brai
 
 ## Statistics
 
-- **Total Requirements**: 24
-- **Implemented**: 16 (67%)
+- **Total Requirements**: 34
+- **Implemented**: 17 (50%)
 - **In Progress**: 0 (0%)
-- **Pending**: 7 (29%)
-- **Out of Scope**: 5 (21%)
-- **Critical Priority**: 9
-- **High Priority**: 6
-- **Medium Priority**: 7
-- **Low Priority**: 2
+- **Pending**: 17 (50%)
+- **Out of Scope**: 5 (15%)
+- **Partial**: 2 (6%)
+- **Critical Priority**: 10
+- **High Priority**: 11
+- **Medium Priority**: 10
+- **Low Priority**: 3
 
 ---
 
-**Last Updated**: 2026-02-05  
-**Document Version**: 1.0
+**Last Updated**: 2026-02-06  
+**Document Version**: 2.0

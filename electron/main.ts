@@ -4,6 +4,7 @@ import { setupDatabaseHandlers } from './handlers/db.js';
 import { setupLLMHandlers } from './handlers/llm.js';
 import { setupSettingsHandlers } from './handlers/settings.js';
 import { setupOrchestratorHandlers } from './handlers/orchestrator.js';
+import { setupExportHandlers } from './handlers/export.js';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -107,6 +108,7 @@ app.whenReady().then(() => {
   setupLLMHandlers();
   setupSettingsHandlers();
   setupOrchestratorHandlers();
+  setupExportHandlers();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

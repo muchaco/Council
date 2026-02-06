@@ -17,7 +17,7 @@ let db = null;
 let initPromise = null;
 let initAttempts = 0;
 const MAX_INIT_ATTEMPTS = 3;
-const CURRENT_SCHEMA_VERSION = 3;
+const CURRENT_SCHEMA_VERSION = 4;
 function getDatabasePath() {
     try {
         const userDataPath = electron_1.app.getPath('userData');
@@ -171,6 +171,12 @@ async function initializeSchemaWithMigrations(database) {
         await run('INSERT OR REPLACE INTO schema_version (version) VALUES (3)');
         console.log('Migration to version 3 complete');
     }
+    if (currentVersion < 4) {
+        console.log('Running migration to version 4...');
+        await runMigrationV4(database, run);
+        await run('INSERT OR REPLACE INTO schema_version (version) VALUES (4)');
+        console.log('Migration to version 4 complete');
+    }
     console.log('All migrations complete');
 }
 async function runMigrationV1(database, run) {
@@ -290,6 +296,17 @@ async function runMigrationV3(database, run) {
     catch (err) {
         // Column might already exist
         console.log('Note: metadata column may already exist');
+    }
+}
+async function runMigrationV4(database, run) {
+    // Add verbosity column to personas table
+    try {
+        await run(`ALTER TABLE personas ADD COLUMN verbosity TEXT`);
+        console.log('Added verbosity column to personas table');
+    }
+    catch (err) {
+        // Column might already exist
+        console.log('Note: verbosity column may already exist');
     }
 }
 function getDatabase() {

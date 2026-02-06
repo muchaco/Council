@@ -48,6 +48,15 @@ declare global {
       getBlackboard: (sessionId: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
       updateBlackboard: (sessionId: string, blackboard: unknown) => Promise<{ success: boolean; error?: string }>;
     };
+    electronExport: {
+      exportSessionToMarkdown: (sessionId: string) => Promise<{ 
+        success: boolean; 
+        filePath?: string; 
+        cancelled?: boolean;
+        messageCount?: number;
+        error?: string;
+      }>;
+    };
   }
 }
 

@@ -32,6 +32,7 @@ interface SessionsState {
   resumeOrchestrator: () => void;
   resetCircuitBreaker: () => Promise<void>;
   clearCurrentSession: () => void;
+  exportSessionToMarkdown: (sessionId: string) => Promise<boolean>;
 }
 
 export const useSessionsStore = create<SessionsState>((set, get) => ({
@@ -219,6 +220,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         model: persona.geminiModel,
         systemPrompt: persona.systemPrompt,
         hiddenAgenda: persona.hiddenAgenda,
+        verbosity: persona.verbosity,
         temperature: persona.temperature,
         problemContext: currentSession.problemDescription,
         outputGoal: currentSession.outputGoal,
@@ -411,6 +413,30 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       }
     } catch (error) {
       toast.error('Error resetting circuit breaker');
+    }
+  },
+
+  exportSessionToMarkdown: async (sessionId: string) => {
+    try {
+      set({ isLoading: true });
+      const result = await window.electronExport.exportSessionToMarkdown(sessionId);
+      
+      if (result.success) {
+        if (result.cancelled) {
+          toast.info('Export cancelled');
+        } else {
+          toast.success(`Session exported successfully (${result.messageCount} messages)`);
+        }
+        return true;
+      } else {
+        toast.error(result.error || 'Failed to export session');
+        return false;
+      }
+    } catch (error) {
+      toast.error('Error exporting session');
+      return false;
+    } finally {
+      set({ isLoading: false });
     }
   },
 }));

@@ -19,7 +19,8 @@ import {
   Play, 
   Pause,
   RotateCcw,
-  Sparkles
+  Sparkles,
+  Download
 } from 'lucide-react';
 import { useSessionsStore } from '@/stores/sessions';
 import { BlackboardPanel } from '@/components/blackboard/BlackboardPanel';
@@ -48,6 +49,7 @@ function SessionContent() {
     resumeOrchestrator,
     resetCircuitBreaker,
     clearCurrentSession,
+    exportSessionToMarkdown,
   } = useSessionsStore();
 
   const [newMessage, setNewMessage] = useState('');
@@ -300,15 +302,27 @@ function SessionContent() {
                 {currentSession.problemDescription}
               </p>
             </div>
-            {currentSession.orchestratorEnabled && (
-              <Badge 
-                variant={orchestratorRunning ? 'default' : orchestratorPaused ? 'secondary' : 'outline'}
-                className="ml-4 flex items-center gap-1"
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => exportSessionToMarkdown(currentSession.id)}
+                disabled={messages.length === 0}
+                className="gap-1"
               >
-                <Sparkles className="w-3 h-3" />
-                {orchestratorRunning ? 'Orchestrating...' : orchestratorPaused ? 'Paused' : 'Active'}
-              </Badge>
-            )}
+                <Download className="w-4 h-4" />
+                Export
+              </Button>
+              {currentSession.orchestratorEnabled && (
+                <Badge 
+                  variant={orchestratorRunning ? 'default' : orchestratorPaused ? 'secondary' : 'outline'}
+                  className="flex items-center gap-1"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  {orchestratorRunning ? 'Orchestrating...' : orchestratorPaused ? 'Paused' : 'Active'}
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
 

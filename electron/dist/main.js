@@ -9,6 +9,7 @@ const db_js_1 = require("./handlers/db.js");
 const llm_js_1 = require("./handlers/llm.js");
 const settings_js_1 = require("./handlers/settings.js");
 const orchestrator_js_1 = require("./handlers/orchestrator.js");
+const export_js_1 = require("./handlers/export.js");
 let mainWindow = null;
 function createWindow() {
     const preloadPath = path_1.default.join(__dirname, 'preload.js');
@@ -98,6 +99,7 @@ electron_1.app.whenReady().then(() => {
     (0, llm_js_1.setupLLMHandlers)();
     (0, settings_js_1.setupSettingsHandlers)();
     (0, orchestrator_js_1.setupOrchestratorHandlers)();
+    (0, export_js_1.setupExportHandlers)();
     electron_1.app.on('activate', () => {
         if (electron_1.BrowserWindow.getAllWindows().length === 0) {
             createWindow();

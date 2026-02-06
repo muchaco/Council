@@ -53,13 +53,13 @@ async function getAll<T>(sql: string, params: unknown[] = []): Promise<T[]> {
 export async function createPersona(data: PersonaInput): Promise<Persona> {
   const id = generateUUID();
   const now = new Date().toISOString();
-  
+
   await runQuery(
-    `INSERT INTO personas (id, name, role, system_prompt, gemini_model, temperature, color, hidden_agenda, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, data.name, data.role, data.systemPrompt, data.geminiModel, data.temperature, data.color, data.hiddenAgenda || null, now, now]
+    `INSERT INTO personas (id, name, role, system_prompt, gemini_model, temperature, color, hidden_agenda, verbosity, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, data.name, data.role, data.systemPrompt, data.geminiModel, data.temperature, data.color, data.hiddenAgenda || null, data.verbosity || null, now, now]
   );
-  
+
   return {
     id,
     name: data.name,
@@ -69,6 +69,7 @@ export async function createPersona(data: PersonaInput): Promise<Persona> {
     temperature: data.temperature,
     color: data.color,
     hiddenAgenda: data.hiddenAgenda,
+    verbosity: data.verbosity,
     createdAt: now,
     updatedAt: now,
   };
@@ -76,7 +77,7 @@ export async function createPersona(data: PersonaInput): Promise<Persona> {
 
 export async function getPersonas(): Promise<Persona[]> {
   return getAll<Persona>(`
-    SELECT 
+    SELECT
       id,
       name,
       role,
@@ -85,6 +86,7 @@ export async function getPersonas(): Promise<Persona[]> {
       temperature,
       color,
       hidden_agenda as hiddenAgenda,
+      verbosity,
       created_at as createdAt,
       updated_at as updatedAt
     FROM personas
@@ -94,7 +96,7 @@ export async function getPersonas(): Promise<Persona[]> {
 
 export async function getPersona(id: string): Promise<Persona | null> {
   return getOne<Persona>(`
-    SELECT 
+    SELECT
       id,
       name,
       role,
@@ -103,6 +105,7 @@ export async function getPersona(id: string): Promise<Persona | null> {
       temperature,
       color,
       hidden_agenda as hiddenAgenda,
+      verbosity,
       created_at as createdAt,
       updated_at as updatedAt
     FROM personas
@@ -144,7 +147,11 @@ export async function updatePersona(id: string, data: Partial<PersonaInput>): Pr
     updates.push('hidden_agenda = ?');
     values.push(data.hiddenAgenda);
   }
-  
+  if (data.verbosity !== undefined) {
+    updates.push('verbosity = ?');
+    values.push(data.verbosity);
+  }
+
   updates.push('updated_at = ?');
   values.push(now);
   values.push(id);
@@ -217,6 +224,7 @@ export async function getSessions(): Promise<Session[]> {
       auto_reply_count as autoReplyCount,
       token_budget as tokenBudget,
       summary,
+      archived_at as archivedAt,
       created_at as createdAt,
       updated_at as updatedAt
     FROM sessions
@@ -227,6 +235,7 @@ export async function getSessions(): Promise<Session[]> {
     ...row,
     orchestratorEnabled: Boolean(row.orchestratorEnabled),
     blackboard: row.blackboard ? JSON.parse(row.blackboard) : null,
+    archivedAt: row.archivedAt || null,
   }));
 }
 
@@ -436,7 +445,7 @@ export async function addPersonaToSession(sessionId: string, personaId: string, 
 
 export async function getSessionPersonas(sessionId: string): Promise<SessionPersona[]> {
   return getAll<SessionPersona>(`
-    SELECT 
+    SELECT
       p.id,
       p.name,
       p.role,
@@ -445,6 +454,7 @@ export async function getSessionPersonas(sessionId: string): Promise<SessionPers
       p.temperature,
       p.color,
       p.hidden_agenda as hiddenAgenda,
+      p.verbosity,
       p.created_at as createdAt,
       p.updated_at as updatedAt,
       sp.is_orchestrator as isOrchestrator

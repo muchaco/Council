@@ -7,6 +7,7 @@ export interface Persona {
   temperature: number;
   color: string;
   hiddenAgenda?: string;
+  verbosity?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -39,6 +40,7 @@ export interface Session {
   autoReplyCount: number;
   tokenBudget: number;
   summary: string | null;
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -62,6 +64,7 @@ export interface PersonaInput {
   temperature: number;
   color: string;
   hiddenAgenda?: string;
+  verbosity?: string;
 }
 
 export interface SessionInput {

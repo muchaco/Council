@@ -53,13 +53,21 @@ const orchestratorAPI = {
     ipcRenderer.invoke('orchestrator:updateBlackboard', { sessionId, blackboard }),
 };
 
+// Export API
+const exportAPI = {
+  exportSessionToMarkdown: (sessionId: string) => 
+    ipcRenderer.invoke('export:sessionToMarkdown', sessionId),
+};
+
 // Expose APIs to renderer
 contextBridge.exposeInMainWorld('electronDB', dbAPI);
 contextBridge.exposeInMainWorld('electronLLM', llmAPI);
 contextBridge.exposeInMainWorld('electronSettings', settingsAPI);
 contextBridge.exposeInMainWorld('electronOrchestrator', orchestratorAPI);
+contextBridge.exposeInMainWorld('electronExport', exportAPI);
 
 export type ElectronDB = typeof dbAPI;
 export type ElectronLLM = typeof llmAPI;
 export type ElectronSettings = typeof settingsAPI;
 export type ElectronOrchestrator = typeof orchestratorAPI;
+export type ElectronExport = typeof exportAPI;

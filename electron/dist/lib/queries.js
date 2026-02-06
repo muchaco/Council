@@ -77,8 +77,8 @@ async function getAll(sql, params = []) {
 async function createPersona(data) {
     const id = generateUUID();
     const now = new Date().toISOString();
-    await runQuery(`INSERT INTO personas (id, name, role, system_prompt, gemini_model, temperature, color, hidden_agenda, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [id, data.name, data.role, data.systemPrompt, data.geminiModel, data.temperature, data.color, data.hiddenAgenda || null, now, now]);
+    await runQuery(`INSERT INTO personas (id, name, role, system_prompt, gemini_model, temperature, color, hidden_agenda, verbosity, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [id, data.name, data.role, data.systemPrompt, data.geminiModel, data.temperature, data.color, data.hiddenAgenda || null, data.verbosity || null, now, now]);
     return {
         id,
         name: data.name,
@@ -88,13 +88,14 @@ async function createPersona(data) {
         temperature: data.temperature,
         color: data.color,
         hiddenAgenda: data.hiddenAgenda,
+        verbosity: data.verbosity,
         createdAt: now,
         updatedAt: now,
     };
 }
 async function getPersonas() {
     return getAll(`
-    SELECT 
+    SELECT
       id,
       name,
       role,
@@ -103,6 +104,7 @@ async function getPersonas() {
       temperature,
       color,
       hidden_agenda as hiddenAgenda,
+      verbosity,
       created_at as createdAt,
       updated_at as updatedAt
     FROM personas
@@ -111,7 +113,7 @@ async function getPersonas() {
 }
 async function getPersona(id) {
     return getOne(`
-    SELECT 
+    SELECT
       id,
       name,
       role,
@@ -120,6 +122,7 @@ async function getPersona(id) {
       temperature,
       color,
       hidden_agenda as hiddenAgenda,
+      verbosity,
       created_at as createdAt,
       updated_at as updatedAt
     FROM personas
@@ -157,6 +160,10 @@ async function updatePersona(id, data) {
     if (data.hiddenAgenda !== undefined) {
         updates.push('hidden_agenda = ?');
         values.push(data.hiddenAgenda);
+    }
+    if (data.verbosity !== undefined) {
+        updates.push('verbosity = ?');
+        values.push(data.verbosity);
     }
     updates.push('updated_at = ?');
     values.push(now);
@@ -385,7 +392,7 @@ async function addPersonaToSession(sessionId, personaId, isOrchestrator = false)
 }
 async function getSessionPersonas(sessionId) {
     return getAll(`
-    SELECT 
+    SELECT
       p.id,
       p.name,
       p.role,
@@ -394,6 +401,7 @@ async function getSessionPersonas(sessionId) {
       p.temperature,
       p.color,
       p.hidden_agenda as hiddenAgenda,
+      p.verbosity,
       p.created_at as createdAt,
       p.updated_at as updatedAt,
       sp.is_orchestrator as isOrchestrator
