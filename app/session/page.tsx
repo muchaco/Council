@@ -476,48 +476,50 @@ function SessionContent() {
       </div>
 
       {/* RIGHT SIDEBAR - INFO & BLACKBOARD */}
-      <div className="w-80 border-l border-border bg-card p-4 hidden lg:block space-y-4">
-        {/* Session Info */}
-        <div>
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">
-            Session Info
-          </h3>
-          
-          <div className="space-y-4">
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Status</p>
-              <Badge 
-                variant={currentSession.status === 'active' ? 'default' : 'secondary'}
-                className="capitalize"
-              >
-                {currentSession.status}
-              </Badge>
-            </div>
+      <div className="w-80 border-l border-border bg-card hidden lg:flex lg:flex-col">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* Session Info */}
+          <div>
+            <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">
+              Session Info
+            </h3>
             
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Goal</p>
-              <p className="text-sm text-foreground">
-                {currentSession.outputGoal || 'No specific goal set'}
-              </p>
-            </div>
-            
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Participants</p>
-              <div className="flex items-center gap-1">
-                <Users className="w-3 h-3 text-muted-foreground" />
-                <span className="text-sm">{sessionPersonas.length} personas</span>
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Status</p>
+                <Badge 
+                  variant={currentSession.status === 'active' ? 'default' : 'secondary'}
+                  className="capitalize"
+                >
+                  {currentSession.status}
+                </Badge>
+              </div>
+              
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Goal</p>
+                <p className="text-sm text-foreground">
+                  {currentSession.outputGoal || 'No specific goal set'}
+                </p>
+              </div>
+              
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Participants</p>
+                <div className="flex items-center gap-1">
+                  <Users className="w-3 h-3 text-muted-foreground" />
+                  <span className="text-sm">{sessionPersonas.length} personas</span>
+                </div>
+              </div>
+              
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">Messages</p>
+                <span className="text-sm font-mono">{messages.length}</span>
               </div>
             </div>
-            
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">Messages</p>
-              <span className="text-sm font-mono">{messages.length}</span>
-            </div>
           </div>
-        </div>
 
-        {/* Blackboard Panel */}
-        <BlackboardPanel blackboard={blackboard || currentSession.blackboard} />
+          {/* Blackboard Panel */}
+          <BlackboardPanel blackboard={blackboard || currentSession.blackboard} />
+        </div>
       </div>
     </div>
   );

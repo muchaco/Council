@@ -1,134 +1,209 @@
 # Council
 
-Council is a private, desktop-based command center that transforms solitary brainstorming into a high-level strategic summit by convening a team of autonomous AI agents to debate your challenges. Rather than a simple chat, it functions as a self-regulating meeting room: you define the problem, and a cast of custom "Personas"—equipped with distinct personalities, specific LLM models, and private document knowledge—discuss it, while an AI "Orchestrator" directs the flow, managing turn-taking and maintaining a live "Blackboard" of consensus to prevent circular arguments. It is a tool for rapid ideation and rigorous critique, allowing you to step back and watch a simulated expert panel dismantle and reconstruct your ideas until a definitive solution is reached.
+A private, desktop-based command center that transforms solitary brainstorming into a high-level strategic summit by convening a team of autonomous AI agents to debate your challenges.
 
-This PRD outlines the "Council" app, a desktop-based brainstorming tool where a user interacts with AI agents ("Personas") guided by an "Orchestrator."
-
-### **Product Requirement Document (PRD)**
-
-**Project Name:** "Council" (Working Title)
-**Target Platform:** Desktop (Electron)
-**User:** Single User (Self-Hosted/Local)
+![Status](https://img.shields.io/badge/status-beta-blue)
+![Platform](https://img.shields.io/badge/platform-Linux%20(Debian)-green)
+![Phase](https://img.shields.io/badge/phase-2%20of%204-orange)
 
 ---
 
-### **1. Product Vision**
+## What is Council?
 
-To create a "Council of AI"—a personal, desktop-based brainstorming tool where the user interacts with multiple AI agents (Personas). These agents debate, critique, and iterate on problems under the guidance of an LLM-based Orchestrator. The goal is to facilitate higher-quality decisions, creative idea generation, and overcoming "writer's block" through simulated multi-perspective debate.
+Council functions as a self-regulating meeting room: you define the problem, and a cast of custom "Personas"—equipped with distinct personalities, specific LLM models, and private instructions—discuss it while an AI "Orchestrator" directs the flow, managing turn-taking and maintaining a live "Blackboard" of consensus to prevent circular arguments.
 
----
-
-### **2. Functional Requirements (FR)**
-
-#### **2.1. Session Management**
-
-* **FR-1.1:** User must be able to create a new Session with a **Title**, **Main Problem Description** (the prompt), and a **Defined Output Goal** (e.g., "A bulleted list of ideas", "A Refactored Code Block").
-* **FR-1.2:** User must be able to view a list of historical sessions.
-* **FR-1.3:** User must be able to resume, pause, or delete past sessions.
-* **FR-1.4:** The Session State must persist locally (JSON/SQLite), preserving the chat history, current "Blackboard" state, and token usage statistics.
-
-#### **2.2. Persona System**
-
-* **FR-2.1:** User must be able to create reusable Personas with the following attributes:
-* *Name & Avatar/Color*
-* *System Prompt* (Behavior/Role)
-* *Model Config* (Temperature, Model ID e.g., `gpt-4o` vs `llama-3-local`)
-* *Hidden Agenda/Bias* (Optional private instructions)
-
-
-* **FR-2.2:** User must be able to create **Temporary Personas** inside a session setup that are not saved to the global library (with option to promote to global).
-* **FR-2.3:** User must be able to toggle a Persona as the **"Orchestrator"**. This injects moderation logic into their specific voice/prompt.
-* **FR-2.4:** **The Hush Button:** User must be able to temporarily mute a Persona (e.g., "Sleep for 5 turns" or "Quiet until addressed") without removing them.
-* **FR-2.5:** **The Whisper:** User must be able to send a private system instruction to a single Persona during a live session (e.g., "Be more aggressive about the budget").
-
-#### **2.3. The Orchestration Engine (The Logic)**
-
-* **FR-3.1:** **Smart Turn-Taking:** The system must avoid fixed round-robin order. After a message, the System Agent analyzes context to select the *next best speaker* (or chooses to wait for User input).
-* **FR-3.2:** **Topic Drift Detection:** The System Agent monitors if the conversation deviates from the Main Problem and triggers a "Steering Event" (Orchestrator intervention) if necessary.
-* **FR-3.3:** **Shared Blackboard:** The UI displays a "State" panel (read-only for User, write-access for System) containing:
-* *Current Consensus*
-* *Active Conflicts*
-* *Next Immediate Step*
-
-
-* **FR-3.4:** **Rolling Context:** To manage tokens, the system summarizes older messages and feeds agents a condensed history + the "Blackboard" state, rather than the full raw log.
-
-#### **2.4. Knowledge & RAG (Retrieval-Augmented Generation)**
-
-* **FR-4.1:** **Global Attachments:** User can upload files (PDF/TXT/MD) to the Session. All Personas have read access to this context.
-* **FR-4.2:** **Local Attachments:** User can upload files to a *specific* Persona. Only that Persona generates embeddings/context from this data (simulating information asymmetry).
-* **FR-4.3:** System supports basic text extraction and embedding (local vector store) for these files.
-
-#### **2.5. LLM Integration**
-
-* **FR-5.1:** Support for OpenAI API (via OpenRouter or direct).
-* **FR-5.2:** Support for local inference servers (Ollama/LM Studio) via generic API endpoints.
-* **FR-5.3:** Granular Model Assignment: User can assign different models to different Personas within the same session.
-
-#### **2.6. UI/UX Elements**
-
-* **FR-6.1:** **Cost/Token Ticker:** Real-time display of estimated cost (API) or Token Count (Local).
-* **FR-6.2:** **Visual Separation:** Chat bubbles are clearly color-coded by Persona.
-* **FR-6.3:** **Async Rendering:** If the Orchestrator queues multiple agents, they render sequentially in the UI to prevent reading chaos.
+It is a tool for rapid ideation and rigorous critique, allowing you to step back and watch a simulated expert panel dismantle and reconstruct your ideas until a definitive solution is reached.
 
 ---
 
-### **3. Non-Functional Requirements (NFR)**
+## Features
 
-* **NFR-1 (Performance):** UI must remain responsive (non-blocking) during LLM inference.
-* **NFR-2 (Privacy):** All data (chats, personas, keys) stored locally. No external telemetry or syncing.
-* **NFR-3 (Extensibility):** Architecture allows swapping LLM provider interfaces without rewriting core logic.
-* **NFR-4 (Safety/Cost Control):** The app must have a "Circuit Breaker" to prevent infinite loops (e.g., max 10 auto-replies before forcing a User confirm).
+### Current (Phase 1 & 2)
 
----
+- **Multi-Agent Debates**: Create sessions with multiple AI personas that debate your problem
+- **Smart Orchestrator**: AI-driven turn-taking that selects the best speaker for each response
+- **Custom Personas**: Build reusable personas with unique roles, models, and hidden agendas
+- **Shared Blackboard**: Live view of consensus, conflicts, and next steps
+- **Session Management**: Create, resume, and manage multiple brainstorming sessions
+- **Local-First**: All data stored locally in SQLite; no cloud dependencies
+- **Cost Tracking**: Real-time token and cost monitoring
+- **Secure**: Encrypted API key storage using OS-level encryption
 
-### **4. Out of Scope (For MVP)**
+### Coming Soon (Phase 3 & 4)
 
-* **OOS-1:** "Branching/Forking" conversations (Complexity too high for V1).
-* **OOS-2:** Merging separate sessions.
-* **OOS-3:** Voice Input/Output.
-* **OOS-4:** Multi-user collaboration (Real-time socket connection with other humans).
-* **OOS-5:** Complex file types (Images, Excel with macros). Text-based formats only.
-
----
-
-### **5. Phasing Plan**
-
-#### **Phase 1: The Core Loop (Proof of Concept)**
-
-* Basic Electron Shell setup.
-* Settings page for API Keys (OpenRouter/Ollama).
-* Creation of "Personas" (Simple JSON storage).
-* Simple Chat Interface (User + 2 Agents).
-* **Logic:** Simple Sequential turn-taking (User -> A -> B -> User).
-* *Goal: Verify LLM connectivity and basic state management.*
-
-#### **Phase 2: The Conductor (The "Brain")**
-
-* Implement "Orchestrator" System Prompt logic.
-* Implement "Smart Turn-Taking" algorithm (Selector Agent).
-* Implement the "Shared Blackboard" (State summarization).
-* *Goal: Verify the debate can self-regulate without constant user input.*
-
-#### **Phase 3: The Context (RAG & Attachments)**
-
-* File upload UI (Global vs Persona).
-* Implement local vector store (e.g., `lancedb` or `langchain/vectorstores/memory`).
-* Implement "Rolling Context" logic.
-* *Goal: Verify agents can read and utilize documents.*
-
-#### **Phase 4: Polish & Controls**
-
-* Add "Hush" and "Whisper" features.
-* Add Cost/Token counters.
-* UI Polish (Colors, Animations, Markdown rendering).
-* *Goal: Make it usable and enjoyable for daily work.*
+- File attachments with RAG (Retrieval-Augmented Generation)
+- Document context for personas
+- Hush and whisper controls
+- Circuit breaker for cost control
+- Topic drift detection
 
 ---
 
-### **6. Technical Stack Recommendations**
+## Quick Start
 
-* **Frontend:** React (Component-based architecture essential for chat).
-* **State Management:** async state manager to handle the complex asynchronous nature of multiple agents thinking.
-* **LLM Interface:** Vercel AI SDK (Standardizes calls between Ollama/OpenAI).
-* **Database:** `electron-store` (for settings) + Local JSON/SQLite (for chat logs).
+### Prerequisites
+
+- Node.js 18+
+- npm or yarn
+- Linux (Debian-based distributions recommended)
+- Google Gemini API key
+
+### Installation
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd Council/my-app
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run electron:dev
+```
+
+### Configuration
+
+1. Launch the app
+2. Go to Settings
+3. Enter your Gemini API key
+4. Test the connection
+5. Create your first persona
+6. Start a new session
+
+---
+
+## Project Structure
+
+```
+my-app/
+├── app/                    # Next.js app router pages
+│   ├── page.tsx           # Root redirect
+│   ├── layout.tsx         # Root layout
+│   ├── globals.css        # Global styles
+│   ├── personas/          # Persona management UI
+│   ├── sessions/          # Sessions list
+│   ├── session/           # Active session chat
+│   │   ├── [id]/          # Existing session view
+│   │   └── new/           # Create new session
+│   └── settings/          # App settings
+├── components/            # React components
+│   ├── ui/               # shadcn/ui components
+│   ├── chat/             # Chat-related components
+│   └── session/          # Session components
+├── hooks/                # Custom React hooks
+├── lib/                  # Utility functions and services
+│   ├── db/              # Database layer
+│   ├── llm/             # LLM integration
+│   └── utils.ts         # Utility functions
+├── electron/            # Electron main process
+├── stores/              # Zustand state stores
+├── public/              # Static assets
+├── requirements.md      # Detailed requirements document
+├── plan.md              # Implementation roadmap
+└── package.json         # Dependencies and scripts
+```
+
+---
+
+## Documentation
+
+- **[requirements.md](./requirements.md)** - Complete product requirements with implementation status
+- **[plan.md](./plan.md)** - Implementation roadmap and technical architecture
+- **[AGENTS.md](./AGENTS.md)** - Development guidelines and conventions
+
+---
+
+## Development
+
+```bash
+# Start development server with hot reload
+npm run electron:dev
+
+# Build for production
+npm run build
+
+# Build Electron app
+npm run electron:build
+
+# Package as .deb for Linux
+npm run electron:package
+
+# Run linter
+npm run lint
+
+# Fix linting issues
+npx eslint --fix .
+```
+
+---
+
+## Technology Stack
+
+| Component | Technology |
+|-----------|------------|
+| Desktop Framework | Electron + Electron Forge |
+| Frontend | Next.js + React |
+| State Management | Zustand |
+| Database | SQLite (pure JS) |
+| Settings | electron-store |
+| LLM | Google Gemini API |
+| UI | shadcn/ui + Tailwind CSS |
+| Icons | Lucide React |
+
+---
+
+## Architecture
+
+Council uses a secure Electron architecture:
+
+- **Renderer Process**: Next.js frontend with Zustand state management
+- **Main Process**: Node.js backend handling API calls and encryption
+- **IPC Communication**: Secure context bridge between renderer and main
+- **Database**: SQLite with pure-JS driver for cross-platform compatibility
+
+All LLM API calls and sensitive operations happen in the main process, keeping API keys secure and never exposing them to the renderer.
+
+---
+
+## Requirements
+
+See [requirements.md](./requirements.md) for the complete list of:
+- Functional requirements
+- Non-functional requirements
+- Implementation status
+- Importance and complexity ratings
+
+---
+
+## Roadmap
+
+- **Phase 1** ✅ Core Loop - Basic chat with personas and sequential turn-taking
+- **Phase 2** ✅ The Conductor - Smart orchestrator with AI-driven turn-taking
+- **Phase 3** ⏳ The Context - File attachments and RAG support
+- **Phase 4** ⏳ Polish & Controls - Advanced features and UI polish
+
+---
+
+## Security
+
+- API keys encrypted at rest using OS-level encryption
+- All sensitive operations in main process
+- No telemetry or external syncing
+- Content Security Policy restricts external connections
+
+---
+
+## License
+
+[Add your license here]
+
+---
+
+## Contributing
+
+[Add contribution guidelines here]
+
+---
+
+**Built with** ❤️ **for deep thinkers and problem solvers**

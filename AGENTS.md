@@ -56,6 +56,29 @@ npm run electron:build     # Build Electron app
 npm run electron:package   # Package as .deb
 ```
 
+### ESLint Setup
+
+This project uses ESLint 9 with the new flat config format (`eslint.config.mjs`). ESLint is configured with Next.js recommended rules via `eslint-config-next/core-web-vitals`.
+
+**Important Notes:**
+- The project uses the **flat config format** (ESLint 9+), not the legacy `.eslintrc` format
+- Configuration is in `eslint.config.mjs` at the project root
+- The lint command will automatically check all TypeScript, TSX, JavaScript, and JSX files
+- Currently there are 3 known linting errors in the codebase that should be addressed
+
+**Running Linter:**
+```bash
+npm run lint              # Check all files for errors
+npx eslint .              # Alternative way to run linter
+npx eslint --fix .        # Fix auto-fixable issues
+```
+
+**Ignored Directories:**
+- `.next/`, `out/`, `build/` - Next.js build outputs
+- `electron/dist/` - Electron build output
+- `node_modules/` - Dependencies
+- `next-env.d.ts` - Next.js types
+
 ## Coding Conventions
 
 ### File Naming

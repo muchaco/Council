@@ -30,13 +30,6 @@ export default function NewSessionPage() {
     fetchPersonas();
   }, [fetchPersonas]);
 
-  useEffect(() => {
-    // Reset orchestrator selection when selected personas change
-    if (!selectedPersonas.includes(orchestratorPersonaId)) {
-      setOrchestratorPersonaId('');
-    }
-  }, [selectedPersonas, orchestratorPersonaId]);
-
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
       ...prev,
@@ -47,6 +40,10 @@ export default function NewSessionPage() {
   const togglePersona = (personaId: string) => {
     setSelectedPersonas(prev => {
       if (prev.includes(personaId)) {
+        // Removing a persona - reset orchestrator if it was this persona
+        if (orchestratorPersonaId === personaId) {
+          setOrchestratorPersonaId('');
+        }
         return prev.filter(id => id !== personaId);
       }
       if (prev.length >= 4) {

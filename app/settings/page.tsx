@@ -32,10 +32,13 @@ export default function SettingsPage() {
     loadDefaultModel();
   }, [loadApiKey, loadDefaultModel]);
 
+  // Use a separate effect to sync the input with the loaded API key
+  // This runs only when geminiApiKey changes and input is empty
   useEffect(() => {
-    if (geminiApiKey) {
+    if (geminiApiKey && apiKeyInput === '' && !hasChanges) {
       setApiKeyInput(geminiApiKey);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geminiApiKey]);
 
   const handleSaveApiKey = async () => {
