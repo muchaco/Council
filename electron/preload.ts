@@ -24,6 +24,10 @@ const dbAPI = {
   addPersonaToSession: (sessionId: string, personaId: string, isOrchestrator: boolean) => 
     ipcRenderer.invoke('db:sessionPersona:add', sessionId, personaId, isOrchestrator),
   getSessionPersonas: (sessionId: string) => ipcRenderer.invoke('db:sessionPersona:getBySession', sessionId),
+  
+  // Archive
+  archiveSession: (id: string) => ipcRenderer.invoke('db:session:archive', id),
+  unarchiveSession: (id: string) => ipcRenderer.invoke('db:session:unarchive', id),
 };
 
 // LLM API

@@ -218,5 +218,30 @@ function setupDatabaseHandlers() {
             return { success: false, error: error.message };
         }
     });
+    // Archive handlers
+    electron_1.ipcMain.handle('db:session:archive', async (_, id) => {
+        try {
+            console.log('Archiving session:', id);
+            await queries.archiveSession(id);
+            console.log('Session archived:', id);
+            return { success: true };
+        }
+        catch (error) {
+            console.error('Error archiving session:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    electron_1.ipcMain.handle('db:session:unarchive', async (_, id) => {
+        try {
+            console.log('Unarchiving session:', id);
+            await queries.unarchiveSession(id);
+            console.log('Session unarchived:', id);
+            return { success: true };
+        }
+        catch (error) {
+            console.error('Error unarchiving session:', error);
+            return { success: false, error: error.message };
+        }
+    });
 }
 //# sourceMappingURL=db.js.map

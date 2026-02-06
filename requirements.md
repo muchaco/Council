@@ -55,11 +55,18 @@ Council is a private, desktop-based command center that transforms solitary brai
 ### FR-1.5: Session Archiving/Close
 **Description**: User must be able to close/archive a session, marking it as completed. Archived sessions are read-only and excluded from active operations.
 
-- **Status**: ⏳ Pending
+- **Status**: ✅ Implemented
 - **Importance**: High
 - **Complexity**: Simple
 - **Phase**: 2 (Priority 10)
-- **Implementation Notes**: Add `archived_at` timestamp field; close button in session view; archived sessions cannot be continued
+- **Implementation Notes**: 
+  - Added `archived_at` timestamp field to sessions table (migration V5)
+  - Archive/Unarchive buttons in session view header and sessions list dropdown
+  - Archived sessions show "Archived" badge and archive date
+  - Message input disabled for archived sessions with informative message
+  - Orchestrator controls disabled when session is archived
+  - Export functionality remains available for archived sessions
+  - Confirmation dialog shown before archiving to prevent accidental archival
 
 ### FR-1.6: Session Tags
 **Description**: User must be able to assign free-text tags to sessions for organization and filtering.
@@ -495,7 +502,7 @@ Each field type has tailored prompts for both actions (e.g., system prompts get 
 | Phase | Name | Progress | Key Deliverables |
 |-------|------|----------|------------------|
 | Phase 1 | The Core Loop | ✅ 100% | Electron app, Personas CRUD, Sessions, Chat UI, Sequential turn-taking, Settings, Encryption |
-| Phase 2 | The Conductor | 🔄 In Progress | Orchestrator refactor (algorithmic), Session archiving/tags, Multi-provider LLM, Export to Markdown, Input enhancement, UI polish |
+| Phase 2 | The Conductor | 🔄 In Progress | Session archiving ✅, Session tags, Multi-provider LLM, Export to Markdown ✅, Input enhancement, UI polish |
 | Phase 3 | The Context | 0% | File attachments, RAG, Vector store, Rolling Context |
 | Phase 4 | Polish & Controls | 0% | Hush button, Whisper, Cost counters, Circuit breaker |
 

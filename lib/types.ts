@@ -40,6 +40,7 @@ export interface Session {
   autoReplyCount: number;
   tokenBudget: number;
   summary: string | null;
+  archivedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -17,6 +17,8 @@ declare global {
       getMessages: (sessionId: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
       addPersonaToSession: (sessionId: string, personaId: string, isOrchestrator: boolean) => Promise<{ success: boolean; error?: string }>;
       getSessionPersonas: (sessionId: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
+      archiveSession: (id: string) => Promise<{ success: boolean; error?: string }>;
+      unarchiveSession: (id: string) => Promise<{ success: boolean; error?: string }>;
     };
     electronLLM: {
       chat: (request: unknown) => Promise<{ success: boolean; data?: { content: string; tokenCount: number }; error?: string }>;

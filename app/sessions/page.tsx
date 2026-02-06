@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Calendar, Clock, Loader2, Trash2, Download, MoreVertical } from 'lucide-react';
+import { Plus, Calendar, Clock, Loader2, Trash2, Download, MoreVertical, Archive, RotateCcw } from 'lucide-react';
 import { useSessionsStore } from '@/stores/sessions';
 import {
   AlertDialog,
@@ -27,7 +27,7 @@ import {
 import { useState } from 'react';
 
 export default function SessionsPage() {
-  const { sessions, isLoading, fetchSessions, deleteSession, exportSessionToMarkdown } = useSessionsStore();
+  const { sessions, isLoading, fetchSessions, deleteSession, exportSessionToMarkdown, archiveSession, unarchiveSession } = useSessionsStore();
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [exportingId, setExportingId] = useState<string | null>(null);
 
@@ -138,6 +138,17 @@ export default function SessionsPage() {
                           <Download className="w-4 h-4 mr-2" />
                           Export to Markdown
                         </DropdownMenuItem>
+                        {session.archivedAt ? (
+                          <DropdownMenuItem onClick={() => unarchiveSession(session.id)}>
+                            <RotateCcw className="w-4 h-4 mr-2" />
+                            Unarchive
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem onClick={() => archiveSession(session.id)}>
+                            <Archive className="w-4 h-4 mr-2" />
+                            Archive
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           onClick={() => setDeleteId(session.id)}
@@ -160,10 +171,10 @@ export default function SessionsPage() {
                   {/* Status Badge */}
                   <div className="mt-3">
                     <Badge 
-                      variant={session.status === 'active' ? 'default' : session.status === 'completed' ? 'secondary' : 'outline'}
+                      variant={session.archivedAt ? 'secondary' : session.status === 'active' ? 'default' : session.status === 'completed' ? 'secondary' : 'outline'}
                       className="text-xs capitalize"
                     >
-                      {session.status}
+                      {session.archivedAt ? 'Archived' : session.status}
                     </Badge>
                   </div>
 

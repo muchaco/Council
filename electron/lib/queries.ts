@@ -203,6 +203,7 @@ export async function createSession(
     autoReplyCount: 0,
     tokenBudget: 100000,
     summary: null,
+    archivedAt: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -255,6 +256,7 @@ export async function getSession(id: string): Promise<Session | null> {
       auto_reply_count as autoReplyCount,
       token_budget as tokenBudget,
       summary,
+      archived_at as archivedAt,
       created_at as createdAt,
       updated_at as updatedAt
     FROM sessions
@@ -267,6 +269,7 @@ export async function getSession(id: string): Promise<Session | null> {
     ...row,
     orchestratorEnabled: Boolean(row.orchestratorEnabled),
     blackboard: row.blackboard ? JSON.parse(row.blackboard) : null,
+    archivedAt: row.archivedAt || null,
   };
 }
 
@@ -525,4 +528,28 @@ export async function disableOrchestrator(sessionId: string): Promise<void> {
     'UPDATE sessions SET orchestrator_enabled = 0, orchestrator_persona_id = NULL WHERE id = ?',
     [sessionId]
   );
+}
+
+// Session archiving
+export async function archiveSession(sessionId: string): Promise<void> {
+  const now = new Date().toISOString();
+  await runQuery(
+    'UPDATE sessions SET archived_at = ?, status = ? WHERE id = ?',
+    [now, 'archived', sessionId]
+  );
+}
+
+export async function unarchiveSession(sessionId: string): Promise<void> {
+  await runQuery(
+    'UPDATE sessions SET archived_at = NULL, status = ? WHERE id = ?',
+    ['active', sessionId]
+  );
+}
+
+export async function isSessionArchived(sessionId: string): Promise<boolean> {
+  const session = await getOne<{ archivedAt: string | null }>(
+    'SELECT archived_at as archivedAt FROM sessions WHERE id = ?',
+    [sessionId]
+  );
+  return session?.archivedAt !== null && session?.archivedAt !== undefined;
 }

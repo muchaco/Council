@@ -23,6 +23,9 @@ exports.incrementAutoReplyCount = incrementAutoReplyCount;
 exports.resetAutoReplyCount = resetAutoReplyCount;
 exports.enableOrchestrator = enableOrchestrator;
 exports.disableOrchestrator = disableOrchestrator;
+exports.archiveSession = archiveSession;
+exports.unarchiveSession = unarchiveSession;
+exports.isSessionArchived = isSessionArchived;
 const db_js_1 = require("./db.js");
 // Ensure database is initialized before any query
 async function ensureDb() {
@@ -200,6 +203,7 @@ async function createSession(data, orchestratorConfig) {
         autoReplyCount: 0,
         tokenBudget: 100000,
         summary: null,
+        archivedAt: null,
         createdAt: now,
         updatedAt: now,
     };
@@ -220,6 +224,7 @@ async function getSessions() {
       auto_reply_count as autoReplyCount,
       token_budget as tokenBudget,
       summary,
+      archived_at as archivedAt,
       created_at as createdAt,
       updated_at as updatedAt
     FROM sessions
@@ -229,6 +234,7 @@ async function getSessions() {
         ...row,
         orchestratorEnabled: Boolean(row.orchestratorEnabled),
         blackboard: row.blackboard ? JSON.parse(row.blackboard) : null,
+        archivedAt: row.archivedAt || null,
     }));
 }
 async function getSession(id) {
@@ -247,6 +253,7 @@ async function getSession(id) {
       auto_reply_count as autoReplyCount,
       token_budget as tokenBudget,
       summary,
+      archived_at as archivedAt,
       created_at as createdAt,
       updated_at as updatedAt
     FROM sessions
@@ -258,6 +265,7 @@ async function getSession(id) {
         ...row,
         orchestratorEnabled: Boolean(row.orchestratorEnabled),
         blackboard: row.blackboard ? JSON.parse(row.blackboard) : null,
+        archivedAt: row.archivedAt || null,
     };
 }
 async function updateSession(id, data) {
@@ -444,5 +452,17 @@ async function enableOrchestrator(sessionId, orchestratorPersonaId) {
 }
 async function disableOrchestrator(sessionId) {
     await runQuery('UPDATE sessions SET orchestrator_enabled = 0, orchestrator_persona_id = NULL WHERE id = ?', [sessionId]);
+}
+// Session archiving
+async function archiveSession(sessionId) {
+    const now = new Date().toISOString();
+    await runQuery('UPDATE sessions SET archived_at = ?, status = ? WHERE id = ?', [now, 'archived', sessionId]);
+}
+async function unarchiveSession(sessionId) {
+    await runQuery('UPDATE sessions SET archived_at = NULL, status = ? WHERE id = ?', ['active', sessionId]);
+}
+async function isSessionArchived(sessionId) {
+    const session = await getOne('SELECT archived_at as archivedAt FROM sessions WHERE id = ?', [sessionId]);
+    return session?.archivedAt !== null && session?.archivedAt !== undefined;
 }
 //# sourceMappingURL=queries.js.map

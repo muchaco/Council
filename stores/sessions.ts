@@ -33,6 +33,8 @@ interface SessionsState {
   resetCircuitBreaker: () => Promise<void>;
   clearCurrentSession: () => void;
   exportSessionToMarkdown: (sessionId: string) => Promise<boolean>;
+  archiveSession: (id: string) => Promise<boolean>;
+  unarchiveSession: (id: string) => Promise<boolean>;
 }
 
 export const useSessionsStore = create<SessionsState>((set, get) => ({
@@ -434,6 +436,67 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       }
     } catch (error) {
       toast.error('Error exporting session');
+      return false;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  archiveSession: async (id: string) => {
+    try {
+      set({ isLoading: true });
+      const result = await window.electronDB.archiveSession(id);
+      
+      if (result.success) {
+        const now = new Date().toISOString();
+        set(state => ({
+          sessions: state.sessions.map(s => 
+            s.id === id 
+              ? { ...s, status: 'archived' as const, archivedAt: now }
+              : s
+          ),
+          currentSession: state.currentSession?.id === id 
+            ? { ...state.currentSession, status: 'archived', archivedAt: now }
+            : state.currentSession,
+        }));
+        toast.success('Session archived successfully');
+        return true;
+      } else {
+        toast.error(result.error || 'Failed to archive session');
+        return false;
+      }
+    } catch (error) {
+      toast.error('Error archiving session');
+      return false;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  unarchiveSession: async (id: string) => {
+    try {
+      set({ isLoading: true });
+      const result = await window.electronDB.unarchiveSession(id);
+      
+      if (result.success) {
+        set(state => ({
+          sessions: state.sessions.map(s => 
+            s.id === id 
+              ? { ...s, status: 'active' as const, archivedAt: null }
+              : s
+          ),
+          currentSession: state.currentSession?.id === id 
+            ? { ...state.currentSession, status: 'active', archivedAt: null }
+            : state.currentSession,
+        }));
+        toast.success('Session unarchived successfully');
+        return true;
+      } else {
+        toast.error(result.error || 'Failed to unarchive session');
+        return false;
+      }
+    } catch (error) {
+      toast.error('Error unarchiving session');
       return false;
     } finally {
       set({ isLoading: false });

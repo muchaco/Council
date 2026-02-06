@@ -182,4 +182,29 @@ export function setupDatabaseHandlers(): void {
       return { success: false, error: (error as Error).message };
     }
   });
+
+  // Archive handlers
+  ipcMain.handle('db:session:archive', async (_, id: string) => {
+    try {
+      console.log('Archiving session:', id);
+      await queries.archiveSession(id);
+      console.log('Session archived:', id);
+      return { success: true };
+    } catch (error) {
+      console.error('Error archiving session:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('db:session:unarchive', async (_, id: string) => {
+    try {
+      console.log('Unarchiving session:', id);
+      await queries.unarchiveSession(id);
+      console.log('Session unarchived:', id);
+      return { success: true };
+    } catch (error) {
+      console.error('Error unarchiving session:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  });
 }

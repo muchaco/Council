@@ -7,20 +7,23 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { 
-  Send, 
-  ArrowLeft, 
-  Loader2, 
-  Users, 
-  Clock, 
-  DollarSign, 
-  MessageSquare, 
-  Crown, 
-  Play, 
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Send,
+  ArrowLeft,
+  Loader2,
+  Users,
+  Clock,
+  DollarSign,
+  MessageSquare,
+  Crown,
+  Play,
   Pause,
   RotateCcw,
   Sparkles,
-  Download
+  Download,
+  Archive,
+  RotateCcw as Unarchive
 } from 'lucide-react';
 import { useSessionsStore } from '@/stores/sessions';
 import { BlackboardPanel } from '@/components/blackboard/BlackboardPanel';
@@ -50,10 +53,14 @@ function SessionContent() {
     resetCircuitBreaker,
     clearCurrentSession,
     exportSessionToMarkdown,
+    archiveSession,
+    unarchiveSession,
   } = useSessionsStore();
 
   const [newMessage, setNewMessage] = useState('');
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isArchived = currentSession?.archivedAt !== null;
 
   useEffect(() => {
     if (sessionId) {
@@ -172,6 +179,7 @@ function SessionContent() {
               size="sm"
               className="text-xs gap-1"
               onClick={handleOrchestratorToggle}
+              disabled={isArchived}
             >
               <Sparkles className="w-3 h-3" />
               {currentSession.orchestratorEnabled ? 'On' : 'Off'}
@@ -240,13 +248,15 @@ function SessionContent() {
                   variant="outline"
                   className="w-full text-xs"
                   onClick={() => handleAskToSpeak(persona.id)}
-                  disabled={thinkingPersonaId === persona.id || !!thinkingPersonaId || orchestratorRunning}
+                  disabled={thinkingPersonaId === persona.id || !!thinkingPersonaId || orchestratorRunning || isArchived}
                 >
                   {thinkingPersonaId === persona.id ? (
                     <>
                       <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                       Thinking...
                     </>
+                  ) : isArchived ? (
+                    'Session Archived'
                   ) : (
                     'Ask to Speak'
                   )}
@@ -313,14 +323,27 @@ function SessionContent() {
                 <Download className="w-4 h-4" />
                 Export
               </Button>
-              {currentSession.orchestratorEnabled && (
-                <Badge 
-                  variant={orchestratorRunning ? 'default' : orchestratorPaused ? 'secondary' : 'outline'}
-                  className="flex items-center gap-1"
+              {isArchived ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => unarchiveSession(currentSession.id)}
+                  className="gap-1"
                 >
-                  <Sparkles className="w-3 h-3" />
-                  {orchestratorRunning ? 'Orchestrating...' : orchestratorPaused ? 'Paused' : 'Active'}
-                </Badge>
+                  <Unarchive className="w-4 h-4" />
+                  Unarchive
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowArchiveConfirm(true)}
+                  disabled={messages.length === 0}
+                  className="gap-1"
+                >
+                  <Archive className="w-4 h-4" />
+                  Archive
+                </Button>
               )}
             </div>
           </div>
@@ -455,37 +478,47 @@ function SessionContent() {
 
         {/* Input */}
         <div className="border-t border-border p-4 bg-card">
-          <div className="flex gap-2">
-            <Input
-              placeholder={currentSession.orchestratorEnabled 
-                ? "Share your thoughts or let the Orchestrator guide the discussion..."
-                : "Share your thoughts with the council..."
-              }
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSendMessage();
-                }
-              }}
-              className="bg-input border-border"
-              disabled={orchestratorRunning}
-            />
-            <Button
-              onClick={handleSendMessage}
-              disabled={!newMessage.trim() || orchestratorRunning}
-              className="flex-shrink-0"
-            >
-              <Send className="w-4 h-4" />
-            </Button>
-          </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Press Enter to send, Shift+Enter for new line
-              {currentSession.orchestratorEnabled && orchestratorPaused && (
-                <span className="ml-2 text-primary">• Orchestrator paused - click Resume or Continue to proceed</span>
-              )}
-            </p>
+          {isArchived ? (
+            <div className="text-center py-2">
+              <p className="text-sm text-muted-foreground">
+                This session is archived. You can view the conversation but cannot add new messages.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="flex gap-2">
+                <Input
+                  placeholder={currentSession.orchestratorEnabled 
+                    ? "Share your thoughts or let the Orchestrator guide the discussion..."
+                    : "Share your thoughts with the council..."
+                  }
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                  className="bg-input border-border"
+                  disabled={orchestratorRunning}
+                />
+                <Button
+                  onClick={handleSendMessage}
+                  disabled={!newMessage.trim() || orchestratorRunning}
+                  className="flex-shrink-0"
+                >
+                  <Send className="w-4 h-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Press Enter to send, Shift+Enter for new line
+                {currentSession.orchestratorEnabled && orchestratorPaused && (
+                  <span className="ml-2 text-primary">• Orchestrator paused - click Resume or Continue to proceed</span>
+                )}
+              </p>
+            </>
+          )}
         </div>
       </div>
 
@@ -502,11 +535,16 @@ function SessionContent() {
               <div>
                 <p className="text-xs text-muted-foreground mb-1">Status</p>
                 <Badge 
-                  variant={currentSession.status === 'active' ? 'default' : 'secondary'}
+                  variant={isArchived ? 'secondary' : currentSession.status === 'active' ? 'default' : 'secondary'}
                   className="capitalize"
                 >
-                  {currentSession.status}
+                  {isArchived ? 'Archived' : currentSession.status}
                 </Badge>
+                {isArchived && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {new Date(currentSession.archivedAt!).toLocaleDateString()}
+                  </p>
+                )}
               </div>
               
               <div>
@@ -535,6 +573,29 @@ function SessionContent() {
           <BlackboardPanel blackboard={blackboard || currentSession.blackboard} />
         </div>
       </div>
+
+      {/* Archive Confirmation Dialog */}
+      <Dialog open={showArchiveConfirm} onOpenChange={setShowArchiveConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Archive Session?</DialogTitle>
+            <DialogDescription>
+              This will archive the session and make it read-only. You will not be able to add new messages or make changes. You can unarchive the session at any time from the sessions list.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowArchiveConfirm(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => {
+              archiveSession(currentSession.id);
+              setShowArchiveConfirm(false);
+            }}>
+              Archive Session
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

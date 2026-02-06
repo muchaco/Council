@@ -21,6 +21,9 @@ const dbAPI = {
     // Session Personas
     addPersonaToSession: (sessionId, personaId, isOrchestrator) => electron_1.ipcRenderer.invoke('db:sessionPersona:add', sessionId, personaId, isOrchestrator),
     getSessionPersonas: (sessionId) => electron_1.ipcRenderer.invoke('db:sessionPersona:getBySession', sessionId),
+    // Archive
+    archiveSession: (id) => electron_1.ipcRenderer.invoke('db:session:archive', id),
+    unarchiveSession: (id) => electron_1.ipcRenderer.invoke('db:session:unarchive', id),
 };
 // LLM API
 const llmAPI = {
