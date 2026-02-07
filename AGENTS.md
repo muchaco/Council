@@ -108,30 +108,6 @@ npx eslint --fix .        # Fix auto-fixable issues
 - Explicit return types on functions
 - Interface over type for object definitions
 
-## Git Workflow
-
-### Commit Messages
-Follow conventional commits pattern:
-```
-feat: add persona creation form
-fix: resolve chat scroll issue
-docs: update API documentation
-refactor: simplify database queries
-test: add unit tests for Gemini client
-```
-
-### Branch Naming
-- `feature/persona-management`
-- `fix/session-chat-scroll`
-- `refactor/database-layer`
-
-### Pull Request Guidelines
-1. Reference related issue in description
-2. Include screenshots for UI changes
-3. Ensure `npm run lint` passes
-4. Keep PRs focused and under 500 lines when possible
-5. Request review from maintainers
-
 ## Architecture Decisions
 
 - **IPC Communication**: All API calls and database operations go through Electron's IPC to keep sensitive data (API keys) in the main process
@@ -147,9 +123,69 @@ test: add unit tests for Gemini client
 - No remote code execution
 - IPC channels validated and typed
 
-## Resources
+---
 
-- [Next.js Documentation](https://nextjs.org/docs)
-- [shadcn/ui Components](https://ui.shadcn.com)
-- [Zustand State Management](https://github.com/pmndrs/zustand)
-- [Electron IPC](https://www.electronjs.org/docs/latest/tutorial/ipc)
+## Architecture Principles
+
+### Functional Core, Imperative Shell
+
+All business logic must follow the **Functional Core, Imperative Shell** pattern:
+
+- **Functional Core**: Pure functions that contain all business logic. They are:
+  - Free of side effects (no I/O, no mutations)
+  - Deterministic (same input → same output)
+  - Easy to test without mocks
+  - Written in a domain-driven design (DDD) specification style
+
+- **Imperative Shell**: Thin layer that:
+  - Handles I/O (database, API calls, file system)
+  - Orchestrates calls to the functional core
+  - Contains no business logic
+
+### Testing Standards
+
+All functional core code must be tested with:
+
+- **Data-driven / parametrized tests**: Test multiple scenarios using table-driven patterns
+- **DDD specification style**: Tests should read like specifications of domain behavior
+- **No mocking for core logic**: Pure functions don't need mocks
+- **Shell tests**: Keep imperative shell tests close to zero
+
+Example pattern:
+```typescript
+// Functional core - pure business logic
+const calculateDebateOutcome = (personas: Persona[], context: Context): DebateResult => {
+  // Pure transformation, no side effects
+};
+
+// Imperative shell - thin orchestration layer
+const conductDebate = async (sessionId: string) => {
+  const session = await db.sessions.get(sessionId);  // I/O
+  const result = calculateDebateOutcome(session.personas, session.context);  // Core
+  await db.results.save(result);  // I/O
+};
+```
+
+---
+
+### 📝 Tribal Knowledge Capture
+
+If you encounter information that was **hard to find, undocumented, or required trial-and-error**, you must briefly update the `## Tribal Knowledge` section below.
+
+**Update if you discovered:**
+
+* **Commands:** Non-obvious scripts for linting, testing, or deployment.
+* **Locations:** Key logic or configs hidden in unexpected directories.
+* **Context:** Necessary "gotchas" or corrections to the user's initial description.
+
+**Format:** Keep it to one bullet point:
+
+* **[Topic]:** [The solution/path/command].
+
+---
+
+## Tribal Knowledge
+
+*(Agent: Append new insights below this line)*
+
+---

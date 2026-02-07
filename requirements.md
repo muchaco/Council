@@ -122,7 +122,7 @@ Council is a private, desktop-based command center that transforms solitary brai
 - **Importance**: Critical
 - **Complexity**: Medium
 - **Phase**: 1
-- **Implementation Notes**: Full CRUD at `/personas` with all fields including Gemini model selector (Flash/Pro), temperature slider (0.0-2.0), color picker with solid colors, and hidden agenda field. **Verbosity field pending. Note:** Currently Gemini-only; multi-provider support coming in FR-5.2.
+- **Implementation Notes**: Full CRUD at `/personas` with all fields including model selector (populated from active provider), temperature slider (0.0-2.0), color picker with solid colors, and hidden agenda field. Model selector shows only models from the currently active provider (see FR-5.1). **Verbosity field pending.**
 
 ### FR-2.1a: Persona Verbosity Setting
 **Description**: Each persona must have a verbosity setting that controls response length. Can be either:
@@ -275,38 +275,43 @@ The verbosity instruction is appended to the system prompt.
 
 ## 5. LLM Integration
 
-### FR-5.1: Multi-Provider LLM Support
-**Description**: System must support multiple LLM providers:
-- **Google Gemini** (current, via official SDK)
+### FR-5.1: LLM Provider Selection
+**Description**: User can select **one active LLM provider** from predefined supported providers. The system supports:
+- **Google Gemini** (via official SDK)
 - **OpenRouter** (unified API for multiple models)
 - **Ollama** (local inference server)
 
-**Configuration per provider**:
-- API endpoint (optional for OpenRouter/Ollama)
-- API key storage (encrypted)
-- Available model list
-- Default model selection
+**Active Provider Configuration**:
+- Only ONE provider can be active at a time
+- Provider-specific configuration (API key, endpoint where applicable)
+- Connection test for the selected provider
+- Available models fetched dynamically from the active provider
 
 **Settings UI**:
-- Provider selection tabs
-- Provider-specific configuration forms
-- Connection test button per provider
-- Default provider/model for Orchestrator
+- Provider selector dropdown (single selection)
+- Provider-specific configuration form (shown based on selection)
+- Connection test button
+- Model list auto-populates from active provider
+
+**Model Selection Behavior**:
+- All model selectors throughout the app (persona creation, orchestrator settings, etc.) display only models from the currently active provider
+- Changing the active provider updates available models in all selectors
+- Previously selected models that don't exist in the new provider fall back to the provider's default
 
 - **Status**: ⏳ Pending
 - **Importance**: High
 - **Complexity**: Complex
 - **Phase**: 2 (Priority 9)
-- **Implementation Notes**: Create LLM provider abstraction layer; implement adapter pattern for each provider; update settings UI with provider tabs; migrate existing Gemini-only config
+- **Implementation Notes**: Create LLM provider abstraction layer; implement adapter pattern for each provider; single active provider state in settings; all model selectors query the active provider's model list
 
-### FR-5.2: Provider-Specific Model Assignment
-**Description**: User can assign different models from any configured provider to different Personas within the same session. Each persona's model selection shows only models from their assigned provider.
+### FR-5.2: Model Assignment per Persona
+**Description**: User can assign different models from the active provider to different Personas within the same session. Each persona's model selector displays only the available models from the currently active LLM provider.
 
 - **Status**: ⏳ Pending
 - **Importance**: High
 - **Complexity**: Medium
 - **Phase**: 2 (Priority 9)
-- **Implementation Notes**: Extend persona model field to include provider+model; update model selector UI per provider availability
+- **Implementation Notes**: Persona model field stores model ID; model selector queries active provider's available models; selector updates when active provider changes
 
 ---
 
@@ -371,11 +376,18 @@ Each field type has tailored prompts for both actions (e.g., system prompts get 
 - Handle edge cases (very light/dark colors)
 - Only applies to persona messages (not user/orchestrator messages which remain neutral)
 
-- **Status**: ⏳ Pending
+- **Status**: ✅ Implemented
 - **Importance**: Medium
 - **Complexity**: Simple
 - **Phase**: 2 (Priority 3)
-- **Implementation Notes**: Create color utility functions (HSL manipulation, contrast calculation); apply calculated accent to persona message bubble component; enhance current `bg-card` styling with accent overlay/border
+- **Implementation Notes**: 
+  - Color utilities created in `lib/colors.ts` with HSL manipulation and contrast calculation
+  - `MessageBubble` component created at `components/chat/MessageBubble.tsx` with accent support
+  - Persona messages display 3px left border in persona color (RGB format)
+  - Persona messages display 8% opacity background tint of persona color
+  - Edge cases handled: very light colors blended toward gray, very dark colors handled correctly
+  - User/orchestrator/intervention messages remain neutral (no accent)
+  - Comprehensive test suite: 91 tests passing (57 color utilities + 34 component tests)
 
 ### FR-6.6: Improved Color Picker
 **Description**: The persona color picker must be redesigned with:
@@ -431,14 +443,25 @@ Each field type has tailored prompts for both actions (e.g., system prompts get 
 - **Phase**: 1
 - **Implementation Notes**: SQLite local database, encrypted API key storage, no network calls except to Gemini API
 
-### NFR-3: Extensibility
-**Description**: Architecture allows swapping LLM provider interfaces without rewriting core logic.
+### NFR-3: Provider Abstraction
+**Description**: All LLM interactions must be provider-agnostic through a dependency injection pattern. The codebase should not contain provider-specific logic scattered throughout components or services.
+
+**Architecture Requirements**:
+- **Provider Interface**: Define a common interface that all LLM providers implement
+- **Dependency Injection**: Services/components receive the LLM client through injection, not hardcoded instantiation
+- **No Provider-Specific Logic**: No conditional checks for "if gemini then..." or "if ollama then..." outside the provider adapters
+- **Single Import Rule**: Components import only from the abstraction layer, never directly from provider SDKs
+
+**Implementation Pattern**:
+```
+Components/Services → LLM Service (abstraction) → Provider Adapter → Provider SDK
+```
 
 - **Status**: ⚠️ Partial
 - **Importance**: High
 - **Complexity**: Complex
 - **Phase**: 1
-- **Implementation Notes**: LLM types/interfaces exist but provider abstraction needs completion for multi-provider support
+- **Implementation Notes**: Create `LLMProvider` interface with methods like `generate()`, `getModels()`, `validateConfig()`; implement adapter classes for each provider (GeminiAdapter, OpenRouterAdapter, OllamaAdapter); LLM service factory returns the appropriate adapter based on active provider setting; all components use the LLM service abstraction only
 
 ### NFR-4: Safety/Cost Control
 **Description**: The app must have a "Circuit Breaker" to prevent infinite loops (e.g., max 10 auto-replies before forcing a User confirm).
@@ -502,7 +525,7 @@ Each field type has tailored prompts for both actions (e.g., system prompts get 
 | Phase | Name | Progress | Key Deliverables |
 |-------|------|----------|------------------|
 | Phase 1 | The Core Loop | ✅ 100% | Electron app, Personas CRUD, Sessions, Chat UI, Sequential turn-taking, Settings, Encryption |
-| Phase 2 | The Conductor | 🔄 In Progress | Session archiving ✅, Session tags, Multi-provider LLM, Export to Markdown ✅, Input enhancement, UI polish |
+| Phase 2 | The Conductor | 🔄 In Progress | Session archiving ✅, Message bubble color accents ✅, Export to Markdown ✅, Session tags, Multi-provider LLM, Input enhancement, UI polish |
 | Phase 3 | The Context | 0% | File attachments, RAG, Vector store, Rolling Context |
 | Phase 4 | Polish & Controls | 0% | Hush button, Whisper, Cost counters, Circuit breaker |
 
@@ -511,9 +534,9 @@ Each field type has tailored prompts for both actions (e.g., system prompts get 
 ## Statistics
 
 - **Total Requirements**: 34
-- **Implemented**: 18 (53%)
+- **Implemented**: 19 (56%)
 - **In Progress**: 0 (0%)
-- **Pending**: 16 (47%)
+- **Pending**: 15 (44%)
 - **Out of Scope**: 5 (15%)
 - **Partial**: 2 (6%)
 - **Critical Priority**: 10
@@ -523,5 +546,5 @@ Each field type has tailored prompts for both actions (e.g., system prompts get 
 
 ---
 
-**Last Updated**: 2026-02-06  
-**Document Version**: 2.0
+**Last Updated**: 2026-02-07  
+**Document Version**: 2.1

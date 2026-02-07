@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useSessionsStore } from '@/stores/sessions';
 import { BlackboardPanel } from '@/components/blackboard/BlackboardPanel';
+import { MessageBubble } from '@/components/chat/MessageBubble';
 import { toast } from 'sonner';
 
 function SessionContent() {
@@ -389,30 +390,15 @@ function SessionContent() {
                   
                   {/* Message */}
                   <div className={`flex-1 max-w-[80%] ${isUser ? 'text-right' : ''}`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium">
-                        {isUser ? 'You' : persona?.name}
-                      </span>
-                      {isIntervention && (
-                        <Badge variant="outline" className="text-xs">
-                          Intervention
-                        </Badge>
-                      )}
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-                    <div
-                      className={`inline-block p-3 rounded-lg text-sm ${
-                        isUser
-                          ? 'bg-primary text-primary-foreground'
-                          : isIntervention
-                            ? 'bg-secondary border'
-                            : 'bg-card border'
-                      }`}
-                    >
-                      {msg.content}
-                    </div>
+                    <MessageBubble
+                      content={msg.content}
+                      senderName={isUser ? 'You' : persona?.name || 'Unknown'}
+                      timestamp={msg.createdAt}
+                      isUser={isUser}
+                      isOrchestrator={isOrchestratorMessage}
+                      isIntervention={isIntervention}
+                      accentColor={persona?.color}
+                    />
                   </div>
                 </div>
               );

@@ -6,6 +6,9 @@ import { setupSettingsHandlers } from './handlers/settings.js';
 import { setupOrchestratorHandlers } from './handlers/orchestrator.js';
 import { setupExportHandlers } from './handlers/export.js';
 
+// Disable GPU acceleration to avoid VAAPI version errors
+app.commandLine.appendSwitch('disable-gpu');
+
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow(): void {

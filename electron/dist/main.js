@@ -10,6 +10,8 @@ const llm_js_1 = require("./handlers/llm.js");
 const settings_js_1 = require("./handlers/settings.js");
 const orchestrator_js_1 = require("./handlers/orchestrator.js");
 const export_js_1 = require("./handlers/export.js");
+// Disable GPU acceleration to avoid VAAPI version errors
+electron_1.app.commandLine.appendSwitch('disable-gpu');
 let mainWindow = null;
 function createWindow() {
     const preloadPath = path_1.default.join(__dirname, 'preload.js');
