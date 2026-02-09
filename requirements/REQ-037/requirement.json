@@ -1,0 +1,11 @@
+{
+  "id": "REQ-037",
+  "title": "Complex File Types",
+  "description": "Support for non-text formats like Images, Excel with macros.",
+  "status": "pending",
+  "priority": "low",
+  "complexity": 7,
+  "createdAt": "2026-02-08",
+  "updatedAt": "2026-02-08",
+  "path": "requirements/REQ-037"
+}

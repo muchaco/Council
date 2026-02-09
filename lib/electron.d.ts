@@ -1,5 +1,11 @@
 // Type declarations for Electron APIs
 
+interface Tag {
+  id: number;
+  name: string;
+  createdAt: string;
+}
+
 declare global {
   interface Window {
     electronDB: {
@@ -17,8 +23,22 @@ declare global {
       getMessages: (sessionId: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
       addPersonaToSession: (sessionId: string, personaId: string, isOrchestrator: boolean) => Promise<{ success: boolean; error?: string }>;
       getSessionPersonas: (sessionId: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
+      hushPersona: (sessionId: string, personaId: string, turns: number) => Promise<{ success: boolean; error?: string }>;
+      unhushPersona: (sessionId: string, personaId: string) => Promise<{ success: boolean; error?: string }>;
       archiveSession: (id: string) => Promise<{ success: boolean; error?: string }>;
       unarchiveSession: (id: string) => Promise<{ success: boolean; error?: string }>;
+      tags: {
+        create: (name: string) => Promise<{ success: boolean; data?: Tag; error?: string }>;
+        getAll: () => Promise<{ success: boolean; data?: Tag[]; error?: string }>;
+        getByName: (name: string) => Promise<{ success: boolean; data?: Tag | null; error?: string }>;
+        delete: (id: number) => Promise<{ success: boolean; error?: string }>;
+        cleanupOrphaned: () => Promise<{ success: boolean; error?: string }>;
+      };
+      sessionTags: {
+        add: (sessionId: string, tagId: number) => Promise<{ success: boolean; error?: string }>;
+        remove: (sessionId: string, tagId: number) => Promise<{ success: boolean; error?: string }>;
+        getBySession: (sessionId: string) => Promise<{ success: boolean; data?: string[]; error?: string }>;
+      };
     };
     electronLLM: {
       chat: (request: unknown) => Promise<{ success: boolean; data?: { content: string; tokenCount: number }; error?: string }>;

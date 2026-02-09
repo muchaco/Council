@@ -17,7 +17,7 @@ let db = null;
 let initPromise = null;
 let initAttempts = 0;
 const MAX_INIT_ATTEMPTS = 3;
-const CURRENT_SCHEMA_VERSION = 5;
+const CURRENT_SCHEMA_VERSION = 7;
 function getDatabasePath() {
     try {
         const userDataPath = electron_1.app.getPath('userData');
@@ -183,6 +183,18 @@ async function initializeSchemaWithMigrations(database) {
         await run('INSERT OR REPLACE INTO schema_version (version) VALUES (5)');
         console.log('Migration to version 5 complete');
     }
+    if (currentVersion < 6) {
+        console.log('Running migration to version 6...');
+        await runMigrationV6(database, run);
+        await run('INSERT OR REPLACE INTO schema_version (version) VALUES (6)');
+        console.log('Migration to version 6 complete');
+    }
+    if (currentVersion < 7) {
+        console.log('Running migration to version 7...');
+        await runMigrationV7(database, run);
+        await run('INSERT OR REPLACE INTO schema_version (version) VALUES (7)');
+        console.log('Migration to version 7 complete');
+    }
     console.log('All migrations complete');
 }
 async function runMigrationV1(database, run) {
@@ -324,6 +336,52 @@ async function runMigrationV5(database, run) {
     catch (err) {
         // Column might already exist
         console.log('Note: archived_at column may already exist');
+    }
+}
+async function runMigrationV6(database, run) {
+    // Create tags table
+    await run(`
+    CREATE TABLE IF NOT EXISTS tags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+    console.log('Created tags table');
+    // Create session_tags junction table
+    await run(`
+    CREATE TABLE IF NOT EXISTS session_tags (
+      session_id TEXT NOT NULL,
+      tag_id INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (session_id, tag_id),
+      FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+      FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+    )
+  `);
+    console.log('Created session_tags junction table');
+    // Create index for efficient tag lookups
+    await run(`CREATE INDEX IF NOT EXISTS idx_session_tags_tag ON session_tags(tag_id)`);
+    await run(`CREATE INDEX IF NOT EXISTS idx_session_tags_session ON session_tags(session_id)`);
+    console.log('Created indexes on session_tags');
+}
+async function runMigrationV7(database, run) {
+    // Add hush columns to session_personas table for "The Hush Button" feature
+    try {
+        await run(`ALTER TABLE session_personas ADD COLUMN hush_turns_remaining INTEGER DEFAULT 0`);
+        console.log('Added hush_turns_remaining column to session_personas table');
+    }
+    catch (err) {
+        // Column might already exist
+        console.log('Note: hush_turns_remaining column may already exist');
+    }
+    try {
+        await run(`ALTER TABLE session_personas ADD COLUMN hushed_at DATETIME`);
+        console.log('Added hushed_at column to session_personas table');
+    }
+    catch (err) {
+        // Column might already exist
+        console.log('Note: hushed_at column may already exist');
     }
 }
 function getDatabase() {

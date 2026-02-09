@@ -1,0 +1,11 @@
+{
+  "id": "REQ-001",
+  "title": "Create New Session",
+  "description": "User must be able to create a new Session with a Title, Main Problem Description, and Defined Output Goal.",
+  "status": "completed",
+  "priority": "critical",
+  "complexity": 2,
+  "createdAt": "2026-02-08",
+  "updatedAt": "2026-02-08",
+  "path": "requirements/REQ-001"
+}

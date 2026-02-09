@@ -1,0 +1,11 @@
+{
+  "id": "REQ-003",
+  "title": "Session Lifecycle Management",
+  "description": "User must be able to resume, pause, or delete past sessions.",
+  "status": "completed",
+  "priority": "high",
+  "complexity": 2,
+  "createdAt": "2026-02-08",
+  "updatedAt": "2026-02-08",
+  "path": "requirements/REQ-003"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "REQ-016",
+  "title": "Rolling Context",
+  "description": "To manage tokens, system summarizes older messages and feeds agents a condensed history plus blackboard state.",
+  "status": "pending",
+  "priority": "high",
+  "complexity": 7,
+  "createdAt": "2026-02-08",
+  "updatedAt": "2026-02-08",
+  "path": "requirements/REQ-016"
+}

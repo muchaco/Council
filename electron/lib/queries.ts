@@ -1,5 +1,5 @@
 import { getDatabase, ensureDatabaseReady } from './db.js';
-import type { Persona, PersonaInput, Session, SessionInput, Message, MessageInput } from './types.js';
+import type { Persona, PersonaInput, Session, SessionInput, Message, MessageInput, Tag, TagInput, SessionPersona } from './types.js';
 
 // Ensure database is initialized before any query
 async function ensureDb(): Promise<void> {
@@ -204,6 +204,7 @@ export async function createSession(
     tokenBudget: 100000,
     summary: null,
     archivedAt: null,
+    tags: [],
     createdAt: now,
     updatedAt: now,
   };
@@ -231,12 +232,35 @@ export async function getSessions(): Promise<Session[]> {
     FROM sessions
     ORDER BY updated_at DESC
   `);
-  
+
+  // Fetch tags for all sessions
+  const sessionIds = rows.map(row => row.id);
+  const tagsMap = new Map<string, string[]>();
+
+  if (sessionIds.length > 0) {
+    const placeholders = sessionIds.map(() => '?').join(',');
+    const tagRows = await getAll<{ session_id: string; name: string }>(`
+      SELECT st.session_id, t.name
+      FROM session_tags st
+      JOIN tags t ON st.tag_id = t.id
+      WHERE st.session_id IN (${placeholders})
+      ORDER BY st.created_at ASC
+    `, sessionIds);
+
+    for (const row of tagRows) {
+      if (!tagsMap.has(row.session_id)) {
+        tagsMap.set(row.session_id, []);
+      }
+      tagsMap.get(row.session_id)!.push(row.name);
+    }
+  }
+
   return rows.map(row => ({
     ...row,
     orchestratorEnabled: Boolean(row.orchestratorEnabled),
     blackboard: row.blackboard ? JSON.parse(row.blackboard) : null,
     archivedAt: row.archivedAt || null,
+    tags: tagsMap.get(row.id) || [],
   }));
 }
 
@@ -262,14 +286,18 @@ export async function getSession(id: string): Promise<Session | null> {
     FROM sessions
     WHERE id = ?
   `, [id]);
-  
+
   if (!row) return null;
-  
+
+  // Fetch tags for this session
+  const tags = await getTagsBySession(id);
+
   return {
     ...row,
     orchestratorEnabled: Boolean(row.orchestratorEnabled),
     blackboard: row.blackboard ? JSON.parse(row.blackboard) : null,
     archivedAt: row.archivedAt || null,
+    tags,
   };
 }
 
@@ -433,10 +461,6 @@ export async function getLastMessages(sessionId: string, limit: number = 10): Pr
 }
 
 // Session Persona operations
-interface SessionPersona extends Persona {
-  isOrchestrator: boolean;
-}
-
 export async function addPersonaToSession(sessionId: string, personaId: string, isOrchestrator: boolean = false): Promise<void> {
   await runQuery(
     `INSERT INTO session_personas (session_id, persona_id, is_orchestrator)
@@ -447,7 +471,7 @@ export async function addPersonaToSession(sessionId: string, personaId: string, 
 }
 
 export async function getSessionPersonas(sessionId: string): Promise<SessionPersona[]> {
-  return getAll<SessionPersona>(`
+  const rows = await getAll<any>(`
     SELECT
       p.id,
       p.name,
@@ -460,12 +484,77 @@ export async function getSessionPersonas(sessionId: string): Promise<SessionPers
       p.verbosity,
       p.created_at as createdAt,
       p.updated_at as updatedAt,
-      sp.is_orchestrator as isOrchestrator
+      sp.is_orchestrator as isOrchestrator,
+      sp.hush_turns_remaining as hushTurnsRemaining,
+      sp.hushed_at as hushedAt
     FROM personas p
     JOIN session_personas sp ON p.id = sp.persona_id
     WHERE sp.session_id = ?
     ORDER BY p.name
   `, [sessionId]);
+
+  return rows.map(row => ({
+    ...row,
+    isOrchestrator: Boolean(row.isOrchestrator),
+    hushTurnsRemaining: row.hushTurnsRemaining || 0,
+    hushedAt: row.hushedAt || null,
+  }));
+}
+
+// Hush operations - "The Hush Button" feature
+export async function setPersonaHush(sessionId: string, personaId: string, turns: number): Promise<void> {
+  const now = new Date().toISOString();
+  await runQuery(
+    `UPDATE session_personas 
+     SET hush_turns_remaining = ?, hushed_at = ? 
+     WHERE session_id = ? AND persona_id = ?`,
+    [turns, now, sessionId, personaId]
+  );
+}
+
+export async function decrementPersonaHush(sessionId: string, personaId: string): Promise<number> {
+  await runQuery(
+    `UPDATE session_personas 
+     SET hush_turns_remaining = MAX(0, hush_turns_remaining - 1) 
+     WHERE session_id = ? AND persona_id = ? AND hush_turns_remaining > 0`,
+    [sessionId, personaId]
+  );
+  
+  const row = await getOne<{ hushTurnsRemaining: number }>(`
+    SELECT hush_turns_remaining as hushTurnsRemaining 
+    FROM session_personas 
+    WHERE session_id = ? AND persona_id = ?
+  `, [sessionId, personaId]);
+  
+  return row?.hushTurnsRemaining || 0;
+}
+
+export async function clearPersonaHush(sessionId: string, personaId: string): Promise<void> {
+  await runQuery(
+    `UPDATE session_personas 
+     SET hush_turns_remaining = 0, hushed_at = NULL 
+     WHERE session_id = ? AND persona_id = ?`,
+    [sessionId, personaId]
+  );
+}
+
+export async function decrementAllHushTurns(sessionId: string): Promise<void> {
+  await runQuery(
+    `UPDATE session_personas 
+     SET hush_turns_remaining = MAX(0, hush_turns_remaining - 1) 
+     WHERE session_id = ? AND hush_turns_remaining > 0`,
+    [sessionId]
+  );
+}
+
+export async function getHushedPersonas(sessionId: string): Promise<string[]> {
+  const rows = await getAll<{ persona_id: string }>(`
+    SELECT persona_id 
+    FROM session_personas 
+    WHERE session_id = ? AND hush_turns_remaining > 0
+  `, [sessionId]);
+  
+  return rows.map(row => row.persona_id);
 }
 
 export async function removePersonaFromSession(sessionId: string, personaId: string): Promise<void> {
@@ -552,4 +641,86 @@ export async function isSessionArchived(sessionId: string): Promise<boolean> {
     [sessionId]
   );
   return session?.archivedAt !== null && session?.archivedAt !== undefined;
+}
+
+// Tag operations
+export async function createTag(data: TagInput): Promise<Tag> {
+  const now = new Date().toISOString();
+
+  await runQuery(
+    `INSERT INTO tags (name, created_at) VALUES (?, ?)`,
+    [data.name, now]
+  );
+
+  const tag = await getOne<Tag>(
+    `SELECT id, name, created_at as createdAt FROM tags WHERE name = ?`,
+    [data.name]
+  );
+
+  if (!tag) {
+    throw new Error('Tag not found after creation');
+  }
+
+  return tag;
+}
+
+export async function getTagByName(name: string): Promise<Tag | null> {
+  return getOne<Tag>(
+    `SELECT id, name, created_at as createdAt FROM tags WHERE name = ?`,
+    [name]
+  );
+}
+
+export async function getAllTags(): Promise<Tag[]> {
+  // Only return tags that have at least one session association
+  // This prevents orphaned tags from appearing in autocomplete
+  return getAll<Tag>(
+    `SELECT t.id, t.name, t.created_at as createdAt 
+     FROM tags t
+     INNER JOIN session_tags st ON t.id = st.tag_id
+     GROUP BY t.id, t.name, t.created_at
+     ORDER BY t.name ASC`
+  );
+}
+
+export async function deleteTag(id: number): Promise<void> {
+  await runQuery('DELETE FROM tags WHERE id = ?', [id]);
+}
+
+// Session-Tag operations
+export async function addTagToSession(sessionId: string, tagId: number): Promise<void> {
+  await runQuery(
+    `INSERT INTO session_tags (session_id, tag_id) VALUES (?, ?)
+     ON CONFLICT(session_id, tag_id) DO NOTHING`,
+    [sessionId, tagId]
+  );
+}
+
+export async function removeTagFromSession(sessionId: string, tagId: number): Promise<void> {
+  await runQuery(
+    'DELETE FROM session_tags WHERE session_id = ? AND tag_id = ?',
+    [sessionId, tagId]
+  );
+}
+
+export async function getTagsBySession(sessionId: string): Promise<string[]> {
+  const rows = await getAll<{ name: string }>(
+    `SELECT t.name
+     FROM tags t
+     JOIN session_tags st ON t.id = st.tag_id
+     WHERE st.session_id = ?
+     ORDER BY st.created_at ASC`,
+    [sessionId]
+  );
+
+  return rows.map(row => row.name);
+}
+
+export async function cleanupOrphanedTags(): Promise<number> {
+  const result = await runQuery(
+    `DELETE FROM tags 
+     WHERE id NOT IN (SELECT DISTINCT tag_id FROM session_tags)`
+  );
+  // Return number of deleted rows (this is a rough approximation)
+  return 0;
 }

@@ -1,9 +1,12 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
-import type { Session, SessionInput, Message, Persona, BlackboardState } from '../lib/types';
+import type { Session, SessionInput, Message, Persona, BlackboardState, Tag } from '../lib/types';
+import { validateTagInput, canAddTag } from '../lib/validation';
 
 interface SessionPersona extends Persona {
   isOrchestrator: boolean;
+  hushTurnsRemaining: number;
+  hushedAt: string | null;
 }
 
 interface SessionsState {
@@ -16,12 +19,13 @@ interface SessionsState {
   orchestratorRunning: boolean;
   orchestratorPaused: boolean;
   blackboard: BlackboardState | null;
-  
+  allTags: Tag[];
+
   // Actions
   fetchSessions: () => Promise<void>;
-  createSession: (data: SessionInput, personaIds: string[], orchestratorConfig?: { enabled: boolean; orchestratorPersonaId?: string }) => Promise<string | null>;
+  createSession: (data: SessionInput, personaIds: string[], orchestratorConfig?: { enabled: boolean; orchestratorPersonaId?: string }, tags?: string[]) => Promise<string | null>;
   loadSession: (id: string) => Promise<void>;
-  updateSession: (id: string, data: Partial<SessionInput> & { status?: string; tokenCount?: number; costEstimate?: number; orchestratorEnabled?: boolean; orchestratorPersonaId?: string | null; blackboard?: BlackboardState; autoReplyCount?: number; tokenBudget?: number; summary?: string | null }) => Promise<void>;
+  updateSession: (id: string, data: Partial<SessionInput> & { status?: string; tokenCount?: number; costEstimate?: number; orchestratorEnabled?: boolean; orchestratorPersonaId?: string | null; blackboard?: BlackboardState; autoReplyCount?: number; tokenBudget?: number; summary?: string | null; tags?: string[] }) => Promise<void>;
   deleteSession: (id: string) => Promise<boolean>;
   sendUserMessage: (content: string) => Promise<void>;
   triggerPersonaResponse: (personaId: string) => Promise<void>;
@@ -35,6 +39,11 @@ interface SessionsState {
   exportSessionToMarkdown: (sessionId: string) => Promise<boolean>;
   archiveSession: (id: string) => Promise<boolean>;
   unarchiveSession: (id: string) => Promise<boolean>;
+  hushPersona: (personaId: string, turns: number) => Promise<boolean>;
+  unhushPersona: (personaId: string) => Promise<boolean>;
+  fetchAllTags: () => Promise<void>;
+  addTagToSession: (sessionId: string, tagName: string) => Promise<boolean>;
+  removeTagFromSession: (sessionId: string, tagName: string) => Promise<boolean>;
 }
 
 export const useSessionsStore = create<SessionsState>((set, get) => ({
@@ -47,6 +56,143 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   orchestratorRunning: false,
   orchestratorPaused: false,
   blackboard: null,
+  allTags: [],
+
+  fetchAllTags: async () => {
+    try {
+      const result = await window.electronDB.tags.getAll();
+      if (result.success && result.data) {
+        set({ allTags: result.data as Tag[] });
+      }
+    } catch (error) {
+      console.error('Error fetching all tags:', error);
+    }
+  },
+
+  addTagToSession: async (sessionId: string, tagName: string) => {
+    try {
+      const { sessions, currentSession, allTags } = get();
+      const session = sessions.find(s => s.id === sessionId) || currentSession;
+
+      if (!session) {
+        toast.error('Session not found');
+        return false;
+      }
+
+      // Validate tag using functional core
+      const validation = validateTagInput(tagName, session.tags);
+      if (!validation.valid) {
+        toast.error(validation.error || 'Invalid tag');
+        return false;
+      }
+
+      // Check max tags limit
+      if (!canAddTag(session.tags)) {
+        toast.error('Maximum 3 tags allowed per session');
+        return false;
+      }
+
+      const normalizedTag = validation.normalizedTag!;
+
+      // Check if tag already exists in database
+      let tag = allTags.find(t => t.name === normalizedTag);
+
+      if (!tag) {
+        // Try to get from database
+        const getResult = await window.electronDB.tags.getByName(normalizedTag);
+        if (getResult.success && getResult.data) {
+          tag = getResult.data as Tag;
+        }
+      }
+
+      // Create tag if it doesn't exist
+      if (!tag) {
+        const createResult = await window.electronDB.tags.create(normalizedTag);
+        if (!createResult.success || !createResult.data) {
+          toast.error(createResult.error || 'Failed to create tag');
+          return false;
+        }
+        tag = createResult.data as Tag;
+        // Update allTags list
+        set(state => ({ allTags: [...state.allTags, tag!] }));
+      }
+
+      // Add tag to session
+      const addResult = await window.electronDB.sessionTags.add(sessionId, tag.id);
+      if (!addResult.success) {
+        toast.error(addResult.error || 'Failed to add tag to session');
+        return false;
+      }
+
+      // Update local state
+      const updatedTags = [...session.tags, normalizedTag];
+      set(state => ({
+        sessions: state.sessions.map(s =>
+          s.id === sessionId ? { ...s, tags: updatedTags } : s
+        ),
+        currentSession: state.currentSession?.id === sessionId
+          ? { ...state.currentSession, tags: updatedTags }
+          : state.currentSession,
+      }));
+
+      return true;
+    } catch (error) {
+      toast.error('Error adding tag to session');
+      return false;
+    }
+  },
+
+  removeTagFromSession: async (sessionId: string, tagName: string) => {
+    try {
+      const { sessions, currentSession, allTags } = get();
+      const session = sessions.find(s => s.id === sessionId) || currentSession;
+
+      if (!session) {
+        toast.error('Session not found');
+        return false;
+      }
+
+      const normalizedTag = tagName.toLowerCase().trim();
+      const tag = allTags.find(t => t.name === normalizedTag);
+
+      if (!tag) {
+        toast.error('Tag not found');
+        return false;
+      }
+
+      // Remove tag from session
+      const removeResult = await window.electronDB.sessionTags.remove(sessionId, tag.id);
+      if (!removeResult.success) {
+        toast.error(removeResult.error || 'Failed to remove tag from session');
+        return false;
+      }
+
+      // Update local state
+      const updatedTags = session.tags.filter(t => t !== normalizedTag);
+      set(state => ({
+        sessions: state.sessions.map(s =>
+          s.id === sessionId ? { ...s, tags: updatedTags } : s
+        ),
+        currentSession: state.currentSession?.id === sessionId
+          ? { ...state.currentSession, tags: updatedTags }
+          : state.currentSession,
+      }));
+
+      // Clean up orphaned tags and refresh allTags for autocomplete
+      try {
+        await window.electronDB.tags.cleanupOrphaned();
+        await get().fetchAllTags();
+      } catch (cleanupError) {
+        console.error('Error cleaning up orphaned tags:', cleanupError);
+        // Non-fatal error, don't fail the remove operation
+      }
+
+      return true;
+    } catch (error) {
+      toast.error('Error removing tag from session');
+      return false;
+    }
+  },
 
   fetchSessions: async () => {
     try {
@@ -64,29 +210,84 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     }
   },
 
-  createSession: async (data: SessionInput, personaIds: string[], orchestratorConfig?: { enabled: boolean; orchestratorPersonaId?: string }) => {
+  createSession: async (data: SessionInput, personaIds: string[], orchestratorConfig?: { enabled: boolean; orchestratorPersonaId?: string }, tags?: string[]) => {
     try {
       set({ isLoading: true });
-      
+
+      // Validate tags before creating session
+      const validatedTags: string[] = [];
+      if (tags && tags.length > 0) {
+        if (tags.length > 3) {
+          toast.error('Maximum 3 tags allowed per session');
+          set({ isLoading: false });
+          return null;
+        }
+
+        for (const tag of tags) {
+          const validation = validateTagInput(tag, validatedTags);
+          if (!validation.valid) {
+            toast.error(`Invalid tag "${tag}": ${validation.error}`);
+            set({ isLoading: false });
+            return null;
+          }
+          validatedTags.push(validation.normalizedTag!);
+        }
+      }
+
       // Create session with orchestrator config
       const sessionResult = await window.electronDB.createSession({ ...data, orchestratorConfig });
       if (!sessionResult.success || !sessionResult.data) {
         toast.error(sessionResult.error || 'Failed to create session');
         return null;
       }
-      
+
       const session = sessionResult.data as Session;
-      
+
       // Add personas to session
       for (const personaId of personaIds) {
         const isOrchestrator = !!(orchestratorConfig?.enabled && orchestratorConfig.orchestratorPersonaId === personaId);
         await window.electronDB.addPersonaToSession(session.id, personaId, isOrchestrator);
       }
-      
+
+      // Add tags to session
+      if (validatedTags.length > 0) {
+        const { allTags } = get();
+
+        for (const tagName of validatedTags) {
+          // Check if tag already exists
+          let tag = allTags.find(t => t.name === tagName);
+
+          if (!tag) {
+            // Try to get from database
+            const getResult = await window.electronDB.tags.getByName(tagName);
+            if (getResult.success && getResult.data) {
+              tag = getResult.data as Tag;
+            }
+          }
+
+          // Create tag if it doesn't exist
+          if (!tag) {
+            const createResult = await window.electronDB.tags.create(tagName);
+            if (createResult.success && createResult.data) {
+              tag = createResult.data as Tag;
+              set(state => ({ allTags: [...state.allTags, tag!] }));
+            }
+          }
+
+          // Link tag to session
+          if (tag) {
+            await window.electronDB.sessionTags.add(session.id, tag.id);
+          }
+        }
+
+        // Update session with tags
+        session.tags = validatedTags;
+      }
+
       set(state => ({
         sessions: [session, ...state.sessions],
       }));
-      
+
       toast.success('Session created successfully');
       return session.id;
     } catch (error) {
@@ -122,8 +323,18 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         return;
       }
       
+      // Get session tags
+      const tagsResult = await window.electronDB.sessionTags.getBySession(id);
+      const sessionTags = (tagsResult.data as string[]) || [];
+      
+      // Combine session data with tags
+      const sessionWithTags = {
+        ...(sessionResult.data as Session),
+        tags: sessionTags,
+      };
+      
       set({
-        currentSession: sessionResult.data as Session,
+        currentSession: sessionWithTags,
         messages: (messagesResult.data as Message[]) || [],
         sessionPersonas: (personasResult.data as SessionPersona[]) || [],
       });
@@ -154,6 +365,14 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       set({ isLoading: true });
       const result = await window.electronDB.deleteSession(id);
       if (result.success) {
+        // Clean up orphaned tags (tags with no session associations)
+        try {
+          await window.electronDB.tags.cleanupOrphaned();
+        } catch (cleanupError) {
+          console.error('Error cleaning up orphaned tags:', cleanupError);
+          // Non-fatal error, don't fail the delete operation
+        }
+        
         set(state => ({
           sessions: state.sessions.filter(s => s.id !== id),
           currentSession: state.currentSession?.id === id ? null : state.currentSession,
@@ -439,6 +658,60 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       return false;
     } finally {
       set({ isLoading: false });
+    }
+  },
+
+  hushPersona: async (personaId: string, turns: number) => {
+    const { currentSession, sessionPersonas } = get();
+    if (!currentSession) return false;
+    
+    try {
+      const result = await window.electronDB.hushPersona(currentSession.id, personaId, turns);
+      if (result.success) {
+        // Update local state
+        set({
+          sessionPersonas: sessionPersonas.map(p => 
+            p.id === personaId 
+              ? { ...p, hushTurnsRemaining: turns, hushedAt: new Date().toISOString() }
+              : p
+          ),
+        });
+        toast.success(`Persona hushed for ${turns} turns`);
+        return true;
+      } else {
+        toast.error(result.error || 'Failed to hush persona');
+        return false;
+      }
+    } catch (error) {
+      toast.error('Error hushing persona');
+      return false;
+    }
+  },
+
+  unhushPersona: async (personaId: string) => {
+    const { currentSession, sessionPersonas } = get();
+    if (!currentSession) return false;
+    
+    try {
+      const result = await window.electronDB.unhushPersona(currentSession.id, personaId);
+      if (result.success) {
+        // Update local state
+        set({
+          sessionPersonas: sessionPersonas.map(p => 
+            p.id === personaId 
+              ? { ...p, hushTurnsRemaining: 0, hushedAt: null }
+              : p
+          ),
+        });
+        toast.success('Persona unhushed');
+        return true;
+      } else {
+        toast.error(result.error || 'Failed to unhush persona');
+        return false;
+      }
+    } catch (error) {
+      toast.error('Error unhushing persona');
+      return false;
     }
   },
 

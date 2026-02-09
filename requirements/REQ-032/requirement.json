@@ -1,0 +1,11 @@
+{
+  "id": "REQ-032",
+  "title": "Safety/Cost Control",
+  "description": "App must have Circuit Breaker to prevent infinite loops (max 10 auto-replies before user confirm).",
+  "status": "completed",
+  "priority": "high",
+  "complexity": 2,
+  "createdAt": "2026-02-08",
+  "updatedAt": "2026-02-08",
+  "path": "requirements/REQ-032"
+}

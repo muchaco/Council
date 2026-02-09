@@ -15,6 +15,11 @@ exports.getMessagesBySession = getMessagesBySession;
 exports.getLastMessages = getLastMessages;
 exports.addPersonaToSession = addPersonaToSession;
 exports.getSessionPersonas = getSessionPersonas;
+exports.setPersonaHush = setPersonaHush;
+exports.decrementPersonaHush = decrementPersonaHush;
+exports.clearPersonaHush = clearPersonaHush;
+exports.decrementAllHushTurns = decrementAllHushTurns;
+exports.getHushedPersonas = getHushedPersonas;
 exports.removePersonaFromSession = removePersonaFromSession;
 exports.getNextTurnNumber = getNextTurnNumber;
 exports.updateBlackboard = updateBlackboard;
@@ -26,6 +31,14 @@ exports.disableOrchestrator = disableOrchestrator;
 exports.archiveSession = archiveSession;
 exports.unarchiveSession = unarchiveSession;
 exports.isSessionArchived = isSessionArchived;
+exports.createTag = createTag;
+exports.getTagByName = getTagByName;
+exports.getAllTags = getAllTags;
+exports.deleteTag = deleteTag;
+exports.addTagToSession = addTagToSession;
+exports.removeTagFromSession = removeTagFromSession;
+exports.getTagsBySession = getTagsBySession;
+exports.cleanupOrphanedTags = cleanupOrphanedTags;
 const db_js_1 = require("./db.js");
 // Ensure database is initialized before any query
 async function ensureDb() {
@@ -204,6 +217,7 @@ async function createSession(data, orchestratorConfig) {
         tokenBudget: 100000,
         summary: null,
         archivedAt: null,
+        tags: [],
         createdAt: now,
         updatedAt: now,
     };
@@ -230,11 +244,31 @@ async function getSessions() {
     FROM sessions
     ORDER BY updated_at DESC
   `);
+    // Fetch tags for all sessions
+    const sessionIds = rows.map(row => row.id);
+    const tagsMap = new Map();
+    if (sessionIds.length > 0) {
+        const placeholders = sessionIds.map(() => '?').join(',');
+        const tagRows = await getAll(`
+      SELECT st.session_id, t.name
+      FROM session_tags st
+      JOIN tags t ON st.tag_id = t.id
+      WHERE st.session_id IN (${placeholders})
+      ORDER BY st.created_at ASC
+    `, sessionIds);
+        for (const row of tagRows) {
+            if (!tagsMap.has(row.session_id)) {
+                tagsMap.set(row.session_id, []);
+            }
+            tagsMap.get(row.session_id).push(row.name);
+        }
+    }
     return rows.map(row => ({
         ...row,
         orchestratorEnabled: Boolean(row.orchestratorEnabled),
         blackboard: row.blackboard ? JSON.parse(row.blackboard) : null,
         archivedAt: row.archivedAt || null,
+        tags: tagsMap.get(row.id) || [],
     }));
 }
 async function getSession(id) {
@@ -261,11 +295,14 @@ async function getSession(id) {
   `, [id]);
     if (!row)
         return null;
+    // Fetch tags for this session
+    const tags = await getTagsBySession(id);
     return {
         ...row,
         orchestratorEnabled: Boolean(row.orchestratorEnabled),
         blackboard: row.blackboard ? JSON.parse(row.blackboard) : null,
         archivedAt: row.archivedAt || null,
+        tags,
     };
 }
 async function updateSession(id, data) {
@@ -393,13 +430,14 @@ async function getLastMessages(sessionId, limit = 10) {
     }));
     return messages.reverse();
 }
+// Session Persona operations
 async function addPersonaToSession(sessionId, personaId, isOrchestrator = false) {
     await runQuery(`INSERT INTO session_personas (session_id, persona_id, is_orchestrator)
      VALUES (?, ?, ?)
      ON CONFLICT(session_id, persona_id) DO UPDATE SET is_orchestrator = excluded.is_orchestrator`, [sessionId, personaId, isOrchestrator ? 1 : 0]);
 }
 async function getSessionPersonas(sessionId) {
-    return getAll(`
+    const rows = await getAll(`
     SELECT
       p.id,
       p.name,
@@ -412,12 +450,56 @@ async function getSessionPersonas(sessionId) {
       p.verbosity,
       p.created_at as createdAt,
       p.updated_at as updatedAt,
-      sp.is_orchestrator as isOrchestrator
+      sp.is_orchestrator as isOrchestrator,
+      sp.hush_turns_remaining as hushTurnsRemaining,
+      sp.hushed_at as hushedAt
     FROM personas p
     JOIN session_personas sp ON p.id = sp.persona_id
     WHERE sp.session_id = ?
     ORDER BY p.name
   `, [sessionId]);
+    return rows.map(row => ({
+        ...row,
+        isOrchestrator: Boolean(row.isOrchestrator),
+        hushTurnsRemaining: row.hushTurnsRemaining || 0,
+        hushedAt: row.hushedAt || null,
+    }));
+}
+// Hush operations - "The Hush Button" feature
+async function setPersonaHush(sessionId, personaId, turns) {
+    const now = new Date().toISOString();
+    await runQuery(`UPDATE session_personas 
+     SET hush_turns_remaining = ?, hushed_at = ? 
+     WHERE session_id = ? AND persona_id = ?`, [turns, now, sessionId, personaId]);
+}
+async function decrementPersonaHush(sessionId, personaId) {
+    await runQuery(`UPDATE session_personas 
+     SET hush_turns_remaining = MAX(0, hush_turns_remaining - 1) 
+     WHERE session_id = ? AND persona_id = ? AND hush_turns_remaining > 0`, [sessionId, personaId]);
+    const row = await getOne(`
+    SELECT hush_turns_remaining as hushTurnsRemaining 
+    FROM session_personas 
+    WHERE session_id = ? AND persona_id = ?
+  `, [sessionId, personaId]);
+    return row?.hushTurnsRemaining || 0;
+}
+async function clearPersonaHush(sessionId, personaId) {
+    await runQuery(`UPDATE session_personas 
+     SET hush_turns_remaining = 0, hushed_at = NULL 
+     WHERE session_id = ? AND persona_id = ?`, [sessionId, personaId]);
+}
+async function decrementAllHushTurns(sessionId) {
+    await runQuery(`UPDATE session_personas 
+     SET hush_turns_remaining = MAX(0, hush_turns_remaining - 1) 
+     WHERE session_id = ? AND hush_turns_remaining > 0`, [sessionId]);
+}
+async function getHushedPersonas(sessionId) {
+    const rows = await getAll(`
+    SELECT persona_id 
+    FROM session_personas 
+    WHERE session_id = ? AND hush_turns_remaining > 0
+  `, [sessionId]);
+    return rows.map(row => row.persona_id);
 }
 async function removePersonaFromSession(sessionId, personaId) {
     await runQuery('DELETE FROM session_personas WHERE session_id = ? AND persona_id = ?', [sessionId, personaId]);
@@ -464,5 +546,52 @@ async function unarchiveSession(sessionId) {
 async function isSessionArchived(sessionId) {
     const session = await getOne('SELECT archived_at as archivedAt FROM sessions WHERE id = ?', [sessionId]);
     return session?.archivedAt !== null && session?.archivedAt !== undefined;
+}
+// Tag operations
+async function createTag(data) {
+    const now = new Date().toISOString();
+    await runQuery(`INSERT INTO tags (name, created_at) VALUES (?, ?)`, [data.name, now]);
+    const tag = await getOne(`SELECT id, name, created_at as createdAt FROM tags WHERE name = ?`, [data.name]);
+    if (!tag) {
+        throw new Error('Tag not found after creation');
+    }
+    return tag;
+}
+async function getTagByName(name) {
+    return getOne(`SELECT id, name, created_at as createdAt FROM tags WHERE name = ?`, [name]);
+}
+async function getAllTags() {
+    // Only return tags that have at least one session association
+    // This prevents orphaned tags from appearing in autocomplete
+    return getAll(`SELECT t.id, t.name, t.created_at as createdAt 
+     FROM tags t
+     INNER JOIN session_tags st ON t.id = st.tag_id
+     GROUP BY t.id, t.name, t.created_at
+     ORDER BY t.name ASC`);
+}
+async function deleteTag(id) {
+    await runQuery('DELETE FROM tags WHERE id = ?', [id]);
+}
+// Session-Tag operations
+async function addTagToSession(sessionId, tagId) {
+    await runQuery(`INSERT INTO session_tags (session_id, tag_id) VALUES (?, ?)
+     ON CONFLICT(session_id, tag_id) DO NOTHING`, [sessionId, tagId]);
+}
+async function removeTagFromSession(sessionId, tagId) {
+    await runQuery('DELETE FROM session_tags WHERE session_id = ? AND tag_id = ?', [sessionId, tagId]);
+}
+async function getTagsBySession(sessionId) {
+    const rows = await getAll(`SELECT t.name
+     FROM tags t
+     JOIN session_tags st ON t.id = st.tag_id
+     WHERE st.session_id = ?
+     ORDER BY st.created_at ASC`, [sessionId]);
+    return rows.map(row => row.name);
+}
+async function cleanupOrphanedTags() {
+    const result = await runQuery(`DELETE FROM tags 
+     WHERE id NOT IN (SELECT DISTINCT tag_id FROM session_tags)`);
+    // Return number of deleted rows (this is a rough approximation)
+    return 0;
 }
 //# sourceMappingURL=queries.js.map

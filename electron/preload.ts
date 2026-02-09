@@ -25,9 +25,29 @@ const dbAPI = {
     ipcRenderer.invoke('db:sessionPersona:add', sessionId, personaId, isOrchestrator),
   getSessionPersonas: (sessionId: string) => ipcRenderer.invoke('db:sessionPersona:getBySession', sessionId),
   
+  // Hush - "The Hush Button" feature
+  hushPersona: (sessionId: string, personaId: string, turns: number) => 
+    ipcRenderer.invoke('db:persona:hush', sessionId, personaId, turns),
+  unhushPersona: (sessionId: string, personaId: string) => 
+    ipcRenderer.invoke('db:persona:unhush', sessionId, personaId),
+  
   // Archive
   archiveSession: (id: string) => ipcRenderer.invoke('db:session:archive', id),
   unarchiveSession: (id: string) => ipcRenderer.invoke('db:session:unarchive', id),
+  
+  // Tags
+  tags: {
+    create: (name: string) => ipcRenderer.invoke('db:tag:create', name),
+    getAll: () => ipcRenderer.invoke('db:tag:getAll'),
+    getByName: (name: string) => ipcRenderer.invoke('db:tag:getByName', name),
+    delete: (id: number) => ipcRenderer.invoke('db:tag:delete', id),
+    cleanupOrphaned: () => ipcRenderer.invoke('db:tag:cleanupOrphaned'),
+  },
+  sessionTags: {
+    add: (sessionId: string, tagId: number) => ipcRenderer.invoke('db:sessionTag:add', sessionId, tagId),
+    remove: (sessionId: string, tagId: number) => ipcRenderer.invoke('db:sessionTag:remove', sessionId, tagId),
+    getBySession: (sessionId: string) => ipcRenderer.invoke('db:sessionTag:getBySession', sessionId),
+  },
 };
 
 // LLM API

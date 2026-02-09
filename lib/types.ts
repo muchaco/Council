@@ -41,6 +41,7 @@ export interface Session {
   tokenBudget: number;
   summary: string | null;
   archivedAt: string | null;
+  tags: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -60,6 +61,8 @@ export interface SessionPersona {
   sessionId: string;
   personaId: string;
   isOrchestrator: boolean;
+  hushTurnsRemaining: number;
+  hushedAt: string | null;
 }
 
 export interface PersonaInput {
@@ -86,6 +89,16 @@ export interface MessageInput {
   turnNumber: number;
   tokenCount?: number;
   metadata?: MessageMetadata;
+}
+
+export interface Tag {
+  id: number;
+  name: string;
+  createdAt: string;
+}
+
+export interface TagInput {
+  name: string;
 }
 
 export interface ModelInfo {

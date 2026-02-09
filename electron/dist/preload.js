@@ -21,9 +21,25 @@ const dbAPI = {
     // Session Personas
     addPersonaToSession: (sessionId, personaId, isOrchestrator) => electron_1.ipcRenderer.invoke('db:sessionPersona:add', sessionId, personaId, isOrchestrator),
     getSessionPersonas: (sessionId) => electron_1.ipcRenderer.invoke('db:sessionPersona:getBySession', sessionId),
+    // Hush - "The Hush Button" feature
+    hushPersona: (sessionId, personaId, turns) => electron_1.ipcRenderer.invoke('db:persona:hush', sessionId, personaId, turns),
+    unhushPersona: (sessionId, personaId) => electron_1.ipcRenderer.invoke('db:persona:unhush', sessionId, personaId),
     // Archive
     archiveSession: (id) => electron_1.ipcRenderer.invoke('db:session:archive', id),
     unarchiveSession: (id) => electron_1.ipcRenderer.invoke('db:session:unarchive', id),
+    // Tags
+    tags: {
+        create: (name) => electron_1.ipcRenderer.invoke('db:tag:create', name),
+        getAll: () => electron_1.ipcRenderer.invoke('db:tag:getAll'),
+        getByName: (name) => electron_1.ipcRenderer.invoke('db:tag:getByName', name),
+        delete: (id) => electron_1.ipcRenderer.invoke('db:tag:delete', id),
+        cleanupOrphaned: () => electron_1.ipcRenderer.invoke('db:tag:cleanupOrphaned'),
+    },
+    sessionTags: {
+        add: (sessionId, tagId) => electron_1.ipcRenderer.invoke('db:sessionTag:add', sessionId, tagId),
+        remove: (sessionId, tagId) => electron_1.ipcRenderer.invoke('db:sessionTag:remove', sessionId, tagId),
+        getBySession: (sessionId) => electron_1.ipcRenderer.invoke('db:sessionTag:getBySession', sessionId),
+    },
 };
 // LLM API
 const llmAPI = {

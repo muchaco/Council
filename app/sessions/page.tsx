@@ -24,6 +24,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { TagDisplay } from '@/components/ui/TagDisplay';
 import { useState } from 'react';
 
 export default function SessionsPage() {
@@ -160,6 +161,13 @@ export default function SessionsPage() {
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
+
+                  {/* Tags - FR-1.16a: positioned adjacent to title */}
+                  {session.tags && session.tags.length > 0 && (
+                    <div className="mt-2">
+                      <TagDisplay tags={session.tags} variant="readonly" />
+                    </div>
+                  )}
 
                   {/* Description */}
                   <Link href={`/session?id=${session.id}`} className="flex-1">

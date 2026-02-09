@@ -1,0 +1,11 @@
+{
+  "id": "REQ-028",
+  "title": "Application Icon",
+  "description": "Electron application has distinctive icon for taskbar, title bar, and application menu.",
+  "status": "pending",
+  "priority": "low",
+  "complexity": 2,
+  "createdAt": "2026-02-08",
+  "updatedAt": "2026-02-08",
+  "path": "requirements/REQ-028"
+}

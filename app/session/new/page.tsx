@@ -6,16 +6,17 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Plus, ArrowLeft, Loader2, Users, Sparkles, Crown, HelpCircle } from 'lucide-react';
+import { Plus, ArrowLeft, Loader2, Users, Sparkles, Crown, HelpCircle, Tag } from 'lucide-react';
 import { usePersonasStore } from '@/stores/personas';
 import { useSessionsStore } from '@/stores/sessions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { TagInput } from '@/components/ui/TagInput';
 import Link from 'next/link';
 
 export default function NewSessionPage() {
   const router = useRouter();
   const { personas, fetchPersonas } = usePersonasStore();
-  const { createSession, isLoading } = useSessionsStore();
+  const { createSession, isLoading, allTags, fetchAllTags } = useSessionsStore();
   
   const [formData, setFormData] = useState({
     title: '',
@@ -25,10 +26,12 @@ export default function NewSessionPage() {
   const [selectedPersonas, setSelectedPersonas] = useState<string[]>([]);
   const [enableOrchestrator, setEnableOrchestrator] = useState(false);
   const [orchestratorPersonaId, setOrchestratorPersonaId] = useState<string>('');
+  const [sessionTags, setSessionTags] = useState<string[]>([]);
 
   useEffect(() => {
     fetchPersonas();
-  }, [fetchPersonas]);
+    fetchAllTags();
+  }, [fetchPersonas, fetchAllTags]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({
@@ -66,11 +69,19 @@ export default function NewSessionPage() {
       title: formData.title,
       problemDescription: formData.problemDescription,
       outputGoal: formData.outputGoal,
-    }, selectedPersonas, orchestratorConfig);
+    }, selectedPersonas, orchestratorConfig, sessionTags);
 
     if (sessionId) {
       router.push(`/session?id=${sessionId}`);
     }
+  };
+
+  const handleAddTag = (tag: string) => {
+    setSessionTags(prev => [...prev, tag]);
+  };
+
+  const handleRemoveTag = (tag: string) => {
+    setSessionTags(prev => prev.filter(t => t !== tag));
   };
 
   const isValid = formData.title && formData.problemDescription && selectedPersonas.length >= 2;
@@ -136,6 +147,23 @@ export default function NewSessionPage() {
                     placeholder="e.g., A 3-month action plan with budget estimates"
                     className="mt-1 bg-input border-border text-foreground"
                   />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-foreground flex items-center gap-2 mb-2">
+                    <Tag className="w-4 h-4" />
+                    Tags (Optional)
+                  </label>
+                  <TagInput
+                    tags={sessionTags}
+                    allTags={allTags}
+                    onAddTag={handleAddTag}
+                    onRemoveTag={handleRemoveTag}
+                    disabled={isLoading}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Add up to 3 tags to categorize this session
+                  </p>
                 </div>
               </div>
             </Card>

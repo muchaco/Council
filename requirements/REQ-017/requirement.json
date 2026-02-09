@@ -1,0 +1,11 @@
+{
+  "id": "REQ-017",
+  "title": "Global Attachments",
+  "description": "User can upload files (PDF/TXT/MD) to the Session. All Personas have read access.",
+  "status": "pending",
+  "priority": "medium",
+  "complexity": 7,
+  "createdAt": "2026-02-08",
+  "updatedAt": "2026-02-08",
+  "path": "requirements/REQ-017"
+}

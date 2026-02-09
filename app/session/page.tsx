@@ -23,11 +23,16 @@ import {
   Sparkles,
   Download,
   Archive,
-  RotateCcw as Unarchive
+  RotateCcw as Unarchive,
+  Tag,
+  VolumeX,
+  Volume2
 } from 'lucide-react';
 import { useSessionsStore } from '@/stores/sessions';
 import { BlackboardPanel } from '@/components/blackboard/BlackboardPanel';
 import { MessageBubble } from '@/components/chat/MessageBubble';
+import { TagDisplay } from '@/components/ui/TagDisplay';
+import { TagInput } from '@/components/ui/TagInput';
 import { toast } from 'sonner';
 
 function SessionContent() {
@@ -43,6 +48,7 @@ function SessionContent() {
     orchestratorRunning,
     orchestratorPaused,
     blackboard,
+    allTags,
     loadSession,
     sendUserMessage,
     triggerPersonaResponse,
@@ -56,6 +62,11 @@ function SessionContent() {
     exportSessionToMarkdown,
     archiveSession,
     unarchiveSession,
+    hushPersona,
+    unhushPersona,
+    fetchAllTags,
+    addTagToSession,
+    removeTagFromSession,
   } = useSessionsStore();
 
   const [newMessage, setNewMessage] = useState('');
@@ -66,12 +77,13 @@ function SessionContent() {
   useEffect(() => {
     if (sessionId) {
       loadSession(sessionId);
+      fetchAllTags();
     }
     
     return () => {
       clearCurrentSession();
     };
-  }, [sessionId, loadSession, clearCurrentSession]);
+  }, [sessionId, loadSession, clearCurrentSession, fetchAllTags]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -104,6 +116,19 @@ function SessionContent() {
     }
   };
 
+  // Hush button handlers - "The Hush Button" feature
+  const HUSH_PRESETS = [1, 3, 5, 10];
+  
+  const handleHushPersona = async (personaId: string, turns: number) => {
+    if (!currentSession) return;
+    await hushPersona(personaId, turns);
+  };
+
+  const handleUnhushPersona = async (personaId: string) => {
+    if (!currentSession) return;
+    await unhushPersona(personaId);
+  };
+
   const handleOrchestratorToggle = async () => {
     if (!currentSession) return;
     
@@ -119,6 +144,16 @@ function SessionContent() {
       // For simplicity, use the first persona as orchestrator
       await enableOrchestrator(nonOrchestratorPersonas[0].id);
     }
+  };
+
+  const handleAddTag = async (tagName: string) => {
+    if (!currentSession) return;
+    await addTagToSession(currentSession.id, tagName);
+  };
+
+  const handleRemoveTag = async (tagName: string) => {
+    if (!currentSession) return;
+    await removeTagFromSession(currentSession.id, tagName);
   };
 
   const formatDuration = (createdAt: string) => {
@@ -244,17 +279,34 @@ function SessionContent() {
                   {persona.geminiModel === 'gemini-1.5-flash' ? 'Flash' : 'Pro'} • Temp: {persona.temperature}
                 </div>
                 
+                {/* Hush Status Badge */}
+                {persona.hushTurnsRemaining > 0 && (
+                  <div className="flex items-center gap-1 mb-2 px-2 py-1 bg-muted rounded text-xs">
+                    <VolumeX className="w-3 h-3 text-muted-foreground" />
+                    <span className="text-muted-foreground">
+                      {persona.hushTurnsRemaining === 1 
+                        ? 'Hushed (1 turn)' 
+                        : `Hushed (${persona.hushTurnsRemaining} turns)`}
+                    </span>
+                  </div>
+                )}
+                
                 <Button
                   size="sm"
                   variant="outline"
                   className="w-full text-xs"
                   onClick={() => handleAskToSpeak(persona.id)}
-                  disabled={thinkingPersonaId === persona.id || !!thinkingPersonaId || orchestratorRunning || isArchived}
+                  disabled={thinkingPersonaId === persona.id || !!thinkingPersonaId || orchestratorRunning || isArchived || persona.hushTurnsRemaining > 0}
                 >
                   {thinkingPersonaId === persona.id ? (
                     <>
                       <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                       Thinking...
+                    </>
+                  ) : persona.hushTurnsRemaining > 0 ? (
+                    <>
+                      <VolumeX className="w-3 h-3 mr-1" />
+                      Hushed
                     </>
                   ) : isArchived ? (
                     'Session Archived'
@@ -262,6 +314,39 @@ function SessionContent() {
                     'Ask to Speak'
                   )}
                 </Button>
+                
+                {/* Hush Button Row */}
+                {!isArchived && (
+                  <div className="flex gap-1 mt-2">
+                    {persona.hushTurnsRemaining > 0 ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="flex-1 text-xs h-7"
+                        onClick={() => handleUnhushPersona(persona.id)}
+                        disabled={thinkingPersonaId === persona.id || orchestratorRunning}
+                      >
+                        <Volume2 className="w-3 h-3 mr-1" />
+                        Unhush
+                      </Button>
+                    ) : (
+                      HUSH_PRESETS.map((turns) => (
+                        <Button
+                          key={turns}
+                          size="sm"
+                          variant="ghost"
+                          className="flex-1 text-xs h-7 px-1"
+                          onClick={() => handleHushPersona(persona.id, turns)}
+                          disabled={thinkingPersonaId === persona.id || orchestratorRunning}
+                          title={`Hush for ${turns} turn${turns === 1 ? '' : 's'}`}
+                        >
+                          <VolumeX className="w-3 h-3 mr-0.5" />
+                          {turns}
+                        </Button>
+                      ))
+                    )}
+                  </div>
+                )}
               </Card>
             );
           })}
@@ -309,7 +394,26 @@ function SessionContent() {
           <div className="flex items-center justify-between">
             <div className="flex-1 min-w-0">
               <h2 className="text-lg font-semibold">{currentSession.title}</h2>
-              <p className="text-xs text-muted-foreground line-clamp-1">
+              
+              {/* Tags - FR-1.16a: positioned adjacent to title */}
+              <div className="mt-1">
+                {isArchived ? (
+                  <TagDisplay 
+                    tags={currentSession.tags || []} 
+                    variant="readonly" 
+                  />
+                ) : (
+                  <TagInput
+                    tags={currentSession.tags || []}
+                    allTags={allTags}
+                    onAddTag={handleAddTag}
+                    onRemoveTag={handleRemoveTag}
+                    disabled={isArchived}
+                  />
+                )}
+              </div>
+              
+              <p className="text-xs text-muted-foreground line-clamp-1 mt-2">
                 {currentSession.problemDescription}
               </p>
             </div>

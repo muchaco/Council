@@ -1,0 +1,11 @@
+{
+  "id": "REQ-005",
+  "title": "Session Archiving/Close",
+  "description": "User must be able to close/archive a session, marking it as completed. Archived sessions are read-only.",
+  "status": "completed",
+  "priority": "high",
+  "complexity": 2,
+  "createdAt": "2026-02-08",
+  "updatedAt": "2026-02-08",
+  "path": "requirements/REQ-005"
+}

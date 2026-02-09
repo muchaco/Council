@@ -41,6 +41,11 @@ interface SelectorRequest {
     name: string;
     role: string;
   }>;
+  hushedPersonas: Array<{
+    id: string;
+    name: string;
+    remainingTurns: number;
+  }>;
   problemDescription: string;
   outputGoal: string;
   lastSpeakerId: string | null;
@@ -83,8 +88,12 @@ ${request.recentMessages.map(m => `${m.personaName}: ${m.content}`).join('\n\n')
 AVAILABLE PERSONAS:
 ${request.availablePersonas.map(p => `- ${p.name} (${p.role}) - ID: ${p.id}`).join('\n')}
 
+${request.hushedPersonas.length > 0 ? `HUSHED PERSONAS (temporarily muted):
+${request.hushedPersonas.map(p => `- ${p.name}: ${p.remainingTurns} turn(s) remaining`).join('\n')}` : ''}
+
 IMPORTANT RULES:
 - You CANNOT select the persona who spoke last: ${request.lastSpeakerId ? request.availablePersonas.find(p => p.id === request.lastSpeakerId)?.name || 'Unknown' : 'None'}
+- You CANNOT select hushed personas (they are temporarily muted)
 - Each persona should speak only once per cycle - assume they said what they needed to say
 - If only the orchestrator or last speaker remains, select WAIT_FOR_USER
 
@@ -219,10 +228,16 @@ export function setupOrchestratorHandlers(): void {
       }
 
       // Get session personas
-      const personas = await queries.getSessionPersonas(sessionId);
+      let personas = await queries.getSessionPersonas(sessionId);
       if (personas.length === 0) {
         return { success: false, error: 'No personas in session' };
       }
+
+      // Decrement hush turns for all personas at the start of each turn
+      await queries.decrementAllHushTurns(sessionId);
+      
+      // Refresh personas to get updated hush state
+      personas = await queries.getSessionPersonas(sessionId);
 
       // Get recent messages
       const messages = await queries.getLastMessages(sessionId, 10);
@@ -249,10 +264,13 @@ export function setupOrchestratorHandlers(): void {
         facts: '',
       };
 
-      // Get available personas (exclude orchestrator and last speaker)
+      // Get available personas (exclude orchestrator, last speaker, and hushed personas)
       const availablePersonas = personas
-        .filter(p => p.id !== session.orchestratorPersonaId && p.id !== lastSpeakerId)
+        .filter(p => p.id !== session.orchestratorPersonaId && p.id !== lastSpeakerId && p.hushTurnsRemaining === 0)
         .map(p => ({ id: p.id, name: p.name, role: p.role }));
+      
+      // Get hushed personas for the prompt context
+      const hushedPersonas = personas.filter(p => p.hushTurnsRemaining > 0);
       
       // Edge case: if no available personas after filtering, wait for user
       if (availablePersonas.length === 0) {
@@ -281,6 +299,7 @@ export function setupOrchestratorHandlers(): void {
           recentMessages,
           blackboard,
           availablePersonas,
+          hushedPersonas: hushedPersonas.map(p => ({ id: p.id, name: p.name, remainingTurns: p.hushTurnsRemaining })),
           problemDescription: session.problemDescription,
           outputGoal: session.outputGoal,
           lastSpeakerId,

@@ -1,5 +1,26 @@
 # Repository Guidelines
 
+## ⚠️ CRITICAL: Registry Management Rules
+
+**Requirements and Bugs MUST be managed exclusively through CLI commands.**
+
+### DO NOT:
+- ❌ Directly edit files in `requirements/` or `bugs/` folders
+- ❌ Manually modify `index.json` files
+- ❌ Delete or remove requirements/bugs without explicit user instruction
+- ❌ Create requirements/bugs by writing files directly
+
+### ALWAYS:
+- ✅ Use `npm run req:*` commands for requirements
+- ✅ Use `npm run bug:*` commands for bugs
+- ✅ Keep all existing items intact unless user explicitly asks to delete
+- ✅ Mark items as completed/resolved rather than deleting them
+
+### Why?
+The CLI maintains data consistency, generates sequential IDs, calculates priority scores, and prevents corruption. Manual edits break the registry.
+
+---
+
 ## Project Overview
 
 Council is a desktop-based AI brainstorming tool built with Next.js, React, and Electron. It enables users to conduct multi-agent AI debates through a custom persona system.
@@ -187,5 +208,100 @@ If you encounter information that was **hard to find, undocumented, or required 
 ## Tribal Knowledge
 
 *(Agent: Append new insights below this line)*
+
+---
+
+## Registry Management (Requirements & Bugs)
+
+The project uses a CLI-based registry system for managing requirements and bugs. **Important:** 
+
+- **DO NOT** directly edit files in `requirements/` or `bugs/` folders
+- **DO NOT** modify `index.json` files manually
+- **ALWAYS** use the CLI scripts to create, update, or delete items
+
+### Using the Registry CLI
+
+```bash
+# Requirements
+npm run req:create     # Create new requirement (interactive)
+npm run req -- get REQ-001
+npm run req -- list
+npm run req -- list --priority high --complexity 3
+npm run req -- mark REQ-001 in-progress
+npm run req:next       # Show top priority item
+
+# Bugs
+npm run bug:create     # Create new bug (interactive)
+npm run bug -- get BUG-001
+npm run bug -- list
+npm run bug:next       # Show top priority bug
+```
+
+### Registry Structure
+
+- `requirements/index.json` - Registry index (managed by scripts)
+- `requirements/REQ-XXX/` - Individual requirement folders
+- `bugs/index.json` - Registry index (managed by scripts)
+- `bugs/BUG-XXX/` - Individual bug folders
+
+### Score Calculation
+
+Items are scored by `priority / complexity` ratio:
+- Higher priority weights: critical=4, high=3, medium=2, low=1
+- Complexity: 1-10 (lower = easier)
+- The `next` command shows items with highest score (high priority, low complexity)
+
+### For LLM Agents: Programmatic Usage
+
+When implementing features or fixing bugs, use these commands:
+
+**1. Before starting work - Check what's available:**
+```bash
+npm run req:next              # Show top priority requirement
+npm run req -- list --status pending --complexity 3  # Quick wins
+npm run bug:next              # Show top priority bug
+```
+
+**2. Mark item as in-progress:**
+```bash
+npm run req -- mark REQ-001 in-progress
+npm run bug -- mark BUG-001 in-progress
+```
+
+**3. After completing work - Mark as done:**
+```bash
+npm run req -- mark REQ-001 completed
+npm run bug -- mark BUG-001 resolved
+```
+
+**4. Creating new items (when user asks):**
+```bash
+npm run req:create            # Interactive prompts
+npm run bug:create            # Interactive prompts
+```
+
+**5. Batch creation (for migrations):**
+```bash
+# Use --json flag with JSON data
+node scripts/requirements.js create --json '{"title":"...","description":"...","priority":"high","complexity":5}'
+node scripts/bugs.js create --json '{"title":"...","description":"...","priority":"critical","complexity":3}'
+```
+
+**Priority Levels:** low, medium, high, critical
+**Complexity:** 1-10 (1=easiest, 10=hardest)
+
+**Requirement Status:**
+- `draft` - Rough idea, not ready for implementation
+- `pending` - Ready for implementation, waiting to be started
+- `in-progress` - Currently being worked on
+- `completed` - Implementation finished
+- `cancelled` - No longer needed
+
+**Bug Status:**
+- `open` - New bug, not yet investigated
+- `in-progress` - Currently being fixed
+- `resolved` - Fix implemented, awaiting verification
+- `closed` - Fix verified and deployed
+- `wontfix` - Intentionally not being fixed
 
 ---

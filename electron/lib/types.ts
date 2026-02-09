@@ -41,6 +41,7 @@ export interface Session {
   tokenBudget: number;
   summary: string | null;
   archivedAt: string | null;
+  tags: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -80,6 +81,22 @@ export interface MessageInput {
   turnNumber: number;
   tokenCount?: number;
   metadata?: MessageMetadata;
+}
+
+export interface SessionPersona extends Persona {
+  isOrchestrator: boolean;
+  hushTurnsRemaining: number;
+  hushedAt: string | null;
+}
+
+export interface Tag {
+  id: number;
+  name: string;
+  createdAt: string;
+}
+
+export interface TagInput {
+  name: string;
 }
 
 export const VALID_GEMINI_MODELS = ['gemini-1.5-flash', 'gemini-1.5-pro'] as const;

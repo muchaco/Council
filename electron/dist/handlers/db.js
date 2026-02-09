@@ -218,6 +218,31 @@ function setupDatabaseHandlers() {
             return { success: false, error: error.message };
         }
     });
+    // Hush handlers - "The Hush Button" feature
+    electron_1.ipcMain.handle('db:persona:hush', async (_, sessionId, personaId, turns) => {
+        try {
+            console.log(`Hushing persona ${personaId} in session ${sessionId} for ${turns} turns`);
+            await queries.setPersonaHush(sessionId, personaId, turns);
+            console.log('Persona hushed successfully');
+            return { success: true };
+        }
+        catch (error) {
+            console.error('Error hushing persona:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    electron_1.ipcMain.handle('db:persona:unhush', async (_, sessionId, personaId) => {
+        try {
+            console.log(`Unhushing persona ${personaId} in session ${sessionId}`);
+            await queries.clearPersonaHush(sessionId, personaId);
+            console.log('Persona unhushed successfully');
+            return { success: true };
+        }
+        catch (error) {
+            console.error('Error unhushing persona:', error);
+            return { success: false, error: error.message };
+        }
+    });
     // Archive handlers
     electron_1.ipcMain.handle('db:session:archive', async (_, id) => {
         try {
@@ -240,6 +265,105 @@ function setupDatabaseHandlers() {
         }
         catch (error) {
             console.error('Error unarchiving session:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    // Tag handlers
+    electron_1.ipcMain.handle('db:tag:create', async (_, name) => {
+        try {
+            console.log('Creating tag:', name);
+            const result = await queries.createTag({ name });
+            console.log('Tag created successfully:', result.id);
+            return { success: true, data: result };
+        }
+        catch (error) {
+            console.error('Error creating tag:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    electron_1.ipcMain.handle('db:tag:getAll', async () => {
+        try {
+            console.log('Fetching all tags...');
+            const result = await queries.getAllTags();
+            console.log(`Fetched ${result.length} tags`);
+            return { success: true, data: result };
+        }
+        catch (error) {
+            console.error('Error fetching tags:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    electron_1.ipcMain.handle('db:tag:getByName', async (_, name) => {
+        try {
+            console.log('Fetching tag by name:', name);
+            const result = await queries.getTagByName(name);
+            console.log('Tag fetch result:', result ? 'found' : 'not found');
+            return { success: true, data: result };
+        }
+        catch (error) {
+            console.error('Error fetching tag by name:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    electron_1.ipcMain.handle('db:tag:delete', async (_, id) => {
+        try {
+            console.log('Deleting tag:', id);
+            await queries.deleteTag(id);
+            console.log('Tag deleted:', id);
+            return { success: true };
+        }
+        catch (error) {
+            console.error('Error deleting tag:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    // Session-Tag handlers
+    electron_1.ipcMain.handle('db:sessionTag:add', async (_, sessionId, tagId) => {
+        try {
+            console.log('Adding tag', tagId, 'to session', sessionId);
+            await queries.addTagToSession(sessionId, tagId);
+            console.log('Tag added to session successfully');
+            return { success: true };
+        }
+        catch (error) {
+            console.error('Error adding tag to session:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    electron_1.ipcMain.handle('db:sessionTag:remove', async (_, sessionId, tagId) => {
+        try {
+            console.log('Removing tag', tagId, 'from session', sessionId);
+            await queries.removeTagFromSession(sessionId, tagId);
+            console.log('Tag removed from session successfully');
+            return { success: true };
+        }
+        catch (error) {
+            console.error('Error removing tag from session:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    electron_1.ipcMain.handle('db:sessionTag:getBySession', async (_, sessionId) => {
+        try {
+            console.log('Fetching tags for session:', sessionId);
+            const result = await queries.getTagsBySession(sessionId);
+            console.log(`Fetched ${result.length} tags for session ${sessionId}`);
+            return { success: true, data: result };
+        }
+        catch (error) {
+            console.error('Error fetching session tags:', error);
+            return { success: false, error: error.message };
+        }
+    });
+    // Cleanup orphaned tags handler
+    electron_1.ipcMain.handle('db:tag:cleanupOrphaned', async () => {
+        try {
+            console.log('Cleaning up orphaned tags');
+            await queries.cleanupOrphanedTags();
+            console.log('Orphaned tags cleaned up');
+            return { success: true };
+        }
+        catch (error) {
+            console.error('Error cleaning up orphaned tags:', error);
             return { success: false, error: error.message };
         }
     });

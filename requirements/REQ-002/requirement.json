@@ -1,0 +1,11 @@
+{
+  "id": "REQ-002",
+  "title": "View Historical Sessions",
+  "description": "User must be able to view a list of historical sessions.",
+  "status": "completed",
+  "priority": "critical",
+  "complexity": 2,
+  "createdAt": "2026-02-08",
+  "updatedAt": "2026-02-08",
+  "path": "requirements/REQ-002"
+}

@@ -1,0 +1,11 @@
+{
+  "id": "REQ-006",
+  "title": "Session Tags",
+  "description": "User must be able to assign free-text tags to sessions for organization and filtering.",
+  "status": "completed",
+  "priority": "medium",
+  "complexity": 2,
+  "createdAt": "2026-02-08",
+  "updatedAt": "2026-02-08",
+  "path": "requirements/REQ-006"
+}

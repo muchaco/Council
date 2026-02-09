@@ -1,0 +1,11 @@
+{
+  "id": "REQ-021",
+  "title": "Model Assignment per Persona",
+  "description": "User can assign different models from the active provider to different Personas within the same session.",
+  "status": "pending",
+  "priority": "high",
+  "complexity": 5,
+  "createdAt": "2026-02-08",
+  "updatedAt": "2026-02-08",
+  "path": "requirements/REQ-021"
+}
