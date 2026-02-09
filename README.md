@@ -77,16 +77,17 @@ npm run electron:dev
 
 ```
 my-app/
-├── app/                    # Next.js app router pages
-│   ├── page.tsx           # Root redirect
-│   ├── layout.tsx         # Root layout
+├── app/                    # Feature page components
+│   ├── layout.tsx         # Shared renderer layout
 │   ├── globals.css        # Global styles
 │   ├── personas/          # Persona management UI
 │   ├── sessions/          # Sessions list
 │   ├── session/           # Active session chat
-│   │   ├── [id]/          # Existing session view
 │   │   └── new/           # Create new session
 │   └── settings/          # App settings
+├── src/                   # Vite SPA bootstrap and routing
+│   ├── main.tsx           # React entrypoint
+│   └── App.tsx            # Hash-router route map
 ├── components/            # React components
 │   ├── ui/               # shadcn/ui components
 │   ├── chat/             # Chat-related components
@@ -99,7 +100,7 @@ my-app/
 ├── electron/            # Electron main process
 ├── stores/              # Zustand state stores
 ├── public/              # Static assets
-├── requirements.md      # Detailed requirements document
+├── requirements/        # Requirement registry (CLI-managed)
 ├── plan.md              # Implementation roadmap
 └── package.json         # Dependencies and scripts
 ```
@@ -108,7 +109,6 @@ my-app/
 
 ## Documentation
 
-- **[requirements.md](./requirements.md)** - Complete product requirements with implementation status
 - **[plan.md](./plan.md)** - Implementation roadmap and technical architecture
 - **[AGENTS.md](./AGENTS.md)** - Development guidelines and conventions
 
@@ -143,7 +143,7 @@ npx eslint --fix .
 | Component | Technology |
 |-----------|------------|
 | Desktop Framework | Electron + Electron Forge |
-| Frontend | Next.js + React |
+| Frontend | Vite + React (SPA) |
 | State Management | Zustand |
 | Database | SQLite (pure JS) |
 | Settings | electron-store |
@@ -157,7 +157,7 @@ npx eslint --fix .
 
 Council uses a secure Electron architecture:
 
-- **Renderer Process**: Next.js frontend with Zustand state management
+- **Renderer Process**: Vite-powered React SPA with Zustand state management and hash routing
 - **Main Process**: Node.js backend handling API calls and encryption
 - **IPC Communication**: Secure context bridge between renderer and main
 - **Database**: SQLite with pure-JS driver for cross-platform compatibility
@@ -168,11 +168,12 @@ All LLM API calls and sensitive operations happen in the main process, keeping A
 
 ## Requirements
 
-See [requirements.md](./requirements.md) for the complete list of:
-- Functional requirements
-- Non-functional requirements
-- Implementation status
-- Importance and complexity ratings
+Requirements are tracked in the CLI-managed registry under `requirements/`.
+
+```bash
+npm run req -- list
+npm run req:next
+```
 
 ---
 

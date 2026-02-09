@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,10 +11,9 @@ import { usePersonasStore } from '@/stores/personas';
 import { useSessionsStore } from '@/stores/sessions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { TagInput } from '@/components/ui/TagInput';
-import Link from 'next/link';
 
 export default function NewSessionPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { personas, fetchPersonas } = usePersonasStore();
   const { createSession, isLoading, allTags, fetchAllTags } = useSessionsStore();
   
@@ -72,7 +71,7 @@ export default function NewSessionPage() {
     }, selectedPersonas, orchestratorConfig, sessionTags);
 
     if (sessionId) {
-      router.push(`/session?id=${sessionId}`);
+      navigate(`/session?id=${sessionId}`);
     }
   };
 
@@ -93,7 +92,7 @@ export default function NewSessionPage() {
         {/* Header */}
         <div className="border-b border-border bg-card p-6">
           <div className="flex items-center gap-4">
-            <Link href="/sessions">
+            <Link to="/sessions">
               <Button variant="ghost" size="sm" className="gap-2">
                 <ArrowLeft className="w-4 h-4" />
                 Back
@@ -271,7 +270,7 @@ export default function NewSessionPage() {
                 <div className="text-center py-8 border border-dashed border-border rounded-lg">
                   <Users className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
                   <p className="text-sm text-muted-foreground">No personas available</p>
-                  <Link href="/personas">
+                  <Link to="/personas">
                     <Button variant="link" className="mt-2">
                       Create personas first
                     </Button>
@@ -332,7 +331,7 @@ export default function NewSessionPage() {
                 {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Create Session
               </Button>
-              <Link href="/sessions">
+              <Link to="/sessions">
                 <Button variant="outline">Cancel</Button>
               </Link>
             </div>

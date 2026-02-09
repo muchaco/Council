@@ -1,5 +1,6 @@
-.next
-node_modules
-dist
-build
-out
+/node_modules/
+/.next/
+/out/
+/dist/
+/build/
+/electron/dist/

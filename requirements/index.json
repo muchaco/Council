@@ -381,10 +381,30 @@
       "createdAt": "2026-02-09",
       "updatedAt": "2026-02-09",
       "path": "requirements/REQ-038"
+    },
+    "REQ-039": {
+      "id": "REQ-039",
+      "title": "tldr button for chat message bubbles",
+      "status": "pending",
+      "priority": "low",
+      "complexity": 5,
+      "createdAt": "2026-02-09",
+      "updatedAt": "2026-02-09",
+      "path": "requirements/REQ-039"
+    },
+    "REQ-040": {
+      "id": "REQ-040",
+      "title": "collapsible sidebar",
+      "status": "pending",
+      "priority": "low",
+      "complexity": 2,
+      "createdAt": "2026-02-09",
+      "updatedAt": "2026-02-09",
+      "path": "requirements/REQ-040"
     }
   },
   "metadata": {
-    "nextId": 39,
+    "nextId": 41,
     "lastUpdated": "2026-02-09"
   }
 }

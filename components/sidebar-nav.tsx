@@ -1,18 +1,17 @@
 'use client';
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { Link, useLocation } from 'react-router-dom';
 import { Settings, Users, Folder } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 export function SidebarNav() {
-  const pathname = usePathname();
+  const { pathname } = useLocation();
 
   const items = [
     {
       title: 'Sessions',
-      href: '/',
+      href: '/sessions',
       icon: Folder,
     },
     {
@@ -29,19 +28,13 @@ export function SidebarNav() {
 
   return (
     <nav className="w-56 border-r border-border bg-card flex flex-col h-screen">
-      {/* Header */}
-      <div className="p-4 border-b border-border">
-        <h1 className="text-lg font-bold text-foreground">Council</h1>
-        <p className="text-xs text-muted-foreground mt-1">Strategic Summit</p>
-      </div>
-
       {/* Navigation Items */}
       <div className="flex-1 p-4 space-y-2 overflow-y-auto">
         {items.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
           return (
-            <Link key={item.href} href={item.href}>
+            <Link key={item.href} to={item.href}>
               <Button
                 variant={isActive ? 'default' : 'ghost'}
                 className={cn(

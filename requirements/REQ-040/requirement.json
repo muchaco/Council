@@ -1,0 +1,11 @@
+{
+  "id": "REQ-040",
+  "title": "collapsible sidebar",
+  "description": "sidebar should be collapsible to show only icons, and extended back when needed with a toggle",
+  "status": "pending",
+  "priority": "low",
+  "complexity": 2,
+  "createdAt": "2026-02-09",
+  "updatedAt": "2026-02-09",
+  "path": "requirements/REQ-040"
+}

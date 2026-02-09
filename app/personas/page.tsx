@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -292,7 +292,7 @@ export default function PersonasPage() {
                   <div className="flex items-center gap-2">
                     <AlertCircle className="w-4 h-4" />
                     <span>API key not configured. </span>
-                    <Link href="/settings" className="underline font-medium hover:text-amber-800 dark:hover:text-amber-300 inline-flex items-center gap-1">
+                    <Link to="/settings" className="underline font-medium hover:text-amber-800 dark:hover:text-amber-300 inline-flex items-center gap-1">
                       Go to Settings
                       <Settings className="w-3 h-3" />
                     </Link>

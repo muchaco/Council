@@ -1,42 +1,35 @@
 'use client';
 
-import React, { useEffect, useState, useRef, Suspense } from 'react';
-import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   Send,
-  ArrowLeft,
   Loader2,
   Users,
   Clock,
   DollarSign,
   MessageSquare,
   Crown,
-  Play,
-  Pause,
-  RotateCcw,
   Sparkles,
   Download,
   Archive,
   RotateCcw as Unarchive,
   Tag,
-  VolumeX,
-  Volume2
 } from 'lucide-react';
 import { useSessionsStore } from '@/stores/sessions';
 import { BlackboardPanel } from '@/components/blackboard/BlackboardPanel';
 import { MessageBubble } from '@/components/chat/MessageBubble';
+import { PersonasSidebar } from '@/components/session/PersonasSidebar';
 import { TagDisplay } from '@/components/ui/TagDisplay';
 import { TagInput } from '@/components/ui/TagInput';
 import { toast } from 'sonner';
 
 function SessionContent() {
-  const searchParams = useSearchParams();
+  const [searchParams] = useSearchParams();
   const sessionId = searchParams.get('id');
   
   const {
@@ -169,9 +162,6 @@ function SessionContent() {
     return `${diffMins}m`;
   };
 
-  // Get orchestrator persona
-  const orchestratorPersona = sessionPersonas.find(p => p.id === currentSession?.orchestratorPersonaId);
-
   if (isLoading && !currentSession) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -184,7 +174,7 @@ function SessionContent() {
     return (
       <div className="flex-1 flex flex-col items-center justify-center">
         <p className="text-muted-foreground mb-4">Session not found</p>
-        <Link href="/sessions">
+        <Link to="/sessions">
           <Button>Back to Sessions</Button>
         </Link>
       </div>
@@ -194,198 +184,22 @@ function SessionContent() {
   return (
     <div className="flex-1 flex overflow-hidden">
       {/* LEFT SIDEBAR - PERSONAS */}
-      <div className="w-64 border-r border-border bg-card flex flex-col">
-        {/* Header */}
-        <div className="p-4 border-b border-border">
-          <Link href="/sessions">
-            <Button variant="ghost" size="sm" className="gap-2 mb-2">
-              <ArrowLeft className="w-4 h-4" />
-              Back
-            </Button>
-          </Link>
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            The Council
-          </h2>
-          
-          {/* Orchestrator Toggle */}
-          <div className="mt-3 flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Orchestrator Mode</span>
-            <Button
-              variant={currentSession.orchestratorEnabled ? "default" : "outline"}
-              size="sm"
-              className="text-xs gap-1"
-              onClick={handleOrchestratorToggle}
-              disabled={isArchived}
-            >
-              <Sparkles className="w-3 h-3" />
-              {currentSession.orchestratorEnabled ? 'On' : 'Off'}
-            </Button>
-          </div>
-          
-          {/* Orchestrator Controls */}
-          {currentSession.orchestratorEnabled && (
-            <div className="mt-2 flex gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs flex-1 gap-1"
-                onClick={orchestratorPaused ? resumeOrchestrator : pauseOrchestrator}
-                disabled={orchestratorRunning}
-              >
-                {orchestratorPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
-                {orchestratorPaused ? 'Resume' : 'Pause'}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs flex-1 gap-1"
-                onClick={resetCircuitBreaker}
-                disabled={!orchestratorPaused}
-              >
-                <RotateCcw className="w-3 h-3" />
-                Continue
-              </Button>
-            </div>
-          )}
-        </div>
-
-        {/* Personas List */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          {sessionPersonas.map((persona) => {
-            const isOrchestrator = persona.id === currentSession.orchestratorPersonaId;
-            
-            return (
-              <Card
-                key={persona.id}
-                className={`p-3 ${isOrchestrator ? 'ring-1 ring-primary' : ''}`}
-              >
-                <div className="flex items-start gap-3 mb-2">
-                  <div
-                    className="w-3 h-3 rounded-full flex-shrink-0 mt-1"
-                    style={{ backgroundColor: persona.color }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1">
-                      <h3 className="font-medium text-foreground text-sm truncate">{persona.name}</h3>
-                      {isOrchestrator && (
-                        <Crown className="w-3 h-3 text-primary" />
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">{persona.role}</p>
-                  </div>
-                </div>
-                
-                <div className="text-xs text-muted-foreground mb-2">
-                  {persona.geminiModel === 'gemini-1.5-flash' ? 'Flash' : 'Pro'} • Temp: {persona.temperature}
-                </div>
-                
-                {/* Hush Status Badge */}
-                {persona.hushTurnsRemaining > 0 && (
-                  <div className="flex items-center gap-1 mb-2 px-2 py-1 bg-muted rounded text-xs">
-                    <VolumeX className="w-3 h-3 text-muted-foreground" />
-                    <span className="text-muted-foreground">
-                      {persona.hushTurnsRemaining === 1 
-                        ? 'Hushed (1 turn)' 
-                        : `Hushed (${persona.hushTurnsRemaining} turns)`}
-                    </span>
-                  </div>
-                )}
-                
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full text-xs"
-                  onClick={() => handleAskToSpeak(persona.id)}
-                  disabled={thinkingPersonaId === persona.id || !!thinkingPersonaId || orchestratorRunning || isArchived || persona.hushTurnsRemaining > 0}
-                >
-                  {thinkingPersonaId === persona.id ? (
-                    <>
-                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                      Thinking...
-                    </>
-                  ) : persona.hushTurnsRemaining > 0 ? (
-                    <>
-                      <VolumeX className="w-3 h-3 mr-1" />
-                      Hushed
-                    </>
-                  ) : isArchived ? (
-                    'Session Archived'
-                  ) : (
-                    'Ask to Speak'
-                  )}
-                </Button>
-                
-                {/* Hush Button Row */}
-                {!isArchived && (
-                  <div className="flex gap-1 mt-2">
-                    {persona.hushTurnsRemaining > 0 ? (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="flex-1 text-xs h-7"
-                        onClick={() => handleUnhushPersona(persona.id)}
-                        disabled={thinkingPersonaId === persona.id || orchestratorRunning}
-                      >
-                        <Volume2 className="w-3 h-3 mr-1" />
-                        Unhush
-                      </Button>
-                    ) : (
-                      HUSH_PRESETS.map((turns) => (
-                        <Button
-                          key={turns}
-                          size="sm"
-                          variant="ghost"
-                          className="flex-1 text-xs h-7 px-1"
-                          onClick={() => handleHushPersona(persona.id, turns)}
-                          disabled={thinkingPersonaId === persona.id || orchestratorRunning}
-                          title={`Hush for ${turns} turn${turns === 1 ? '' : 's'}`}
-                        >
-                          <VolumeX className="w-3 h-3 mr-0.5" />
-                          {turns}
-                        </Button>
-                      ))
-                    )}
-                  </div>
-                )}
-              </Card>
-            );
-          })}
-        </div>
-
-        {/* Session Stats */}
-        <div className="p-4 border-t border-border space-y-2 text-xs">
-          <div className="flex justify-between text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <DollarSign className="w-3 h-3" />
-              Cost
-            </span>
-            <span className="font-mono">${currentSession.costEstimate.toFixed(4)}</span>
-          </div>
-          <div className="flex justify-between text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <MessageSquare className="w-3 h-3" />
-              Tokens
-            </span>
-            <span className="font-mono">{currentSession.tokenCount.toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              Duration
-            </span>
-            <span className="font-mono">{formatDuration(currentSession.createdAt)}</span>
-          </div>
-          {currentSession.orchestratorEnabled && (
-            <div className="flex justify-between text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Sparkles className="w-3 h-3" />
-                Auto-replies
-              </span>
-              <span className="font-mono">{currentSession.autoReplyCount}/8</span>
-            </div>
-          )}
-        </div>
-      </div>
+      <PersonasSidebar
+        currentSession={currentSession}
+        sessionPersonas={sessionPersonas}
+        isArchived={isArchived}
+        orchestratorPaused={orchestratorPaused}
+        orchestratorRunning={orchestratorRunning}
+        thinkingPersonaId={thinkingPersonaId}
+        hushPresets={HUSH_PRESETS}
+        onToggleOrchestrator={handleOrchestratorToggle}
+        onPauseOrResume={orchestratorPaused ? resumeOrchestrator : pauseOrchestrator}
+        onContinue={resetCircuitBreaker}
+        onAskToSpeak={handleAskToSpeak}
+        onHush={handleHushPersona}
+        onUnhush={handleUnhushPersona}
+        formatDuration={formatDuration}
+      />
 
       {/* CENTER - CHAT AREA */}
       <div className="flex-1 flex flex-col bg-background">
@@ -691,13 +505,5 @@ function SessionContent() {
 }
 
 export default function SessionPage() {
-  return (
-    <Suspense fallback={
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-      </div>
-    }>
-      <SessionContent />
-    </Suspense>
-  );
+  return <SessionContent />;
 }

@@ -1,0 +1,11 @@
+{
+  "id": "REQ-039",
+  "title": "tldr button for chat message bubbles",
+  "description": "when we hovering a chat message and it is above a character limit, there should be a tldr button that displays some kind of popover with a tldr of the message",
+  "status": "pending",
+  "priority": "low",
+  "complexity": 5,
+  "createdAt": "2026-02-09",
+  "updatedAt": "2026-02-09",
+  "path": "requirements/REQ-039"
+}

@@ -38,7 +38,6 @@ export default function SettingsPage() {
     if (geminiApiKey && apiKeyInput === '' && !hasChanges) {
       setApiKeyInput(geminiApiKey);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [geminiApiKey]);
 
   const handleSaveApiKey = async () => {

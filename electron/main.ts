@@ -47,13 +47,13 @@ function createWindow(): void {
       "default-src 'self'",
       // In dev, allow unsafe-inline/eval for React dev tools; in prod, use strict settings
       isDev 
-        ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:3000" 
+        ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' http://localhost:5173" 
         : "script-src 'self'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "font-src 'self'",
       isDev 
-        ? "connect-src 'self' http://localhost:3000 ws://localhost:3000" 
+        ? "connect-src 'self' http://localhost:5173 ws://localhost:5173" 
         : "connect-src 'self'",
     ];
     
@@ -68,7 +68,7 @@ function createWindow(): void {
   const isDev = process.env.NODE_ENV === 'development';
   
   if (isDev) {
-    mainWindow.loadURL('http://localhost:3000');
+    mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
     // In production, use the static build with hash-based routing

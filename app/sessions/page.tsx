@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import Link from 'next/link';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -82,7 +82,7 @@ export default function SessionsPage() {
               View and manage your strategic summit sessions
             </p>
           </div>
-          <Link href="/session/new">
+          <Link to="/session/new">
             <Button>
               <Plus className="w-4 h-4 mr-2" />
               New Session
@@ -102,7 +102,7 @@ export default function SessionsPage() {
             <Calendar className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold text-foreground mb-2">No sessions yet</h3>
             <p className="text-muted-foreground mb-4">Create your first session to start a strategic summit</p>
-            <Link href="/session/new">
+            <Link to="/session/new">
               <Button>
                 <Plus className="w-4 h-4 mr-2" />
                 Create Session
@@ -112,82 +112,80 @@ export default function SessionsPage() {
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {sessions.map((session) => (
-              <Card key={session.id} className="h-full group">
-                <div className="p-5 h-full flex flex-col">
+              <Card key={session.id} className="group">
+                <div className="p-4 flex flex-col gap-3">
                   {/* Title and Actions */}
                   <div className="flex items-start justify-between gap-2">
-                    <Link href={`/session?id=${session.id}`} className="flex-1 min-w-0">
+                    <Link to={`/session?id=${session.id}`} className="min-w-0 flex-1">
                       <h3 className="font-semibold text-foreground text-balance line-clamp-2 hover:text-primary transition-colors">
                         {session.title}
                       </h3>
                     </Link>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-muted-foreground hover:text-foreground shrink-0"
-                          disabled={exportingId === session.id}
-                        >
-                          {exportingId === session.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge 
+                        variant={session.archivedAt ? 'secondary' : session.status === 'active' ? 'default' : session.status === 'completed' ? 'secondary' : 'outline'}
+                        className="text-[10px] capitalize h-5 px-2"
+                      >
+                        {session.archivedAt ? 'Archived' : session.status}
+                      </Badge>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            className="opacity-60 group-hover:opacity-100 transition-opacity p-1 text-muted-foreground hover:text-foreground"
+                            disabled={exportingId === session.id}
+                          >
+                            {exportingId === session.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <MoreVertical className="w-4 h-4" />
+                            )}
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleExport(session.id)}>
+                            <Download className="w-4 h-4 mr-2" />
+                            Export to Markdown
+                          </DropdownMenuItem>
+                          {session.archivedAt ? (
+                            <DropdownMenuItem onClick={() => unarchiveSession(session.id)}>
+                              <RotateCcw className="w-4 h-4 mr-2" />
+                              Unarchive
+                            </DropdownMenuItem>
                           ) : (
-                            <MoreVertical className="w-4 h-4" />
+                            <DropdownMenuItem onClick={() => archiveSession(session.id)}>
+                              <Archive className="w-4 h-4 mr-2" />
+                              Archive
+                            </DropdownMenuItem>
                           )}
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleExport(session.id)}>
-                          <Download className="w-4 h-4 mr-2" />
-                          Export to Markdown
-                        </DropdownMenuItem>
-                        {session.archivedAt ? (
-                          <DropdownMenuItem onClick={() => unarchiveSession(session.id)}>
-                            <RotateCcw className="w-4 h-4 mr-2" />
-                            Unarchive
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => setDeleteId(session.id)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete
                           </DropdownMenuItem>
-                        ) : (
-                          <DropdownMenuItem onClick={() => archiveSession(session.id)}>
-                            <Archive className="w-4 h-4 mr-2" />
-                            Archive
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => setDeleteId(session.id)}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
 
                   {/* Tags - FR-1.16a: positioned adjacent to title */}
                   {session.tags && session.tags.length > 0 && (
-                    <div className="mt-2">
+                    <div>
                       <TagDisplay tags={session.tags} variant="readonly" />
                     </div>
                   )}
 
                   {/* Description */}
-                  <Link href={`/session?id=${session.id}`} className="flex-1">
-                    <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
+                  <Link to={`/session?id=${session.id}`}>
+                    <p className="text-sm text-muted-foreground line-clamp-2">
                       {session.problemDescription}
                     </p>
                   </Link>
 
-                  {/* Status Badge */}
-                  <div className="mt-3">
-                    <Badge 
-                      variant={session.archivedAt ? 'secondary' : session.status === 'active' ? 'default' : session.status === 'completed' ? 'secondary' : 'outline'}
-                      className="text-xs capitalize"
-                    >
-                      {session.archivedAt ? 'Archived' : session.status}
-                    </Badge>
-                  </div>
-
                   {/* Footer */}
-                  <div className="flex items-center justify-between mt-auto pt-4 border-t border-border text-xs text-muted-foreground">
+                  <div className="flex items-center justify-between pt-3 border-t border-border text-xs text-muted-foreground">
                     <div className="flex items-center gap-1">
                       <Calendar className="w-3 h-3" />
                       {formatDate(session.createdAt)}

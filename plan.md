@@ -17,7 +17,7 @@ For detailed requirements, see [requirements.md](./requirements.md).
 │                         ELECTRON APP                            │
 │  ┌─────────────┐    IPC    ┌──────────────┐    HTTP    ┌─────┐  │
 │  │   Renderer  │◄─────────►│ Main Process │◄──────────►│Gemini│ │
-│  │  (Next.js)  │           │              │            │ API │  │
+│  │ (Vite SPA)  │           │              │            │ API │  │
 │  │             │           │ - API calls  │            └─────┘  │
 │  │ - Zustand   │           │ - Encryption │                     │
 │  │ - UI        │           │ - IPC handlers                   │  │
@@ -38,7 +38,7 @@ For detailed requirements, see [requirements.md](./requirements.md).
 | Component | Package | Purpose |
 |-----------|---------|---------|
 | Desktop Framework | `electron` + `@electron-forge` | Cross-platform desktop shell |
-| Frontend | `next` | React framework |
+| Frontend | `vite` + `react-router-dom` | SPA renderer |
 | State Management | `zustand` | Global state management |
 | Database | `sqlite3` (pure JS) | Local data persistence |
 | Settings | `electron-store` | Encrypted configuration |
@@ -183,10 +183,10 @@ All UI uses solid colors (no gradients):
 
 ```bash
 # Development
-npm run electron:dev          # Start Electron with Next.js dev server
+npm run electron:dev          # Start Electron with Vite dev server
 
 # Building
-npm run build                 # Build Next.js for production
+npm run build                 # Build Vite SPA for production
 npm run electron:build        # Build Electron app
 npm run electron:package      # Package as .deb
 
