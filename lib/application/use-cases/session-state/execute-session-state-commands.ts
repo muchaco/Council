@@ -1,5 +1,6 @@
 import { Effect } from 'effect';
 
+import { Clock, IdGenerator } from '../../runtime';
 import type { Session, SessionInput } from '../../../types';
 import {
   SessionStateRepository,
@@ -7,23 +8,20 @@ import {
   type UpdateSessionStateCommand,
 } from './session-state-dependencies';
 
-const createId = (): string =>
-  'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (token) => {
-    const randomValue = (Math.random() * 16) | 0;
-    const value = token === 'x' ? randomValue : (randomValue & 0x3) | 0x8;
-    return value.toString(16);
-  });
-
-const nowIso = (): string => new Date().toISOString();
-
 export const executeCreateSessionState = (
   input: SessionInput,
   orchestratorConfig?: { readonly enabled: boolean; readonly orchestratorPersonaId?: string }
-): Effect.Effect<Session, SessionStateInfrastructureError, SessionStateRepository> =>
+): Effect.Effect<
+  Session,
+  SessionStateInfrastructureError,
+  SessionStateRepository | IdGenerator | Clock
+> =>
   Effect.gen(function* () {
     const repository = yield* SessionStateRepository;
-    const id = createId();
-    const now = nowIso();
+    const idGenerator = yield* IdGenerator;
+    const clock = yield* Clock;
+    const id = yield* idGenerator.generate;
+    const now = (yield* clock.now).toISOString();
     const orchestratorEnabled = orchestratorConfig?.enabled ?? false;
     const orchestratorPersonaId = orchestratorConfig?.orchestratorPersonaId ?? null;
 
@@ -59,10 +57,11 @@ export const executeCreateSessionState = (
 export const executeUpdateSessionState = (
   sessionId: string,
   input: UpdateSessionStateCommand['input']
-): Effect.Effect<void, SessionStateInfrastructureError, SessionStateRepository> =>
+): Effect.Effect<void, SessionStateInfrastructureError, SessionStateRepository | Clock> =>
   Effect.gen(function* () {
     const repository = yield* SessionStateRepository;
-    yield* repository.updateSession({ id: sessionId, now: nowIso(), input });
+    const clock = yield* Clock;
+    yield* repository.updateSession({ id: sessionId, now: (yield* clock.now).toISOString(), input });
   });
 
 export const executeDeleteSessionState = (
@@ -127,10 +126,11 @@ export const executeDisableSessionOrchestrator = (
 
 export const executeArchiveSession = (
   sessionId: string
-): Effect.Effect<void, SessionStateInfrastructureError, SessionStateRepository> =>
+): Effect.Effect<void, SessionStateInfrastructureError, SessionStateRepository | Clock> =>
   Effect.gen(function* () {
     const repository = yield* SessionStateRepository;
-    yield* repository.archiveSession(sessionId, nowIso());
+    const clock = yield* Clock;
+    yield* repository.archiveSession(sessionId, (yield* clock.now).toISOString());
   });
 
 export const executeUnarchiveSession = (

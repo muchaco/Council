@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Effect } from 'effect';
 
+import { Clock, IdGenerator } from '../../runtime';
+
 import {
   CouncilTranscriptRepository,
   type CouncilTranscriptRepositoryService,
@@ -103,7 +105,11 @@ describe('execute_load_council_transcript_use_case_spec', () => {
         content: 'Generated response',
         turnNumber: 8,
         tokenCount: 16,
-      }).pipe(Effect.provideService(CouncilTranscriptRepository, writeCapableRepository))
+      }).pipe(
+        Effect.provideService(CouncilTranscriptRepository, writeCapableRepository),
+        Effect.provideService(IdGenerator, { generate: Effect.succeed('message-id-1') }),
+        Effect.provideService(Clock, { now: Effect.succeed(new Date('2026-02-10T10:03:00.000Z')) })
+      )
     );
 
     const nextTurnNumber = await Effect.runPromise(
@@ -112,7 +118,7 @@ describe('execute_load_council_transcript_use_case_spec', () => {
       )
     );
 
-    expect(created.id).toHaveLength(36);
+    expect(created.id).toBe('message-id-1');
     expect(createdMessageIds).toHaveLength(1);
     expect(nextTurnNumber).toBe(8);
   });

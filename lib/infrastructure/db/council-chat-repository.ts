@@ -4,22 +4,7 @@ import type {
   CouncilChatInfrastructureError,
   CouncilChatRepositoryService,
 } from '../../application/use-cases/council-chat/council-chat-dependencies';
-
-interface CouncilChatPersonaRecord {
-  readonly id: string;
-  readonly name: string;
-  readonly role: string;
-}
-
-interface CouncilChatMessageRecord {
-  readonly personaId: string | null;
-  readonly content: string;
-}
-
-interface ElectronCouncilChatQueries {
-  readonly getSessionPersonas: (sessionId: string) => Promise<readonly CouncilChatPersonaRecord[]>;
-  readonly getLastMessages: (sessionId: string, limit: number) => Promise<readonly CouncilChatMessageRecord[]>;
-}
+import type { SqlQueryExecutor } from './sql-query-executor';
 
 const repositoryError = (message: string): CouncilChatInfrastructureError => ({
   _tag: 'CouncilChatInfrastructureError',
@@ -35,33 +20,50 @@ const toCauseMessage = (error: unknown, fallbackMessage: string): string => {
   return fallbackMessage;
 };
 
-export const makeCouncilChatRepositoryFromElectronQueries = (
-  queries: ElectronCouncilChatQueries
+interface CouncilChatPersonaRow {
+  readonly id: string;
+  readonly name: string;
+  readonly role: string;
+}
+
+interface CouncilChatMessageRow {
+  readonly personaId: string | null;
+  readonly content: string;
+}
+
+export const makeCouncilChatRepositoryFromSqlExecutor = (
+  sql: SqlQueryExecutor
 ): CouncilChatRepositoryService => ({
   getSessionPersonas: (sessionId) =>
     Effect.tryPromise({
-      try: () => queries.getSessionPersonas(sessionId),
+      try: () =>
+        sql.all<CouncilChatPersonaRow>(
+          `SELECT
+            p.id,
+            p.name,
+            p.role
+           FROM personas p
+           JOIN session_personas sp ON p.id = sp.persona_id
+           WHERE sp.session_id = ?
+           ORDER BY p.name`,
+          [sessionId]
+        ),
       catch: (error) => repositoryError(toCauseMessage(error, 'Failed to load session personas')),
-    }).pipe(
-      Effect.map((personas) =>
-        personas.map((persona) => ({
-          id: persona.id,
-          name: persona.name,
-          role: persona.role,
-        }))
-      )
-    ),
+    }),
 
   getRecentMessages: (sessionId, limit) =>
     Effect.tryPromise({
-      try: () => queries.getLastMessages(sessionId, limit),
+      try: () =>
+        sql.all<CouncilChatMessageRow>(
+          `SELECT
+            persona_id as personaId,
+            content
+           FROM messages
+           WHERE session_id = ?
+           ORDER BY turn_number DESC, created_at DESC
+           LIMIT ?`,
+          [sessionId, limit]
+        ),
       catch: (error) => repositoryError(toCauseMessage(error, 'Failed to load recent messages')),
-    }).pipe(
-      Effect.map((messages) =>
-        messages.map((message) => ({
-          personaId: message.personaId,
-          content: message.content,
-        }))
-      )
-    ),
+    }).pipe(Effect.map((messages) => [...messages].reverse())),
 });

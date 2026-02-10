@@ -1,5 +1,6 @@
 import { Effect } from 'effect';
 
+import { Clock } from '../../runtime';
 import {
   SessionParticipationRepository,
   type SessionParticipantProfile,
@@ -20,8 +21,6 @@ export const executeLoadSessionParticipants = (
     return persistedParticipants.map(mapPersistedSessionParticipantRowToSessionPersona);
   });
 
-const nowIso = (): string => new Date().toISOString();
-
 export const executeAddSessionParticipant = (
   sessionId: string,
   personaId: string,
@@ -36,14 +35,15 @@ export const executeSetSessionParticipantHush = (
   sessionId: string,
   personaId: string,
   turns: number
-): Effect.Effect<void, SessionParticipationInfrastructureError, SessionParticipationRepository> =>
+): Effect.Effect<void, SessionParticipationInfrastructureError, SessionParticipationRepository | Clock> =>
   Effect.gen(function* () {
     const repository = yield* SessionParticipationRepository;
+    const clock = yield* Clock;
     yield* repository.setParticipantHush({
       sessionId,
       personaId,
       turns,
-      hushedAt: nowIso(),
+      hushedAt: (yield* clock.now).toISOString(),
     });
   });
 

@@ -1,19 +1,23 @@
 import { Effect } from 'effect';
 
+import { Clock } from '../../runtime';
 import type { Tag, TagInput } from '../../../types';
 import {
   SessionTagCatalogRepository,
   type SessionTagCatalogInfrastructureError,
 } from './session-tag-catalog-dependencies';
 
-const nowIso = (): string => new Date().toISOString();
-
 export const executeCreateSessionTagCatalogEntry = (
   input: TagInput
-): Effect.Effect<Tag, SessionTagCatalogInfrastructureError, SessionTagCatalogRepository> =>
+): Effect.Effect<
+  Tag,
+  SessionTagCatalogInfrastructureError,
+  SessionTagCatalogRepository | Clock
+> =>
   Effect.gen(function* () {
     const repository = yield* SessionTagCatalogRepository;
-    const createdAt = nowIso();
+    const clock = yield* Clock;
+    const createdAt = (yield* clock.now).toISOString();
 
     yield* repository.createTag({ name: input.name, createdAt });
     const created = yield* repository.getTagByName(input.name);

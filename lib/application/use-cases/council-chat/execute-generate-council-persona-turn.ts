@@ -12,7 +12,6 @@ import {
 
 export interface ExecuteGenerateCouncilPersonaTurnInput {
   readonly request: CouncilChatRequest;
-  readonly historyLimit?: number;
 }
 
 export interface ExecuteGenerateCouncilPersonaTurnResult {
@@ -48,7 +47,7 @@ export const executeGenerateCouncilPersonaTurn = (
 
     const recentMessages = yield* repository.getRecentMessages(
       input.request.sessionId,
-      input.historyLimit ?? generationPolicy.defaultHistoryLimit
+      generationPolicy.defaultHistoryLimit
     );
 
     const promptDecision = prepareCouncilPersonaTurnPrompt(

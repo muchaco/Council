@@ -55,6 +55,17 @@ const settings: CouncilChatSettingsService = {
 describe('execute_generate_council_persona_turn_use_case_spec', () => {
   it('generates_persona_turn_and_estimates_tokens', async () => {
     const observedGatewayCommands: Array<{ apiKey: string; maxOutputTokens: number }> = [];
+    const observedHistoryLimits: number[] = [];
+    const observedRepository: CouncilChatRepositoryService = {
+      ...repository,
+      getRecentMessages: (_sessionId, limit) => {
+        observedHistoryLimits.push(limit);
+        return Effect.succeed([
+          { personaId: null, content: 'Need a safe migration path.' },
+          { personaId: 'persona-2', content: 'Start with query decomposition.' },
+        ]);
+      },
+    };
     const gateway: CouncilChatGatewayService = {
       generateCouncilPersonaTurn: (command) => {
         observedGatewayCommands.push({
@@ -67,7 +78,7 @@ describe('execute_generate_council_persona_turn_use_case_spec', () => {
 
     const outcome = await Effect.runPromise(
       executeGenerateCouncilPersonaTurn(input).pipe(
-        Effect.provideService(CouncilChatRepository, repository),
+        Effect.provideService(CouncilChatRepository, observedRepository),
         Effect.provideService(CouncilChatGateway, gateway),
         Effect.provideService(CouncilChatSettings, settings)
       )
@@ -75,6 +86,7 @@ describe('execute_generate_council_persona_turn_use_case_spec', () => {
 
     expect(outcome.content).toBe('Ship phase 3 first, then isolate LLM pipeline.');
     expect(outcome.tokenCount).toBe(Math.ceil(outcome.content.length / 4));
+    expect(observedHistoryLimits).toEqual([12]);
     expect(observedGatewayCommands).toEqual([{ apiKey: 'test-api-key', maxOutputTokens: 1024 }]);
   });
 

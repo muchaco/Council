@@ -1,5 +1,6 @@
 import { Effect } from 'effect';
 
+import { Clock, IdGenerator } from '../../runtime';
 import type { Message, MessageInput } from '../../../types';
 import {
   CouncilTranscriptRepository,
@@ -7,22 +8,19 @@ import {
 } from './council-transcript-dependencies';
 import { mapPersistedCouncilTranscriptMessageRowToMessage } from './council-transcript-mapper';
 
-const createId = (): string =>
-  'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (token) => {
-    const randomValue = (Math.random() * 16) | 0;
-    const value = token === 'x' ? randomValue : (randomValue & 0x3) | 0x8;
-    return value.toString(16);
-  });
-
-const nowIso = (): string => new Date().toISOString();
-
 export const executeCreateCouncilTranscriptMessage = (
   input: MessageInput
-): Effect.Effect<Message, CouncilTranscriptInfrastructureError, CouncilTranscriptRepository> =>
+): Effect.Effect<
+  Message,
+  CouncilTranscriptInfrastructureError,
+  CouncilTranscriptRepository | IdGenerator | Clock
+> =>
   Effect.gen(function* () {
     const repository = yield* CouncilTranscriptRepository;
-    const messageId = createId();
-    const createdAt = nowIso();
+    const idGenerator = yield* IdGenerator;
+    const clock = yield* Clock;
+    const messageId = yield* idGenerator.generate;
+    const createdAt = (yield* clock.now).toISOString();
     const tokenCount = input.tokenCount ?? 0;
 
     yield* repository.createMessage({

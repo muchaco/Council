@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { Effect } from 'effect';
 
+import { Clock } from '../../runtime';
 import {
   SessionParticipationRepository,
   type SessionParticipationRepositoryService,
 } from './session-participation-dependencies';
-import { executeLoadSessionParticipants } from './execute-load-session-participants';
+import {
+  executeLoadSessionParticipants,
+  executeSetSessionParticipantHush,
+} from './execute-load-session-participants';
 
 const repository: SessionParticipationRepositoryService = {
   addSessionParticipant: () => Effect.void,
@@ -61,6 +65,39 @@ describe('execute_load_session_participants_use_case_spec', () => {
         isOrchestrator: true,
         hushTurnsRemaining: 0,
         hushedAt: null,
+      },
+    ]);
+  });
+
+  it('sets_participant_hush_with_clock_timestamp', async () => {
+    const observedHushCommands: Array<{
+      sessionId: string;
+      personaId: string;
+      turns: number;
+      hushedAt: string;
+    }> = [];
+
+    const writeCapableRepository: SessionParticipationRepositoryService = {
+      ...repository,
+      setParticipantHush: (command) => {
+        observedHushCommands.push(command);
+        return Effect.void;
+      },
+    };
+
+    await Effect.runPromise(
+      executeSetSessionParticipantHush('session-1', 'persona-1', 3).pipe(
+        Effect.provideService(SessionParticipationRepository, writeCapableRepository),
+        Effect.provideService(Clock, { now: Effect.succeed(new Date('2026-02-10T10:15:00.000Z')) })
+      )
+    );
+
+    expect(observedHushCommands).toEqual([
+      {
+        sessionId: 'session-1',
+        personaId: 'persona-1',
+        turns: 3,
+        hushedAt: '2026-02-10T10:15:00.000Z',
       },
     ]);
   });

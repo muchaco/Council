@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Effect, Either } from 'effect';
 
 import { decrypt } from './settings.js';
-import * as queries from '../lib/queries.js';
+import { makeElectronSqlQueryExecutor } from '../lib/sql-query-executor.js';
 import type { BlackboardState } from '../lib/types.js';
 import {
   CouncilChatGateway,
@@ -13,7 +13,7 @@ import {
   type CouncilChatUseCaseError,
   type GenerateCouncilPersonaTurnCommand,
 } from '../../lib/application/use-cases/council-chat';
-import { makeCouncilChatRepositoryFromElectronQueries } from '../../lib/infrastructure/db';
+import { makeCouncilChatRepositoryFromSqlExecutor } from '../../lib/infrastructure/db';
 import { makeCouncilChatGatewayFromExecutor } from '../../lib/infrastructure/llm';
 import { makeCouncilChatSettingsService } from '../../lib/infrastructure/settings';
 
@@ -63,7 +63,7 @@ const generateCouncilPersonaTurnWithGemini = async (
 };
 
 export function setupLLMHandlers(): void {
-  const repository = makeCouncilChatRepositoryFromElectronQueries(queries);
+  const repository = makeCouncilChatRepositoryFromSqlExecutor(makeElectronSqlQueryExecutor());
   const gateway = makeCouncilChatGatewayFromExecutor(generateCouncilPersonaTurnWithGemini);
   const settings = makeCouncilChatSettingsService(decrypt);
 
@@ -84,7 +84,6 @@ export function setupLLMHandlers(): void {
             blackboard: request.blackboard,
             otherPersonas: request.otherPersonas,
           },
-          historyLimit: 15,
         }).pipe(
           Effect.provideService(CouncilChatRepository, repository),
           Effect.provideService(CouncilChatGateway, gateway),

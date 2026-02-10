@@ -1,5 +1,6 @@
 import { Effect } from 'effect';
 
+import { Clock, IdGenerator } from '../../runtime';
 import type { Persona, PersonaInput } from '../../../types';
 import { mapPersistedReusablePersonaRowToPersona } from './reusable-persona-mapper';
 import {
@@ -7,22 +8,19 @@ import {
   type ReusablePersonaInfrastructureError,
 } from './reusable-persona-dependencies';
 
-const createId = (): string =>
-  'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (token) => {
-    const randomValue = (Math.random() * 16) | 0;
-    const value = token === 'x' ? randomValue : (randomValue & 0x3) | 0x8;
-    return value.toString(16);
-  });
-
-const nowIso = (): string => new Date().toISOString();
-
 export const executeCreateReusablePersona = (
   input: PersonaInput
-): Effect.Effect<Persona, ReusablePersonaInfrastructureError, ReusablePersonaRepository> =>
+): Effect.Effect<
+  Persona,
+  ReusablePersonaInfrastructureError,
+  ReusablePersonaRepository | IdGenerator | Clock
+> =>
   Effect.gen(function* () {
     const repository = yield* ReusablePersonaRepository;
-    const id = createId();
-    const now = nowIso();
+    const idGenerator = yield* IdGenerator;
+    const clock = yield* Clock;
+    const id = yield* idGenerator.generate;
+    const now = (yield* clock.now).toISOString();
 
     yield* repository.createPersona({ id, now, input });
 
@@ -64,10 +62,11 @@ export const executeLoadReusablePersonaById = (
 export const executeUpdateReusablePersona = (
   personaId: string,
   input: Partial<PersonaInput>
-): Effect.Effect<Persona | null, ReusablePersonaInfrastructureError, ReusablePersonaRepository> =>
+): Effect.Effect<Persona | null, ReusablePersonaInfrastructureError, ReusablePersonaRepository | Clock> =>
   Effect.gen(function* () {
     const repository = yield* ReusablePersonaRepository;
-    yield* repository.updatePersona({ id: personaId, now: nowIso(), input });
+    const clock = yield* Clock;
+    yield* repository.updatePersona({ id: personaId, now: (yield* clock.now).toISOString(), input });
 
     const row = yield* repository.getPersonaById(personaId);
     return row ? mapPersistedReusablePersonaRowToPersona(row) : null;
