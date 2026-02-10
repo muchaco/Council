@@ -1,5 +1,34 @@
+import { Effect, Either } from 'effect';
+
 import { getDatabase, ensureDatabaseReady } from './db.js';
+import { makeElectronSqlQueryExecutor } from './sql-query-executor.js';
 import type { Persona, PersonaInput, Session, SessionInput, Message, MessageInput, Tag, TagInput, SessionPersona } from './types.js';
+import {
+  QueryLayerRepository,
+  executeLoadSessionById,
+  executeLoadSessions,
+  type QueryLayerInfrastructureError,
+} from '../../lib/application/use-cases/query-layer';
+import { makeQueryLayerRepositoryFromSqlExecutor } from '../../lib/infrastructure/db/query-layer-repository';
+
+const queryLayerRepository = makeQueryLayerRepositoryFromSqlExecutor(makeElectronSqlQueryExecutor());
+
+const runQueryLayerRead = async <A>(
+  operation: Effect.Effect<A, QueryLayerInfrastructureError, QueryLayerRepository>
+): Promise<A> => {
+  const result = await Effect.runPromise(
+    operation.pipe(
+      Effect.provideService(QueryLayerRepository, queryLayerRepository),
+      Effect.either
+    )
+  );
+
+  if (Either.isLeft(result)) {
+    throw new Error(result.left.message);
+  }
+
+  return result.right;
+};
 
 // Ensure database is initialized before any query
 async function ensureDb(): Promise<void> {
@@ -211,94 +240,11 @@ export async function createSession(
 }
 
 export async function getSessions(): Promise<Session[]> {
-  const rows = await getAll<any>(`
-    SELECT 
-      id,
-      title,
-      problem_description as problemDescription,
-      output_goal as outputGoal,
-      status,
-      token_count as tokenCount,
-      cost_estimate as costEstimate,
-      orchestrator_enabled as orchestratorEnabled,
-      orchestrator_persona_id as orchestratorPersonaId,
-      blackboard,
-      auto_reply_count as autoReplyCount,
-      token_budget as tokenBudget,
-      summary,
-      archived_at as archivedAt,
-      created_at as createdAt,
-      updated_at as updatedAt
-    FROM sessions
-    ORDER BY updated_at DESC
-  `);
-
-  // Fetch tags for all sessions
-  const sessionIds = rows.map(row => row.id);
-  const tagsMap = new Map<string, string[]>();
-
-  if (sessionIds.length > 0) {
-    const placeholders = sessionIds.map(() => '?').join(',');
-    const tagRows = await getAll<{ session_id: string; name: string }>(`
-      SELECT st.session_id, t.name
-      FROM session_tags st
-      JOIN tags t ON st.tag_id = t.id
-      WHERE st.session_id IN (${placeholders})
-      ORDER BY st.created_at ASC
-    `, sessionIds);
-
-    for (const row of tagRows) {
-      if (!tagsMap.has(row.session_id)) {
-        tagsMap.set(row.session_id, []);
-      }
-      tagsMap.get(row.session_id)!.push(row.name);
-    }
-  }
-
-  return rows.map(row => ({
-    ...row,
-    orchestratorEnabled: Boolean(row.orchestratorEnabled),
-    blackboard: row.blackboard ? JSON.parse(row.blackboard) : null,
-    archivedAt: row.archivedAt || null,
-    tags: tagsMap.get(row.id) || [],
-  }));
+  return runQueryLayerRead(executeLoadSessions());
 }
 
 export async function getSession(id: string): Promise<Session | null> {
-  const row = await getOne<any>(`
-    SELECT 
-      id,
-      title,
-      problem_description as problemDescription,
-      output_goal as outputGoal,
-      status,
-      token_count as tokenCount,
-      cost_estimate as costEstimate,
-      orchestrator_enabled as orchestratorEnabled,
-      orchestrator_persona_id as orchestratorPersonaId,
-      blackboard,
-      auto_reply_count as autoReplyCount,
-      token_budget as tokenBudget,
-      summary,
-      archived_at as archivedAt,
-      created_at as createdAt,
-      updated_at as updatedAt
-    FROM sessions
-    WHERE id = ?
-  `, [id]);
-
-  if (!row) return null;
-
-  // Fetch tags for this session
-  const tags = await getTagsBySession(id);
-
-  return {
-    ...row,
-    orchestratorEnabled: Boolean(row.orchestratorEnabled),
-    blackboard: row.blackboard ? JSON.parse(row.blackboard) : null,
-    archivedAt: row.archivedAt || null,
-    tags,
-  };
+  return runQueryLayerRead(executeLoadSessionById(id));
 }
 
 export async function updateSession(
