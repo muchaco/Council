@@ -1,17 +1,76 @@
 import { Effect, Either } from 'effect';
 
-import { getDatabase, ensureDatabaseReady } from './db.js';
 import { makeElectronSqlQueryExecutor } from './sql-query-executor.js';
 import type { Persona, PersonaInput, Session, SessionInput, Message, MessageInput, Tag, TagInput, SessionPersona } from './types.js';
 import {
+  CouncilTranscriptRepository,
+  SessionParticipationRepository,
+  ReusablePersonaRepository,
+  SessionStateRepository,
+  SessionTagCatalogRepository,
   QueryLayerRepository,
+  executeAddSessionParticipant,
+  executeArchiveSession,
+  executeAssignSessionTagCatalogEntryToSession,
+  executeCleanupOrphanedSessionTags,
+  executeClearSessionParticipantHush,
+  executeCreateCouncilTranscriptMessage,
+  executeCreateReusablePersona,
+  executeCreateSessionState,
+  executeCreateSessionTagCatalogEntry,
+  executeDecrementAllSessionParticipantHushTurns,
+  executeDecrementSessionParticipantHush,
+  executeDeleteReusablePersona,
+  executeDeleteSessionState,
+  executeDeleteSessionTagCatalogEntry,
+  executeDisableSessionOrchestrator,
+  executeEnableSessionOrchestrator,
+  executeIncrementSessionAutoReplyCount,
+  executeIsSessionArchived,
+  executeLoadCouncilTranscript,
+  executeLoadRecentCouncilTranscript,
+  executeLoadReusablePersonaById,
+  executeLoadReusablePersonas,
+  executeLoadSessionTagByName,
+  executeLoadSessionTagNames,
+  executeLoadSessionParticipants,
+  executeLoadActiveSessionTagCatalog,
+  executeLoadHushedSessionParticipantIds,
+  executeLoadNextCouncilTurnNumber,
+  executeRemoveSessionParticipant,
+  executeRemoveSessionTagCatalogEntryFromSession,
+  executeResetSessionAutoReplyCount,
+  executeSetSessionParticipantHush,
   executeLoadSessionById,
   executeLoadSessions,
+  executeUnarchiveSession,
+  executeUpdateReusablePersona,
+  executeUpdateSessionBlackboard,
+  executeUpdateSessionState,
+  executeUpdateSessionSummary,
+  type CouncilTranscriptInfrastructureError,
   type QueryLayerInfrastructureError,
-} from '../../lib/application/use-cases/query-layer';
-import { makeQueryLayerRepositoryFromSqlExecutor } from '../../lib/infrastructure/db/query-layer-repository';
+  type ReusablePersonaInfrastructureError,
+  type SessionStateInfrastructureError,
+  type SessionTagCatalogInfrastructureError,
+  type SessionParticipationInfrastructureError,
+} from '../../lib/application/use-cases';
+import {
+  makeCouncilTranscriptRepositoryFromSqlExecutor,
+  makeQueryLayerRepositoryFromSqlExecutor,
+  makeReusablePersonaRepositoryFromSqlExecutor,
+  makeSessionStateRepositoryFromSqlExecutor,
+  makeSessionTagCatalogRepositoryFromSqlExecutor,
+  makeSessionParticipationRepositoryFromSqlExecutor,
+} from '../../lib/infrastructure/db';
 
-const queryLayerRepository = makeQueryLayerRepositoryFromSqlExecutor(makeElectronSqlQueryExecutor());
+const sqlQueryExecutor = makeElectronSqlQueryExecutor();
+const queryLayerRepository = makeQueryLayerRepositoryFromSqlExecutor(sqlQueryExecutor);
+const councilTranscriptRepository = makeCouncilTranscriptRepositoryFromSqlExecutor(sqlQueryExecutor);
+const sessionParticipationRepository = makeSessionParticipationRepositoryFromSqlExecutor(sqlQueryExecutor);
+const reusablePersonaRepository = makeReusablePersonaRepositoryFromSqlExecutor(sqlQueryExecutor);
+const sessionStateRepository = makeSessionStateRepositoryFromSqlExecutor(sqlQueryExecutor);
+const sessionTagCatalogRepository = makeSessionTagCatalogRepositoryFromSqlExecutor(sqlQueryExecutor);
 
 const runQueryLayerRead = async <A>(
   operation: Effect.Effect<A, QueryLayerInfrastructureError, QueryLayerRepository>
@@ -30,167 +89,106 @@ const runQueryLayerRead = async <A>(
   return result.right;
 };
 
-// Ensure database is initialized before any query
-async function ensureDb(): Promise<void> {
-  await ensureDatabaseReady();
-}
+const runCouncilTranscriptRead = async <A>(
+  operation: Effect.Effect<A, CouncilTranscriptInfrastructureError, CouncilTranscriptRepository>
+): Promise<A> => {
+  const result = await Effect.runPromise(
+    operation.pipe(
+      Effect.provideService(CouncilTranscriptRepository, councilTranscriptRepository),
+      Effect.either
+    )
+  );
 
-// Simple UUID generator
-function generateUUID(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-}
+  if (Either.isLeft(result)) {
+    throw new Error(result.left.message);
+  }
 
-// Promisify database operations
-async function runQuery(sql: string, params: unknown[] = []): Promise<void> {
-  await ensureDb();
-  const db = getDatabase();
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, (err) => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
-}
+  return result.right;
+};
 
-async function getOne<T>(sql: string, params: unknown[] = []): Promise<T | null> {
-  await ensureDb();
-  const db = getDatabase();
-  return new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => {
-      if (err) reject(err);
-      else resolve(row as T || null);
-    });
-  });
-}
+const runSessionParticipationRead = async <A>(
+  operation: Effect.Effect<A, SessionParticipationInfrastructureError, SessionParticipationRepository>
+): Promise<A> => {
+  const result = await Effect.runPromise(
+    operation.pipe(
+      Effect.provideService(SessionParticipationRepository, sessionParticipationRepository),
+      Effect.either
+    )
+  );
 
-async function getAll<T>(sql: string, params: unknown[] = []): Promise<T[]> {
-  await ensureDb();
-  const db = getDatabase();
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows as T[]);
-    });
-  });
-}
+  if (Either.isLeft(result)) {
+    throw new Error(result.left.message);
+  }
+
+  return result.right;
+};
+
+const runReusablePersona = async <A>(
+  operation: Effect.Effect<A, ReusablePersonaInfrastructureError, ReusablePersonaRepository>
+): Promise<A> => {
+  const result = await Effect.runPromise(
+    operation.pipe(
+      Effect.provideService(ReusablePersonaRepository, reusablePersonaRepository),
+      Effect.either
+    )
+  );
+
+  if (Either.isLeft(result)) {
+    throw new Error(result.left.message);
+  }
+
+  return result.right;
+};
+
+const runSessionState = async <A>(
+  operation: Effect.Effect<A, SessionStateInfrastructureError, SessionStateRepository>
+): Promise<A> => {
+  const result = await Effect.runPromise(
+    operation.pipe(
+      Effect.provideService(SessionStateRepository, sessionStateRepository),
+      Effect.either
+    )
+  );
+
+  if (Either.isLeft(result)) {
+    throw new Error(result.left.message);
+  }
+
+  return result.right;
+};
+
+const runSessionTagCatalog = async <A>(
+  operation: Effect.Effect<A, SessionTagCatalogInfrastructureError, SessionTagCatalogRepository>
+): Promise<A> => {
+  const result = await Effect.runPromise(
+    operation.pipe(
+      Effect.provideService(SessionTagCatalogRepository, sessionTagCatalogRepository),
+      Effect.either
+    )
+  );
+
+  if (Either.isLeft(result)) {
+    throw new Error(result.left.message);
+  }
+
+  return result.right;
+};
 
 // Persona operations
 export async function createPersona(data: PersonaInput): Promise<Persona> {
-  const id = generateUUID();
-  const now = new Date().toISOString();
-
-  await runQuery(
-    `INSERT INTO personas (id, name, role, system_prompt, gemini_model, temperature, color, hidden_agenda, verbosity, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, data.name, data.role, data.systemPrompt, data.geminiModel, data.temperature, data.color, data.hiddenAgenda || null, data.verbosity || null, now, now]
-  );
-
-  return {
-    id,
-    name: data.name,
-    role: data.role,
-    systemPrompt: data.systemPrompt,
-    geminiModel: data.geminiModel,
-    temperature: data.temperature,
-    color: data.color,
-    hiddenAgenda: data.hiddenAgenda,
-    verbosity: data.verbosity,
-    createdAt: now,
-    updatedAt: now,
-  };
+  return runReusablePersona(executeCreateReusablePersona(data));
 }
 
 export async function getPersonas(): Promise<Persona[]> {
-  return getAll<Persona>(`
-    SELECT
-      id,
-      name,
-      role,
-      system_prompt as systemPrompt,
-      gemini_model as geminiModel,
-      temperature,
-      color,
-      hidden_agenda as hiddenAgenda,
-      verbosity,
-      created_at as createdAt,
-      updated_at as updatedAt
-    FROM personas
-    ORDER BY created_at DESC
-  `);
+  return runReusablePersona(executeLoadReusablePersonas());
 }
 
 export async function getPersona(id: string): Promise<Persona | null> {
-  return getOne<Persona>(`
-    SELECT
-      id,
-      name,
-      role,
-      system_prompt as systemPrompt,
-      gemini_model as geminiModel,
-      temperature,
-      color,
-      hidden_agenda as hiddenAgenda,
-      verbosity,
-      created_at as createdAt,
-      updated_at as updatedAt
-    FROM personas
-    WHERE id = ?
-  `, [id]);
+  return runReusablePersona(executeLoadReusablePersonaById(id));
 }
 
 export async function updatePersona(id: string, data: Partial<PersonaInput>): Promise<Persona> {
-  const now = new Date().toISOString();
-  
-  const updates: string[] = [];
-  const values: (string | number | null)[] = [];
-  
-  if (data.name !== undefined) {
-    updates.push('name = ?');
-    values.push(data.name);
-  }
-  if (data.role !== undefined) {
-    updates.push('role = ?');
-    values.push(data.role);
-  }
-  if (data.systemPrompt !== undefined) {
-    updates.push('system_prompt = ?');
-    values.push(data.systemPrompt);
-  }
-  if (data.geminiModel !== undefined) {
-    updates.push('gemini_model = ?');
-    values.push(data.geminiModel);
-  }
-  if (data.temperature !== undefined) {
-    updates.push('temperature = ?');
-    values.push(data.temperature);
-  }
-  if (data.color !== undefined) {
-    updates.push('color = ?');
-    values.push(data.color);
-  }
-  if (data.hiddenAgenda !== undefined) {
-    updates.push('hidden_agenda = ?');
-    values.push(data.hiddenAgenda);
-  }
-  if (data.verbosity !== undefined) {
-    updates.push('verbosity = ?');
-    values.push(data.verbosity);
-  }
-
-  updates.push('updated_at = ?');
-  values.push(now);
-  values.push(id);
-  
-  await runQuery(
-    `UPDATE personas SET ${updates.join(', ')} WHERE id = ?`,
-    values
-  );
-  
-  const updated = await getPersona(id);
+  const updated = await runReusablePersona(executeUpdateReusablePersona(id, data));
   if (!updated) {
     throw new Error('Persona not found after update');
   }
@@ -198,7 +196,7 @@ export async function updatePersona(id: string, data: Partial<PersonaInput>): Pr
 }
 
 export async function deletePersona(id: string): Promise<void> {
-  await runQuery('DELETE FROM personas WHERE id = ?', [id]);
+  await runReusablePersona(executeDeleteReusablePersona(id));
 }
 
 // Session operations
@@ -206,37 +204,7 @@ export async function createSession(
   data: SessionInput,
   orchestratorConfig?: { enabled: boolean; orchestratorPersonaId?: string }
 ): Promise<Session> {
-  const id = generateUUID();
-  const now = new Date().toISOString();
-  
-  const orchestratorEnabled = orchestratorConfig?.enabled ?? false;
-  const orchestratorPersonaId = orchestratorConfig?.orchestratorPersonaId || null;
-  
-  await runQuery(
-    `INSERT INTO sessions (id, title, problem_description, output_goal, status, token_count, cost_estimate, orchestrator_enabled, orchestrator_persona_id, blackboard, auto_reply_count, token_budget, summary, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, data.title, data.problemDescription, data.outputGoal, 'active', 0, 0.0, orchestratorEnabled ? 1 : 0, orchestratorPersonaId, null, 0, 100000, null, now, now]
-  );
-  
-  return {
-    id,
-    title: data.title,
-    problemDescription: data.problemDescription,
-    outputGoal: data.outputGoal,
-    status: 'active',
-    tokenCount: 0,
-    costEstimate: 0.0,
-    orchestratorEnabled,
-    orchestratorPersonaId,
-    blackboard: null,
-    autoReplyCount: 0,
-    tokenBudget: 100000,
-    summary: null,
-    archivedAt: null,
-    tags: [],
-    createdAt: now,
-    updatedAt: now,
-  };
+  return runSessionState(executeCreateSessionState(data, orchestratorConfig));
 }
 
 export async function getSessions(): Promise<Session[]> {
@@ -261,68 +229,7 @@ export async function updateSession(
     summary?: string | null;
   }
 ): Promise<Session> {
-  const now = new Date().toISOString();
-  
-  const updates: string[] = [];
-  const values: (string | number | null)[] = [];
-  
-  if (data.title !== undefined) {
-    updates.push('title = ?');
-    values.push(data.title);
-  }
-  if (data.problemDescription !== undefined) {
-    updates.push('problem_description = ?');
-    values.push(data.problemDescription);
-  }
-  if (data.outputGoal !== undefined) {
-    updates.push('output_goal = ?');
-    values.push(data.outputGoal);
-  }
-  if (data.status !== undefined) {
-    updates.push('status = ?');
-    values.push(data.status);
-  }
-  if (data.tokenCount !== undefined) {
-    updates.push('token_count = ?');
-    values.push(data.tokenCount);
-  }
-  if (data.costEstimate !== undefined) {
-    updates.push('cost_estimate = ?');
-    values.push(data.costEstimate);
-  }
-  if (data.orchestratorEnabled !== undefined) {
-    updates.push('orchestrator_enabled = ?');
-    values.push(data.orchestratorEnabled ? 1 : 0);
-  }
-  if (data.orchestratorPersonaId !== undefined) {
-    updates.push('orchestrator_persona_id = ?');
-    values.push(data.orchestratorPersonaId);
-  }
-  if (data.blackboard !== undefined) {
-    updates.push('blackboard = ?');
-    values.push(JSON.stringify(data.blackboard));
-  }
-  if (data.autoReplyCount !== undefined) {
-    updates.push('auto_reply_count = ?');
-    values.push(data.autoReplyCount);
-  }
-  if (data.tokenBudget !== undefined) {
-    updates.push('token_budget = ?');
-    values.push(data.tokenBudget);
-  }
-  if (data.summary !== undefined) {
-    updates.push('summary = ?');
-    values.push(data.summary);
-  }
-  
-  updates.push('updated_at = ?');
-  values.push(now);
-  values.push(id);
-  
-  await runQuery(
-    `UPDATE sessions SET ${updates.join(', ')} WHERE id = ?`,
-    values
-  );
+  await runSessionState(executeUpdateSessionState(id, data));
   
   const updated = await getSession(id);
   if (!updated) {
@@ -332,341 +239,132 @@ export async function updateSession(
 }
 
 export async function deleteSession(id: string): Promise<void> {
-  await runQuery('DELETE FROM sessions WHERE id = ?', [id]);
+  await runSessionState(executeDeleteSessionState(id));
 }
 
 // Message operations
 export async function createMessage(data: MessageInput): Promise<Message> {
-  const id = generateUUID();
-  const now = new Date().toISOString();
-  const metadataJson = data.metadata ? JSON.stringify(data.metadata) : null;
-  
-  await runQuery(
-    `INSERT INTO messages (id, session_id, persona_id, content, turn_number, token_count, metadata, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, data.sessionId, data.personaId, data.content, data.turnNumber, data.tokenCount || 0, metadataJson, now]
-  );
-  
-  return {
-    id,
-    sessionId: data.sessionId,
-    personaId: data.personaId,
-    content: data.content,
-    turnNumber: data.turnNumber,
-    tokenCount: data.tokenCount || 0,
-    metadata: data.metadata || null,
-    createdAt: now,
-  };
+  return runCouncilTranscriptRead(executeCreateCouncilTranscriptMessage(data));
 }
 
 export async function getMessagesBySession(sessionId: string): Promise<Message[]> {
-  const rows = await getAll<any>(`
-    SELECT 
-      id,
-      session_id as sessionId,
-      persona_id as personaId,
-      content,
-      turn_number as turnNumber,
-      token_count as tokenCount,
-      metadata,
-      created_at as createdAt
-    FROM messages
-    WHERE session_id = ?
-    ORDER BY turn_number ASC, created_at ASC
-  `, [sessionId]);
-  
-  return rows.map(row => ({
-    ...row,
-    metadata: row.metadata ? JSON.parse(row.metadata) : null,
-  }));
+  return runCouncilTranscriptRead(executeLoadCouncilTranscript(sessionId));
 }
 
 export async function getLastMessages(sessionId: string, limit: number = 10): Promise<Message[]> {
-  const rows = await getAll<any>(`
-    SELECT 
-      id,
-      session_id as sessionId,
-      persona_id as personaId,
-      content,
-      turn_number as turnNumber,
-      token_count as tokenCount,
-      metadata,
-      created_at as createdAt
-    FROM messages
-    WHERE session_id = ?
-    ORDER BY turn_number DESC, created_at DESC
-    LIMIT ?
-  `, [sessionId, limit]);
-  
-  const messages = rows.map(row => ({
-    ...row,
-    metadata: row.metadata ? JSON.parse(row.metadata) : null,
-  }));
-  
-  return messages.reverse();
+  return runCouncilTranscriptRead(executeLoadRecentCouncilTranscript(sessionId, limit));
 }
 
 // Session Persona operations
 export async function addPersonaToSession(sessionId: string, personaId: string, isOrchestrator: boolean = false): Promise<void> {
-  await runQuery(
-    `INSERT INTO session_personas (session_id, persona_id, is_orchestrator)
-     VALUES (?, ?, ?)
-     ON CONFLICT(session_id, persona_id) DO UPDATE SET is_orchestrator = excluded.is_orchestrator`,
-    [sessionId, personaId, isOrchestrator ? 1 : 0]
-  );
+  await runSessionParticipationRead(executeAddSessionParticipant(sessionId, personaId, isOrchestrator));
 }
 
 export async function getSessionPersonas(sessionId: string): Promise<SessionPersona[]> {
-  const rows = await getAll<any>(`
-    SELECT
-      p.id,
-      p.name,
-      p.role,
-      p.system_prompt as systemPrompt,
-      p.gemini_model as geminiModel,
-      p.temperature,
-      p.color,
-      p.hidden_agenda as hiddenAgenda,
-      p.verbosity,
-      p.created_at as createdAt,
-      p.updated_at as updatedAt,
-      sp.is_orchestrator as isOrchestrator,
-      sp.hush_turns_remaining as hushTurnsRemaining,
-      sp.hushed_at as hushedAt
-    FROM personas p
-    JOIN session_personas sp ON p.id = sp.persona_id
-    WHERE sp.session_id = ?
-    ORDER BY p.name
-  `, [sessionId]);
-
-  return rows.map(row => ({
-    ...row,
-    isOrchestrator: Boolean(row.isOrchestrator),
-    hushTurnsRemaining: row.hushTurnsRemaining || 0,
-    hushedAt: row.hushedAt || null,
-  }));
+  return runSessionParticipationRead(executeLoadSessionParticipants(sessionId));
 }
 
 // Hush operations - "The Hush Button" feature
 export async function setPersonaHush(sessionId: string, personaId: string, turns: number): Promise<void> {
-  const now = new Date().toISOString();
-  await runQuery(
-    `UPDATE session_personas 
-     SET hush_turns_remaining = ?, hushed_at = ? 
-     WHERE session_id = ? AND persona_id = ?`,
-    [turns, now, sessionId, personaId]
-  );
+  await runSessionParticipationRead(executeSetSessionParticipantHush(sessionId, personaId, turns));
 }
 
 export async function decrementPersonaHush(sessionId: string, personaId: string): Promise<number> {
-  await runQuery(
-    `UPDATE session_personas 
-     SET hush_turns_remaining = MAX(0, hush_turns_remaining - 1) 
-     WHERE session_id = ? AND persona_id = ? AND hush_turns_remaining > 0`,
-    [sessionId, personaId]
-  );
-  
-  const row = await getOne<{ hushTurnsRemaining: number }>(`
-    SELECT hush_turns_remaining as hushTurnsRemaining 
-    FROM session_personas 
-    WHERE session_id = ? AND persona_id = ?
-  `, [sessionId, personaId]);
-  
-  return row?.hushTurnsRemaining || 0;
+  return runSessionParticipationRead(executeDecrementSessionParticipantHush(sessionId, personaId));
 }
 
 export async function clearPersonaHush(sessionId: string, personaId: string): Promise<void> {
-  await runQuery(
-    `UPDATE session_personas 
-     SET hush_turns_remaining = 0, hushed_at = NULL 
-     WHERE session_id = ? AND persona_id = ?`,
-    [sessionId, personaId]
-  );
+  await runSessionParticipationRead(executeClearSessionParticipantHush(sessionId, personaId));
 }
 
 export async function decrementAllHushTurns(sessionId: string): Promise<void> {
-  await runQuery(
-    `UPDATE session_personas 
-     SET hush_turns_remaining = MAX(0, hush_turns_remaining - 1) 
-     WHERE session_id = ? AND hush_turns_remaining > 0`,
-    [sessionId]
-  );
+  await runSessionParticipationRead(executeDecrementAllSessionParticipantHushTurns(sessionId));
 }
 
 export async function getHushedPersonas(sessionId: string): Promise<string[]> {
-  const rows = await getAll<{ persona_id: string }>(`
-    SELECT persona_id 
-    FROM session_personas 
-    WHERE session_id = ? AND hush_turns_remaining > 0
-  `, [sessionId]);
-  
-  return rows.map(row => row.persona_id);
+  const hushedPersonaIds = await runSessionParticipationRead(
+    executeLoadHushedSessionParticipantIds(sessionId)
+  );
+  return [...hushedPersonaIds];
 }
 
 export async function removePersonaFromSession(sessionId: string, personaId: string): Promise<void> {
-  await runQuery('DELETE FROM session_personas WHERE session_id = ? AND persona_id = ?', [sessionId, personaId]);
+  await runSessionParticipationRead(executeRemoveSessionParticipant(sessionId, personaId));
 }
 
 // Get next turn number
 export async function getNextTurnNumber(sessionId: string): Promise<number> {
-  const result = await getOne<{ maxTurn: number }>(`
-    SELECT MAX(turn_number) as maxTurn
-    FROM messages
-    WHERE session_id = ?
-  `, [sessionId]);
-  
-  return (result?.maxTurn || 0) + 1;
+  return runCouncilTranscriptRead(executeLoadNextCouncilTurnNumber(sessionId));
 }
 
 // Orchestrator operations
 export async function updateBlackboard(sessionId: string, blackboard: any): Promise<void> {
-  const blackboardJson = JSON.stringify(blackboard);
-  await runQuery(
-    'UPDATE sessions SET blackboard = ? WHERE id = ?',
-    [blackboardJson, sessionId]
-  );
+  await runSessionState(executeUpdateSessionBlackboard(sessionId, blackboard));
 }
 
 export async function updateSessionSummary(sessionId: string, summary: string): Promise<void> {
-  await runQuery(
-    'UPDATE sessions SET summary = ? WHERE id = ?',
-    [summary, sessionId]
-  );
+  await runSessionState(executeUpdateSessionSummary(sessionId, summary));
 }
 
 export async function incrementAutoReplyCount(sessionId: string): Promise<number> {
-  await runQuery(
-    'UPDATE sessions SET auto_reply_count = auto_reply_count + 1 WHERE id = ?',
-    [sessionId]
-  );
-  
-  const session = await getSession(sessionId);
-  return session?.autoReplyCount || 0;
+  return runSessionState(executeIncrementSessionAutoReplyCount(sessionId));
 }
 
 export async function resetAutoReplyCount(sessionId: string): Promise<void> {
-  await runQuery(
-    'UPDATE sessions SET auto_reply_count = 0 WHERE id = ?',
-    [sessionId]
-  );
+  await runSessionState(executeResetSessionAutoReplyCount(sessionId));
 }
 
 export async function enableOrchestrator(sessionId: string, orchestratorPersonaId: string): Promise<void> {
-  await runQuery(
-    'UPDATE sessions SET orchestrator_enabled = 1, orchestrator_persona_id = ? WHERE id = ?',
-    [orchestratorPersonaId, sessionId]
-  );
+  await runSessionState(executeEnableSessionOrchestrator(sessionId, orchestratorPersonaId));
 }
 
 export async function disableOrchestrator(sessionId: string): Promise<void> {
-  await runQuery(
-    'UPDATE sessions SET orchestrator_enabled = 0, orchestrator_persona_id = NULL WHERE id = ?',
-    [sessionId]
-  );
+  await runSessionState(executeDisableSessionOrchestrator(sessionId));
 }
 
 // Session archiving
 export async function archiveSession(sessionId: string): Promise<void> {
-  const now = new Date().toISOString();
-  await runQuery(
-    'UPDATE sessions SET archived_at = ?, status = ? WHERE id = ?',
-    [now, 'archived', sessionId]
-  );
+  await runSessionState(executeArchiveSession(sessionId));
 }
 
 export async function unarchiveSession(sessionId: string): Promise<void> {
-  await runQuery(
-    'UPDATE sessions SET archived_at = NULL, status = ? WHERE id = ?',
-    ['active', sessionId]
-  );
+  await runSessionState(executeUnarchiveSession(sessionId));
 }
 
 export async function isSessionArchived(sessionId: string): Promise<boolean> {
-  const session = await getOne<{ archivedAt: string | null }>(
-    'SELECT archived_at as archivedAt FROM sessions WHERE id = ?',
-    [sessionId]
-  );
-  return session?.archivedAt !== null && session?.archivedAt !== undefined;
+  return runSessionState(executeIsSessionArchived(sessionId));
 }
 
 // Tag operations
 export async function createTag(data: TagInput): Promise<Tag> {
-  const now = new Date().toISOString();
-
-  await runQuery(
-    `INSERT INTO tags (name, created_at) VALUES (?, ?)`,
-    [data.name, now]
-  );
-
-  const tag = await getOne<Tag>(
-    `SELECT id, name, created_at as createdAt FROM tags WHERE name = ?`,
-    [data.name]
-  );
-
-  if (!tag) {
-    throw new Error('Tag not found after creation');
-  }
-
-  return tag;
+  return runSessionTagCatalog(executeCreateSessionTagCatalogEntry(data));
 }
 
 export async function getTagByName(name: string): Promise<Tag | null> {
-  return getOne<Tag>(
-    `SELECT id, name, created_at as createdAt FROM tags WHERE name = ?`,
-    [name]
-  );
+  return runSessionTagCatalog(executeLoadSessionTagByName(name));
 }
 
 export async function getAllTags(): Promise<Tag[]> {
-  // Only return tags that have at least one session association
-  // This prevents orphaned tags from appearing in autocomplete
-  return getAll<Tag>(
-    `SELECT t.id, t.name, t.created_at as createdAt 
-     FROM tags t
-     INNER JOIN session_tags st ON t.id = st.tag_id
-     GROUP BY t.id, t.name, t.created_at
-     ORDER BY t.name ASC`
-  );
+  return runSessionTagCatalog(executeLoadActiveSessionTagCatalog());
 }
 
 export async function deleteTag(id: number): Promise<void> {
-  await runQuery('DELETE FROM tags WHERE id = ?', [id]);
+  await runSessionTagCatalog(executeDeleteSessionTagCatalogEntry(id));
 }
 
 // Session-Tag operations
 export async function addTagToSession(sessionId: string, tagId: number): Promise<void> {
-  await runQuery(
-    `INSERT INTO session_tags (session_id, tag_id) VALUES (?, ?)
-     ON CONFLICT(session_id, tag_id) DO NOTHING`,
-    [sessionId, tagId]
-  );
+  await runSessionTagCatalog(executeAssignSessionTagCatalogEntryToSession(sessionId, tagId));
 }
 
 export async function removeTagFromSession(sessionId: string, tagId: number): Promise<void> {
-  await runQuery(
-    'DELETE FROM session_tags WHERE session_id = ? AND tag_id = ?',
-    [sessionId, tagId]
-  );
+  await runSessionTagCatalog(executeRemoveSessionTagCatalogEntryFromSession(sessionId, tagId));
 }
 
 export async function getTagsBySession(sessionId: string): Promise<string[]> {
-  const rows = await getAll<{ name: string }>(
-    `SELECT t.name
-     FROM tags t
-     JOIN session_tags st ON t.id = st.tag_id
-     WHERE st.session_id = ?
-     ORDER BY st.created_at ASC`,
-    [sessionId]
-  );
-
-  return rows.map(row => row.name);
+  return runSessionTagCatalog(executeLoadSessionTagNames(sessionId));
 }
 
 export async function cleanupOrphanedTags(): Promise<number> {
-  const result = await runQuery(
-    `DELETE FROM tags 
-     WHERE id NOT IN (SELECT DISTINCT tag_id FROM session_tags)`
-  );
-  // Return number of deleted rows (this is a rough approximation)
-  return 0;
+  return runSessionTagCatalog(executeCleanupOrphanedSessionTags());
 }
