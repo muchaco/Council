@@ -210,6 +210,8 @@ If you encounter information that was **hard to find, undocumented, or required 
 *(Agent: Append new insights below this line)*
 
 * **[Effect test tooling]:** Keep `vitest`, `@vitest/ui`, and `@effect/vitest` aligned (`vitest@3.2.x`, `@vitest/ui@3.2.x`, `@effect/vitest@0.27.0`) to avoid peer dependency conflicts.
+* **[FCIS slice map - commit 90d1a31]:** Read `lib/core/{domain,decision,plan,errors}` for pure business rules and typed failures, `lib/application/use-cases/**` for Effect orchestration over core decisions, `lib/infrastructure/**` for runtime interpreters/adapters, and `stores/sessions.ts` + `lib/shell/**` as imperative entrypoints that call use-cases and apply UI/IPC side effects.
+* **[Electron + shared FCIS modules]:** If Electron handlers import root `lib/**` modules, set `electron/tsconfig.json` `rootDir` to `..`, include `../lib/**/*.ts`, and run Electron from `electron/dist/electron/main.js` (not `electron/dist/main.js`) so emitted relative imports resolve.
 
 ---
 

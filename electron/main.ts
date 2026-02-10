@@ -72,7 +72,7 @@ function createWindow(): void {
     mainWindow.webContents.openDevTools();
   } else {
     // In production, use the static build with hash-based routing
-    const indexPath = path.join(__dirname, '..', '..', 'out', 'index.html');
+    const indexPath = path.join(__dirname, '..', '..', '..', 'out', 'index.html');
     mainWindow.loadFile(indexPath);
   }
 
@@ -101,7 +101,7 @@ app.whenReady().then(() => {
   // Register protocol for static files
   protocol.registerFileProtocol('app', (request, callback) => {
     const url = request.url.substr(6); // Remove 'app://'
-    const filePath = path.join(__dirname, '..', '..', 'out', url);
+    const filePath = path.join(__dirname, '..', '..', '..', 'out', url);
     callback({ path: filePath });
   });
 

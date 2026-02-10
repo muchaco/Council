@@ -26,7 +26,7 @@ export const executeDemoGreeting = (
     const state = yield* stateStore.getState;
     const decision = decideDemoGreeting(input, state);
     if (Either.isLeft(decision)) {
-      yield* Effect.fail(decision.left);
+      return yield* Effect.fail(decision.left);
     }
 
     const plan = decision.right;

@@ -1,9 +1,22 @@
 import { ipcMain } from 'electron';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Store from 'electron-store';
+import { Effect, Either } from 'effect';
+
 import { decrypt } from './settings.js';
 import * as queries from '../lib/queries.js';
-import type { BlackboardState, Persona, Message } from '../lib/types.js';
+import type { BlackboardState } from '../lib/types.js';
+import {
+  ConductorSelectorGateway,
+  ConductorTurnRepository,
+  executeConductorTurn,
+  type SelectNextSpeakerRequest,
+  type SelectNextSpeakerResponse,
+} from '../../lib/application/use-cases/conductor/index.js';
+import {
+  makeConductorTurnRepositoryFromElectronQueries,
+} from '../../lib/infrastructure/db/index.js';
+import { makeConductorSelectorGatewayFromExecutor } from '../../lib/infrastructure/llm/index.js';
 
 interface StoreSchema {
   apiKey: string;
@@ -22,44 +35,7 @@ function getApiKey(): string {
   return decrypt(encrypted);
 }
 
-// Constants
-const MAX_AUTO_REPLIES = 8;
-const TOKEN_BUDGET_WARNING = 50000;
-const TOKEN_BUDGET_LIMIT = 100000;
-
-interface SelectorRequest {
-  sessionId: string;
-  selectorModel: string;
-  recentMessages: Array<{
-    role: 'user' | 'model';
-    content: string;
-    personaName: string;
-  }>;
-  blackboard: BlackboardState;
-  availablePersonas: Array<{
-    id: string;
-    name: string;
-    role: string;
-  }>;
-  hushedPersonas: Array<{
-    id: string;
-    name: string;
-    remainingTurns: number;
-  }>;
-  problemDescription: string;
-  outputGoal: string;
-  lastSpeakerId: string | null;
-}
-
-interface SelectorResponse {
-  selectedPersonaId: string | 'WAIT_FOR_USER';
-  reasoning: string;
-  isIntervention: boolean;
-  interventionMessage?: string;
-  updateBlackboard: Partial<BlackboardState>;
-}
-
-async function callSelectorAgent(request: SelectorRequest): Promise<SelectorResponse> {
+async function callSelectorAgent(request: SelectNextSpeakerRequest): Promise<SelectNextSpeakerResponse> {
   const apiKey = getApiKey();
   const genAI = new GoogleGenerativeAI(apiKey);
   
@@ -132,7 +108,7 @@ Respond in this exact JSON format:
       throw new Error('No JSON found in selector response');
     }
     
-    const parsed = JSON.parse(jsonMatch[0]) as SelectorResponse;
+    const parsed = JSON.parse(jsonMatch[0]) as SelectNextSpeakerResponse;
     return {
       selectedPersonaId: parsed.selectedPersonaId,
       reasoning: parsed.reasoning || 'No reasoning provided',
@@ -142,42 +118,8 @@ Respond in this exact JSON format:
     };
   } catch (error) {
     console.error('Selector agent error:', error);
-    // Propagate error instead of converting to WAIT_FOR_USER
-    throw new Error(`Selector agent failed: ${(error as Error).message}`);
+    throw error;
   }
-}
-
-async function checkCircuitBreaker(sessionId: string): Promise<{ shouldStop: boolean; message?: string }> {
-  const session = await queries.getSession(sessionId);
-  if (!session) {
-    return { shouldStop: true, message: 'Session not found' };
-  }
-
-  // Check auto-reply count
-  if (session.autoReplyCount >= MAX_AUTO_REPLIES) {
-    return {
-      shouldStop: true,
-      message: `Circuit breaker: Maximum ${MAX_AUTO_REPLIES} auto-replies reached. Click continue to proceed.`,
-    };
-  }
-
-  // Check token budget
-  if (session.tokenCount >= TOKEN_BUDGET_LIMIT) {
-    return {
-      shouldStop: true,
-      message: `Token budget exceeded (${session.tokenCount.toLocaleString()} / ${TOKEN_BUDGET_LIMIT.toLocaleString()}). Session paused.`,
-    };
-  }
-
-  // Check warning threshold
-  if (session.tokenCount >= TOKEN_BUDGET_WARNING) {
-    return {
-      shouldStop: false,
-      message: `Warning: Token usage at ${Math.round((session.tokenCount / TOKEN_BUDGET_LIMIT) * 100)}% of budget`,
-    };
-  }
-
-  return { shouldStop: false };
 }
 
 export function setupOrchestratorHandlers(): void {
@@ -207,172 +149,63 @@ export function setupOrchestratorHandlers(): void {
   // Process a turn - this is the main orchestration loop
   ipcMain.handle('orchestrator:processTurn', async (_, sessionId: string) => {
     try {
-      // Get session and personas
-      const session = await queries.getSession(sessionId);
-      if (!session) {
-        return { success: false, error: 'Session not found' };
-      }
+      const repository = makeConductorTurnRepositoryFromElectronQueries(queries);
 
-      if (!session.orchestratorEnabled || !session.orchestratorPersonaId) {
-        return { success: false, error: 'Orchestrator not enabled for this session' };
-      }
+      const selectorGateway = makeConductorSelectorGatewayFromExecutor(callSelectorAgent);
 
-      // Check circuit breaker
-      const circuitCheck = await checkCircuitBreaker(sessionId);
-      if (circuitCheck.shouldStop) {
-        return { 
-          success: false, 
-          error: circuitCheck.message,
-          code: 'CIRCUIT_BREAKER'
-        };
-      }
+      const outcome = await Effect.runPromise(
+        executeConductorTurn({ sessionId }).pipe(
+          Effect.provideService(ConductorTurnRepository, repository),
+          Effect.provideService(ConductorSelectorGateway, selectorGateway),
+          Effect.either
+        )
+      );
 
-      // Get session personas
-      let personas = await queries.getSessionPersonas(sessionId);
-      if (personas.length === 0) {
-        return { success: false, error: 'No personas in session' };
-      }
+      if (Either.isLeft(outcome)) {
+        const error = outcome.left;
 
-      // Decrement hush turns for all personas at the start of each turn
-      await queries.decrementAllHushTurns(sessionId);
-      
-      // Refresh personas to get updated hush state
-      personas = await queries.getSessionPersonas(sessionId);
+        if (error._tag === 'ConductorInfrastructureError' && error.source === 'selector') {
+          return {
+            success: false,
+            error: error.message,
+            code: 'SELECTOR_AGENT_ERROR',
+          };
+        }
 
-      // Get recent messages
-      const messages = await queries.getLastMessages(sessionId, 10);
-      
-      // Get last speaker (most recent non-user message)
-      const lastPersonaMessage = [...messages].reverse().find(msg => msg.personaId !== null);
-      const lastSpeakerId = lastPersonaMessage?.personaId || null;
-      
-      // Format messages for selector
-      const recentMessages = messages.map(msg => {
-        const persona = personas.find(p => p.id === msg.personaId);
         return {
-          role: msg.personaId === null ? 'user' as const : 'model' as const,
-          content: msg.content,
-          personaName: msg.personaId === null ? 'User' : (persona?.name || 'Unknown'),
+          success: false,
+          error: error.message,
         };
-      });
+      }
 
-      // Get blackboard state
-      const blackboard = session.blackboard || {
-        consensus: '',
-        conflicts: '',
-        nextStep: '',
-        facts: '',
-      };
+      const result = outcome.right;
 
-      // Get available personas (exclude orchestrator, last speaker, and hushed personas)
-      const availablePersonas = personas
-        .filter(p => p.id !== session.orchestratorPersonaId && p.id !== lastSpeakerId && p.hushTurnsRemaining === 0)
-        .map(p => ({ id: p.id, name: p.name, role: p.role }));
-      
-      // Get hushed personas for the prompt context
-      const hushedPersonas = personas.filter(p => p.hushTurnsRemaining > 0);
-      
-      // Edge case: if no available personas after filtering, wait for user
-      if (availablePersonas.length === 0) {
+      if (result._tag === 'CircuitBreakerStopped') {
+        return {
+          success: false,
+          error: result.message,
+          code: 'CIRCUIT_BREAKER',
+        };
+      }
+
+      if (result._tag === 'WaitForUser') {
         return {
           success: true,
           action: 'WAIT_FOR_USER',
-          reasoning: 'All personas have spoken. Waiting for user input before next cycle.',
+          reasoning: result.reasoning,
+          blackboardUpdate: result.blackboardUpdate,
         };
       }
-
-      // Get orchestrator persona for selector model
-      const orchestratorPersona = personas.find(p => p.id === session.orchestratorPersonaId);
-      if (!orchestratorPersona) {
-        return {
-          success: false,
-          error: 'Orchestrator persona not found',
-        };
-      }
-
-      // Call selector agent
-      let selectorResult;
-      try {
-        selectorResult = await callSelectorAgent({
-          sessionId,
-          selectorModel: orchestratorPersona.geminiModel,
-          recentMessages,
-          blackboard,
-          availablePersonas,
-          hushedPersonas: hushedPersonas.map(p => ({ id: p.id, name: p.name, remainingTurns: p.hushTurnsRemaining })),
-          problemDescription: session.problemDescription,
-          outputGoal: session.outputGoal,
-          lastSpeakerId,
-        });
-      } catch (error) {
-        return {
-          success: false,
-          error: (error as Error).message,
-          code: 'SELECTOR_AGENT_ERROR',
-        };
-      }
-
-      // Ensure selectorResult is defined (should always be the case unless error thrown)
-      if (!selectorResult) {
-        return {
-          success: false,
-          error: 'Selector agent did not return a result',
-          code: 'SELECTOR_AGENT_ERROR',
-        };
-      }
-
-      // Update blackboard if provided
-      if (Object.keys(selectorResult.updateBlackboard).length > 0) {
-        const updatedBlackboard = {
-          ...blackboard,
-          ...selectorResult.updateBlackboard,
-        };
-        await queries.updateBlackboard(sessionId, updatedBlackboard);
-      }
-
-      // Handle intervention
-      if (selectorResult.isIntervention && selectorResult.interventionMessage) {
-        const turnNumber = await queries.getNextTurnNumber(sessionId);
-        await queries.createMessage({
-          sessionId,
-          personaId: orchestratorPersona.id,
-          content: selectorResult.interventionMessage,
-          turnNumber,
-            metadata: { isIntervention: true, selectorReasoning: selectorResult.reasoning },
-        });
-      }
-
-      // Handle wait for user
-      if (selectorResult.selectedPersonaId === 'WAIT_FOR_USER') {
-        return {
-          success: true,
-          action: 'WAIT_FOR_USER',
-          reasoning: selectorResult.reasoning,
-          blackboardUpdate: selectorResult.updateBlackboard,
-        };
-      }
-
-      // Validate selected persona exists
-      const selectedPersona = personas.find(p => p.id === selectorResult.selectedPersonaId);
-      if (!selectedPersona) {
-        return {
-          success: false,
-          error: `Selected persona ${selectorResult.selectedPersonaId} not found`,
-        };
-      }
-
-      // Increment auto-reply count
-      const newCount = await queries.incrementAutoReplyCount(sessionId);
 
       return {
         success: true,
         action: 'TRIGGER_PERSONA',
-        personaId: selectorResult.selectedPersonaId,
-        reasoning: selectorResult.reasoning,
-        blackboardUpdate: selectorResult.updateBlackboard,
-        isIntervention: selectorResult.isIntervention,
-        autoReplyCount: newCount,
-        warning: circuitCheck.message,
+        personaId: result.personaId,
+        reasoning: result.reasoning,
+        blackboardUpdate: result.blackboardUpdate,
+        isIntervention: result.isIntervention,
+        autoReplyCount: result.autoReplyCount,
+        warning: result.warning,
       };
 
     } catch (error) {
