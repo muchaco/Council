@@ -1,7 +1,16 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
+import { Effect, Either } from 'effect';
 import type { Session, SessionInput, Message, Persona, BlackboardState, Tag } from '../lib/types';
-import { validateTagInput, canAddTag } from '../lib/validation';
+import {
+  executeAssignSessionTag,
+  executeRemoveSessionTag,
+  SessionTagPersistence,
+  type SessionTagUseCaseError,
+  type SessionTagRemovalUseCaseError,
+} from '../lib/application/use-cases/session-tags';
+import { makeSessionTagPersistenceFromElectronDB } from '../lib/infrastructure/db';
+import { validateTagInput } from '../lib/validation';
 
 interface SessionPersona extends Persona {
   isOrchestrator: boolean;
@@ -79,53 +88,34 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         return false;
       }
 
-      // Validate tag using functional core
-      const validation = validateTagInput(tagName, session.tags);
-      if (!validation.valid) {
-        toast.error(validation.error || 'Invalid tag');
+      const outcome = await Effect.runPromise(
+        executeAssignSessionTag({
+          sessionId,
+          requestedTagName: tagName,
+          assignedTagNames: session.tags,
+          availableTags: allTags,
+        }).pipe(
+          Effect.provideService(
+            SessionTagPersistence,
+            makeSessionTagPersistenceFromElectronDB(window.electronDB)
+          ),
+          Effect.either
+        )
+      );
+
+      if (Either.isLeft(outcome)) {
+        const error = outcome.left as SessionTagUseCaseError;
+        toast.error(error.message);
         return false;
       }
 
-      // Check max tags limit
-      if (!canAddTag(session.tags)) {
-        toast.error('Maximum 3 tags allowed per session');
-        return false;
-      }
-
-      const normalizedTag = validation.normalizedTag!;
-
-      // Check if tag already exists in database
-      let tag = allTags.find(t => t.name === normalizedTag);
-
-      if (!tag) {
-        // Try to get from database
-        const getResult = await window.electronDB.tags.getByName(normalizedTag);
-        if (getResult.success && getResult.data) {
-          tag = getResult.data as Tag;
-        }
-      }
-
-      // Create tag if it doesn't exist
-      if (!tag) {
-        const createResult = await window.electronDB.tags.create(normalizedTag);
-        if (!createResult.success || !createResult.data) {
-          toast.error(createResult.error || 'Failed to create tag');
-          return false;
-        }
-        tag = createResult.data as Tag;
-        // Update allTags list
-        set(state => ({ allTags: [...state.allTags, tag!] }));
-      }
-
-      // Add tag to session
-      const addResult = await window.electronDB.sessionTags.add(sessionId, tag.id);
-      if (!addResult.success) {
-        toast.error(addResult.error || 'Failed to add tag to session');
-        return false;
+      const createdTag = outcome.right.createdTag;
+      if (createdTag !== null) {
+        set(state => ({ allTags: [...state.allTags, createdTag] }));
       }
 
       // Update local state
-      const updatedTags = [...session.tags, normalizedTag];
+      const updatedTags = [...outcome.right.nextAssignedTagNames];
       set(state => ({
         sessions: state.sessions.map(s =>
           s.id === sessionId ? { ...s, tags: updatedTags } : s
@@ -152,23 +142,29 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         return false;
       }
 
-      const normalizedTag = tagName.toLowerCase().trim();
-      const tag = allTags.find(t => t.name === normalizedTag);
+      const outcome = await Effect.runPromise(
+        executeRemoveSessionTag({
+          sessionId,
+          requestedTagName: tagName,
+          assignedTagNames: session.tags,
+          availableTags: allTags,
+        }).pipe(
+          Effect.provideService(
+            SessionTagPersistence,
+            makeSessionTagPersistenceFromElectronDB(window.electronDB)
+          ),
+          Effect.either
+        )
+      );
 
-      if (!tag) {
-        toast.error('Tag not found');
-        return false;
-      }
-
-      // Remove tag from session
-      const removeResult = await window.electronDB.sessionTags.remove(sessionId, tag.id);
-      if (!removeResult.success) {
-        toast.error(removeResult.error || 'Failed to remove tag from session');
+      if (Either.isLeft(outcome)) {
+        const error = outcome.left as SessionTagRemovalUseCaseError;
+        toast.error(error.message);
         return false;
       }
 
       // Update local state
-      const updatedTags = session.tags.filter(t => t !== normalizedTag);
+      const updatedTags = [...outcome.right.nextAssignedTagNames];
       set(state => ({
         sessions: state.sessions.map(s =>
           s.id === sessionId ? { ...s, tags: updatedTags } : s
@@ -178,13 +174,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
           : state.currentSession,
       }));
 
-      // Clean up orphaned tags and refresh allTags for autocomplete
-      try {
-        await window.electronDB.tags.cleanupOrphaned();
-        await get().fetchAllTags();
-      } catch (cleanupError) {
-        console.error('Error cleaning up orphaned tags:', cleanupError);
-        // Non-fatal error, don't fail the remove operation
+      if (outcome.right.refreshedTagCatalog) {
+        set({ allTags: [...outcome.right.refreshedTagCatalog] });
       }
 
       return true;

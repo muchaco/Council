@@ -209,6 +209,8 @@ If you encounter information that was **hard to find, undocumented, or required 
 
 *(Agent: Append new insights below this line)*
 
+* **[Effect test tooling]:** Keep `vitest`, `@vitest/ui`, and `@effect/vitest` aligned (`vitest@3.2.x`, `@vitest/ui@3.2.x`, `@effect/vitest@0.27.0`) to avoid peer dependency conflicts.
+
 ---
 
 ## Registry Management (Requirements & Bugs)
