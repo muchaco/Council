@@ -1,60 +1,163 @@
 # Repository Guidelines
 
-## ⚠️ CRITICAL: Registry Management Rules
+## Tech Snapshot
 
-**Requirements and Bugs MUST be managed exclusively through CLI commands.**
+Council is an Electron desktop app with:
 
-### DO NOT:
-- ❌ Directly edit files in `requirements/` or `bugs/` folders
-- ❌ Manually modify `index.json` files
-- ❌ Delete or remove requirements/bugs without explicit user instruction
-- ❌ Create requirements/bugs by writing files directly
+- Vite + React renderer (`src/`, `app/`, `components/`)
+- Electron main process (`electron/`)
+- Zustand stores (`stores/`)
+- SQLite persistence via Electron IPC
+- Effect-TS-driven FCIS migration (`lib/core`, `lib/application`, `lib/infrastructure`, `lib/shell`)
 
-### ALWAYS:
-- ✅ Use `npm run req:*` commands for requirements
-- ✅ Use `npm run bug:*` commands for bugs
-- ✅ Keep all existing items intact unless user explicitly asks to delete
-- ✅ Mark items as completed/resolved rather than deleting them
-
-### Why?
-The CLI maintains data consistency, generates sequential IDs, calculates priority scores, and prevents corruption. Manual edits break the registry.
+This repository is **not Next.js**. Prefer Vite/Electron conventions.
 
 ---
 
-## Project Overview
+## What This Repository Expects
 
-Council is a desktop-based AI brainstorming tool built with Next.js, React, and Electron. It enables users to conduct multi-agent AI debates through a custom persona system.
+- Business policy goes in pure core modules.
+- Runtime effects (DB, IPC, network, Electron, toasts, logging) stay out of core.
+- Application use-cases orchestrate core decisions and interpret planned effects with Effect services.
+- Shell layers (stores, IPC handlers) are thin adapters.
 
-## Project Structure
+If you only remember one rule: **Decide in core, execute in application/shell.**
 
+## DDD Alignment Rules
+
+When implementing or refactoring features, align code with **Domain-Driven Design (DDD)**:
+
+- **Ubiquitous Language:** Use exact product terms from PM requirements in function names, types, variables, and test cases. Prefer names that read like business rules over technical shorthand.
+- **Bounded Contexts:** Organize by business slice first (for example, `session-tags`, `conductor`) and keep each slice coherent across core/application/infrastructure/shell. Avoid cross-context policy leakage.
+- **Domain-Centric Core:** Keep the functional core focused on domain model + domain decisions only. Push all infrastructure details and orchestration plumbing into application, infrastructure adapters, and shell.align the code more closely with **Domain-Driven Design (DDD)**. Specifically:
+
+* **Ubiquitous Language:** Let’s use the exact terminology the Product Managers use. Variable names, functions, and tests should read like business requirements, not technical implementations.
+* **Bounded Contexts:** Let's organize the modules by 'business areas' (e.g., *Billing*, *Onboarding*) rather than technical types.
+* **Domain-Centric Core:** Keep the **Functional Core** strictly focused on business logic (Domain Model), leaving all infrastructure and 'plumbing' to the **Imperative Shell**.
+
+The goal is for the code to mirror the product's logic so closely that a PM could almost understand the logic just by reading the function signatures.
+
+Litmus test: a PM should be able to skim core decision signatures and understand the business behavior.
+
+## Architecture Map
+
+```text
+UI / Electron handlers (Shell)
+  -> lib/application/use-cases/* (Effect orchestration)
+    -> lib/core/decision/* (pure decisions)
+      -> lib/core/plan/* (effect descriptions)
+      -> lib/core/errors/* (typed expected failures)
+    -> lib/application/... service interfaces (Context.Tag)
+      -> lib/infrastructure/* adapters (DB/LLM/settings/clock/id)
 ```
-my-app/
-├── app/                    # Next.js app router pages
-│   ├── page.tsx           # Root redirect
-│   ├── layout.tsx         # Root layout with navigation
-│   ├── globals.css        # Global styles
-│   ├── personas/          # Persona management UI
-│   ├── sessions/          # Sessions list
-│   ├── session/           # Active session chat
-│   │   ├── [id]/          # Existing session view
-│   │   └── new/           # Create new session
-│   └── settings/          # App settings
-├── components/            # React components
-│   ├── ui/               # shadcn/ui components
-│   ├── chat/             # Chat-related components (planned)
-│   └── session/          # Session components (planned)
-├── hooks/                # Custom React hooks
-├── lib/                  # Utility functions and services
-│   ├── db/              # Database layer (planned)
-│   ├── llm/             # LLM integration (planned)
-│   └── utils.ts         # Utility functions
-├── electron/            # Electron main process (planned)
-├── stores/              # Zustand state stores (planned)
-├── public/              # Static assets
-├── styles/              # Additional styles
-├── plan.md              # Implementation plan
-└── package.json         # Dependencies and scripts
-```
+
+Current examples:
+
+- Session tags slice (Phase 1):
+  - Core: `lib/core/domain/session-tags.ts`, `lib/core/decision/decide-assign-session-tag.ts`, `lib/core/decision/decide-remove-session-tag.ts`, `lib/core/plan/session-tags-plan.ts`
+  - Application: `lib/application/use-cases/session-tags/*`
+  - Infrastructure: `lib/infrastructure/db/session-tag-persistence.ts`
+  - Shell: `stores/sessions.ts`
+- Conductor slice (Phase 2 in progress):
+  - Core: `lib/core/domain/conductor.ts`, `lib/core/decision/conductor/*`, `lib/core/plan/conductor-plan.ts`, `lib/core/errors/conductor-error.ts`
+  - Application: `lib/application/use-cases/conductor/*`
+  - Infrastructure: `lib/infrastructure/db/conductor-turn-repository.ts`, `lib/infrastructure/llm/conductor-selector-gateway.ts`
+  - Shell: `electron/handlers/orchestrator.ts`
+
+---
+
+## Where To Put New Code
+
+For each bounded context or feature slice, add code in this order:
+
+1. `lib/core/domain/*` - domain types, policies, pure helpers.
+2. `lib/core/errors/*` - typed expected failures for that slice.
+3. `lib/core/plan/*` - planned effect/value types.
+4. `lib/core/decision/*` - pure decision functions returning `Either`/`Option`/plain values.
+5. `lib/application/use-cases/<slice>/*` - Effect orchestration using service dependencies.
+6. `lib/infrastructure/*` - concrete adapters implementing service contracts.
+7. Shell entrypoint updates (`stores/*`, `electron/handlers/*`, sometimes `lib/shell/*`).
+
+---
+
+## Feature Implementation Workflow
+
+### 1) Start from behavior, not transport
+
+Define what the domain should decide first:
+
+- Inputs (commands + context/state)
+- Validations and branch rules
+- Typed error outcomes
+- Successful plan output
+
+### 2) Write pure core decision(s)
+
+Use signatures like:
+
+- `Decide(input, context) -> Either<DomainError, Plan>`
+- `Decide(input) -> Option<Plan>`
+
+Core rules:
+
+- No DB/IPC/network/filesystem/time/random.
+- No React/Electron imports.
+- No thrown exceptions for expected business outcomes.
+
+### 3) Define a plan model
+
+Plans should describe intended side effects, for example:
+
+- `PersistX`
+- `EnsureY`
+- `RefreshZ`
+
+Application interprets these; core only describes them.
+
+### 4) Build use-case orchestration in Effect
+
+In `lib/application/use-cases/<slice>/...`:
+
+- Define service interfaces with `Context.Tag`.
+- Run core decision.
+- Fail early with typed domain errors.
+- Interpret plan effects (prefer exhaustive `switch` on `_tag`).
+- Return typed result DTO for shell.
+
+### 5) Implement infrastructure adapters
+
+In `lib/infrastructure/*`:
+
+- Wrap runtime calls with `Effect.tryPromise` / `Effect` combinators.
+- Convert runtime errors to typed infrastructure errors.
+- Keep adapter logic thin and deterministic where possible.
+
+### 6) Keep shell thin
+
+Shell code should:
+
+- Gather request/input data.
+- Provide services/layers.
+- Run use-case and map result/error to UI/IPC response.
+- Apply view state and toasts.
+
+Shell should not host domain policy branches.
+
+---
+
+## Testing Expectations
+
+- Core decisions: table-driven tests are primary confidence source.
+- Use-cases: a few focused tests for orchestration + error mapping.
+- Shell: minimal tests (wiring and boundary behavior).
+
+Suggested pattern names:
+
+- `decide_*_spec` for core
+- `execute_*_use_case_spec` for application
+- `<store>_spec` or `<handler>_spec` for shell
+
+---
 
 ## Development Commands
 
@@ -62,250 +165,84 @@ my-app/
 # Install dependencies
 npm install
 
-# Start development server
+# Renderer-only dev
 npm run dev
 
-# Build for production
+# Full Electron app in dev mode
+npm run electron:dev
+
+# Build renderer
 npm run build
 
-# Run linter
+# Compile Electron TypeScript
+npm run electron:build
+
+# Lint + test
 npm run lint
-
-# Electron commands (planned)
-npm run electron:dev       # Start Electron in dev mode
-npm run electron:build     # Build Electron app
-npm run electron:package   # Package as .deb
+npm run test
 ```
 
-### ESLint Setup
+---
 
-This project uses ESLint 9 with the new flat config format (`eslint.config.mjs`). ESLint is configured with Next.js recommended rules via `eslint-config-next/core-web-vitals`.
+## ⚠️ CRITICAL: Registry Management Rules
 
-**Important Notes:**
-- The project uses the **flat config format** (ESLint 9+), not the legacy `.eslintrc` format
-- Configuration is in `eslint.config.mjs` at the project root
-- The lint command will automatically check all TypeScript, TSX, JavaScript, and JSX files
-- Currently there are 3 known linting errors in the codebase that should be addressed
+Requirements and bugs MUST be managed exclusively through CLI commands.
 
-**Running Linter:**
+### DO NOT
+
+- Directly edit files in `requirements/` or `bugs/`
+- Manually modify `requirements/index.json` or `bugs/index.json`
+- Create/delete items by writing/removing files directly
+
+### ALWAYS
+
+- Use `npm run req:*` scripts for requirements
+- Use `npm run bug:*` scripts for bugs
+- Keep history by status updates rather than deletion
+
+### Why
+
+The CLI ensures consistent IDs, indexing, and scoring. Manual edits can corrupt the registry.
+
+---
+
+## Registry CLI Reference
+
 ```bash
-npm run lint              # Check all files for errors
-npx eslint .              # Alternative way to run linter
-npx eslint --fix .        # Fix auto-fixable issues
+# Requirements
+npm run req:create
+npm run req -- list
+npm run req -- get REQ-001
+npm run req -- mark REQ-001 in-progress
+npm run req:next
+
+# Bugs
+npm run bug:create
+npm run bug -- list
+npm run bug -- get BUG-001
+npm run bug -- mark BUG-001 in-progress
+npm run bug:next
 ```
 
-**Ignored Directories:**
-- `.next/`, `out/`, `build/` - Next.js build outputs
-- `electron/dist/` - Electron build output
-- `node_modules/` - Dependencies
-- `next-env.d.ts` - Next.js types
+Status values:
 
-## Coding Conventions
-
-### File Naming
-- Components: PascalCase (e.g., `MessageList.tsx`)
-- Utilities: camelCase (e.g., `encryption.ts`)
-- Directories: kebab-case (e.g., `chat-message/`)
-
-### Component Structure
-- Use functional components with TypeScript
-- Props interface named `{ComponentName}Props`
-- Export default for page components
-- Named exports for reusable components
-
-### Styling
-- Tailwind CSS for all styling
-- Use `class-variance-authority` for component variants
-- Solid colors only (no gradients)
-- Prefer semantic color tokens (e.g., `bg-accent`, `text-muted-foreground`)
-
-### State Management
-- Zustand for global state
-- React hooks for local component state
-- Database operations via IPC to main process
-
-### TypeScript
-- Strict mode enabled
-- Explicit return types on functions
-- Interface over type for object definitions
-
-## Architecture Decisions
-
-- **IPC Communication**: All API calls and database operations go through Electron's IPC to keep sensitive data (API keys) in the main process
-- **Database**: SQLite with pure-JS driver for cross-platform compatibility
-- **State**: Zustand for client state, SQLite for persistence
-- **Styling**: Tailwind + shadcn/ui for consistent design system
-- **LLM**: Google Gemini API with configurable models per persona
-
-## Security
-
-- API keys stored encrypted in electron-store
-- Database stored in user's data directory
-- No remote code execution
-- IPC channels validated and typed
+- Requirements: `draft`, `pending`, `in-progress`, `completed`, `cancelled`
+- Bugs: `open`, `in-progress`, `resolved`, `closed`, `wontfix`
 
 ---
 
-## Architecture Principles
+## Tribal Knowledge Capture
 
-### Functional Core, Imperative Shell
+If you discover non-obvious, hard-to-find, or trial-and-error knowledge, append one concise bullet under `## Tribal Knowledge`.
 
-All business logic must follow the **Functional Core, Imperative Shell** pattern:
+Format:
 
-- **Functional Core**: Pure functions that contain all business logic. They are:
-  - Free of side effects (no I/O, no mutations)
-  - Deterministic (same input → same output)
-  - Easy to test without mocks
-  - Written in a domain-driven design (DDD) specification style
-
-- **Imperative Shell**: Thin layer that:
-  - Handles I/O (database, API calls, file system)
-  - Orchestrates calls to the functional core
-  - Contains no business logic
-
-### Testing Standards
-
-All functional core code must be tested with:
-
-- **Data-driven / parametrized tests**: Test multiple scenarios using table-driven patterns
-- **DDD specification style**: Tests should read like specifications of domain behavior
-- **No mocking for core logic**: Pure functions don't need mocks
-- **Shell tests**: Keep imperative shell tests close to zero
-
-Example pattern:
-```typescript
-// Functional core - pure business logic
-const calculateDebateOutcome = (personas: Persona[], context: Context): DebateResult => {
-  // Pure transformation, no side effects
-};
-
-// Imperative shell - thin orchestration layer
-const conductDebate = async (sessionId: string) => {
-  const session = await db.sessions.get(sessionId);  // I/O
-  const result = calculateDebateOutcome(session.personas, session.context);  // Core
-  await db.results.save(result);  // I/O
-};
-```
-
----
-
-### 📝 Tribal Knowledge Capture
-
-If you encounter information that was **hard to find, undocumented, or required trial-and-error**, you must briefly update the `## Tribal Knowledge` section below.
-
-**Update if you discovered:**
-
-* **Commands:** Non-obvious scripts for linting, testing, or deployment.
-* **Locations:** Key logic or configs hidden in unexpected directories.
-* **Context:** Necessary "gotchas" or corrections to the user's initial description.
-
-**Format:** Keep it to one bullet point:
-
-* **[Topic]:** [The solution/path/command].
-
----
+- **[Topic]:** practical solution/path/command.
 
 ## Tribal Knowledge
 
 *(Agent: Append new insights below this line)*
 
-* **[Effect test tooling]:** Keep `vitest`, `@vitest/ui`, and `@effect/vitest` aligned (`vitest@3.2.x`, `@vitest/ui@3.2.x`, `@effect/vitest@0.27.0`) to avoid peer dependency conflicts.
-* **[FCIS slice map - commit 90d1a31]:** Read `lib/core/{domain,decision,plan,errors}` for pure business rules and typed failures, `lib/application/use-cases/**` for Effect orchestration over core decisions, `lib/infrastructure/**` for runtime interpreters/adapters, and `stores/sessions.ts` + `lib/shell/**` as imperative entrypoints that call use-cases and apply UI/IPC side effects.
-* **[Electron + shared FCIS modules]:** If Electron handlers import root `lib/**` modules, set `electron/tsconfig.json` `rootDir` to `..`, include `../lib/**/*.ts`, and run Electron from `electron/dist/electron/main.js` (not `electron/dist/main.js`) so emitted relative imports resolve.
-
----
-
-## Registry Management (Requirements & Bugs)
-
-The project uses a CLI-based registry system for managing requirements and bugs. **Important:** 
-
-- **DO NOT** directly edit files in `requirements/` or `bugs/` folders
-- **DO NOT** modify `index.json` files manually
-- **ALWAYS** use the CLI scripts to create, update, or delete items
-
-### Using the Registry CLI
-
-```bash
-# Requirements
-npm run req:create     # Create new requirement (interactive)
-npm run req -- get REQ-001
-npm run req -- list
-npm run req -- list --priority high --complexity 3
-npm run req -- mark REQ-001 in-progress
-npm run req:next       # Show top priority item
-
-# Bugs
-npm run bug:create     # Create new bug (interactive)
-npm run bug -- get BUG-001
-npm run bug -- list
-npm run bug:next       # Show top priority bug
-```
-
-### Registry Structure
-
-- `requirements/index.json` - Registry index (managed by scripts)
-- `requirements/REQ-XXX/` - Individual requirement folders
-- `bugs/index.json` - Registry index (managed by scripts)
-- `bugs/BUG-XXX/` - Individual bug folders
-
-### Score Calculation
-
-Items are scored by `priority / complexity` ratio:
-- Higher priority weights: critical=4, high=3, medium=2, low=1
-- Complexity: 1-10 (lower = easier)
-- The `next` command shows items with highest score (high priority, low complexity)
-
-### For LLM Agents: Programmatic Usage
-
-When implementing features or fixing bugs, use these commands:
-
-**1. Before starting work - Check what's available:**
-```bash
-npm run req:next              # Show top priority requirement
-npm run req -- list --status pending --complexity 3  # Quick wins
-npm run bug:next              # Show top priority bug
-```
-
-**2. Mark item as in-progress:**
-```bash
-npm run req -- mark REQ-001 in-progress
-npm run bug -- mark BUG-001 in-progress
-```
-
-**3. After completing work - Mark as done:**
-```bash
-npm run req -- mark REQ-001 completed
-npm run bug -- mark BUG-001 resolved
-```
-
-**4. Creating new items (when user asks):**
-```bash
-npm run req:create            # Interactive prompts
-npm run bug:create            # Interactive prompts
-```
-
-**5. Batch creation (for migrations):**
-```bash
-# Use --json flag with JSON data
-node scripts/requirements.js create --json '{"title":"...","description":"...","priority":"high","complexity":5}'
-node scripts/bugs.js create --json '{"title":"...","description":"...","priority":"critical","complexity":3}'
-```
-
-**Priority Levels:** low, medium, high, critical
-**Complexity:** 1-10 (1=easiest, 10=hardest)
-
-**Requirement Status:**
-- `draft` - Rough idea, not ready for implementation
-- `pending` - Ready for implementation, waiting to be started
-- `in-progress` - Currently being worked on
-- `completed` - Implementation finished
-- `cancelled` - No longer needed
-
-**Bug Status:**
-- `open` - New bug, not yet investigated
-- `in-progress` - Currently being fixed
-- `resolved` - Fix implemented, awaiting verification
-- `closed` - Fix verified and deployed
-- `wontfix` - Intentionally not being fixed
-
----
+- **[Effect test tooling]:** Keep `vitest`, `@vitest/ui`, and `@effect/vitest` aligned (`vitest@3.2.x`, `@vitest/ui@3.2.x`, `@effect/vitest@0.27.0`) to avoid peer dependency conflicts.
+- **[FCIS slice map - commit 90d1a31]:** Read `lib/core/{domain,decision,plan,errors}` for pure business rules and typed failures, `lib/application/use-cases/**` for Effect orchestration over core decisions, `lib/infrastructure/**` for runtime interpreters/adapters, and `stores/sessions.ts` + `lib/shell/**` as imperative entrypoints that call use-cases and apply UI/IPC side effects.
+- **[Electron + shared FCIS modules]:** If Electron handlers import root `lib/**` modules, set `electron/tsconfig.json` `rootDir` to `..`, include `../lib/**/*.ts`, and run Electron from `electron/dist/electron/main.js` (not `electron/dist/main.js`) so emitted relative imports resolve.
