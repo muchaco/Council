@@ -29,8 +29,19 @@ export const decideRemoveSessionTag = (
     });
   }
 
+  const tagIsAssignedToSession = context.assignedTagNames.some(
+    (assignedTagName) => assignedTagName.toLowerCase() === normalizedTagName
+  );
+
+  if (!tagIsAssignedToSession) {
+    return Either.left({
+      _tag: 'SessionTagNotAssignedError',
+      message: 'Tag is not assigned to this session',
+    });
+  }
+
   const nextAssignedTagNames = context.assignedTagNames.filter(
-    (assignedTagName) => assignedTagName !== normalizedTagName
+    (assignedTagName) => assignedTagName.toLowerCase() !== normalizedTagName
   );
 
   return Either.right({

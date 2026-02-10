@@ -286,6 +286,40 @@ describe('session_store_tag_spec', () => {
         expect(result).toBe(false);
         expect(mockElectronDB.tags.create).not.toHaveBeenCalled();
       });
+
+      it('does_not_fallback_to_unrelated_current_session', async () => {
+        const unrelatedCurrentSession: Session = {
+          id: 'session-current',
+          title: 'Current Session',
+          problemDescription: 'Current problem',
+          outputGoal: 'Current goal',
+          status: 'active',
+          tokenCount: 0,
+          costEstimate: 0,
+          orchestratorEnabled: false,
+          orchestratorPersonaId: null,
+          blackboard: null,
+          autoReplyCount: 0,
+          tokenBudget: 1000,
+          summary: null,
+          archivedAt: null,
+          tags: ['existing-tag'],
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        };
+
+        useSessionsStore.setState({
+          sessions: [],
+          currentSession: unrelatedCurrentSession,
+          allTags: [{ id: 1, name: 'existing-tag', createdAt: '2024-01-01' }],
+        });
+
+        const result = await useSessionsStore.getState().addTagToSession('session-missing', 'new-tag');
+
+        expect(result).toBe(false);
+        expect(mockElectronDB.tags.create).not.toHaveBeenCalled();
+        expect(mockElectronDB.sessionTags.add).not.toHaveBeenCalled();
+      });
     });
 
     describe('given_current_session_loaded', () => {
@@ -446,6 +480,48 @@ describe('session_store_tag_spec', () => {
 
         expect(result).toBe(true);
         expect(mockElectronDB.tags.cleanupOrphaned).toHaveBeenCalled();
+      });
+    });
+
+    describe('given_session_not_found', () => {
+      it('returns_false_when_session_does_not_exist', async () => {
+        const result = await useSessionsStore.getState().removeTagFromSession('nonexistent-session', 'tag');
+
+        expect(result).toBe(false);
+        expect(mockElectronDB.sessionTags.remove).not.toHaveBeenCalled();
+      });
+
+      it('does_not_fallback_to_unrelated_current_session', async () => {
+        const unrelatedCurrentSession: Session = {
+          id: 'session-current',
+          title: 'Current Session',
+          problemDescription: 'Current problem',
+          outputGoal: 'Current goal',
+          status: 'active',
+          tokenCount: 0,
+          costEstimate: 0,
+          orchestratorEnabled: false,
+          orchestratorPersonaId: null,
+          blackboard: null,
+          autoReplyCount: 0,
+          tokenBudget: 1000,
+          summary: null,
+          archivedAt: null,
+          tags: ['tag-a'],
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        };
+
+        useSessionsStore.setState({
+          sessions: [],
+          currentSession: unrelatedCurrentSession,
+          allTags: [{ id: 1, name: 'tag-a', createdAt: '2024-01-01' }],
+        });
+
+        const result = await useSessionsStore.getState().removeTagFromSession('session-missing', 'tag-a');
+
+        expect(result).toBe(false);
+        expect(mockElectronDB.sessionTags.remove).not.toHaveBeenCalled();
       });
     });
   });

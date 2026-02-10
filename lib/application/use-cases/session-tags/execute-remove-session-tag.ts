@@ -42,23 +42,51 @@ export const executeRemoveSessionTag = (
     }
 
     const plan = decision.right;
-    const matchedTag = input.availableTags.find(
-      (availableTag) => availableTag.name === plan.normalizedTagName
-    );
+    let matchedTag: SessionTagCatalogEntry | null = null;
+    let refreshedTagCatalog: readonly SessionTagCatalogEntry[] | null = null;
+    let shouldAttemptRefresh = true;
 
-    if (!matchedTag) {
-      return yield* Effect.fail({
-        _tag: 'SessionTagNotInCatalogError',
-        message: 'Tag not found',
-      } satisfies DomainError);
+    for (const plannedEffect of plan.effects) {
+      switch (plannedEffect._tag) {
+        case 'PersistSessionTagRemoval': {
+          matchedTag = input.availableTags.find(
+            (availableTag) => availableTag.name.toLowerCase() === plannedEffect.normalizedTagName
+          ) ?? null;
+
+          if (!matchedTag) {
+            return yield* Effect.fail({
+              _tag: 'SessionTagNotInCatalogError',
+              message: 'Tag not found',
+            } satisfies DomainError);
+          }
+
+          yield* persistence.removeTagFromSession(plannedEffect.sessionId, matchedTag.id);
+          break;
+        }
+
+        case 'CleanupOrphanedSessionTags': {
+          const cleanupResult = yield* persistence.cleanupOrphanedTags().pipe(Effect.either);
+          if (Either.isLeft(cleanupResult)) {
+            shouldAttemptRefresh = false;
+          }
+          break;
+        }
+
+        case 'RefreshSessionTagCatalog': {
+          if (shouldAttemptRefresh) {
+            refreshedTagCatalog = yield* persistence
+              .getAllTags()
+              .pipe(Effect.catchAll(() => Effect.succeed<readonly SessionTagCatalogEntry[] | null>(null)));
+          }
+          break;
+        }
+
+        default: {
+          const _exhaustive: never = plannedEffect;
+          return _exhaustive;
+        }
+      }
     }
-
-    yield* persistence.removeTagFromSession(input.sessionId, matchedTag.id);
-
-    const refreshedTagCatalog = yield* Effect.gen(function* () {
-      yield* persistence.cleanupOrphanedTags();
-      return yield* persistence.getAllTags();
-    }).pipe(Effect.catchAll(() => Effect.succeed<readonly SessionTagCatalogEntry[] | null>(null)));
 
     return {
       normalizedTagName: plan.normalizedTagName,

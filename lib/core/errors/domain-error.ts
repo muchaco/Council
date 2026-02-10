@@ -33,6 +33,11 @@ export interface SessionTagNotInCatalogError {
   readonly message: string;
 }
 
+export interface SessionTagNotAssignedError {
+  readonly _tag: 'SessionTagNotAssignedError';
+  readonly message: string;
+}
+
 export type DomainError =
   | EmptyNameError
   | SessionNotFoundError
@@ -40,4 +45,5 @@ export type DomainError =
   | SessionTagNameTooLongError
   | SessionTagAlreadyAssignedError
   | SessionTagLimitReachedError
-  | SessionTagNotInCatalogError;
+  | SessionTagNotInCatalogError
+  | SessionTagNotAssignedError;

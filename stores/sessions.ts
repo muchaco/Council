@@ -81,7 +81,10 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   addTagToSession: async (sessionId: string, tagName: string) => {
     try {
       const { sessions, currentSession, allTags } = get();
-      const session = sessions.find(s => s.id === sessionId) || currentSession;
+      const sessionFromCollection = sessions.find(s => s.id === sessionId);
+      const session =
+        sessionFromCollection ??
+        (currentSession?.id === sessionId ? currentSession : null);
 
       if (!session) {
         toast.error('Session not found');
@@ -135,7 +138,10 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   removeTagFromSession: async (sessionId: string, tagName: string) => {
     try {
       const { sessions, currentSession, allTags } = get();
-      const session = sessions.find(s => s.id === sessionId) || currentSession;
+      const sessionFromCollection = sessions.find(s => s.id === sessionId);
+      const session =
+        sessionFromCollection ??
+        (currentSession?.id === sessionId ? currentSession : null);
 
       if (!session) {
         toast.error('Session not found');

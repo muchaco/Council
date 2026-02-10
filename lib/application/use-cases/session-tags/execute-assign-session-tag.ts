@@ -42,25 +42,52 @@ export const executeAssignSessionTag = (
     }
 
     const plan = decision.right;
-    const existingCatalogEntry = input.availableTags.find(
-      (availableTag) => availableTag.name === plan.normalizedTagName
-    );
+    let ensuredCatalogEntry: SessionTagCatalogEntry | null = null;
+    let catalogEntryToAddToStore: SessionTagCatalogEntry | null = null;
 
-    const ensuredCatalogEntry =
-      existingCatalogEntry ??
-      (yield* persistence.getTagByName(plan.normalizedTagName).pipe(
-        Effect.flatMap((catalogEntry) =>
-          catalogEntry ? Effect.succeed(catalogEntry) : persistence.createTag(plan.normalizedTagName)
-        )
-      ));
+    for (const plannedEffect of plan.effects) {
+      switch (plannedEffect._tag) {
+        case 'EnsureSessionTagCatalogEntry': {
+          const existingCatalogEntry = input.availableTags.find(
+            (availableTag) => availableTag.name.toLowerCase() === plannedEffect.normalizedTagName
+          );
 
-    const createdTag = existingCatalogEntry ? null : ensuredCatalogEntry;
+          ensuredCatalogEntry =
+            existingCatalogEntry ??
+            (yield* persistence.getTagByName(plannedEffect.normalizedTagName).pipe(
+              Effect.flatMap((catalogEntry) =>
+                catalogEntry ? Effect.succeed(catalogEntry) : persistence.createTag(plannedEffect.normalizedTagName)
+              )
+            ));
 
-    yield* persistence.addTagToSession(input.sessionId, ensuredCatalogEntry.id);
+          if (!existingCatalogEntry) {
+            catalogEntryToAddToStore = ensuredCatalogEntry;
+          }
+          break;
+        }
+
+        case 'PersistSessionTagAssignment': {
+          if (ensuredCatalogEntry === null) {
+            return yield* Effect.fail({
+              _tag: 'SessionTagNotInCatalogError',
+              message: 'Tag not found',
+            } satisfies DomainError);
+          }
+
+          yield* persistence.addTagToSession(plannedEffect.sessionId, ensuredCatalogEntry.id);
+          break;
+        }
+
+        default: {
+          const _exhaustive: never = plannedEffect;
+          return _exhaustive;
+        }
+      }
+    }
 
     return {
       normalizedTagName: plan.normalizedTagName,
       nextAssignedTagNames: plan.nextAssignedTagNames,
-      createdTag,
+      createdTag: catalogEntryToAddToStore,
     };
   });
