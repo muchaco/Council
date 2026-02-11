@@ -70,7 +70,7 @@ Interactive CLI that prompts for:
 - Priority (low/medium/high/critical)
 - Complexity (1-10 scale with descriptions)
 
-Returns: Generated ID (e.g., REQ-042)
+Returns: Generated ID (e.g., REQ-061 or BUG-009)
 
 ### get <id>
 Display full details including description and implementation notes.

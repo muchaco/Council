@@ -35,19 +35,25 @@ program
 
 program
   .command('create')
-  .description('Create a new bug report interactively')
-  .action(async () => {
+  .description('Create a new bug report interactively or from JSON')
+  .option('--json <data>', 'Create from JSON string (for batch operations)')
+  .action(async (options) => {
     try {
       const registry = loadRegistry(REGISTRY_PATH);
       const id = generateId(TYPE, registry.metadata.nextId);
       
-      const data = await promptBug();
+      let data;
+      if (options.json) {
+        data = JSON.parse(options.json);
+      } else {
+        data = await promptBug();
+      }
       
       const item = {
         id,
         title: data.title,
         description: data.description,
-        status: 'open',
+        status: data.status || 'open',
         priority: data.priority,
         complexity: data.complexity,
         createdAt: new Date().toISOString().split('T')[0],

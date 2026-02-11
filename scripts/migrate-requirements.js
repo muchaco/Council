@@ -136,7 +136,7 @@ function migrate() {
       priority: req.priority,
       complexity: req.complexity,
       originalId: req.id,
-      type: req.type,
+      type: req.type === 'Functional' ? 'functional' : req.type === 'Non-Functional' ? 'non-functional' : 'functional',
       createdAt: new Date().toISOString().split('T')[0],
       updatedAt: new Date().toISOString().split('T')[0],
       path: `requirements/${registryId}`
@@ -145,6 +145,7 @@ function migrate() {
     registry.items[registryId] = {
       id: registryId,
       title: item.title,
+      type: item.type,
       status: item.status,
       priority: item.priority,
       complexity: item.complexity,

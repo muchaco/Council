@@ -141,6 +141,19 @@ async function promptComplexity() {
 }
 
 /**
+ * Prompt for requirement type
+ * @returns {Promise<string>}
+ */
+async function promptRequirementType() {
+  const choices = [
+    { value: 'functional', label: 'Functional - Product behavior/capability' },
+    { value: 'non-functional', label: 'Non-Functional - Quality/constraints' }
+  ];
+
+  return promptChoice('Requirement type?', choices, 'functional');
+}
+
+/**
  * Prompt for new requirement
  * @returns {Promise<{title: string, description: string, priority: string, complexity: number}>}
  */
@@ -149,10 +162,11 @@ async function promptRequirement() {
   
   const title = await prompt('Title');
   const description = await promptMultiline('Description');
+  const type = await promptRequirementType();
   const priority = await promptPriority();
   const complexity = await promptComplexity();
   
-  return { title, description, priority, complexity };
+  return { title, description, type, priority, complexity };
 }
 
 /**
@@ -212,6 +226,19 @@ async function promptUpdate(item, type) {
   }));
   const complexity = await promptChoice('Complexity?', complexityChoices, item.complexity);
   if (complexity !== item.complexity) updates.complexity = complexity;
+
+  if (type === 'requirement') {
+    const currentType = item.type || 'functional';
+    const requirementType = await promptChoice(
+      'Requirement type?',
+      [
+        { value: 'functional', label: `Functional - Current: ${currentType}` },
+        { value: 'non-functional', label: `Non-Functional - Current: ${currentType}` }
+      ],
+      currentType
+    );
+    if (requirementType !== currentType) updates.type = requirementType;
+  }
   
   return updates;
 }
@@ -222,6 +249,7 @@ module.exports = {
   promptChoice,
   promptPriority,
   promptComplexity,
+  promptRequirementType,
   promptRequirement,
   promptBug,
   promptUpdate

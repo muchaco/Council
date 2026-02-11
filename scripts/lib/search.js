@@ -27,6 +27,10 @@ function listItems(items, options, calculateScore) {
   if (options.complexity) {
     results = results.filter(item => item.complexity <= options.complexity);
   }
+
+  if (options.type) {
+    results = results.filter(item => (item.type || 'functional') === options.type);
+  }
   
   // Sort
   const sortField = options.sort || 'score';
