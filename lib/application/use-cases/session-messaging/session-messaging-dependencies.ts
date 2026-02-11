@@ -20,9 +20,9 @@ export interface TriggerSessionPersonaResponseRequest {
   }[];
 }
 
-export interface TriggerSessionPersonaResponseMessageCommand {
+export interface CreateSessionMessageCommand {
   readonly sessionId: string;
-  readonly personaId: string;
+  readonly personaId: string | null;
   readonly content: string;
   readonly turnNumber: number;
   readonly tokenCount: number;
@@ -44,8 +44,8 @@ export interface SessionMessagePersistenceService {
   readonly getNextTurnNumber: (
     sessionId: string
   ) => Effect.Effect<number, SessionMessagingInfrastructureError>;
-  readonly createPersonaMessage: (
-    command: TriggerSessionPersonaResponseMessageCommand
+  readonly createMessage: (
+    command: CreateSessionMessageCommand
   ) => Effect.Effect<Message, SessionMessagingInfrastructureError>;
   readonly updateSessionUsage: (
     sessionId: string,

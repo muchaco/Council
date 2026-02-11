@@ -1,16 +1,16 @@
 import { Effect } from 'effect';
 
 import type {
+  CreateSessionMessageCommand,
   SessionMessagePersistenceService,
   SessionMessagingInfrastructureError,
-  TriggerSessionPersonaResponseMessageCommand,
 } from '../../application/use-cases/session-messaging';
 import type { Message, Session } from '../../types';
 
 interface SessionMessageElectronDB {
   readonly getNextTurnNumber: (sessionId: string) => Promise<{ success: boolean; data?: number; error?: string }>;
   readonly createMessage: (
-    data: TriggerSessionPersonaResponseMessageCommand
+    data: CreateSessionMessageCommand
   ) => Promise<{ success: boolean; data?: unknown; error?: string }>;
   readonly updateSession: (
     sessionId: string,
@@ -46,6 +46,25 @@ const isMessage = (value: unknown): value is Message => {
   );
 };
 
+const isBlackboardState = (value: unknown): value is NonNullable<Session['blackboard']> => {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.consensus === 'string' &&
+    typeof value.conflicts === 'string' &&
+    typeof value.nextStep === 'string' &&
+    typeof value.facts === 'string'
+  );
+};
+
+const isSessionStatus = (value: unknown): value is Session['status'] =>
+  value === 'active' || value === 'completed' || value === 'archived';
+
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((entry) => typeof entry === 'string');
+
 const isSession = (value: unknown): value is Session => {
   if (!isRecord(value)) {
     return false;
@@ -56,9 +75,19 @@ const isSession = (value: unknown): value is Session => {
     typeof value.title === 'string' &&
     typeof value.problemDescription === 'string' &&
     typeof value.outputGoal === 'string' &&
+    isSessionStatus(value.status) &&
     typeof value.tokenCount === 'number' &&
     typeof value.costEstimate === 'number' &&
-    Array.isArray(value.tags)
+    typeof value.conductorEnabled === 'boolean' &&
+    (typeof value.conductorPersonaId === 'string' || value.conductorPersonaId === null) &&
+    (value.blackboard === null || isBlackboardState(value.blackboard)) &&
+    typeof value.autoReplyCount === 'number' &&
+    typeof value.tokenBudget === 'number' &&
+    (typeof value.summary === 'string' || value.summary === null) &&
+    (typeof value.archivedAt === 'string' || value.archivedAt === null) &&
+    isStringArray(value.tags) &&
+    typeof value.createdAt === 'string' &&
+    typeof value.updatedAt === 'string'
   );
 };
 
@@ -81,17 +110,17 @@ export const makeSessionMessagePersistenceFromElectronDB = (
       })
     ),
 
-  createPersonaMessage: (command) =>
+  createMessage: (command) =>
     Effect.tryPromise({
       try: () => electronDB.createMessage(command),
-      catch: () => infrastructureError('messagePersistence', 'Failed to persist persona message'),
+      catch: () => infrastructureError('messagePersistence', 'Failed to persist session message'),
     }).pipe(
       Effect.flatMap((result) => {
         if (!result.success || !isMessage(result.data)) {
           return Effect.fail(
             infrastructureError(
               'messagePersistence',
-              result.error ?? (result.success ? 'Invalid persona message payload' : 'Failed to persist persona message')
+              result.error ?? (result.success ? 'Invalid session message payload' : 'Failed to persist session message')
             )
           );
         }

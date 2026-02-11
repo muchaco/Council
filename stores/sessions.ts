@@ -5,11 +5,11 @@ import type { Session, SessionInput, Message, Persona, BlackboardState, Tag } fr
 import {
   executeAssignSessionTag,
   executeRemoveSessionTag,
+  executeValidateSessionTagRequestList,
   SessionTagPersistence,
-  type SessionTagUseCaseError,
-  type SessionTagRemovalUseCaseError,
 } from '../lib/application/use-cases/session-tags';
 import {
+  executeSendSessionUserMessage,
   executeTriggerSessionPersonaResponse,
   SessionMessagePersistence,
   SessionPersonaResponseGateway,
@@ -19,7 +19,128 @@ import {
   makeSessionMessagePersistenceFromElectronDB,
 } from '../lib/infrastructure/db';
 import { makeSessionPersonaResponseGatewayFromElectronLLM } from '../lib/infrastructure/llm';
-import { validateTagInput } from '../lib/validation';
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const isBlackboardState = (value: unknown): value is BlackboardState => {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.consensus === 'string' &&
+    typeof value.conflicts === 'string' &&
+    typeof value.nextStep === 'string' &&
+    typeof value.facts === 'string'
+  );
+};
+
+const isTag = (value: unknown): value is Tag =>
+  isRecord(value) && typeof value.id === 'number' && typeof value.name === 'string' && typeof value.createdAt === 'string';
+
+const isMessage = (value: unknown): value is Message =>
+  isRecord(value) &&
+  typeof value.id === 'string' &&
+  typeof value.sessionId === 'string' &&
+  (typeof value.personaId === 'string' || value.personaId === null) &&
+  typeof value.content === 'string' &&
+  typeof value.turnNumber === 'number' &&
+  typeof value.tokenCount === 'number' &&
+  typeof value.createdAt === 'string';
+
+const isSessionBase = (value: unknown): value is Omit<Session, 'tags'> & { tags?: unknown } =>
+  isRecord(value) &&
+  typeof value.id === 'string' &&
+  typeof value.title === 'string' &&
+  typeof value.problemDescription === 'string' &&
+  typeof value.outputGoal === 'string' &&
+  (value.status === 'active' || value.status === 'completed' || value.status === 'archived') &&
+  typeof value.tokenCount === 'number' &&
+  typeof value.costEstimate === 'number' &&
+  typeof value.conductorEnabled === 'boolean' &&
+  (typeof value.conductorPersonaId === 'string' || value.conductorPersonaId === null) &&
+  (value.blackboard === null || isBlackboardState(value.blackboard)) &&
+  typeof value.autoReplyCount === 'number' &&
+  typeof value.tokenBudget === 'number' &&
+  (typeof value.summary === 'string' || value.summary === null) &&
+  (typeof value.archivedAt === 'string' || value.archivedAt === null) &&
+  typeof value.createdAt === 'string' &&
+  typeof value.updatedAt === 'string';
+
+const toSession = (value: unknown, fallbackTags: string[] = []): Session | null => {
+  if (!isSessionBase(value)) {
+    return null;
+  }
+
+  const tags = parseStringList(value.tags);
+
+  return {
+    id: value.id,
+    title: value.title,
+    problemDescription: value.problemDescription,
+    outputGoal: value.outputGoal,
+    status: value.status,
+    tokenCount: value.tokenCount,
+    costEstimate: value.costEstimate,
+    conductorEnabled: value.conductorEnabled,
+    conductorPersonaId: value.conductorPersonaId,
+    blackboard: value.blackboard,
+    autoReplyCount: value.autoReplyCount,
+    tokenBudget: value.tokenBudget,
+    summary: value.summary,
+    archivedAt: value.archivedAt,
+    tags: tags ?? fallbackTags,
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
+  };
+};
+
+const isSessionPersona = (value: unknown): value is SessionPersona =>
+  isRecord(value) &&
+  typeof value.id === 'string' &&
+  typeof value.name === 'string' &&
+  typeof value.role === 'string' &&
+  typeof value.systemPrompt === 'string' &&
+  typeof value.geminiModel === 'string' &&
+  typeof value.temperature === 'number' &&
+  typeof value.color === 'string' &&
+  (value.hiddenAgenda === undefined || typeof value.hiddenAgenda === 'string') &&
+  (value.verbosity === undefined || typeof value.verbosity === 'string') &&
+  typeof value.createdAt === 'string' &&
+  typeof value.updatedAt === 'string' &&
+  typeof value.isConductor === 'boolean' &&
+  typeof value.hushTurnsRemaining === 'number' &&
+  (typeof value.hushedAt === 'string' || value.hushedAt === null);
+
+const parseTagList = (value: unknown): Tag[] | null =>
+  Array.isArray(value) && value.every(isTag) ? value : null;
+
+const parseStringList = (value: unknown): string[] | null =>
+  Array.isArray(value) && value.every((entry) => typeof entry === 'string') ? value : null;
+
+const parseMessageList = (value: unknown): Message[] | null =>
+  Array.isArray(value) && value.every(isMessage) ? value : null;
+
+const parseSessionList = (value: unknown): Session[] | null => {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const sessions: Session[] = [];
+  for (const entry of value) {
+    const session = toSession(entry, []);
+    if (!session) {
+      return null;
+    }
+    sessions.push(session);
+  }
+
+  return sessions;
+};
+
+const parseSessionPersonaList = (value: unknown): SessionPersona[] | null =>
+  Array.isArray(value) && value.every(isSessionPersona) ? value : null;
 
 interface SessionPersona extends Persona {
   isConductor: boolean;
@@ -79,8 +200,9 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   fetchAllTags: async () => {
     try {
       const result = await window.electronDB.tags.getAll();
-      if (result.success && result.data) {
-        set({ allTags: result.data as Tag[] });
+      const parsedTags = parseTagList(result.data);
+      if (result.success && parsedTags) {
+        set({ allTags: parsedTags });
       }
     } catch (error) {
       console.error('Error fetching all tags:', error);
@@ -116,8 +238,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       );
 
       if (Either.isLeft(outcome)) {
-        const error = outcome.left as SessionTagUseCaseError;
-        toast.error(error.message);
+        toast.error(outcome.left.message);
         return false;
       }
 
@@ -173,8 +294,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       );
 
       if (Either.isLeft(outcome)) {
-        const error = outcome.left as SessionTagRemovalUseCaseError;
-        toast.error(error.message);
+        toast.error(outcome.left.message);
         return false;
       }
 
@@ -204,8 +324,9 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     try {
       set({ isLoading: true });
       const result = await window.electronDB.getSessions();
-      if (result.success && result.data) {
-        set({ sessions: result.data as Session[] });
+      const parsedSessions = parseSessionList(result.data);
+      if (result.success && parsedSessions) {
+        set({ sessions: parsedSessions });
       } else {
         toast.error(result.error || 'Failed to fetch sessions');
       }
@@ -220,25 +341,16 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     try {
       set({ isLoading: true });
 
-      // Validate tags before creating session
-      const validatedTags: string[] = [];
-      if (tags && tags.length > 0) {
-        if (tags.length > 3) {
-          toast.error('Maximum 3 tags allowed per session');
-          set({ isLoading: false });
-          return null;
-        }
+      const validationOutcome = await Effect.runPromise(
+        executeValidateSessionTagRequestList(tags ?? []).pipe(Effect.either)
+      );
 
-        for (const tag of tags) {
-          const validation = validateTagInput(tag, validatedTags);
-          if (!validation.valid) {
-            toast.error(`Invalid tag "${tag}": ${validation.error}`);
-            set({ isLoading: false });
-            return null;
-          }
-          validatedTags.push(validation.normalizedTag!);
-        }
+      if (Either.isLeft(validationOutcome)) {
+        toast.error(validationOutcome.left.message);
+        return null;
       }
+
+      const validatedTags = [...validationOutcome.right];
 
       // Create session with conductor config
       const sessionResult = await window.electronDB.createSession({ ...data, conductorConfig });
@@ -247,7 +359,11 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         return null;
       }
 
-      const session = sessionResult.data as Session;
+      const session = toSession(sessionResult.data, []);
+      if (!session) {
+        toast.error('Invalid session payload');
+        return null;
+      }
 
       // Add personas to session
       for (const personaId of personaIds) {
@@ -255,47 +371,29 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         await window.electronDB.addPersonaToSession(session.id, personaId, isConductor);
       }
 
-      // Add tags to session
-      if (validatedTags.length > 0) {
-        const { allTags } = get();
-
-        for (const tagName of validatedTags) {
-          // Check if tag already exists
-          let tag = allTags.find(t => t.name === tagName);
-
-          if (!tag) {
-            // Try to get from database
-            const getResult = await window.electronDB.tags.getByName(tagName);
-            if (getResult.success && getResult.data) {
-              tag = getResult.data as Tag;
-            }
-          }
-
-          // Create tag if it doesn't exist
-          if (!tag) {
-            const createResult = await window.electronDB.tags.create(tagName);
-            if (createResult.success && createResult.data) {
-              tag = createResult.data as Tag;
-              set(state => ({ allTags: [...state.allTags, tag!] }));
-            }
-          }
-
-          // Link tag to session
-          if (tag) {
-            await window.electronDB.sessionTags.add(session.id, tag.id);
-          }
-        }
-
-        // Update session with tags
-        session.tags = validatedTags;
-      }
-
       set(state => ({
         sessions: [session, ...state.sessions],
       }));
 
+      for (const requestedTagName of validatedTags) {
+        await get().addTagToSession(session.id, requestedTagName);
+      }
+
+      const sessionAfterTagAssignments = get().sessions.find((existing) => existing.id === session.id);
+      const sessionTags = sessionAfterTagAssignments?.tags ?? [];
+      const createdSession = {
+        ...session,
+        tags: sessionTags,
+      };
+
+      set(state => ({
+        sessions: state.sessions.map(existing =>
+          existing.id === createdSession.id ? createdSession : existing
+        ),
+      }));
+
       toast.success('Session created successfully');
-      return session.id;
+      return createdSession.id;
     } catch (error) {
       toast.error('Error creating session');
       return null;
@@ -331,18 +429,35 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       
       // Get session tags
       const tagsResult = await window.electronDB.sessionTags.getBySession(id);
-      const sessionTags = (tagsResult.data as string[]) || [];
+      const sessionTags = parseStringList(tagsResult.data) ?? [];
+
+      const parsedSession = toSession(sessionResult.data, sessionTags);
+      if (!parsedSession) {
+        toast.error('Invalid session payload');
+        return;
+      }
+
+      const parsedMessages = parseMessageList(messagesResult.data);
+      if (parsedMessages === null) {
+        toast.error('Invalid messages payload');
+        return;
+      }
+
+      const parsedSessionPersonas = parseSessionPersonaList(personasResult.data);
+      if (parsedSessionPersonas === null) {
+        toast.error('Invalid session personas payload');
+        return;
+      }
       
       // Combine session data with tags
       const sessionWithTags = {
-        ...(sessionResult.data as Session),
-        tags: sessionTags,
+        ...parsedSession,
       };
       
       set({
         currentSession: sessionWithTags,
-        messages: (messagesResult.data as Message[]) || [],
-        sessionPersonas: (personasResult.data as SessionPersona[]) || [],
+        messages: parsedMessages,
+        sessionPersonas: parsedSessionPersonas,
       });
     } catch (error) {
       toast.error('Error loading session');
@@ -354,8 +469,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   updateSession: async (id: string, data) => {
     try {
       const result = await window.electronDB.updateSession(id, data);
-      if (result.success && result.data) {
-        const updated = result.data as Session;
+      const updated = toSession(result.data, []);
+      if (result.success && updated) {
         set(state => ({
           currentSession: state.currentSession?.id === id ? updated : state.currentSession,
           sessions: state.sessions.map(s => s.id === id ? updated : s),
@@ -402,24 +517,25 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     if (!currentSession) return;
     
     try {
-      const turnNumberResult = await window.electronDB.getNextTurnNumber(currentSession.id);
-      if (!turnNumberResult.success || typeof turnNumberResult.data !== 'number') {
-        toast.error(turnNumberResult.error || 'Error determining next turn number');
-        return;
-      }
+      const outcome = await Effect.runPromise(
+        executeSendSessionUserMessage({
+          sessionId: currentSession.id,
+          content,
+        }).pipe(
+          Effect.provideService(
+            SessionMessagePersistence,
+            makeSessionMessagePersistenceFromElectronDB(window.electronDB)
+          ),
+          Effect.either
+        )
+      );
 
-      const messageData = {
-        sessionId: currentSession.id,
-        personaId: null,
-        content,
-        turnNumber: turnNumberResult.data,
-      };
-      
-      const result = await window.electronDB.createMessage(messageData);
-      if (result.success && result.data) {
+      if (Either.isRight(outcome)) {
         set(state => ({
-          messages: [...state.messages, result.data as Message],
+          messages: [...state.messages, outcome.right],
         }));
+      } else {
+        toast.error(outcome.left.message);
       }
     } catch (error) {
       toast.error('Error sending message');
@@ -581,7 +697,13 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       
       // Update blackboard if changed
       if (result.blackboardUpdate && Object.keys(result.blackboardUpdate).length > 0) {
-        const update = result.blackboardUpdate as Partial<BlackboardState>;
+        const updateSource = isRecord(result.blackboardUpdate) ? result.blackboardUpdate : {};
+        const update: Partial<BlackboardState> = {
+          ...(typeof updateSource.consensus === 'string' ? { consensus: updateSource.consensus } : {}),
+          ...(typeof updateSource.conflicts === 'string' ? { conflicts: updateSource.conflicts } : {}),
+          ...(typeof updateSource.nextStep === 'string' ? { nextStep: updateSource.nextStep } : {}),
+          ...(typeof updateSource.facts === 'string' ? { facts: updateSource.facts } : {}),
+        };
         set(state => ({
           blackboard: state.blackboard 
             ? { ...state.blackboard, ...update } 
@@ -681,8 +803,9 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       const result = await window.electronDB.hushPersona(currentSession.id, personaId, turns);
       if (result.success) {
         const refreshedPersonas = await window.electronDB.getSessionPersonas(currentSession.id);
-        if (refreshedPersonas.success && refreshedPersonas.data) {
-          set({ sessionPersonas: refreshedPersonas.data as SessionPersona[] });
+        const parsedSessionPersonas = parseSessionPersonaList(refreshedPersonas.data);
+        if (refreshedPersonas.success && parsedSessionPersonas) {
+          set({ sessionPersonas: parsedSessionPersonas });
           toast.success(`Persona hushed for ${turns} turns`);
           return true;
         }
@@ -708,8 +831,9 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       const result = await window.electronDB.unhushPersona(currentSession.id, personaId);
       if (result.success) {
         const refreshedPersonas = await window.electronDB.getSessionPersonas(currentSession.id);
-        if (refreshedPersonas.success && refreshedPersonas.data) {
-          set({ sessionPersonas: refreshedPersonas.data as SessionPersona[] });
+        const parsedSessionPersonas = parseSessionPersonaList(refreshedPersonas.data);
+        if (refreshedPersonas.success && parsedSessionPersonas) {
+          set({ sessionPersonas: parsedSessionPersonas });
           toast.success('Persona unhushed');
           return true;
         }
@@ -734,8 +858,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       
       if (result.success) {
         const refreshedSessionResult = await window.electronDB.getSession(id);
-        if (refreshedSessionResult.success && refreshedSessionResult.data) {
-          const refreshedSession = refreshedSessionResult.data as Session;
+        const refreshedSession = toSession(refreshedSessionResult.data, []);
+        if (refreshedSessionResult.success && refreshedSession) {
           set(state => ({
             sessions: state.sessions.map(s => (s.id === id ? refreshedSession : s)),
             currentSession: state.currentSession?.id === id ? refreshedSession : state.currentSession,
@@ -766,8 +890,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       
       if (result.success) {
         const refreshedSessionResult = await window.electronDB.getSession(id);
-        if (refreshedSessionResult.success && refreshedSessionResult.data) {
-          const refreshedSession = refreshedSessionResult.data as Session;
+        const refreshedSession = toSession(refreshedSessionResult.data, []);
+        if (refreshedSessionResult.success && refreshedSession) {
           set(state => ({
             sessions: state.sessions.map(s => (s.id === id ? refreshedSession : s)),
             currentSession: state.currentSession?.id === id ? refreshedSession : state.currentSession,

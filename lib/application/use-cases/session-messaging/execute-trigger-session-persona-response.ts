@@ -57,7 +57,7 @@ export const executeTriggerSessionPersonaResponse = (
 
     const turnNumber = yield* messagePersistence.getNextTurnNumber(input.session.id);
 
-    const createdMessage = yield* messagePersistence.createPersonaMessage({
+    const createdMessage = yield* messagePersistence.createMessage({
       sessionId: input.session.id,
       personaId: input.persona.id,
       content: generatedResponse.content,

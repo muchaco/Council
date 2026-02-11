@@ -546,6 +546,15 @@ describe('session_store_tag_spec', () => {
           problemDescription: 'Test problem',
           outputGoal: 'Test goal',
           status: 'active',
+          tokenCount: 0,
+          costEstimate: 0,
+          conductorEnabled: false,
+          conductorPersonaId: null,
+          blackboard: null,
+          autoReplyCount: 0,
+          tokenBudget: 100000,
+          summary: null,
+          archivedAt: null,
           tags: [],
           createdAt: '2024-01-01',
           updatedAt: '2024-01-01',
@@ -707,6 +716,31 @@ describe('session_store_tag_spec', () => {
       const state = useSessionsStore.getState();
       expect(state.allTags).toContainEqual(newTag);
     });
+
+    it('returns_created_session_id_even_when_one_tag_assignment_fails', async () => {
+      const tagA: Tag = { id: 1, name: 'tag-a', createdAt: '2024-01-01' };
+      const tagB: Tag = { id: 2, name: 'tag-b', createdAt: '2024-01-01' };
+
+      mockElectronDB.tags.getByName.mockImplementation((name: string) => {
+        if (name === 'tag-a') return Promise.resolve({ success: true, data: tagA });
+        if (name === 'tag-b') return Promise.resolve({ success: true, data: tagB });
+        return Promise.resolve({ success: true, data: null });
+      });
+      mockElectronDB.sessionTags.add
+        .mockResolvedValueOnce({ success: true })
+        .mockResolvedValueOnce({ success: false, error: 'link failed' });
+
+      const result = await useSessionsStore.getState().createSession(
+        mockSessionInput,
+        ['persona-1'],
+        undefined,
+        ['tag-a', 'tag-b']
+      );
+
+      expect(result).toBe('new-session');
+      const created = useSessionsStore.getState().sessions.find((session) => session.id === 'new-session');
+      expect(created?.tags).toEqual(['tag-a']);
+    });
   });
 
   describe('tag_persistence_across_operations', () => {
@@ -850,6 +884,7 @@ describe('session_store_tag_spec', () => {
         personaId: null,
         content: 'hello',
         turnNumber: 7,
+        tokenCount: 0,
       });
     });
 
@@ -1111,6 +1146,109 @@ describe('session_store_tag_spec', () => {
       useSessionsStore.setState({ sessions: [archivedSession], currentSession: archivedSession });
       mockElectronDB.unarchiveSession.mockResolvedValue({ success: true });
       mockElectronDB.getSession.mockResolvedValue({ success: false, error: 'refresh failed' });
+
+      const result = await useSessionsStore.getState().unarchiveSession('session-1');
+
+      expect(result).toBe(true);
+      expect(toast.warning).toHaveBeenCalledWith('Session unarchived, but failed to refresh session state');
+    });
+  });
+
+  describe('phase_6_transport_boundary_parsing_spec', () => {
+    const validSession: Session = {
+      id: 'session-1',
+      title: 'Session',
+      problemDescription: 'Problem',
+      outputGoal: 'Goal',
+      status: 'active',
+      tokenCount: 0,
+      costEstimate: 0,
+      conductorEnabled: false,
+      conductorPersonaId: null,
+      blackboard: null,
+      autoReplyCount: 0,
+      tokenBudget: 1000,
+      summary: null,
+      archivedAt: null,
+      tags: [],
+      createdAt: '2024-01-01',
+      updatedAt: '2024-01-01',
+    };
+
+    it('preserves_existing_sessions_when_fetch_sessions_payload_is_invalid', async () => {
+      useSessionsStore.setState({ sessions: [validSession] });
+      mockElectronDB.getSessions.mockResolvedValue({ success: true, data: [{ id: 1 }] });
+
+      await useSessionsStore.getState().fetchSessions();
+
+      expect(useSessionsStore.getState().sessions).toEqual([validSession]);
+      expect(toast.error).toHaveBeenCalledWith('Failed to fetch sessions');
+    });
+
+    it('rejects_invalid_session_payload_when_loading_session', async () => {
+      mockElectronDB.getSession.mockResolvedValue({ success: true, data: { id: 'session-1' } });
+      mockElectronDB.getMessages.mockResolvedValue({ success: true, data: [] });
+      mockElectronDB.getSessionPersonas.mockResolvedValue({ success: true, data: [] });
+      mockElectronDB.sessionTags.getBySession.mockResolvedValue({ success: true, data: [] });
+
+      await useSessionsStore.getState().loadSession('session-1');
+
+      expect(useSessionsStore.getState().currentSession).toBeNull();
+      expect(toast.error).toHaveBeenCalledWith('Invalid session payload');
+    });
+
+    it('rejects_invalid_messages_payload_when_loading_session', async () => {
+      mockElectronDB.getSession.mockResolvedValue({ success: true, data: validSession });
+      mockElectronDB.getMessages.mockResolvedValue({ success: true, data: [{ id: 123 }] });
+      mockElectronDB.getSessionPersonas.mockResolvedValue({ success: true, data: [] });
+      mockElectronDB.sessionTags.getBySession.mockResolvedValue({ success: true, data: [] });
+
+      await useSessionsStore.getState().loadSession('session-1');
+
+      expect(useSessionsStore.getState().currentSession).toBeNull();
+      expect(toast.error).toHaveBeenCalledWith('Invalid messages payload');
+    });
+
+    it('ignores_invalid_updated_session_payload_without_mutating_state', async () => {
+      useSessionsStore.setState({ sessions: [validSession], currentSession: validSession });
+      mockElectronDB.updateSession.mockResolvedValue({ success: true, data: { id: 'session-1' } });
+
+      await useSessionsStore.getState().updateSession('session-1', { title: 'Updated title' });
+
+      expect(useSessionsStore.getState().sessions[0]).toEqual(validSession);
+      expect(useSessionsStore.getState().currentSession).toEqual(validSession);
+    });
+
+    it('warns_when_hush_refresh_payload_is_invalid_after_successful_command', async () => {
+      useSessionsStore.setState({ currentSession: validSession });
+      mockElectronDB.hushPersona.mockResolvedValue({ success: true });
+      mockElectronDB.getSessionPersonas.mockResolvedValue({
+        success: true,
+        data: [{ id: 'persona-1' }],
+      });
+
+      const result = await useSessionsStore.getState().hushPersona('persona-1', 2);
+
+      expect(result).toBe(true);
+      expect(toast.warning).toHaveBeenCalledWith('Persona hushed, but failed to refresh participant state');
+    });
+
+    it('warns_when_archive_refresh_payload_is_invalid_after_successful_command', async () => {
+      useSessionsStore.setState({ sessions: [validSession], currentSession: validSession });
+      mockElectronDB.archiveSession.mockResolvedValue({ success: true });
+      mockElectronDB.getSession.mockResolvedValue({ success: true, data: { id: 'session-1' } });
+
+      const result = await useSessionsStore.getState().archiveSession('session-1');
+
+      expect(result).toBe(true);
+      expect(toast.warning).toHaveBeenCalledWith('Session archived, but failed to refresh session state');
+    });
+
+    it('warns_when_unarchive_refresh_payload_is_invalid_after_successful_command', async () => {
+      const archivedSession: Session = { ...validSession, status: 'archived', archivedAt: '2024-01-02' };
+      useSessionsStore.setState({ sessions: [archivedSession], currentSession: archivedSession });
+      mockElectronDB.unarchiveSession.mockResolvedValue({ success: true });
+      mockElectronDB.getSession.mockResolvedValue({ success: true, data: { id: 'session-1' } });
 
       const result = await useSessionsStore.getState().unarchiveSession('session-1');
 
