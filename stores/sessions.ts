@@ -18,6 +18,7 @@ import {
   parseSessionPayload,
   parseSessionPayloadList,
 } from '../lib/boundary/session-payload-parser';
+import { decideConductorTurnShellPlan } from '../lib/shell/renderer/conductor-turn-shell-plan';
 import { makeSessionTagPersistenceFromElectronDB } from '../lib/infrastructure/db';
 import {
   makeSessionMessagePersistenceFromElectronDB,
@@ -605,61 +606,41 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       set({ conductorRunning: true });
       
       const result = await window.electronConductor.processTurn(currentSession.id);
-      
-      if (!result.success) {
-        if (result.code === 'CIRCUIT_BREAKER') {
-          set({ conductorPaused: true });
-          toast.warning(result.error || 'Circuit breaker triggered');
-        } else if (result.code === 'SELECTOR_AGENT_ERROR') {
-          set({ conductorRunning: false });
-          toast.error(result.error || 'Selector agent error');
-        } else if (result.code === 'API_KEY_NOT_CONFIGURED') {
-          set({ conductorRunning: false, conductorPaused: true });
-          toast.error(result.error || 'API key not configured');
-        } else if (result.code === 'API_KEY_DECRYPT_FAILED') {
-          set({ conductorRunning: false, conductorPaused: true });
-          toast.error(result.error || 'Failed to decrypt API key');
-        } else if (result.code === 'SETTINGS_READ_ERROR') {
-          set({ conductorRunning: false, conductorPaused: true });
-          toast.error(result.error || 'Failed to load conductor settings');
+      const shellPlan = decideConductorTurnShellPlan(result);
+
+      if (shellPlan.warning) {
+        toast.warning(shellPlan.warning);
+      }
+
+      if (Object.keys(shellPlan.blackboardUpdate).length > 0) {
+        set(state => ({
+          blackboard: state.blackboard
+            ? { ...state.blackboard, ...shellPlan.blackboardUpdate }
+            : { consensus: '', conflicts: '', nextStep: '', facts: '', ...shellPlan.blackboardUpdate },
+        }));
+      }
+
+      if (shellPlan._tag === 'Failure') {
+        set(shellPlan.statePatch);
+        if (shellPlan.toast.level === 'warning') {
+          toast.warning(shellPlan.toast.message);
+        } else if (shellPlan.toast.level === 'info') {
+          toast.info(shellPlan.toast.message);
         } else {
-          toast.error(result.error || 'Conductor error');
-          set({ conductorRunning: false });
+          toast.error(shellPlan.toast.message);
         }
         return;
       }
-      
-      // Show warning if any
-      if (result.warning) {
-        toast.warning(result.warning);
-      }
-      
-      // Update blackboard if changed
-      if (result.blackboardUpdate && Object.keys(result.blackboardUpdate).length > 0) {
-        const updateSource = isRecord(result.blackboardUpdate) ? result.blackboardUpdate : {};
-        const update: Partial<BlackboardState> = {
-          ...(typeof updateSource.consensus === 'string' ? { consensus: updateSource.consensus } : {}),
-          ...(typeof updateSource.conflicts === 'string' ? { conflicts: updateSource.conflicts } : {}),
-          ...(typeof updateSource.nextStep === 'string' ? { nextStep: updateSource.nextStep } : {}),
-          ...(typeof updateSource.facts === 'string' ? { facts: updateSource.facts } : {}),
-        };
-        set(state => ({
-          blackboard: state.blackboard 
-            ? { ...state.blackboard, ...update } 
-            : { consensus: '', conflicts: '', nextStep: '', facts: '', ...update },
-        }));
-      }
-      
-      // Handle different actions
-      if (result.action === 'WAIT_FOR_USER') {
-        set({ conductorRunning: false });
-        toast.info('Conductor waiting for user input');
+
+      if (shellPlan._tag === 'WaitForUser') {
+        set(shellPlan.statePatch);
+        toast.info(shellPlan.toast.message);
         return;
       }
-      
-      if (result.action === 'TRIGGER_PERSONA' && result.personaId) {
+
+      if (shellPlan._tag === 'TriggerPersona') {
         // Trigger the persona response
-        await get().triggerPersonaResponse(result.personaId);
+        await get().triggerPersonaResponse(shellPlan.personaId);
         
         // Continue orchestration loop if not paused
         const { conductorPaused: stillPaused } = get();

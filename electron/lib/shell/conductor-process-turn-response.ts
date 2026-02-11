@@ -4,35 +4,7 @@ import type {
   ConductorTurnUseCaseError,
   ExecuteConductorTurnResult,
 } from '../../../lib/application/use-cases/conductor';
-import type { ConductorBlackboard } from '../../../lib/core/domain/conductor';
-
-export type ConductorProcessTurnResponse =
-  | {
-      readonly success: false;
-      readonly error: string;
-      readonly code?:
-        | 'SELECTOR_AGENT_ERROR'
-        | 'API_KEY_NOT_CONFIGURED'
-        | 'API_KEY_DECRYPT_FAILED'
-        | 'SETTINGS_READ_ERROR'
-        | 'CIRCUIT_BREAKER';
-    }
-  | {
-      readonly success: true;
-      readonly action: 'WAIT_FOR_USER';
-      readonly reasoning: string;
-      readonly blackboardUpdate: Partial<ConductorBlackboard>;
-    }
-  | {
-      readonly success: true;
-      readonly action: 'TRIGGER_PERSONA';
-      readonly personaId: string;
-      readonly reasoning: string;
-      readonly blackboardUpdate: Partial<ConductorBlackboard>;
-      readonly isIntervention: boolean;
-      readonly autoReplyCount: number;
-      readonly warning?: string;
-    };
+import type { ConductorProcessTurnResponse } from '../../../lib/types';
 
 export const mapConductorTurnOutcomeToProcessTurnResponse = (
   outcome: EitherType.Either<ExecuteConductorTurnResult, ConductorTurnUseCaseError>

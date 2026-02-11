@@ -108,6 +108,37 @@ export interface ModelInfo {
   supportedMethods: string[];
 }
 
+export type ConductorProcessTurnFailureCode =
+  | 'SELECTOR_AGENT_ERROR'
+  | 'API_KEY_NOT_CONFIGURED'
+  | 'API_KEY_DECRYPT_FAILED'
+  | 'SETTINGS_READ_ERROR'
+  | 'CIRCUIT_BREAKER';
+
+export type ConductorProcessTurnResponse =
+  | {
+      success: false;
+      error: string;
+      code?: ConductorProcessTurnFailureCode;
+    }
+  | {
+      success: true;
+      action: 'WAIT_FOR_USER';
+      reasoning: string;
+      blackboardUpdate: Partial<BlackboardState>;
+      warning?: string;
+    }
+  | {
+      success: true;
+      action: 'TRIGGER_PERSONA';
+      personaId: string;
+      reasoning: string;
+      blackboardUpdate: Partial<BlackboardState>;
+      isIntervention: boolean;
+      autoReplyCount: number;
+      warning?: string;
+    };
+
 export const PERSONA_COLORS = [
   { name: 'Blue', value: '#3B82F6' },
   { name: 'Emerald', value: '#10B981' },

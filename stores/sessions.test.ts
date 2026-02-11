@@ -43,6 +43,19 @@ const mockElectronDB = {
   unhushPersona: vi.fn(),
 };
 
+const mockElectronConductor = {
+  enable: vi.fn(),
+  disable: vi.fn(),
+  processTurn: vi.fn(),
+  resetCircuitBreaker: vi.fn(),
+  getBlackboard: vi.fn(),
+  updateBlackboard: vi.fn(),
+};
+
+const mockElectronExport = {
+  exportSessionToMarkdown: vi.fn(),
+};
+
 describe('session_store_tag_spec', () => {
   beforeEach(() => {
     // Reset store state before each test
@@ -63,7 +76,11 @@ describe('session_store_tag_spec', () => {
     vi.clearAllMocks();
 
     // Setup global window.electronDB mock
-    Object.assign(window, { electronDB: mockElectronDB });
+    Object.assign(window, {
+      electronDB: mockElectronDB,
+      electronConductor: mockElectronConductor,
+      electronExport: mockElectronExport,
+    });
   });
 
   describe('fetch_all_tags_operation', () => {
@@ -1254,6 +1271,167 @@ describe('session_store_tag_spec', () => {
 
       expect(result).toBe(true);
       expect(toast.warning).toHaveBeenCalledWith('Session unarchived, but failed to refresh session state');
+    });
+  });
+
+  describe('phase_7_shell_coverage_spec', () => {
+    const makeSession = (overrides: Partial<Session> = {}): Session => ({
+      id: 'session-1',
+      title: 'Session',
+      problemDescription: 'Problem',
+      outputGoal: 'Goal',
+      status: 'active',
+      tokenCount: 0,
+      costEstimate: 0,
+      conductorEnabled: false,
+      conductorPersonaId: null,
+      blackboard: null,
+      autoReplyCount: 0,
+      tokenBudget: 1000,
+      summary: null,
+      archivedAt: null,
+      tags: [],
+      createdAt: '2024-01-01',
+      updatedAt: '2024-01-01',
+      ...overrides,
+    });
+
+    it('enables_conductor_and_persists_session_state', async () => {
+      const session = makeSession();
+      useSessionsStore.setState({ currentSession: session, sessions: [session] });
+
+      mockElectronConductor.enable.mockResolvedValue({ success: true });
+      mockElectronDB.updateSession.mockResolvedValue({
+        success: true,
+        data: makeSession({ conductorEnabled: true, conductorPersonaId: 'persona-1' }),
+      });
+
+      await useSessionsStore.getState().enableConductor('persona-1');
+
+      expect(mockElectronConductor.enable).toHaveBeenCalledWith('session-1', 'persona-1');
+      expect(mockElectronDB.updateSession).toHaveBeenCalledWith('session-1', {
+        conductorEnabled: true,
+        conductorPersonaId: 'persona-1',
+      });
+      expect(toast.success).toHaveBeenCalledWith('Conductor enabled');
+    });
+
+    it('disables_conductor_and_clears_runtime_flags', async () => {
+      const session = makeSession({ conductorEnabled: true, conductorPersonaId: 'persona-1' });
+      useSessionsStore.setState({
+        currentSession: session,
+        sessions: [session],
+        conductorRunning: true,
+        conductorPaused: true,
+      });
+
+      mockElectronConductor.disable.mockResolvedValue({ success: true });
+      mockElectronDB.updateSession.mockResolvedValue({
+        success: true,
+        data: makeSession({ conductorEnabled: false, conductorPersonaId: null }),
+      });
+
+      await useSessionsStore.getState().disableConductor();
+
+      expect(mockElectronConductor.disable).toHaveBeenCalledWith('session-1');
+      expect(useSessionsStore.getState().conductorRunning).toBe(false);
+      expect(useSessionsStore.getState().conductorPaused).toBe(false);
+      expect(toast.success).toHaveBeenCalledWith('Conductor disabled');
+    });
+
+    it('maps_circuit_breaker_process_turn_response_to_pause_behavior', async () => {
+      const session = makeSession({ conductorEnabled: true, conductorPersonaId: 'persona-1' });
+      useSessionsStore.setState({ currentSession: session, sessions: [session] });
+
+      mockElectronConductor.processTurn.mockResolvedValue({
+        success: false,
+        code: 'CIRCUIT_BREAKER',
+        error: 'Stop auto replies',
+      });
+
+      await useSessionsStore.getState().processConductorTurn();
+
+      expect(useSessionsStore.getState().conductorPaused).toBe(true);
+      expect(toast.warning).toHaveBeenCalledWith('Stop auto replies');
+    });
+
+    it('maps_wait_for_user_process_turn_response_to_stop_running', async () => {
+      const session = makeSession({ conductorEnabled: true, conductorPersonaId: 'persona-1' });
+      useSessionsStore.setState({ currentSession: session, sessions: [session], conductorRunning: false });
+
+      mockElectronConductor.processTurn.mockResolvedValue({
+        success: true,
+        action: 'WAIT_FOR_USER',
+        blackboardUpdate: { nextStep: 'Await user answer' },
+      });
+
+      await useSessionsStore.getState().processConductorTurn();
+
+      expect(useSessionsStore.getState().conductorRunning).toBe(false);
+      expect(useSessionsStore.getState().blackboard).toEqual({
+        consensus: '',
+        conflicts: '',
+        nextStep: 'Await user answer',
+        facts: '',
+      });
+      expect(toast.info).toHaveBeenCalledWith('Conductor waiting for user input');
+    });
+
+    it('resets_circuit_breaker_then_continues_conductor_loop', async () => {
+      const session = makeSession({ conductorEnabled: true, conductorPersonaId: 'persona-1' });
+      useSessionsStore.setState({ currentSession: session, sessions: [session], conductorPaused: true });
+
+      mockElectronConductor.resetCircuitBreaker.mockResolvedValue({ success: true });
+      mockElectronDB.updateSession.mockResolvedValue({
+        success: true,
+        data: makeSession({ conductorEnabled: true, conductorPersonaId: 'persona-1', autoReplyCount: 0 }),
+      });
+      mockElectronConductor.processTurn.mockResolvedValue({
+        success: true,
+        action: 'WAIT_FOR_USER',
+        blackboardUpdate: {},
+      });
+
+      await useSessionsStore.getState().resetCircuitBreaker();
+
+      expect(mockElectronConductor.resetCircuitBreaker).toHaveBeenCalledWith('session-1');
+      expect(mockElectronConductor.processTurn).toHaveBeenCalledWith('session-1');
+      expect(toast.success).toHaveBeenCalledWith('Circuit breaker reset');
+    });
+
+    it('returns_true_when_export_is_cancelled_by_user', async () => {
+      mockElectronExport.exportSessionToMarkdown.mockResolvedValue({ success: true, cancelled: true });
+
+      const result = await useSessionsStore.getState().exportSessionToMarkdown('session-1');
+
+      expect(result).toBe(true);
+      expect(toast.info).toHaveBeenCalledWith('Export cancelled');
+    });
+
+    it('warns_when_unhush_refresh_fails_after_successful_command', async () => {
+      const session = makeSession();
+      useSessionsStore.setState({ currentSession: session });
+      mockElectronDB.unhushPersona.mockResolvedValue({ success: true });
+      mockElectronDB.getSessionPersonas.mockResolvedValue({ success: false, error: 'refresh failed' });
+
+      const result = await useSessionsStore.getState().unhushPersona('persona-1');
+
+      expect(result).toBe(true);
+      expect(toast.warning).toHaveBeenCalledWith('Persona unhushed, but failed to refresh participant state');
+    });
+
+    it('deletes_session_even_if_orphaned_tag_cleanup_fails', async () => {
+      const session = makeSession();
+      useSessionsStore.setState({ currentSession: session, sessions: [session] });
+      mockElectronDB.deleteSession.mockResolvedValue({ success: true });
+      mockElectronDB.tags.cleanupOrphaned.mockRejectedValue(new Error('cleanup failed'));
+
+      const result = await useSessionsStore.getState().deleteSession('session-1');
+
+      expect(result).toBe(true);
+      expect(useSessionsStore.getState().sessions).toEqual([]);
+      expect(useSessionsStore.getState().currentSession).toBeNull();
+      expect(toast.success).toHaveBeenCalledWith('Session deleted successfully');
     });
   });
 });

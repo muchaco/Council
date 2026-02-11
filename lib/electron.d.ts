@@ -1,5 +1,7 @@
 // Type declarations for Electron APIs
 
+import type { ConductorProcessTurnResponse } from './types';
+
 interface Tag {
   id: number;
   name: string;
@@ -55,18 +57,7 @@ declare global {
     electronConductor: {
       enable: (sessionId: string, conductorPersonaId: string) => Promise<{ success: boolean; error?: string }>;
       disable: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
-      processTurn: (sessionId: string) => Promise<{ 
-        success: boolean; 
-        action?: string;
-        personaId?: string;
-        reasoning?: string;
-        blackboardUpdate?: unknown;
-        isIntervention?: boolean;
-        autoReplyCount?: number;
-        warning?: string;
-        code?: string;
-        error?: string;
-      }>;
+      processTurn: (sessionId: string) => Promise<ConductorProcessTurnResponse>;
       resetCircuitBreaker: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
       getBlackboard: (sessionId: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
       updateBlackboard: (sessionId: string, blackboard: unknown) => Promise<{ success: boolean; error?: string }>;
