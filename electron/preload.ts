@@ -19,6 +19,7 @@ const dbAPI = {
   // Messages
   createMessage: (data: unknown) => ipcRenderer.invoke('db:message:create', data),
   getMessages: (sessionId: string) => ipcRenderer.invoke('db:message:getBySession', sessionId),
+  getNextTurnNumber: (sessionId: string) => ipcRenderer.invoke('db:message:getNextTurnNumber', sessionId),
   
   // Session Personas
   addPersonaToSession: (sessionId: string, personaId: string, isConductor: boolean) =>

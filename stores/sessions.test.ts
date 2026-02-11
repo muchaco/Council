@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { toast } from 'sonner';
 import { useSessionsStore } from './sessions';
 import type { Session, Tag } from '../lib/types';
 
@@ -36,7 +37,10 @@ const mockElectronDB = {
   getMessages: vi.fn(),
   getSessionPersonas: vi.fn(),
   createMessage: vi.fn(),
+  getNextTurnNumber: vi.fn(),
   addPersonaToSession: vi.fn(),
+  hushPersona: vi.fn(),
+  unhushPersona: vi.fn(),
 };
 
 describe('session_store_tag_spec', () => {
@@ -796,6 +800,322 @@ describe('session_store_tag_spec', () => {
       const state = useSessionsStore.getState();
       expect(state.sessions[0].tags).toEqual([]);
       expect(state.sessions[1].tags).toEqual(['shared-tag', 'unique-tag']);
+    });
+  });
+
+  describe('phase_6_store_shell_migration_spec', () => {
+    it('uses_backend_turn_number_when_sending_user_message', async () => {
+      useSessionsStore.setState({
+        currentSession: {
+          id: 'session-1',
+          title: 'Session',
+          problemDescription: 'Problem',
+          outputGoal: 'Goal',
+          status: 'active',
+          tokenCount: 0,
+          costEstimate: 0,
+          conductorEnabled: false,
+          conductorPersonaId: null,
+          blackboard: null,
+          autoReplyCount: 0,
+          tokenBudget: 1000,
+          summary: null,
+          archivedAt: null,
+          tags: [],
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        },
+      });
+
+      mockElectronDB.getNextTurnNumber.mockResolvedValue({ success: true, data: 7 });
+      mockElectronDB.createMessage.mockResolvedValue({
+        success: true,
+        data: {
+          id: 'message-1',
+          sessionId: 'session-1',
+          personaId: null,
+          content: 'hello',
+          turnNumber: 7,
+          tokenCount: 0,
+          metadata: null,
+          createdAt: '2024-01-01',
+        },
+      });
+
+      await useSessionsStore.getState().sendUserMessage('hello');
+
+      expect(mockElectronDB.getNextTurnNumber).toHaveBeenCalledWith('session-1');
+      expect(mockElectronDB.createMessage).toHaveBeenCalledWith({
+        sessionId: 'session-1',
+        personaId: null,
+        content: 'hello',
+        turnNumber: 7,
+      });
+    });
+
+    it('refreshes_session_personas_after_hush_command', async () => {
+      useSessionsStore.setState({
+        currentSession: {
+          id: 'session-1',
+          title: 'Session',
+          problemDescription: 'Problem',
+          outputGoal: 'Goal',
+          status: 'active',
+          tokenCount: 0,
+          costEstimate: 0,
+          conductorEnabled: false,
+          conductorPersonaId: null,
+          blackboard: null,
+          autoReplyCount: 0,
+          tokenBudget: 1000,
+          summary: null,
+          archivedAt: null,
+          tags: [],
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        },
+      });
+
+      const refreshedPersonas = [
+        {
+          id: 'persona-1',
+          name: 'Analyst',
+          role: 'Analyst',
+          systemPrompt: 'Analyze',
+          geminiModel: 'gemini-2.0-flash',
+          temperature: 0.3,
+          color: '#3B82F6',
+          hiddenAgenda: undefined,
+          verbosity: undefined,
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+          isConductor: false,
+          hushTurnsRemaining: 3,
+          hushedAt: '2024-01-03T00:00:00.000Z',
+        },
+      ];
+
+      mockElectronDB.hushPersona.mockResolvedValue({ success: true });
+      mockElectronDB.getSessionPersonas.mockResolvedValue({ success: true, data: refreshedPersonas });
+
+      const result = await useSessionsStore.getState().hushPersona('persona-1', 3);
+
+      expect(result).toBe(true);
+      expect(useSessionsStore.getState().sessionPersonas).toEqual(refreshedPersonas);
+    });
+
+    it('refreshes_session_state_after_archive_command', async () => {
+      const activeSession: Session = {
+        id: 'session-1',
+        title: 'Session',
+        problemDescription: 'Problem',
+        outputGoal: 'Goal',
+        status: 'active',
+        tokenCount: 0,
+        costEstimate: 0,
+        conductorEnabled: false,
+        conductorPersonaId: null,
+        blackboard: null,
+        autoReplyCount: 0,
+        tokenBudget: 1000,
+        summary: null,
+        archivedAt: null,
+        tags: [],
+        createdAt: '2024-01-01',
+        updatedAt: '2024-01-01',
+      };
+
+      const archivedSession: Session = {
+        ...activeSession,
+        status: 'archived',
+        archivedAt: '2024-01-05T00:00:00.000Z',
+      };
+
+      useSessionsStore.setState({
+        sessions: [activeSession],
+        currentSession: activeSession,
+      });
+
+      mockElectronDB.archiveSession.mockResolvedValue({ success: true });
+      mockElectronDB.getSession.mockResolvedValue({ success: true, data: archivedSession });
+
+      const result = await useSessionsStore.getState().archiveSession('session-1');
+
+      expect(result).toBe(true);
+      expect(useSessionsStore.getState().sessions[0]).toEqual(archivedSession);
+      expect(useSessionsStore.getState().currentSession).toEqual(archivedSession);
+    });
+
+    it('uses_backend_turn_number_when_triggering_persona_response', async () => {
+      const currentSession: Session = {
+        id: 'session-1',
+        title: 'Session',
+        problemDescription: 'Problem',
+        outputGoal: 'Goal',
+        status: 'active',
+        tokenCount: 10,
+        costEstimate: 0,
+        conductorEnabled: false,
+        conductorPersonaId: null,
+        blackboard: null,
+        autoReplyCount: 0,
+        tokenBudget: 1000,
+        summary: null,
+        archivedAt: null,
+        tags: [],
+        createdAt: '2024-01-01',
+        updatedAt: '2024-01-01',
+      };
+
+      useSessionsStore.setState({
+        currentSession,
+        sessionPersonas: [
+          {
+            id: 'persona-1',
+            name: 'Advisor',
+            role: 'Advisor',
+            systemPrompt: 'Assist',
+            geminiModel: 'gemini-2.0-flash',
+            temperature: 0.4,
+            color: '#3B82F6',
+            hiddenAgenda: undefined,
+            verbosity: undefined,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+            isConductor: false,
+            hushTurnsRemaining: 0,
+            hushedAt: null,
+          },
+        ],
+      });
+
+      mockElectronDB.getNextTurnNumber.mockResolvedValue({ success: true, data: 12 });
+      mockElectronDB.createMessage.mockResolvedValue({
+        success: true,
+        data: {
+          id: 'message-2',
+          sessionId: 'session-1',
+          personaId: 'persona-1',
+          content: 'Response',
+          turnNumber: 12,
+          tokenCount: 20,
+          metadata: null,
+          createdAt: '2024-01-01',
+        },
+      });
+      mockElectronDB.updateSession.mockResolvedValue({ success: true, data: { ...currentSession, tokenCount: 30 } });
+      Object.assign(window, {
+        electronLLM: {
+          chat: vi.fn().mockResolvedValue({
+            success: true,
+            data: {
+              content: 'Response',
+              tokenCount: 20,
+            },
+          }),
+        },
+      });
+
+      await useSessionsStore.getState().triggerPersonaResponse('persona-1');
+
+      expect(mockElectronDB.getNextTurnNumber).toHaveBeenCalledWith('session-1');
+      expect(mockElectronDB.createMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ turnNumber: 12, personaId: 'persona-1' })
+      );
+    });
+
+    it('warns_when_hush_refresh_fails_after_successful_command', async () => {
+      useSessionsStore.setState({
+        currentSession: {
+          id: 'session-1',
+          title: 'Session',
+          problemDescription: 'Problem',
+          outputGoal: 'Goal',
+          status: 'active',
+          tokenCount: 0,
+          costEstimate: 0,
+          conductorEnabled: false,
+          conductorPersonaId: null,
+          blackboard: null,
+          autoReplyCount: 0,
+          tokenBudget: 1000,
+          summary: null,
+          archivedAt: null,
+          tags: [],
+          createdAt: '2024-01-01',
+          updatedAt: '2024-01-01',
+        },
+      });
+
+      mockElectronDB.hushPersona.mockResolvedValue({ success: true });
+      mockElectronDB.getSessionPersonas.mockResolvedValue({ success: false, error: 'refresh failed' });
+
+      const result = await useSessionsStore.getState().hushPersona('persona-1', 2);
+
+      expect(result).toBe(true);
+      expect(toast.warning).toHaveBeenCalledWith('Persona hushed, but failed to refresh participant state');
+    });
+
+    it('warns_when_archive_refresh_fails_after_successful_command', async () => {
+      const activeSession: Session = {
+        id: 'session-1',
+        title: 'Session',
+        problemDescription: 'Problem',
+        outputGoal: 'Goal',
+        status: 'active',
+        tokenCount: 0,
+        costEstimate: 0,
+        conductorEnabled: false,
+        conductorPersonaId: null,
+        blackboard: null,
+        autoReplyCount: 0,
+        tokenBudget: 1000,
+        summary: null,
+        archivedAt: null,
+        tags: [],
+        createdAt: '2024-01-01',
+        updatedAt: '2024-01-01',
+      };
+
+      useSessionsStore.setState({ sessions: [activeSession], currentSession: activeSession });
+      mockElectronDB.archiveSession.mockResolvedValue({ success: true });
+      mockElectronDB.getSession.mockResolvedValue({ success: false, error: 'refresh failed' });
+
+      const result = await useSessionsStore.getState().archiveSession('session-1');
+
+      expect(result).toBe(true);
+      expect(toast.warning).toHaveBeenCalledWith('Session archived, but failed to refresh session state');
+    });
+
+    it('warns_when_unarchive_refresh_fails_after_successful_command', async () => {
+      const archivedSession: Session = {
+        id: 'session-1',
+        title: 'Session',
+        problemDescription: 'Problem',
+        outputGoal: 'Goal',
+        status: 'archived',
+        tokenCount: 0,
+        costEstimate: 0,
+        conductorEnabled: false,
+        conductorPersonaId: null,
+        blackboard: null,
+        autoReplyCount: 0,
+        tokenBudget: 1000,
+        summary: null,
+        archivedAt: '2024-01-02',
+        tags: [],
+        createdAt: '2024-01-01',
+        updatedAt: '2024-01-01',
+      };
+
+      useSessionsStore.setState({ sessions: [archivedSession], currentSession: archivedSession });
+      mockElectronDB.unarchiveSession.mockResolvedValue({ success: true });
+      mockElectronDB.getSession.mockResolvedValue({ success: false, error: 'refresh failed' });
+
+      const result = await useSessionsStore.getState().unarchiveSession('session-1');
+
+      expect(result).toBe(true);
+      expect(toast.warning).toHaveBeenCalledWith('Session unarchived, but failed to refresh session state');
     });
   });
 });

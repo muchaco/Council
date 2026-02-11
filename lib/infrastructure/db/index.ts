@@ -6,5 +6,6 @@ export * from './session-participation-repository';
 export * from './reusable-persona-repository';
 export * from './session-state-repository';
 export * from './session-tag-catalog-repository';
+export * from './session-message-persistence';
 export * from './sql-query-executor';
 export * from './query-layer-repository';

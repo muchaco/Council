@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
+import { Effect, Either } from 'effect';
 import type { ModelInfo } from '../lib/types';
+import {
+  SettingsModelCatalogGateway,
+  executeRefreshSettingsModelCatalog,
+} from '../lib/application/use-cases/settings';
+import { LiveClockLayer } from '../lib/infrastructure/clock';
+import { makeSettingsModelCatalogGatewayFromElectronSettings } from '../lib/infrastructure/settings';
 
 interface SettingsState {
   geminiApiKey: string | null;
@@ -107,28 +114,33 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   fetchAvailableModels: async () => {
     const { geminiApiKey, modelsLastFetched, availableModels } = get();
-    
-    // Skip if no API key
-    if (!geminiApiKey) {
-      return;
-    }
-    
-    // Skip if we have models and cache is still valid (5 minutes)
-    const now = Date.now();
-    const cacheDuration = 5 * 60 * 1000; // 5 minutes
-    if (modelsLastFetched && availableModels.length > 0 && now - modelsLastFetched < cacheDuration) {
-      return;
-    }
-    
+
     try {
-      const result = await window.electronSettings.listModels();
-      if (result.success && result.data) {
-        set({ 
-          availableModels: result.data,
-          modelsLastFetched: Date.now()
+      const outcome = await Effect.runPromise(
+        executeRefreshSettingsModelCatalog({
+          hasGeminiApiKey: (geminiApiKey ?? '').trim().length > 0,
+          cachedModelCount: availableModels.length,
+          modelsLastFetchedEpochMs: modelsLastFetched,
+        }).pipe(
+          Effect.provideService(
+            SettingsModelCatalogGateway,
+            makeSettingsModelCatalogGatewayFromElectronSettings(window.electronSettings)
+          ),
+          Effect.provide(LiveClockLayer),
+          Effect.either
+        )
+      );
+
+      if (Either.isLeft(outcome)) {
+        console.error('Failed to fetch models:', outcome.left.message);
+        return;
+      }
+
+      if (outcome.right._tag === 'SettingsModelCatalogRefreshed') {
+        set({
+          availableModels: [...outcome.right.models],
+          modelsLastFetched: outcome.right.refreshedAtEpochMs,
         });
-      } else {
-        console.error('Failed to fetch models:', result.error);
       }
     } catch (error) {
       console.error('Error fetching models:', error);

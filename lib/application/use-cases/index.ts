@@ -8,3 +8,5 @@ export * from './session-participation';
 export * from './reusable-personas';
 export * from './session-state';
 export * from './session-tag-catalog';
+export * from './settings';
+export * from './session-messaging';

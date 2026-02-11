@@ -9,7 +9,16 @@ import {
   type SessionTagUseCaseError,
   type SessionTagRemovalUseCaseError,
 } from '../lib/application/use-cases/session-tags';
+import {
+  executeTriggerSessionPersonaResponse,
+  SessionMessagePersistence,
+  SessionPersonaResponseGateway,
+} from '../lib/application/use-cases/session-messaging';
 import { makeSessionTagPersistenceFromElectronDB } from '../lib/infrastructure/db';
+import {
+  makeSessionMessagePersistenceFromElectronDB,
+} from '../lib/infrastructure/db';
+import { makeSessionPersonaResponseGatewayFromElectronLLM } from '../lib/infrastructure/llm';
 import { validateTagInput } from '../lib/validation';
 
 interface SessionPersona extends Persona {
@@ -389,16 +398,21 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
 
   sendUserMessage: async (content: string) => {
-    const { currentSession, messages } = get();
+    const { currentSession } = get();
     if (!currentSession) return;
     
     try {
-      const turnNumber = messages.length + 1;
+      const turnNumberResult = await window.electronDB.getNextTurnNumber(currentSession.id);
+      if (!turnNumberResult.success || typeof turnNumberResult.data !== 'number') {
+        toast.error(turnNumberResult.error || 'Error determining next turn number');
+        return;
+      }
+
       const messageData = {
         sessionId: currentSession.id,
         personaId: null,
         content,
-        turnNumber,
+        turnNumber: turnNumberResult.data,
       };
       
       const result = await window.electronDB.createMessage(messageData);
@@ -413,7 +427,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
 
   triggerPersonaResponse: async (personaId: string) => {
-    const { currentSession, messages, sessionPersonas } = get();
+    const { currentSession, sessionPersonas } = get();
     if (!currentSession) return;
     
     const persona = sessionPersonas.find(p => p.id === personaId);
@@ -433,49 +447,41 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         .map(p => ({ id: p.id, name: p.name, role: p.role }));
       
       const request = {
-        personaId,
-        sessionId: currentSession.id,
-        model: persona.geminiModel,
-        systemPrompt: persona.systemPrompt,
-        hiddenAgenda: persona.hiddenAgenda,
-        verbosity: persona.verbosity,
-        temperature: persona.temperature,
-        problemContext: currentSession.problemDescription,
-        outputGoal: currentSession.outputGoal,
+        session: currentSession,
+        persona,
         blackboard,
         otherPersonas,
       };
-      
-      const result = await window.electronLLM.chat(request);
-      
-      if (result.success && result.data) {
-        const turnNumber = messages.length + 1;
-        const messageData = {
-          sessionId: currentSession.id,
-          personaId,
-          content: result.data.content,
-          turnNumber,
-          tokenCount: result.data.tokenCount,
-        };
-        
-        const messageResult = await window.electronDB.createMessage(messageData);
-        if (messageResult.success && messageResult.data) {
-          // Update session token count
-          const newTokenCount = currentSession.tokenCount + result.data.tokenCount;
-          const newCostEstimate = newTokenCount * 0.000001; // Rough estimate: $1 per million tokens
-          
-          await get().updateSession(currentSession.id, {
-            tokenCount: newTokenCount,
-            costEstimate: newCostEstimate,
-          });
-          
-          set(state => ({
-            messages: [...state.messages, messageResult.data as Message],
-          }));
-        }
-      } else {
-        toast.error(result.error || 'Failed to get response from persona');
+
+      const outcome = await Effect.runPromise(
+        executeTriggerSessionPersonaResponse(request).pipe(
+          Effect.provideService(
+            SessionPersonaResponseGateway,
+            makeSessionPersonaResponseGatewayFromElectronLLM(window.electronLLM)
+          ),
+          Effect.provideService(
+            SessionMessagePersistence,
+            makeSessionMessagePersistenceFromElectronDB(window.electronDB)
+          ),
+          Effect.either
+        )
+      );
+
+      if (Either.isLeft(outcome)) {
+        toast.error(outcome.left.message);
+        return;
       }
+
+      set(state => ({
+        messages: [...state.messages, outcome.right.createdMessage],
+        sessions: state.sessions.map(s =>
+          s.id === currentSession.id ? outcome.right.updatedSession : s
+        ),
+        currentSession:
+          state.currentSession?.id === currentSession.id
+            ? outcome.right.updatedSession
+            : state.currentSession,
+      }));
     } catch (error) {
       toast.error('Error getting persona response');
     } finally {
@@ -668,21 +674,21 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
 
   hushPersona: async (personaId: string, turns: number) => {
-    const { currentSession, sessionPersonas } = get();
+    const { currentSession } = get();
     if (!currentSession) return false;
     
     try {
       const result = await window.electronDB.hushPersona(currentSession.id, personaId, turns);
       if (result.success) {
-        // Update local state
-        set({
-          sessionPersonas: sessionPersonas.map(p => 
-            p.id === personaId 
-              ? { ...p, hushTurnsRemaining: turns, hushedAt: new Date().toISOString() }
-              : p
-          ),
-        });
-        toast.success(`Persona hushed for ${turns} turns`);
+        const refreshedPersonas = await window.electronDB.getSessionPersonas(currentSession.id);
+        if (refreshedPersonas.success && refreshedPersonas.data) {
+          set({ sessionPersonas: refreshedPersonas.data as SessionPersona[] });
+          toast.success(`Persona hushed for ${turns} turns`);
+          return true;
+        }
+
+        console.warn('Persona hush succeeded but refresh failed', refreshedPersonas.error);
+        toast.warning('Persona hushed, but failed to refresh participant state');
         return true;
       } else {
         toast.error(result.error || 'Failed to hush persona');
@@ -695,21 +701,21 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
 
   unhushPersona: async (personaId: string) => {
-    const { currentSession, sessionPersonas } = get();
+    const { currentSession } = get();
     if (!currentSession) return false;
     
     try {
       const result = await window.electronDB.unhushPersona(currentSession.id, personaId);
       if (result.success) {
-        // Update local state
-        set({
-          sessionPersonas: sessionPersonas.map(p => 
-            p.id === personaId 
-              ? { ...p, hushTurnsRemaining: 0, hushedAt: null }
-              : p
-          ),
-        });
-        toast.success('Persona unhushed');
+        const refreshedPersonas = await window.electronDB.getSessionPersonas(currentSession.id);
+        if (refreshedPersonas.success && refreshedPersonas.data) {
+          set({ sessionPersonas: refreshedPersonas.data as SessionPersona[] });
+          toast.success('Persona unhushed');
+          return true;
+        }
+
+        console.warn('Persona unhush succeeded but refresh failed', refreshedPersonas.error);
+        toast.warning('Persona unhushed, but failed to refresh participant state');
         return true;
       } else {
         toast.error(result.error || 'Failed to unhush persona');
@@ -727,18 +733,19 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       const result = await window.electronDB.archiveSession(id);
       
       if (result.success) {
-        const now = new Date().toISOString();
-        set(state => ({
-          sessions: state.sessions.map(s => 
-            s.id === id 
-              ? { ...s, status: 'archived' as const, archivedAt: now }
-              : s
-          ),
-          currentSession: state.currentSession?.id === id 
-            ? { ...state.currentSession, status: 'archived', archivedAt: now }
-            : state.currentSession,
-        }));
-        toast.success('Session archived successfully');
+        const refreshedSessionResult = await window.electronDB.getSession(id);
+        if (refreshedSessionResult.success && refreshedSessionResult.data) {
+          const refreshedSession = refreshedSessionResult.data as Session;
+          set(state => ({
+            sessions: state.sessions.map(s => (s.id === id ? refreshedSession : s)),
+            currentSession: state.currentSession?.id === id ? refreshedSession : state.currentSession,
+          }));
+          toast.success('Session archived successfully');
+          return true;
+        }
+
+        console.warn('Archive succeeded but session refresh failed', refreshedSessionResult.error);
+        toast.warning('Session archived, but failed to refresh session state');
         return true;
       } else {
         toast.error(result.error || 'Failed to archive session');
@@ -758,17 +765,19 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       const result = await window.electronDB.unarchiveSession(id);
       
       if (result.success) {
-        set(state => ({
-          sessions: state.sessions.map(s => 
-            s.id === id 
-              ? { ...s, status: 'active' as const, archivedAt: null }
-              : s
-          ),
-          currentSession: state.currentSession?.id === id 
-            ? { ...state.currentSession, status: 'active', archivedAt: null }
-            : state.currentSession,
-        }));
-        toast.success('Session unarchived successfully');
+        const refreshedSessionResult = await window.electronDB.getSession(id);
+        if (refreshedSessionResult.success && refreshedSessionResult.data) {
+          const refreshedSession = refreshedSessionResult.data as Session;
+          set(state => ({
+            sessions: state.sessions.map(s => (s.id === id ? refreshedSession : s)),
+            currentSession: state.currentSession?.id === id ? refreshedSession : state.currentSession,
+          }));
+          toast.success('Session unarchived successfully');
+          return true;
+        }
+
+        console.warn('Unarchive succeeded but session refresh failed', refreshedSessionResult.error);
+        toast.warning('Session unarchived, but failed to refresh session state');
         return true;
       } else {
         toast.error(result.error || 'Failed to unarchive session');

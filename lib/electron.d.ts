@@ -21,6 +21,7 @@ declare global {
       deleteSession: (id: string) => Promise<{ success: boolean; error?: string }>;
       createMessage: (data: unknown) => Promise<{ success: boolean; data?: unknown; error?: string }>;
       getMessages: (sessionId: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
+      getNextTurnNumber: (sessionId: string) => Promise<{ success: boolean; data?: number; error?: string }>;
       addPersonaToSession: (sessionId: string, personaId: string, isConductor: boolean) => Promise<{ success: boolean; error?: string }>;
       getSessionPersonas: (sessionId: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
       hushPersona: (sessionId: string, personaId: string, turns: number) => Promise<{ success: boolean; error?: string }>;

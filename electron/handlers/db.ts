@@ -158,6 +158,16 @@ export function setupDatabaseHandlers(): void {
     }
   });
 
+  ipcMain.handle('db:message:getNextTurnNumber', async (_, sessionId: string) => {
+    try {
+      const turnNumber = await queries.getNextTurnNumber(sessionId);
+      return { success: true, data: turnNumber };
+    } catch (error) {
+      console.error('Error fetching next turn number:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
   // Session Persona handlers
   ipcMain.handle('db:sessionPersona:add', async (_, sessionId: string, personaId: string, isConductor: boolean) => {
     try {

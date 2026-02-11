@@ -1,6 +1,12 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
 import type { Persona, PersonaInput } from '../lib/types';
+import {
+  createPersonaCatalogEntry,
+  deletePersonaCatalogEntry,
+  loadPersonaCatalog,
+  updatePersonaCatalogEntry,
+} from '../lib/shell/renderer/persona-catalog-client';
 
 interface PersonasState {
   personas: Persona[];
@@ -21,14 +27,10 @@ export const usePersonasStore = create<PersonasState>((set, get) => ({
   fetchPersonas: async () => {
     try {
       set({ isLoading: true });
-      const result = await window.electronDB.getPersonas();
-      if (result.success && result.data) {
-        set({ personas: result.data as Persona[] });
-      } else {
-        toast.error(result.error || 'Failed to fetch personas');
-      }
+      const personas = await loadPersonaCatalog(window.electronDB);
+      set({ personas });
     } catch (error) {
-      toast.error('Error fetching personas');
+      toast.error(error instanceof Error ? error.message : 'Error fetching personas');
     } finally {
       set({ isLoading: false });
     }
@@ -37,18 +39,12 @@ export const usePersonasStore = create<PersonasState>((set, get) => ({
   createPersona: async (data: PersonaInput) => {
     try {
       set({ isLoading: true });
-      const result = await window.electronDB.createPersona(data);
-      if (result.success && result.data) {
-        const persona = result.data as Persona;
-        set(state => ({ personas: [persona, ...state.personas] }));
-        toast.success('Persona created successfully');
-        return persona;
-      } else {
-        toast.error(result.error || 'Failed to create persona');
-        return null;
-      }
+      const persona = await createPersonaCatalogEntry(window.electronDB, data);
+      set(state => ({ personas: [persona, ...state.personas] }));
+      toast.success('Persona created successfully');
+      return persona;
     } catch (error) {
-      toast.error('Error creating persona');
+      toast.error(error instanceof Error ? error.message : 'Error creating persona');
       return null;
     } finally {
       set({ isLoading: false });
@@ -58,20 +54,14 @@ export const usePersonasStore = create<PersonasState>((set, get) => ({
   updatePersona: async (id: string, data: Partial<PersonaInput>) => {
     try {
       set({ isLoading: true });
-      const result = await window.electronDB.updatePersona(id, data);
-      if (result.success && result.data) {
-        const updated = result.data as Persona;
-        set(state => ({
-          personas: state.personas.map(p => p.id === id ? updated : p)
-        }));
-        toast.success('Persona updated successfully');
-        return updated;
-      } else {
-        toast.error(result.error || 'Failed to update persona');
-        return null;
-      }
+      const updated = await updatePersonaCatalogEntry(window.electronDB, id, data);
+      set(state => ({
+        personas: state.personas.map(p => p.id === id ? updated : p)
+      }));
+      toast.success('Persona updated successfully');
+      return updated;
     } catch (error) {
-      toast.error('Error updating persona');
+      toast.error(error instanceof Error ? error.message : 'Error updating persona');
       return null;
     } finally {
       set({ isLoading: false });
@@ -81,19 +71,14 @@ export const usePersonasStore = create<PersonasState>((set, get) => ({
   deletePersona: async (id: string) => {
     try {
       set({ isLoading: true });
-      const result = await window.electronDB.deletePersona(id);
-      if (result.success) {
-        set(state => ({
-          personas: state.personas.filter(p => p.id !== id)
-        }));
-        toast.success('Persona deleted successfully');
-        return true;
-      } else {
-        toast.error(result.error || 'Failed to delete persona');
-        return false;
-      }
+      await deletePersonaCatalogEntry(window.electronDB, id);
+      set(state => ({
+        personas: state.personas.filter(p => p.id !== id)
+      }));
+      toast.success('Persona deleted successfully');
+      return true;
     } catch (error) {
-      toast.error('Error deleting persona');
+      toast.error(error instanceof Error ? error.message : 'Error deleting persona');
       return false;
     } finally {
       set({ isLoading: false });
