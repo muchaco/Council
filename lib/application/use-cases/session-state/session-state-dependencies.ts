@@ -12,8 +12,8 @@ export interface CreateSessionStateCommand {
   readonly id: string;
   readonly now: string;
   readonly input: SessionInput;
-  readonly orchestratorEnabled: boolean;
-  readonly orchestratorPersonaId: string | null;
+  readonly conductorEnabled: boolean;
+  readonly conductorPersonaId: string | null;
 }
 
 export interface UpdateSessionStateCommand {
@@ -23,8 +23,8 @@ export interface UpdateSessionStateCommand {
     readonly status?: string;
     readonly tokenCount?: number;
     readonly costEstimate?: number;
-    readonly orchestratorEnabled?: boolean;
-    readonly orchestratorPersonaId?: string | null;
+    readonly conductorEnabled?: boolean;
+    readonly conductorPersonaId?: string | null;
     readonly blackboard?: unknown;
     readonly autoReplyCount?: number;
     readonly tokenBudget?: number;
@@ -47,11 +47,11 @@ export interface SessionStateRepositoryService {
   readonly incrementAutoReplyCount: (sessionId: string) => Effect.Effect<void, SessionStateInfrastructureError>;
   readonly readAutoReplyCount: (sessionId: string) => Effect.Effect<number, SessionStateInfrastructureError>;
   readonly resetAutoReplyCount: (sessionId: string) => Effect.Effect<void, SessionStateInfrastructureError>;
-  readonly enableOrchestrator: (
+  readonly enableConductor: (
     sessionId: string,
-    orchestratorPersonaId: string
+    conductorPersonaId: string
   ) => Effect.Effect<void, SessionStateInfrastructureError>;
-  readonly disableOrchestrator: (sessionId: string) => Effect.Effect<void, SessionStateInfrastructureError>;
+  readonly disableConductor: (sessionId: string) => Effect.Effect<void, SessionStateInfrastructureError>;
   readonly archiveSession: (sessionId: string, archivedAt: string) => Effect.Effect<void, SessionStateInfrastructureError>;
   readonly unarchiveSession: (sessionId: string) => Effect.Effect<void, SessionStateInfrastructureError>;
   readonly isSessionArchived: (sessionId: string) => Effect.Effect<boolean, SessionStateInfrastructureError>;

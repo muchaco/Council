@@ -23,14 +23,14 @@ const toCauseMessage = (error: unknown, fallbackMessage: string): string => {
 export const makeSessionParticipationRepositoryFromSqlExecutor = (
   sql: SqlQueryExecutor
 ): SessionParticipationRepositoryService => ({
-  addSessionParticipant: (sessionId, personaId, isOrchestrator) =>
+  addSessionParticipant: (sessionId, personaId, isConductor) =>
     Effect.tryPromise({
       try: () =>
         sql.run(
           `INSERT INTO session_personas (session_id, persona_id, is_orchestrator)
            VALUES (?, ?, ?)
            ON CONFLICT(session_id, persona_id) DO UPDATE SET is_orchestrator = excluded.is_orchestrator`,
-          [sessionId, personaId, isOrchestrator ? 1 : 0]
+          [sessionId, personaId, isConductor ? 1 : 0]
         ),
       catch: (error) => repositoryError(toCauseMessage(error, 'Failed to add persona to session')),
     }),
@@ -51,7 +51,7 @@ export const makeSessionParticipationRepositoryFromSqlExecutor = (
             p.verbosity,
             p.created_at as createdAt,
             p.updated_at as updatedAt,
-            sp.is_orchestrator as isOrchestrator,
+            sp.is_orchestrator as isConductor,
             sp.hush_turns_remaining as hushTurnsRemaining,
             sp.hushed_at as hushedAt
           FROM personas p

@@ -23,7 +23,7 @@ export interface MessageMetadata {
   isIntervention?: boolean;
   driftDetected?: boolean;
   selectorReasoning?: string;
-  isOrchestratorMessage?: boolean;
+  isConductorMessage?: boolean;
 }
 
 export interface Session {
@@ -34,8 +34,8 @@ export interface Session {
   status: 'active' | 'completed' | 'archived';
   tokenCount: number;
   costEstimate: number;
-  orchestratorEnabled: boolean;
-  orchestratorPersonaId: string | null;
+  conductorEnabled: boolean;
+  conductorPersonaId: string | null;
   blackboard: BlackboardState | null;
   autoReplyCount: number;
   tokenBudget: number;
@@ -60,7 +60,7 @@ export interface Message {
 export interface SessionPersona {
   sessionId: string;
   personaId: string;
-  isOrchestrator: boolean;
+  isConductor: boolean;
   hushTurnsRemaining: number;
   hushedAt: string | null;
 }

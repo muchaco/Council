@@ -38,18 +38,18 @@ function SessionContent() {
     sessionPersonas,
     isLoading,
     thinkingPersonaId,
-    orchestratorRunning,
-    orchestratorPaused,
+    conductorRunning,
+    conductorPaused,
     blackboard,
     allTags,
     loadSession,
     sendUserMessage,
     triggerPersonaResponse,
-    enableOrchestrator,
-    disableOrchestrator,
-    processOrchestratorTurn,
-    pauseOrchestrator,
-    resumeOrchestrator,
+    enableConductor,
+    disableConductor,
+    processConductorTurn,
+    pauseConductor,
+    resumeConductor,
     resetCircuitBreaker,
     clearCurrentSession,
     exportSessionToMarkdown,
@@ -89,9 +89,9 @@ function SessionContent() {
     setNewMessage('');
     await sendUserMessage(content);
     
-    // If orchestrator is enabled and not paused, trigger it
-    if (currentSession?.orchestratorEnabled && !orchestratorPaused) {
-      processOrchestratorTurn();
+    // If conductor is enabled and not paused, trigger it
+    if (currentSession?.conductorEnabled && !conductorPaused) {
+      processConductorTurn();
     }
   };
 
@@ -103,9 +103,9 @@ function SessionContent() {
     
     await triggerPersonaResponse(personaId);
     
-    // If orchestrator is enabled and not paused, trigger it after response
-    if (currentSession?.orchestratorEnabled && !orchestratorPaused) {
-      setTimeout(() => processOrchestratorTurn(), 1000);
+    // If conductor is enabled and not paused, trigger it after response
+    if (currentSession?.conductorEnabled && !conductorPaused) {
+      setTimeout(() => processConductorTurn(), 1000);
     }
   };
 
@@ -122,20 +122,20 @@ function SessionContent() {
     await unhushPersona(personaId);
   };
 
-  const handleOrchestratorToggle = async () => {
+  const handleConductorToggle = async () => {
     if (!currentSession) return;
     
-    if (currentSession.orchestratorEnabled) {
-      await disableOrchestrator();
+    if (currentSession.conductorEnabled) {
+      await disableConductor();
     } else {
-      // Find first non-orchestrator persona to be the orchestrator
-      const nonOrchestratorPersonas = sessionPersonas.filter(p => !p.isOrchestrator);
-      if (nonOrchestratorPersonas.length === 0) {
-        toast.error('Need at least one non-orchestrator persona');
+      // Find first non-conductor persona to be the conductor
+      const nonConductorPersonas = sessionPersonas.filter(p => !p.isConductor);
+      if (nonConductorPersonas.length === 0) {
+        toast.error('Need at least one non-conductor persona');
         return;
       }
-      // For simplicity, use the first persona as orchestrator
-      await enableOrchestrator(nonOrchestratorPersonas[0].id);
+      // For simplicity, use the first persona as conductor
+      await enableConductor(nonConductorPersonas[0].id);
     }
   };
 
@@ -188,12 +188,12 @@ function SessionContent() {
         currentSession={currentSession}
         sessionPersonas={sessionPersonas}
         isArchived={isArchived}
-        orchestratorPaused={orchestratorPaused}
-        orchestratorRunning={orchestratorRunning}
+        conductorPaused={conductorPaused}
+        conductorRunning={conductorRunning}
         thinkingPersonaId={thinkingPersonaId}
         hushPresets={HUSH_PRESETS}
-        onToggleOrchestrator={handleOrchestratorToggle}
-        onPauseOrResume={orchestratorPaused ? resumeOrchestrator : pauseOrchestrator}
+        onToggleConductor={handleConductorToggle}
+        onPauseOrResume={conductorPaused ? resumeConductor : pauseConductor}
         onContinue={resetCircuitBreaker}
         onAskToSpeak={handleAskToSpeak}
         onHush={handleHushPersona}
@@ -275,8 +275,8 @@ function SessionContent() {
               <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p className="mb-2">No messages yet</p>
               <p className="text-sm">
-                {currentSession.orchestratorEnabled 
-                  ? 'Send a message or the Orchestrator will guide the discussion'
+                {currentSession.conductorEnabled 
+                  ? 'Send a message or the Conductor will guide the discussion'
                   : 'Start the discussion by asking a persona to speak or sending a message'
                 }
               </p>
@@ -286,8 +286,8 @@ function SessionContent() {
               const persona = sessionPersonas.find(p => p.id === msg.personaId);
               const isUser = msg.personaId === null;
               const isIntervention = msg.metadata?.isIntervention;
-              const isOrchestratorMessage = msg.metadata?.isOrchestratorMessage || 
-                (persona?.id === currentSession.orchestratorPersonaId);
+              const isConductorMessage = msg.metadata?.isConductorMessage ||
+                (persona?.id === currentSession.conductorPersonaId);
               
               return (
                 <div
@@ -297,13 +297,13 @@ function SessionContent() {
                   {/* Avatar */}
                   <div
                     className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-primary-foreground text-xs font-medium ${
-                      isOrchestratorMessage ? 'ring-2 ring-primary' : ''
+                      isConductorMessage ? 'ring-2 ring-primary' : ''
                     }`}
                     style={{
                       backgroundColor: isUser ? 'var(--muted-foreground)' : persona?.color,
                     }}
                   >
-                    {isUser ? 'You' : isOrchestratorMessage ? <Crown className="w-4 h-4" /> : persona?.name.charAt(0)}
+                    {isUser ? 'You' : isConductorMessage ? <Crown className="w-4 h-4" /> : persona?.name.charAt(0)}
                   </div>
                   
                   {/* Message */}
@@ -313,7 +313,7 @@ function SessionContent() {
                       senderName={isUser ? 'You' : persona?.name || 'Unknown'}
                       timestamp={msg.createdAt}
                       isUser={isUser}
-                      isOrchestrator={isOrchestratorMessage}
+                      isConductor={isConductorMessage}
                       isIntervention={isIntervention}
                       accentColor={persona?.color}
                     />
@@ -355,15 +355,15 @@ function SessionContent() {
             </div>
           )}
           
-            {/* Orchestrator thinking indicator */}
-            {orchestratorRunning && !thinkingPersonaId && (
+            {/* Conductor thinking indicator */}
+            {conductorRunning && !thinkingPersonaId && (
               <div className="flex gap-3">
                 <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-primary-foreground text-xs font-medium bg-primary animate-pulse">
                   <Sparkles className="w-4 h-4" />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-medium">Orchestrator</span>
+                    <span className="text-sm font-medium">Conductor</span>
                     <span className="text-xs text-muted-foreground">Selecting next speaker...</span>
                   </div>
                   <div className="inline-block p-3 rounded-lg text-sm bg-secondary border">
@@ -392,8 +392,8 @@ function SessionContent() {
             <>
               <div className="flex gap-2">
                 <Input
-                  placeholder={currentSession.orchestratorEnabled 
-                    ? "Share your thoughts or let the Orchestrator guide the discussion..."
+                  placeholder={currentSession.conductorEnabled 
+                    ? "Share your thoughts or let the Conductor guide the discussion..."
                     : "Share your thoughts with the council..."
                   }
                   value={newMessage}
@@ -405,11 +405,11 @@ function SessionContent() {
                     }
                   }}
                   className="bg-input border-border"
-                  disabled={orchestratorRunning}
+                  disabled={conductorRunning}
                 />
                 <Button
                   onClick={handleSendMessage}
-                  disabled={!newMessage.trim() || orchestratorRunning}
+                  disabled={!newMessage.trim() || conductorRunning}
                   className="flex-shrink-0"
                 >
                   <Send className="w-4 h-4" />
@@ -417,8 +417,8 @@ function SessionContent() {
               </div>
               <p className="text-xs text-muted-foreground mt-2">
                 Press Enter to send, Shift+Enter for new line
-                {currentSession.orchestratorEnabled && orchestratorPaused && (
-                  <span className="ml-2 text-primary">• Orchestrator paused - click Resume or Continue to proceed</span>
+                {currentSession.conductorEnabled && conductorPaused && (
+                  <span className="ml-2 text-primary">• Conductor paused - click Resume or Continue to proceed</span>
                 )}
               </p>
             </>

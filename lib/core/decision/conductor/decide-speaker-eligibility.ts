@@ -7,7 +7,7 @@ import type { SpeakerEligibilityPlan } from '../../plan/conductor-plan';
 
 export interface DecideSpeakerEligibilityInput {
   readonly personas: readonly ConductorPersonaSnapshot[];
-  readonly orchestratorPersonaId: string;
+  readonly conductorPersonaId: string;
   readonly lastSpeakerId: string | null;
 }
 
@@ -27,7 +27,7 @@ export const decideSpeakerEligibility = (
       continue;
     }
 
-    const isConductor = persona.id === input.orchestratorPersonaId;
+    const isConductor = persona.id === input.conductorPersonaId;
     const isLastSpeaker = input.lastSpeakerId !== null && persona.id === input.lastSpeakerId;
 
     if (!isConductor && !isLastSpeaker) {

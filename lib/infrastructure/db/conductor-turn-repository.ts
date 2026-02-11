@@ -10,63 +10,7 @@ import type {
   ConductorPersonaSnapshot,
   ConductorSessionSnapshot,
 } from '../../core/domain/conductor';
-
-interface ConductorQueries {
-  readonly getSession: (sessionId: string) => Promise<ConductorSessionSnapshot | null>;
-  readonly getSessionPersonas: (sessionId: string) => Promise<readonly ConductorPersonaSnapshot[]>;
-  readonly decrementAllHushTurns: (sessionId: string) => Promise<void>;
-  readonly getLastMessages: (
-    sessionId: string,
-    limit: number
-  ) => Promise<readonly ConductorMessageSnapshot[]>;
-  readonly updateBlackboard: (sessionId: string, blackboard: ConductorBlackboard) => Promise<void>;
-  readonly getNextTurnNumber: (sessionId: string) => Promise<number>;
-  readonly createMessage: (input: {
-    readonly sessionId: string;
-    readonly personaId: string;
-    readonly content: string;
-    readonly turnNumber: number;
-    readonly metadata: {
-      readonly isIntervention: true;
-      readonly selectorReasoning: string;
-    };
-  }) => Promise<void>;
-  readonly incrementAutoReplyCount: (sessionId: string) => Promise<number>;
-}
-
-interface ElectronConductorSession {
-  readonly id: string;
-  readonly orchestratorEnabled: boolean;
-  readonly orchestratorPersonaId: string | null;
-  readonly autoReplyCount: number;
-  readonly tokenCount: number;
-  readonly problemDescription: string;
-  readonly outputGoal: string;
-  readonly blackboard: ConductorBlackboard | null;
-}
-
-interface ElectronConductorQueries {
-  readonly getSession: (sessionId: string) => Promise<ElectronConductorSession | null>;
-  readonly getSessionPersonas: (sessionId: string) => Promise<readonly ConductorPersonaSnapshot[]>;
-  readonly decrementAllHushTurns: (sessionId: string) => Promise<void>;
-  readonly getLastMessages: (
-    sessionId: string,
-    limit: number
-  ) => Promise<readonly ConductorMessageSnapshot[]>;
-  readonly updateBlackboard: (sessionId: string, blackboard: ConductorBlackboard) => Promise<void>;
-  readonly getNextTurnNumber: (sessionId: string) => Promise<number>;
-  readonly createMessage: (input: {
-    readonly sessionId: string;
-    readonly personaId: string;
-    readonly content: string;
-    readonly turnNumber: number;
-    readonly metadata: {
-      readonly isIntervention: true;
-      readonly selectorReasoning: string;
-    };
-  }) => Promise<unknown>;
-  readonly incrementAutoReplyCount: (sessionId: string) => Promise<number>;
-}
+import type { SqlQueryExecutor } from './sql-query-executor';
 
 const repositoryError = (message: string): ConductorInfrastructureError => ({
   _tag: 'ConductorInfrastructureError',
@@ -74,103 +18,220 @@ const repositoryError = (message: string): ConductorInfrastructureError => ({
   message,
 });
 
-export const makeConductorTurnRepositoryFromQueries = (
-  queries: ConductorQueries
+interface ConductorSessionRow {
+  readonly sessionId: string;
+  readonly conductorEnabled: number;
+  readonly conductorPersonaId: string | null;
+  readonly autoReplyCount: number;
+  readonly tokenCount: number;
+  readonly problemDescription: string;
+  readonly outputGoal: string;
+  readonly blackboard: string | null;
+}
+
+interface ConductorPersonaRow {
+  readonly id: string;
+  readonly name: string;
+  readonly role: string;
+  readonly geminiModel: string;
+  readonly hushTurnsRemaining: number;
+}
+
+interface ConductorMessageRow {
+  readonly personaId: string | null;
+  readonly content: string;
+}
+
+const parseConductorBlackboard = (value: string | null): ConductorBlackboard | null => {
+  if (value === null) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(value) as Partial<ConductorBlackboard>;
+    if (
+      typeof parsed.consensus !== 'string' ||
+      typeof parsed.conflicts !== 'string' ||
+      typeof parsed.nextStep !== 'string' ||
+      typeof parsed.facts !== 'string'
+    ) {
+      return null;
+    }
+
+    return {
+      consensus: parsed.consensus,
+      conflicts: parsed.conflicts,
+      nextStep: parsed.nextStep,
+      facts: parsed.facts,
+    };
+  } catch {
+    return null;
+  }
+};
+
+const mapSessionRowToSnapshot = (
+  row: ConductorSessionRow | null
+): ConductorSessionSnapshot | null => {
+  if (row === null) {
+    return null;
+  }
+
+  return {
+    sessionId: row.sessionId,
+    conductorEnabled: Boolean(row.conductorEnabled),
+    conductorPersonaId: row.conductorPersonaId,
+    autoReplyCount: row.autoReplyCount,
+    tokenCount: row.tokenCount,
+    problemDescription: row.problemDescription,
+    outputGoal: row.outputGoal,
+    blackboard: parseConductorBlackboard(row.blackboard),
+  };
+};
+
+export const makeConductorTurnRepositoryFromSqlExecutor = (
+  sql: SqlQueryExecutor
 ): ConductorTurnRepositoryService => ({
   getSession: (sessionId) =>
     Effect.tryPromise({
-      try: () => queries.getSession(sessionId),
+      try: () =>
+        sql.get<ConductorSessionRow>(
+          `SELECT
+            id as sessionId,
+            orchestrator_enabled as conductorEnabled,
+            orchestrator_persona_id as conductorPersonaId,
+            auto_reply_count as autoReplyCount,
+            token_count as tokenCount,
+            problem_description as problemDescription,
+            output_goal as outputGoal,
+            blackboard
+           FROM sessions
+           WHERE id = ?`,
+          [sessionId]
+        ),
       catch: () => repositoryError('Failed to load session'),
-    }),
+    }).pipe(Effect.map(mapSessionRowToSnapshot)),
 
   getSessionPersonas: (sessionId) =>
     Effect.tryPromise({
-      try: () => queries.getSessionPersonas(sessionId),
+      try: () =>
+        sql.all<ConductorPersonaRow>(
+          `SELECT
+            p.id,
+            p.name,
+            p.role,
+            p.gemini_model as geminiModel,
+            sp.hush_turns_remaining as hushTurnsRemaining
+           FROM personas p
+           JOIN session_personas sp ON p.id = sp.persona_id
+           WHERE sp.session_id = ?
+           ORDER BY p.name`,
+          [sessionId]
+        ),
       catch: () => repositoryError('Failed to load session personas'),
     }),
 
   decrementAllHushTurns: (sessionId) =>
     Effect.tryPromise({
-      try: () => queries.decrementAllHushTurns(sessionId),
+      try: () =>
+        sql.run(
+          `UPDATE session_personas
+           SET hush_turns_remaining = MAX(0, hush_turns_remaining - 1)
+           WHERE session_id = ? AND hush_turns_remaining > 0`,
+          [sessionId]
+        ),
       catch: () => repositoryError('Failed to decrement hush turns'),
     }),
 
   getLastMessages: (sessionId, limit) =>
     Effect.tryPromise({
-      try: () => queries.getLastMessages(sessionId, limit),
+      try: () =>
+        sql.all<ConductorMessageRow>(
+          `SELECT
+            persona_id as personaId,
+            content
+           FROM messages
+           WHERE session_id = ?
+           ORDER BY turn_number DESC, created_at DESC
+           LIMIT ?`,
+          [sessionId, limit]
+        ),
       catch: () => repositoryError('Failed to load recent messages'),
-    }),
+    }).pipe(Effect.map((rows) => [...rows].reverse())),
 
   updateBlackboard: (sessionId, blackboard) =>
     Effect.tryPromise({
-      try: () => queries.updateBlackboard(sessionId, blackboard),
+      try: () =>
+        sql.run('UPDATE sessions SET blackboard = ? WHERE id = ?', [
+          JSON.stringify(blackboard),
+          sessionId,
+        ]),
       catch: () => repositoryError('Failed to update blackboard'),
     }),
 
   getNextTurnNumber: (sessionId) =>
     Effect.tryPromise({
-      try: () => queries.getNextTurnNumber(sessionId),
+      try: () =>
+        sql.get<{ maxTurn: number | null }>(
+          `SELECT MAX(turn_number) as maxTurn
+           FROM messages
+           WHERE session_id = ?`,
+          [sessionId]
+        ),
       catch: () => repositoryError('Failed to load next turn number'),
-    }),
+    }).pipe(Effect.map((row) => (row?.maxTurn ?? 0) + 1)),
 
   createInterventionMessage: (input) =>
     Effect.tryPromise({
       try: () =>
-        queries.createMessage({
-          sessionId: input.sessionId,
-          personaId: input.personaId,
-          content: input.content,
-          turnNumber: input.turnNumber,
-          metadata: {
-            isIntervention: true,
-            selectorReasoning: input.selectorReasoning,
-          },
-        }),
+        sql.run(
+          `INSERT INTO messages (
+             id,
+             session_id,
+             persona_id,
+             content,
+             turn_number,
+             token_count,
+             metadata
+           ) VALUES (
+             ?,
+             ?,
+             ?,
+             ?,
+             ?,
+             0,
+             ?
+           )`,
+          [
+            input.messageId,
+            input.sessionId,
+            input.personaId,
+            input.content,
+            input.turnNumber,
+            JSON.stringify({
+              isIntervention: true,
+              selectorReasoning: input.selectorReasoning,
+            }),
+          ]
+        ),
       catch: () => repositoryError('Failed to create intervention message'),
     }),
 
   incrementAutoReplyCount: (sessionId) =>
     Effect.tryPromise({
-      try: () => queries.incrementAutoReplyCount(sessionId),
+      try: () =>
+        sql.run('UPDATE sessions SET auto_reply_count = auto_reply_count + 1 WHERE id = ?', [sessionId]),
       catch: () => repositoryError('Failed to increment auto-reply count'),
-    }),
-});
-
-export const makeConductorTurnRepositoryFromElectronQueries = (
-  queries: ElectronConductorQueries
-): ConductorTurnRepositoryService =>
-  makeConductorTurnRepositoryFromQueries({
-    getSession: async (sessionId) => {
-      const session = await queries.getSession(sessionId);
-      if (!session) {
-        return null;
-      }
-
-      return {
-        sessionId: session.id,
-        orchestratorEnabled: session.orchestratorEnabled,
-        orchestratorPersonaId: session.orchestratorPersonaId,
-        autoReplyCount: session.autoReplyCount,
-        tokenCount: session.tokenCount,
-        problemDescription: session.problemDescription,
-        outputGoal: session.outputGoal,
-        blackboard: session.blackboard,
-      };
-    },
-    getSessionPersonas: (sessionId) => queries.getSessionPersonas(sessionId),
-    decrementAllHushTurns: (sessionId) => queries.decrementAllHushTurns(sessionId),
-    getLastMessages: (sessionId, limit) => queries.getLastMessages(sessionId, limit),
-    updateBlackboard: (sessionId, blackboard) => queries.updateBlackboard(sessionId, blackboard),
-    getNextTurnNumber: (sessionId) => queries.getNextTurnNumber(sessionId),
-    createMessage: (input) =>
-      queries
-        .createMessage({
-          sessionId: input.sessionId,
-          personaId: input.personaId,
-          content: input.content,
-          turnNumber: input.turnNumber,
-          metadata: input.metadata,
+    }).pipe(
+      Effect.flatMap(() =>
+        Effect.tryPromise({
+          try: () =>
+            sql.get<{ autoReplyCount: number }>(
+              'SELECT auto_reply_count as autoReplyCount FROM sessions WHERE id = ?',
+              [sessionId]
+            ),
+          catch: () => repositoryError('Failed to read auto-reply count'),
         })
-        .then(() => undefined),
-    incrementAutoReplyCount: (sessionId) => queries.incrementAutoReplyCount(sessionId),
-  });
+      ),
+      Effect.map((row) => row?.autoReplyCount ?? 0)
+    ),
+});

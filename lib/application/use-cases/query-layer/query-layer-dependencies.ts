@@ -10,8 +10,8 @@ export interface PersistedSessionSnapshotRow {
   readonly status: Session['status'];
   readonly tokenCount: number;
   readonly costEstimate: number;
-  readonly orchestratorEnabled: number | boolean;
-  readonly orchestratorPersonaId: string | null;
+  readonly conductorEnabled: number | boolean;
+  readonly conductorPersonaId: string | null;
   readonly blackboard: string | null;
   readonly autoReplyCount: number;
   readonly tokenBudget: number;

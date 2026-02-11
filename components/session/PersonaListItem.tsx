@@ -11,17 +11,17 @@ import { Crown, Loader2, Volume2, VolumeX } from 'lucide-react';
 import type { Persona } from '@/lib/types';
 
 interface SessionPersona extends Persona {
-  isOrchestrator: boolean;
+  isConductor: boolean;
   hushTurnsRemaining: number;
   hushedAt: string | null;
 }
 
 interface PersonaListItemProps {
   persona: SessionPersona;
-  isOrchestrator: boolean;
+  isConductor: boolean;
   isArchived: boolean;
   thinkingPersonaId: string | null;
-  orchestratorRunning: boolean;
+  conductorRunning: boolean;
   hushPresets: readonly number[];
   onAskToSpeak: (personaId: string) => void;
   onHush: (personaId: string, turns: number) => void;
@@ -30,10 +30,10 @@ interface PersonaListItemProps {
 
 export function PersonaListItem({
   persona,
-  isOrchestrator,
+  isConductor,
   isArchived,
   thinkingPersonaId,
-  orchestratorRunning,
+  conductorRunning,
   hushPresets,
   onAskToSpeak,
   onHush,
@@ -46,7 +46,7 @@ export function PersonaListItem({
 
   return (
     <div
-      className={`rounded-md border border-border/70 px-2.5 py-2 ${isOrchestrator ? 'border-primary/50 bg-primary/5' : 'bg-card/60'}`}
+      className={`rounded-md border border-border/70 px-2.5 py-2 ${isConductor ? 'border-primary/50 bg-primary/5' : 'bg-card/60'}`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
@@ -56,7 +56,7 @@ export function PersonaListItem({
               style={{ backgroundColor: persona.color }}
             />
             <span className="truncate text-sm font-medium text-foreground">{persona.name}</span>
-            {isOrchestrator && <Crown className="h-3 w-3 shrink-0 text-primary" />}
+            {isConductor && <Crown className="h-3 w-3 shrink-0 text-primary" />}
           </div>
           <p className="truncate pl-4 text-xs text-muted-foreground">{persona.role}</p>
         </div>
@@ -80,7 +80,7 @@ export function PersonaListItem({
               variant="outline"
               className="h-7 gap-1 px-2 text-xs"
               onClick={() => onAskToSpeak(persona.id)}
-              disabled={isThinking || hasThinkingPersona || orchestratorRunning || isArchived || isHushed}
+              disabled={isThinking || hasThinkingPersona || conductorRunning || isArchived || isHushed}
             >
               {isThinking ? (
                 <>
@@ -103,7 +103,7 @@ export function PersonaListItem({
                   size="icon"
                   variant="ghost"
                   className="h-7 w-7"
-                  disabled={isThinking || orchestratorRunning}
+                  disabled={isThinking || conductorRunning}
                 >
                   {isHushed ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
                 </Button>

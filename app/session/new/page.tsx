@@ -23,8 +23,8 @@ export default function NewSessionPage() {
     outputGoal: '',
   });
   const [selectedPersonas, setSelectedPersonas] = useState<string[]>([]);
-  const [enableOrchestrator, setEnableOrchestrator] = useState(false);
-  const [orchestratorPersonaId, setOrchestratorPersonaId] = useState<string>('');
+  const [enableConductor, setEnableConductor] = useState(false);
+  const [conductorPersonaId, setConductorPersonaId] = useState<string>('');
   const [sessionTags, setSessionTags] = useState<string[]>([]);
 
   useEffect(() => {
@@ -42,9 +42,9 @@ export default function NewSessionPage() {
   const togglePersona = (personaId: string) => {
     setSelectedPersonas(prev => {
       if (prev.includes(personaId)) {
-        // Removing a persona - reset orchestrator if it was this persona
-        if (orchestratorPersonaId === personaId) {
-          setOrchestratorPersonaId('');
+        // Removing a persona - reset conductor if it was this persona
+        if (conductorPersonaId === personaId) {
+          setConductorPersonaId('');
         }
         return prev.filter(id => id !== personaId);
       }
@@ -60,15 +60,15 @@ export default function NewSessionPage() {
       return;
     }
 
-    const orchestratorConfig = enableOrchestrator && orchestratorPersonaId
-      ? { enabled: true, orchestratorPersonaId }
+    const conductorConfig = enableConductor && conductorPersonaId
+      ? { enabled: true, conductorPersonaId }
       : undefined;
 
     const sessionId = await createSession({
       title: formData.title,
       problemDescription: formData.problemDescription,
       outputGoal: formData.outputGoal,
-    }, selectedPersonas, orchestratorConfig, sessionTags);
+    }, selectedPersonas, conductorConfig, sessionTags);
 
     if (sessionId) {
       navigate(`/session?id=${sessionId}`);
@@ -84,7 +84,7 @@ export default function NewSessionPage() {
   };
 
   const isValid = formData.title && formData.problemDescription && selectedPersonas.length >= 2;
-  const canEnableOrchestrator = selectedPersonas.length >= 2;
+  const canEnableConductor = selectedPersonas.length >= 2;
 
   return (
     <TooltipProvider>
@@ -167,13 +167,13 @@ export default function NewSessionPage() {
               </div>
             </Card>
 
-            {/* Orchestrator Mode */}
-            <Card className={`p-6 bg-card border-border ${!canEnableOrchestrator ? 'opacity-60' : ''}`}>
+            {/* Conductor Mode */}
+            <Card className={`p-6 bg-card border-border ${!canEnableConductor ? 'opacity-60' : ''}`}>
               <div className="flex items-start gap-4">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
                     <Sparkles className="w-5 h-5 text-muted-foreground" />
-                    <h2 className="text-lg font-semibold text-foreground">Orchestrator Mode</h2>
+                    <h2 className="text-lg font-semibold text-foreground">Conductor Mode</h2>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button variant="ghost" size="icon" className="w-6 h-6">
@@ -182,7 +182,7 @@ export default function NewSessionPage() {
                       </TooltipTrigger>
                       <TooltipContent className="max-w-sm">
                         <p className="text-xs">
-                          The Orchestrator AI automatically manages turn-taking, detects topic drift, 
+                          The Conductor AI automatically manages turn-taking, detects topic drift,
                           and maintains a shared Blackboard of consensus and conflicts. Requires at least 2 personas.
                         </p>
                       </TooltipContent>
@@ -194,35 +194,35 @@ export default function NewSessionPage() {
                   
                   <div className="flex items-center gap-3">
                     <Button
-                      variant={enableOrchestrator ? "default" : "outline"}
-                      onClick={() => setEnableOrchestrator(!enableOrchestrator)}
-                      disabled={!canEnableOrchestrator}
+                      variant={enableConductor ? "default" : "outline"}
+                      onClick={() => setEnableConductor(!enableConductor)}
+                      disabled={!canEnableConductor}
                       className="gap-2"
                     >
                       <Sparkles className="w-4 h-4" />
-                      {enableOrchestrator ? 'Enabled' : 'Enable Orchestrator'}
+                      {enableConductor ? 'Enabled' : 'Enable Conductor'}
                     </Button>
                     
-                    {enableOrchestrator && (
+                    {enableConductor && (
                       <Badge variant="secondary">
                         Will auto-manage discussion
                       </Badge>
                     )}
                   </div>
                   
-                  {!canEnableOrchestrator && (
+                  {!canEnableConductor && (
                     <p className="text-xs text-muted-foreground mt-2">
-                      Select at least 2 personas to enable Orchestrator mode
+                      Select at least 2 personas to enable Conductor mode
                     </p>
                   )}
                 </div>
               </div>
 
-              {/* Orchestrator Persona Selection */}
-              {enableOrchestrator && canEnableOrchestrator && (
+              {/* Conductor Persona Selection */}
+              {enableConductor && canEnableConductor && (
                 <div className="mt-4 pt-4 border-t border-border">
                   <p className="text-sm font-medium text-foreground mb-3">
-                    Select which persona will act as the Orchestrator:
+                    Select which persona will act as the Conductor:
                   </p>
                   <div className="grid gap-2 md:grid-cols-2">
                     {personas
@@ -230,9 +230,9 @@ export default function NewSessionPage() {
                       .map((persona) => (
                         <button
                           key={persona.id}
-                      onClick={() => setOrchestratorPersonaId(persona.id)}
+                      onClick={() => setConductorPersonaId(persona.id)}
                       className={`p-3 rounded-lg border text-left transition-all ${
-                        orchestratorPersonaId === persona.id
+                        conductorPersonaId === persona.id
                           ? 'border-primary bg-secondary'
                           : 'border-border hover:border-muted'
                       }`}
@@ -243,16 +243,16 @@ export default function NewSessionPage() {
                               style={{ backgroundColor: persona.color }}
                             />
                             <span className="font-medium text-sm">{persona.name}</span>
-                            {orchestratorPersonaId === persona.id && (
+                            {conductorPersonaId === persona.id && (
                               <Crown className="w-4 h-4 text-primary ml-auto" />
                             )}
                           </div>
                         </button>
                       ))}
                   </div>
-                  {!orchestratorPersonaId && (
+                  {!conductorPersonaId && (
                     <p className="text-xs text-muted-foreground mt-2">
-                      Please select one persona to be the Orchestrator
+                      Please select one persona to be the Conductor
                     </p>
                   )}
                 </div>
@@ -313,9 +313,9 @@ export default function NewSessionPage() {
               {selectedPersonas.length > 0 && (
                 <p className="text-sm text-muted-foreground mt-3">
                   {selectedPersonas.length} persona{selectedPersonas.length !== 1 ? 's' : ''} selected
-                  {enableOrchestrator && orchestratorPersonaId && selectedPersonas.includes(orchestratorPersonaId) && (
+                  {enableConductor && conductorPersonaId && selectedPersonas.includes(conductorPersonaId) && (
                     <span className="text-primary ml-2">
-                      • {personas.find(p => p.id === orchestratorPersonaId)?.name} will be Orchestrator
+                      • {personas.find(p => p.id === conductorPersonaId)?.name} will be Conductor
                     </span>
                   )}
                 </p>
@@ -326,7 +326,7 @@ export default function NewSessionPage() {
             <div className="flex gap-2 pt-4">
               <Button
                 onClick={handleCreateSession}
-                disabled={!isValid || isLoading || (enableOrchestrator && !orchestratorPersonaId)}
+                disabled={!isValid || isLoading || (enableConductor && !conductorPersonaId)}
               >
                 {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Create Session

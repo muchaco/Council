@@ -1,23 +1,17 @@
-import { Effect, Either, Option } from 'effect';
+import { Effect, Either } from 'effect';
 
+import { IdGenerator } from '../../runtime';
+import { type ConductorBlackboard, type AutoReplySafetyPolicy } from '../../../core/domain/conductor';
 import {
-  emptyConductorBlackboard,
-  findLastSpeakerId,
-  toSelectorConversationMessages,
-  type ConductorBlackboard,
-  type AutoReplySafetyPolicy,
-} from '../../../core/domain/conductor';
-import {
-  decideCircuitBreaker,
   decideConductorParticipantPreconditions,
-  decideConductorSessionPreconditions,
-  decideNextAction,
-  decideSelectorFollowUpEffects,
-  decideSpeakerEligibility,
-  decideWaitForUser,
+  decideConductorSelectorPlan,
+  decideConductorTurnOutcomePlan,
+  decideConductorTurnPreflight,
+  prepareConductorSelectorPrompt,
 } from '../../../core/decision/conductor';
 import type { ConductorDomainError } from '../../../core/errors/conductor-error';
 import {
+  ConductorSettings,
   ConductorSelectorGateway,
   ConductorTurnRepository,
   type ConductorInfrastructureError,
@@ -62,92 +56,97 @@ export const executeConductorTurn = (
 ): Effect.Effect<
   ExecuteConductorTurnResult,
   ConductorTurnUseCaseError,
-  ConductorTurnRepository | ConductorSelectorGateway
+  ConductorTurnRepository | ConductorSelectorGateway | ConductorSettings | IdGenerator
 > =>
   Effect.gen(function* () {
     const repository = yield* ConductorTurnRepository;
     const selectorGateway = yield* ConductorSelectorGateway;
+    const settings = yield* ConductorSettings;
+    const idGenerator = yield* IdGenerator;
 
-    const sessionDecision = decideConductorSessionPreconditions(
-      yield* repository.getSession(input.sessionId)
-    );
-    if (Either.isLeft(sessionDecision)) {
-      return yield* Effect.fail(sessionDecision.left);
+    const session = yield* repository.getSession(input.sessionId);
+    const preflightDecision = decideConductorTurnPreflight(session, input.autoReplySafetyPolicy);
+    if (Either.isLeft(preflightDecision)) {
+      return yield* Effect.fail(preflightDecision.left);
     }
 
-    const { session, orchestratorPersonaId } = sessionDecision.right;
-
-    const circuitBreakerDecision = decideCircuitBreaker(session, input.autoReplySafetyPolicy);
-    if (circuitBreakerDecision._tag === 'PauseForUserConfirmation') {
+    const preflightPlan = preflightDecision.right;
+    if (preflightPlan._tag === 'StopForCircuitBreaker') {
       return {
         _tag: 'CircuitBreakerStopped',
-        message: circuitBreakerDecision.message,
+        message: preflightPlan.message,
       };
+    }
+
+    const precheckPersonas = yield* repository.getSessionPersonas(input.sessionId);
+    const participantPrecheckDecision = decideConductorParticipantPreconditions(
+      precheckPersonas,
+      preflightPlan.conductorPersonaId
+    );
+    if (Either.isLeft(participantPrecheckDecision)) {
+      return yield* Effect.fail(participantPrecheckDecision.left);
     }
 
     yield* repository.decrementAllHushTurns(input.sessionId);
     const personas = yield* repository.getSessionPersonas(input.sessionId);
-
-    const participantsDecision = decideConductorParticipantPreconditions(
-      personas,
-      orchestratorPersonaId
-    );
-    if (Either.isLeft(participantsDecision)) {
-      return yield* Effect.fail(participantsDecision.left);
-    }
-    const { orchestratorPersona } = participantsDecision.right;
-
     const messages = yield* repository.getLastMessages(input.sessionId, input.recentMessageLimit ?? 10);
-    const lastSpeakerId = findLastSpeakerId(messages);
 
-    const speakerEligibility = decideSpeakerEligibility({
+    const selectorPlanDecision = decideConductorSelectorPlan({
+      session: preflightPlan.session,
       personas,
-      orchestratorPersonaId,
-      lastSpeakerId,
+      messages,
+      conductorPersonaId: preflightPlan.conductorPersonaId,
     });
 
-    const waitForUser = decideWaitForUser(speakerEligibility);
-    if (Option.isSome(waitForUser)) {
+    if (Either.isLeft(selectorPlanDecision)) {
+      return yield* Effect.fail(selectorPlanDecision.left);
+    }
+
+    const selectorPlan = selectorPlanDecision.right;
+    if (selectorPlan._tag === 'WaitForUserBeforeSelection') {
       return {
         _tag: 'WaitForUser',
-        reasoning: waitForUser.value.reasoning,
+        reasoning: selectorPlan.reasoning,
         blackboardUpdate: {},
       };
     }
 
-    const blackboard = session.blackboard ?? emptyConductorBlackboard;
+    const geminiApiKey = yield* settings.getGeminiApiKey;
+    const selectorGenerationPolicy = yield* settings.getSelectorGenerationPolicy;
 
     const selectorResult = yield* selectorGateway.selectNextSpeaker({
-      sessionId: input.sessionId,
-      selectorModel: orchestratorPersona.geminiModel,
-      recentMessages: toSelectorConversationMessages(messages, personas),
-      blackboard,
-      availablePersonas: speakerEligibility.eligibleSpeakers,
-      hushedPersonas: speakerEligibility.mutedSpeakers,
-      problemDescription: session.problemDescription,
-      outputGoal: session.outputGoal,
-      lastSpeakerId,
+      apiKey: geminiApiKey,
+      selectorModel: selectorPlan.selectorModel,
+      selectorPrompt: prepareConductorSelectorPrompt(selectorPlan.selectorPromptInput),
+      temperature: selectorGenerationPolicy.temperature,
+      maxOutputTokens: selectorGenerationPolicy.maxOutputTokens,
     });
 
-    const followUpEffects = decideSelectorFollowUpEffects({
-      currentBlackboard: blackboard,
-      updateBlackboard: selectorResult.updateBlackboard,
-      isIntervention: selectorResult.isIntervention,
-      interventionMessage: selectorResult.interventionMessage,
-      selectorReasoning: selectorResult.reasoning,
+    const outcomePlanDecision = decideConductorTurnOutcomePlan({
+      currentBlackboard: selectorPlan.currentBlackboard,
+      selectorResult,
+      knownPersonaIds: personas.map((persona) => persona.id),
     });
 
-    for (const followUpEffect of followUpEffects) {
+    if (Either.isLeft(outcomePlanDecision)) {
+      return yield* Effect.fail(outcomePlanDecision.left);
+    }
+
+    const outcomePlan = outcomePlanDecision.right;
+
+    for (const followUpEffect of outcomePlan.followUpEffects) {
       switch (followUpEffect._tag) {
         case 'MergeBlackboard': {
           yield* repository.updateBlackboard(input.sessionId, followUpEffect.nextBlackboard);
           break;
         }
         case 'RecordInterventionMessage': {
+          const messageId = yield* idGenerator.generate;
           const turnNumber = yield* repository.getNextTurnNumber(input.sessionId);
           yield* repository.createInterventionMessage({
+            messageId,
             sessionId: input.sessionId,
-            personaId: orchestratorPersona.id,
+            personaId: selectorPlan.conductorPersonaId,
             content: followUpEffect.messageContent,
             turnNumber,
             selectorReasoning: followUpEffect.selectorReasoning,
@@ -161,23 +160,11 @@ export const executeConductorTurn = (
       }
     }
 
-    const nextActionDecision = decideNextAction({
-      selectedPersonaId: selectorResult.selectedPersonaId,
-      reasoning: selectorResult.reasoning,
-      isIntervention: selectorResult.isIntervention,
-      knownPersonaIds: personas.map((persona) => persona.id),
-    });
-
-    if (Either.isLeft(nextActionDecision)) {
-      return yield* Effect.fail(nextActionDecision.left);
-    }
-
-    const nextAction = nextActionDecision.right;
-    if (nextAction._tag === 'WaitForUser') {
+    if (outcomePlan._tag === 'WaitForUserAfterSelection') {
       return {
         _tag: 'WaitForUser',
-        reasoning: nextAction.reasoning,
-        blackboardUpdate: selectorResult.updateBlackboard,
+        reasoning: outcomePlan.reasoning,
+        blackboardUpdate: outcomePlan.blackboardUpdate,
       };
     }
 
@@ -185,14 +172,11 @@ export const executeConductorTurn = (
 
     return {
       _tag: 'TriggerPersona',
-      personaId: nextAction.personaId,
-      reasoning: nextAction.reasoning,
-      blackboardUpdate: selectorResult.updateBlackboard,
-      isIntervention: nextAction.isIntervention,
+      personaId: outcomePlan.personaId,
+      reasoning: outcomePlan.reasoning,
+      blackboardUpdate: outcomePlan.blackboardUpdate,
+      isIntervention: outcomePlan.isIntervention,
       autoReplyCount,
-      warning:
-        circuitBreakerDecision._tag === 'ContinueWithBudgetWarning'
-          ? circuitBreakerDecision.warning
-          : undefined,
+      warning: preflightPlan.warning,
     };
   });

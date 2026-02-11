@@ -24,11 +24,11 @@ export const executeLoadSessionParticipants = (
 export const executeAddSessionParticipant = (
   sessionId: string,
   personaId: string,
-  isOrchestrator = false
+  isConductor = false
 ): Effect.Effect<void, SessionParticipationInfrastructureError, SessionParticipationRepository> =>
   Effect.gen(function* () {
     const repository = yield* SessionParticipationRepository;
-    yield* repository.addSessionParticipant(sessionId, personaId, isOrchestrator);
+    yield* repository.addSessionParticipant(sessionId, personaId, isConductor);
   });
 
 export const executeSetSessionParticipantHush = (

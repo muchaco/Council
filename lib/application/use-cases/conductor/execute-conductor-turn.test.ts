@@ -1,23 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import { Effect, Either } from 'effect';
 
+import { IdGenerator } from '../../runtime';
 import type {
   ConductorMessageSnapshot,
   ConductorPersonaSnapshot,
   ConductorSessionSnapshot,
 } from '../../../core/domain/conductor';
 import {
+  ConductorSettings,
   ConductorSelectorGateway,
   ConductorTurnRepository,
   executeConductorTurn,
+  type ConductorSettingsService,
   type ConductorSelectorGatewayService,
   type ConductorTurnRepositoryService,
 } from './index';
 
 const baseSession: ConductorSessionSnapshot = {
   sessionId: 'session-1',
-  orchestratorEnabled: true,
-  orchestratorPersonaId: 'conductor',
+  conductorEnabled: true,
+  conductorPersonaId: 'conductor',
   autoReplyCount: 0,
   tokenCount: 0,
   problemDescription: 'Ship migration',
@@ -48,17 +51,29 @@ const makeRepository = (options?: {
   messages?: readonly ConductorMessageSnapshot[];
   onUpdateBlackboard?: () => void;
   onCreateIntervention?: () => void;
+  onLoadSessionPersonas?: () => void;
+  onDecrementHushTurns?: () => void;
+  onLoadLastMessages?: () => void;
 }): ConductorTurnRepositoryService => ({
   getSession: () => Effect.succeed(options?.session ?? baseSession),
-  getSessionPersonas: () => Effect.succeed(options?.personas ?? basePersonas),
-  decrementAllHushTurns: () => Effect.void,
-  getLastMessages: () => Effect.succeed(options?.messages ?? [{ personaId: null, content: 'prompt' }]),
+  getSessionPersonas: () => {
+    options?.onLoadSessionPersonas?.();
+    return Effect.succeed(options?.personas ?? basePersonas);
+  },
+  decrementAllHushTurns: () => {
+    options?.onDecrementHushTurns?.();
+    return Effect.void;
+  },
+  getLastMessages: () => {
+    options?.onLoadLastMessages?.();
+    return Effect.succeed(options?.messages ?? [{ personaId: null, content: 'prompt' }]);
+  },
   updateBlackboard: () => {
     options?.onUpdateBlackboard?.();
     return Effect.void;
   },
   getNextTurnNumber: () => Effect.succeed(3),
-  createInterventionMessage: () => {
+  createInterventionMessage: (_input) => {
     options?.onCreateIntervention?.();
     return Effect.void;
   },
@@ -69,6 +84,16 @@ const makeSelectorGateway = (
   service: ConductorSelectorGatewayService['selectNextSpeaker']
 ): ConductorSelectorGatewayService => ({
   selectNextSpeaker: service,
+});
+
+const makeSettings = (
+  input?: Partial<{ apiKey: string; temperature: number; maxOutputTokens: number }>
+): ConductorSettingsService => ({
+  getGeminiApiKey: Effect.succeed(input?.apiKey ?? 'test-api-key'),
+  getSelectorGenerationPolicy: Effect.succeed({
+    temperature: input?.temperature ?? 0.3,
+    maxOutputTokens: input?.maxOutputTokens ?? 2048,
+  }),
 });
 
 describe('execute_conductor_turn_use_case_spec', () => {
@@ -94,7 +119,9 @@ describe('execute_conductor_turn_use_case_spec', () => {
     const outcome = await Effect.runPromise(
       executeConductorTurn({ sessionId: 'session-1' }).pipe(
         Effect.provideService(ConductorTurnRepository, repository),
-        Effect.provideService(ConductorSelectorGateway, selectorGateway)
+        Effect.provideService(ConductorSelectorGateway, selectorGateway),
+        Effect.provideService(ConductorSettings, makeSettings()),
+        Effect.provideService(IdGenerator, { generate: Effect.succeed('intervention-message-1') })
       )
     );
 
@@ -122,7 +149,9 @@ describe('execute_conductor_turn_use_case_spec', () => {
     const outcome = await Effect.runPromise(
       executeConductorTurn({ sessionId: 'session-1' }).pipe(
         Effect.provideService(ConductorTurnRepository, repository),
-        Effect.provideService(ConductorSelectorGateway, selectorGateway)
+        Effect.provideService(ConductorSelectorGateway, selectorGateway),
+        Effect.provideService(ConductorSettings, makeSettings()),
+        Effect.provideService(IdGenerator, { generate: Effect.succeed('intervention-message-1') })
       )
     );
 
@@ -148,7 +177,9 @@ describe('execute_conductor_turn_use_case_spec', () => {
     const outcome = await Effect.runPromise(
       executeConductorTurn({ sessionId: 'session-1' }).pipe(
         Effect.provideService(ConductorTurnRepository, repository),
-        Effect.provideService(ConductorSelectorGateway, selectorGateway)
+        Effect.provideService(ConductorSelectorGateway, selectorGateway),
+        Effect.provideService(ConductorSettings, makeSettings()),
+        Effect.provideService(IdGenerator, { generate: Effect.succeed('intervention-message-1') })
       )
     );
 
@@ -160,7 +191,13 @@ describe('execute_conductor_turn_use_case_spec', () => {
   });
 
   it('returns_domain_error_when_persona_set_is_empty', async () => {
-    const repository = makeRepository({ personas: [] });
+    const calls: string[] = [];
+    const repository = makeRepository({
+      personas: [],
+      onLoadSessionPersonas: () => calls.push('personas'),
+      onDecrementHushTurns: () => calls.push('decrement-hush'),
+      onLoadLastMessages: () => calls.push('messages'),
+    });
     const selectorGateway = makeSelectorGateway(() =>
       Effect.die('selector should not run when persona preconditions fail')
     );
@@ -169,6 +206,8 @@ describe('execute_conductor_turn_use_case_spec', () => {
       executeConductorTurn({ sessionId: 'session-1' }).pipe(
         Effect.provideService(ConductorTurnRepository, repository),
         Effect.provideService(ConductorSelectorGateway, selectorGateway),
+        Effect.provideService(ConductorSettings, makeSettings()),
+        Effect.provideService(IdGenerator, { generate: Effect.succeed('intervention-message-1') }),
         Effect.either
       )
     );
@@ -180,11 +219,12 @@ describe('execute_conductor_turn_use_case_spec', () => {
         message: 'No personas in session',
       });
     }
+    expect(calls).toEqual(['personas']);
   });
 
-  it('returns_domain_error_when_orchestrator_persona_is_missing', async () => {
+  it('returns_domain_error_when_conductor_persona_is_missing', async () => {
     const repository = makeRepository({
-      session: { ...baseSession, orchestratorPersonaId: 'missing-conductor' },
+      session: { ...baseSession, conductorPersonaId: 'missing-conductor' },
       personas: [basePersonas[1]],
     });
     const selectorGateway = makeSelectorGateway(() =>
@@ -195,6 +235,8 @@ describe('execute_conductor_turn_use_case_spec', () => {
       executeConductorTurn({ sessionId: 'session-1' }).pipe(
         Effect.provideService(ConductorTurnRepository, repository),
         Effect.provideService(ConductorSelectorGateway, selectorGateway),
+        Effect.provideService(ConductorSettings, makeSettings()),
+        Effect.provideService(IdGenerator, { generate: Effect.succeed('intervention-message-1') }),
         Effect.either
       )
     );
@@ -203,7 +245,7 @@ describe('execute_conductor_turn_use_case_spec', () => {
     if (Either.isLeft(outcome)) {
       expect(outcome.left).toEqual({
         _tag: 'ConductorPersonaMissingError',
-        message: 'Orchestrator persona not found',
+        message: 'Conductor persona not found',
       });
     }
   });
@@ -223,6 +265,8 @@ describe('execute_conductor_turn_use_case_spec', () => {
       executeConductorTurn({ sessionId: 'session-1' }).pipe(
         Effect.provideService(ConductorTurnRepository, repository),
         Effect.provideService(ConductorSelectorGateway, selectorGateway),
+        Effect.provideService(ConductorSettings, makeSettings()),
+        Effect.provideService(IdGenerator, { generate: Effect.succeed('intervention-message-1') }),
         Effect.either
       )
     );
@@ -242,6 +286,7 @@ describe('execute_conductor_turn_use_case_spec', () => {
       Effect.fail({
         _tag: 'ConductorInfrastructureError',
         source: 'selector',
+        code: 'ExecutionFailed',
         message: 'Selector agent failed: timeout',
       })
     );
@@ -250,6 +295,8 @@ describe('execute_conductor_turn_use_case_spec', () => {
       executeConductorTurn({ sessionId: 'session-1' }).pipe(
         Effect.provideService(ConductorTurnRepository, repository),
         Effect.provideService(ConductorSelectorGateway, selectorGateway),
+        Effect.provideService(ConductorSettings, makeSettings()),
+        Effect.provideService(IdGenerator, { generate: Effect.succeed('intervention-message-1') }),
         Effect.either
       )
     );
@@ -259,6 +306,7 @@ describe('execute_conductor_turn_use_case_spec', () => {
       expect(outcome.left).toEqual({
         _tag: 'ConductorInfrastructureError',
         source: 'selector',
+        code: 'ExecutionFailed',
         message: 'Selector agent failed: timeout',
       });
     }

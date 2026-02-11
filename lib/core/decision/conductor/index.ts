@@ -4,3 +4,7 @@ export * from './decide-wait-for-user';
 export * from './decide-next-action';
 export * from './decide-conductor-preconditions';
 export * from './decide-selector-follow-up-effects';
+export * from './prepare-conductor-selector-prompt';
+export * from './decide-conductor-turn-preflight';
+export * from './decide-conductor-selector-plan';
+export * from './decide-conductor-turn-outcome';

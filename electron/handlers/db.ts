@@ -71,8 +71,8 @@ export function setupDatabaseHandlers(): void {
   ipcMain.handle('db:session:create', async (_, data) => {
     try {
       console.log('Creating session:', data?.title || 'untitled');
-      const { orchestratorConfig, ...sessionData } = data;
-      const result = await queries.createSession(sessionData, orchestratorConfig);
+      const { conductorConfig, ...sessionData } = data;
+      const result = await queries.createSession(sessionData, conductorConfig);
       console.log('Session created successfully:', result.id);
       return { success: true, data: result };
     } catch (error) {
@@ -159,10 +159,10 @@ export function setupDatabaseHandlers(): void {
   });
 
   // Session Persona handlers
-  ipcMain.handle('db:sessionPersona:add', async (_, sessionId: string, personaId: string, isOrchestrator: boolean) => {
+  ipcMain.handle('db:sessionPersona:add', async (_, sessionId: string, personaId: string, isConductor: boolean) => {
     try {
       console.log('Adding persona', personaId, 'to session', sessionId);
-      await queries.addPersonaToSession(sessionId, personaId, isOrchestrator);
+      await queries.addPersonaToSession(sessionId, personaId, isConductor);
       console.log('Persona added to session successfully');
       return { success: true };
     } catch (error) {

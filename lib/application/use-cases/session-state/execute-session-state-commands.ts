@@ -10,7 +10,7 @@ import {
 
 export const executeCreateSessionState = (
   input: SessionInput,
-  orchestratorConfig?: { readonly enabled: boolean; readonly orchestratorPersonaId?: string }
+  conductorConfig?: { readonly enabled: boolean; readonly conductorPersonaId?: string }
 ): Effect.Effect<
   Session,
   SessionStateInfrastructureError,
@@ -22,15 +22,15 @@ export const executeCreateSessionState = (
     const clock = yield* Clock;
     const id = yield* idGenerator.generate;
     const now = (yield* clock.now).toISOString();
-    const orchestratorEnabled = orchestratorConfig?.enabled ?? false;
-    const orchestratorPersonaId = orchestratorConfig?.orchestratorPersonaId ?? null;
+    const conductorEnabled = conductorConfig?.enabled ?? false;
+    const conductorPersonaId = conductorConfig?.conductorPersonaId ?? null;
 
     yield* repository.createSession({
       id,
       now,
       input,
-      orchestratorEnabled,
-      orchestratorPersonaId,
+      conductorEnabled,
+      conductorPersonaId,
     });
 
     return {
@@ -41,8 +41,8 @@ export const executeCreateSessionState = (
       status: 'active',
       tokenCount: 0,
       costEstimate: 0,
-      orchestratorEnabled,
-      orchestratorPersonaId,
+      conductorEnabled,
+      conductorPersonaId,
       blackboard: null,
       autoReplyCount: 0,
       tokenBudget: 100000,
@@ -107,21 +107,21 @@ export const executeResetSessionAutoReplyCount = (
     yield* repository.resetAutoReplyCount(sessionId);
   });
 
-export const executeEnableSessionOrchestrator = (
+export const executeEnableSessionConductor = (
   sessionId: string,
-  orchestratorPersonaId: string
+  conductorPersonaId: string
 ): Effect.Effect<void, SessionStateInfrastructureError, SessionStateRepository> =>
   Effect.gen(function* () {
     const repository = yield* SessionStateRepository;
-    yield* repository.enableOrchestrator(sessionId, orchestratorPersonaId);
+    yield* repository.enableConductor(sessionId, conductorPersonaId);
   });
 
-export const executeDisableSessionOrchestrator = (
+export const executeDisableSessionConductor = (
   sessionId: string
 ): Effect.Effect<void, SessionStateInfrastructureError, SessionStateRepository> =>
   Effect.gen(function* () {
     const repository = yield* SessionStateRepository;
-    yield* repository.disableOrchestrator(sessionId);
+    yield* repository.disableConductor(sessionId);
   });
 
 export const executeArchiveSession = (

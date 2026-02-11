@@ -3,8 +3,8 @@ import {
   executeArchiveSession,
   executeCreateSessionState,
   executeDeleteSessionState,
-  executeDisableSessionOrchestrator,
-  executeEnableSessionOrchestrator,
+  executeDisableSessionConductor,
+  executeEnableSessionConductor,
   executeIncrementSessionAutoReplyCount,
   executeIsSessionArchived,
   executeLoadSessionById,
@@ -21,8 +21,8 @@ type SessionUpdateInput = Partial<SessionInput> & {
   status?: string;
   tokenCount?: number;
   costEstimate?: number;
-  orchestratorEnabled?: boolean;
-  orchestratorPersonaId?: string | null;
+  conductorEnabled?: boolean;
+  conductorPersonaId?: string | null;
   blackboard?: any;
   autoReplyCount?: number;
   tokenBudget?: number;
@@ -31,9 +31,9 @@ type SessionUpdateInput = Partial<SessionInput> & {
 
 export async function createSession(
   data: SessionInput,
-  orchestratorConfig?: { enabled: boolean; orchestratorPersonaId?: string }
+  conductorConfig?: { enabled: boolean; conductorPersonaId?: string }
 ): Promise<Session> {
-  return runSessionState(executeCreateSessionState(data, orchestratorConfig));
+  return runSessionState(executeCreateSessionState(data, conductorConfig));
 }
 
 export async function getSessions(): Promise<Session[]> {
@@ -75,12 +75,12 @@ export async function resetAutoReplyCount(sessionId: string): Promise<void> {
   await runSessionState(executeResetSessionAutoReplyCount(sessionId));
 }
 
-export async function enableOrchestrator(sessionId: string, orchestratorPersonaId: string): Promise<void> {
-  await runSessionState(executeEnableSessionOrchestrator(sessionId, orchestratorPersonaId));
+export async function enableConductor(sessionId: string, conductorPersonaId: string): Promise<void> {
+  await runSessionState(executeEnableSessionConductor(sessionId, conductorPersonaId));
 }
 
-export async function disableOrchestrator(sessionId: string): Promise<void> {
-  await runSessionState(executeDisableSessionOrchestrator(sessionId));
+export async function disableConductor(sessionId: string): Promise<void> {
+  await runSessionState(executeDisableSessionConductor(sessionId));
 }
 
 export async function archiveSession(sessionId: string): Promise<void> {

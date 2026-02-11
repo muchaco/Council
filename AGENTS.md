@@ -62,7 +62,7 @@ Current examples:
   - Core: `lib/core/domain/conductor.ts`, `lib/core/decision/conductor/*`, `lib/core/plan/conductor-plan.ts`, `lib/core/errors/conductor-error.ts`
   - Application: `lib/application/use-cases/conductor/*`
   - Infrastructure: `lib/infrastructure/db/conductor-turn-repository.ts`, `lib/infrastructure/llm/conductor-selector-gateway.ts`
-  - Shell: `electron/handlers/orchestrator.ts`
+  - Shell: `electron/handlers/conductor.ts`
 
 ---
 
@@ -249,3 +249,4 @@ Format:
 - **[FCIS readonly-to-SDK mapping]:** Keep core/application DTOs readonly for purity, then convert to SDK-specific mutable request objects (for example Gemini `startChat` history) inside infrastructure gateway adapters.
 - **[FCIS failure precedence]:** Preserve legacy failure ordering by checking settings/auth preconditions before repository reads, and validating cheap domain preconditions before expensive context loads; back this with tests that assert skipped dependency calls.
 - **[Query shell runtime wiring]:** When use-cases move UUID/time behind services, ensure each Electron shell runner provides `LiveIdGeneratorLayer` and `LiveClockLayer` alongside repository services before executing effects.
+- **[Electron-store typed access]:** In boundary adapters, avoid `as any`; if `ElectronStore<T>` typings do not expose `get` cleanly, use a small `unknown`-based typed accessor helper (`{ get(key): unknown }`) and narrow returned values explicitly.

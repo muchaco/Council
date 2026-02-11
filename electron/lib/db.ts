@@ -7,7 +7,7 @@ let db: sqlite3.Database | null = null;
 let initPromise: Promise<sqlite3.Database> | null = null;
 let initAttempts = 0;
 const MAX_INIT_ATTEMPTS = 3;
-const CURRENT_SCHEMA_VERSION = 7;
+const CURRENT_SCHEMA_VERSION = 8;
 
 export function getDatabasePath(): string {
   try {
@@ -206,6 +206,13 @@ async function initializeSchemaWithMigrations(database: sqlite3.Database): Promi
     console.log('Migration to version 7 complete');
   }
 
+  if (currentVersion < 8) {
+    console.log('Running migration to version 8...');
+    await runMigrationV8(database, run);
+    await run('INSERT OR REPLACE INTO schema_version (version) VALUES (8)');
+    console.log('Migration to version 8 complete');
+  }
+
   console.log('All migrations complete');
 }
 
@@ -401,6 +408,85 @@ async function runMigrationV7(database: sqlite3.Database, run: (sql: string) => 
   } catch (err) {
     // Column might already exist
     console.log('Note: hushed_at column may already exist');
+  }
+}
+
+interface LegacyConductorMetadataRow {
+  readonly id: string;
+  readonly metadata: string;
+}
+
+const normalizeLegacyConductorMessageMetadata = (serializedMetadata: string): string | null => {
+  try {
+    const parsed = JSON.parse(serializedMetadata) as Record<string, unknown>;
+    if (!Object.prototype.hasOwnProperty.call(parsed, 'isOrchestratorMessage')) {
+      return null;
+    }
+
+    if (!Object.prototype.hasOwnProperty.call(parsed, 'isConductorMessage')) {
+      parsed.isConductorMessage = Boolean(parsed.isOrchestratorMessage);
+    }
+
+    delete parsed.isOrchestratorMessage;
+    return JSON.stringify(parsed);
+  } catch {
+    return null;
+  }
+};
+
+async function runMigrationV8(database: sqlite3.Database, run: (sql: string) => Promise<void>): Promise<void> {
+  const all = (sql: string, params: readonly unknown[]): Promise<readonly LegacyConductorMetadataRow[]> =>
+    new Promise((resolve, reject) => {
+      database.all(sql, params, (err, rows) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(rows as readonly LegacyConductorMetadataRow[]);
+      });
+    });
+
+  const update = (sql: string, params: readonly unknown[]): Promise<void> =>
+    new Promise((resolve, reject) => {
+      database.run(sql, params, (err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve();
+      });
+    });
+
+  const rows = await all(
+    `SELECT id, metadata
+     FROM messages
+     WHERE metadata LIKE '%isOrchestratorMessage%'`,
+    []
+  );
+
+  if (rows.length === 0) {
+    console.log('No legacy orchestrator metadata keys found in messages');
+    return;
+  }
+
+  await run('BEGIN TRANSACTION');
+  try {
+    let updatedCount = 0;
+    for (const row of rows) {
+      const normalized = normalizeLegacyConductorMessageMetadata(row.metadata);
+      if (!normalized) {
+        continue;
+      }
+
+      await update('UPDATE messages SET metadata = ? WHERE id = ?', [normalized, row.id]);
+      updatedCount += 1;
+    }
+
+    await run('COMMIT');
+    console.log(`Normalized legacy metadata key on ${updatedCount} message(s)`);
+  } catch (error) {
+    await run('ROLLBACK');
+    throw error;
   }
 }
 

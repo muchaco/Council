@@ -3,7 +3,7 @@ import path from 'path';
 import { setupDatabaseHandlers } from './handlers/db.js';
 import { setupLLMHandlers } from './handlers/llm.js';
 import { setupSettingsHandlers } from './handlers/settings.js';
-import { setupOrchestratorHandlers } from './handlers/orchestrator.js';
+import { setupConductorHandlers } from './handlers/conductor.js';
 import { setupExportHandlers } from './handlers/export.js';
 
 // Disable GPU acceleration to avoid VAAPI version errors
@@ -110,7 +110,7 @@ app.whenReady().then(() => {
   setupDatabaseHandlers();
   setupLLMHandlers();
   setupSettingsHandlers();
-  setupOrchestratorHandlers();
+  setupConductorHandlers();
   setupExportHandlers();
 
   app.on('activate', () => {

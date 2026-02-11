@@ -17,8 +17,8 @@ const baseSessionRow: PersistedSessionSnapshotRow = {
   status: 'active',
   tokenCount: 42,
   costEstimate: 0.12,
-  orchestratorEnabled: 1,
-  orchestratorPersonaId: 'persona-1',
+  conductorEnabled: 1,
+  conductorPersonaId: 'persona-1',
   blackboard: JSON.stringify({ consensus: 'agreed', conflicts: '', nextStep: 'ship', facts: 'none' }),
   autoReplyCount: 2,
   tokenBudget: 100_000,
@@ -50,7 +50,7 @@ describe('execute_query_layer_session_reads_use_case_spec', () => {
 
     expect(sessions).toHaveLength(1);
     expect(sessions[0]?.id).toBe('session-1');
-    expect(sessions[0]?.orchestratorEnabled).toBe(true);
+    expect(sessions[0]?.conductorEnabled).toBe(true);
     expect(sessions[0]?.tags).toEqual(['phase-3', 'fcis']);
     expect(sessions[0]?.blackboard?.nextStep).toBe('ship');
   });

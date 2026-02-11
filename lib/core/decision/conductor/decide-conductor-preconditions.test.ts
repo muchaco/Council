@@ -18,8 +18,8 @@ describe('decide_conductor_preconditions_spec', () => {
       name: 'fails_when_conductor_is_disabled',
       session: {
         sessionId: 'session-1',
-        orchestratorEnabled: false,
-        orchestratorPersonaId: null,
+        conductorEnabled: false,
+        conductorPersonaId: null,
         autoReplyCount: 0,
         tokenCount: 0,
         problemDescription: 'Problem',
@@ -28,7 +28,7 @@ describe('decide_conductor_preconditions_spec', () => {
       },
       expected: {
         _tag: 'ConductorNotEnabledError',
-        message: 'Orchestrator not enabled for this session',
+        message: 'Conductor not enabled for this session',
       },
     },
   ])('$name', ({ session, expected }) => {
@@ -41,7 +41,7 @@ describe('decide_conductor_preconditions_spec', () => {
     }
   });
 
-  it('returns_orchestrator_persona_when_participant_preconditions_pass', () => {
+  it('returns_conductor_persona_when_participant_preconditions_pass', () => {
     const decision = decideConductorParticipantPreconditions(
       [
         {
@@ -57,7 +57,7 @@ describe('decide_conductor_preconditions_spec', () => {
 
     expect(Either.isRight(decision)).toBe(true);
     if (Either.isRight(decision)) {
-      expect(decision.right.orchestratorPersona.id).toBe('conductor');
+      expect(decision.right.conductorPersona.id).toBe('conductor');
     }
   });
 
@@ -65,14 +65,14 @@ describe('decide_conductor_preconditions_spec', () => {
     {
       name: 'fails_when_session_has_no_personas',
       personas: [],
-      orchestratorPersonaId: 'conductor',
+      conductorPersonaId: 'conductor',
       expected: {
         _tag: 'ConductorNoPersonasError',
         message: 'No personas in session',
       },
     },
     {
-      name: 'fails_when_orchestrator_persona_is_missing',
+      name: 'fails_when_conductor_persona_is_missing',
       personas: [
         {
           id: 'speaker-a',
@@ -82,14 +82,14 @@ describe('decide_conductor_preconditions_spec', () => {
           hushTurnsRemaining: 0,
         },
       ],
-      orchestratorPersonaId: 'conductor',
+      conductorPersonaId: 'conductor',
       expected: {
         _tag: 'ConductorPersonaMissingError',
-        message: 'Orchestrator persona not found',
+        message: 'Conductor persona not found',
       },
     },
-  ])('$name', ({ personas, orchestratorPersonaId, expected }) => {
-    const decision = decideConductorParticipantPreconditions(personas, orchestratorPersonaId);
+  ])('$name', ({ personas, conductorPersonaId, expected }) => {
+    const decision = decideConductorParticipantPreconditions(personas, conductorPersonaId);
     expect(Either.isLeft(decision)).toBe(true);
     if (Either.isLeft(decision)) {
       expect(decision.left).toEqual(expected);

@@ -7,8 +7,8 @@ export interface ConductorBlackboard {
 
 export interface ConductorSessionSnapshot {
   readonly sessionId: string;
-  readonly orchestratorEnabled: boolean;
-  readonly orchestratorPersonaId: string | null;
+  readonly conductorEnabled: boolean;
+  readonly conductorPersonaId: string | null;
   readonly autoReplyCount: number;
   readonly tokenCount: number;
   readonly problemDescription: string;
@@ -45,6 +45,24 @@ export interface MutedSpeaker {
   readonly id: string;
   readonly name: string;
   readonly remainingTurns: number;
+}
+
+export interface ConductorSelectorPromptInput {
+  readonly problemDescription: string;
+  readonly outputGoal: string;
+  readonly blackboard: ConductorBlackboard;
+  readonly recentConversation: readonly SelectorConversationMessage[];
+  readonly availablePersonas: readonly EligibleSpeaker[];
+  readonly hushedPersonas: readonly MutedSpeaker[];
+  readonly lastSpeakerId: string | null;
+}
+
+export interface ConductorSelectorDecision {
+  readonly selectedPersonaId: string | 'WAIT_FOR_USER';
+  readonly reasoning: string;
+  readonly isIntervention: boolean;
+  readonly interventionMessage?: string;
+  readonly updateBlackboard: Partial<ConductorBlackboard>;
 }
 
 export interface AutoReplySafetyPolicy {

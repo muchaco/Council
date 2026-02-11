@@ -51,13 +51,13 @@ const buildUpdateSessionStatement = (
     assignments.push('cost_estimate = ?');
     params.push(command.input.costEstimate);
   }
-  if (command.input.orchestratorEnabled !== undefined) {
+  if (command.input.conductorEnabled !== undefined) {
     assignments.push('orchestrator_enabled = ?');
-    params.push(command.input.orchestratorEnabled ? 1 : 0);
+    params.push(command.input.conductorEnabled ? 1 : 0);
   }
-  if (command.input.orchestratorPersonaId !== undefined) {
+  if (command.input.conductorPersonaId !== undefined) {
     assignments.push('orchestrator_persona_id = ?');
-    params.push(command.input.orchestratorPersonaId);
+    params.push(command.input.conductorPersonaId);
   }
   if (command.input.blackboard !== undefined) {
     assignments.push('blackboard = ?');
@@ -103,8 +103,8 @@ export const makeSessionStateRepositoryFromSqlExecutor = (
             'active',
             0,
             0,
-            command.orchestratorEnabled ? 1 : 0,
-            command.orchestratorPersonaId,
+            command.conductorEnabled ? 1 : 0,
+            command.conductorPersonaId,
             null,
             0,
             100000,
@@ -161,21 +161,21 @@ export const makeSessionStateRepositoryFromSqlExecutor = (
       catch: (error) => repositoryError(toCauseMessage(error, 'Failed to reset auto-reply count')),
     }),
 
-  enableOrchestrator: (sessionId, orchestratorPersonaId) =>
+  enableConductor: (sessionId, conductorPersonaId) =>
     Effect.tryPromise({
       try: () =>
         sql.run('UPDATE sessions SET orchestrator_enabled = 1, orchestrator_persona_id = ? WHERE id = ?', [
-          orchestratorPersonaId,
+          conductorPersonaId,
           sessionId,
         ]),
-      catch: (error) => repositoryError(toCauseMessage(error, 'Failed to enable orchestrator')),
+      catch: (error) => repositoryError(toCauseMessage(error, 'Failed to enable conductor')),
     }),
 
-  disableOrchestrator: (sessionId) =>
+  disableConductor: (sessionId) =>
     Effect.tryPromise({
       try: () =>
         sql.run('UPDATE sessions SET orchestrator_enabled = 0, orchestrator_persona_id = NULL WHERE id = ?', [sessionId]),
-      catch: (error) => repositoryError(toCauseMessage(error, 'Failed to disable orchestrator')),
+      catch: (error) => repositoryError(toCauseMessage(error, 'Failed to disable conductor')),
     }),
 
   archiveSession: (sessionId, archivedAt) =>

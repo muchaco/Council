@@ -21,7 +21,7 @@ declare global {
       deleteSession: (id: string) => Promise<{ success: boolean; error?: string }>;
       createMessage: (data: unknown) => Promise<{ success: boolean; data?: unknown; error?: string }>;
       getMessages: (sessionId: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
-      addPersonaToSession: (sessionId: string, personaId: string, isOrchestrator: boolean) => Promise<{ success: boolean; error?: string }>;
+      addPersonaToSession: (sessionId: string, personaId: string, isConductor: boolean) => Promise<{ success: boolean; error?: string }>;
       getSessionPersonas: (sessionId: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
       hushPersona: (sessionId: string, personaId: string, turns: number) => Promise<{ success: boolean; error?: string }>;
       unhushPersona: (sessionId: string, personaId: string) => Promise<{ success: boolean; error?: string }>;
@@ -51,8 +51,8 @@ declare global {
       setSetting: (key: string, value: unknown) => Promise<{ success: boolean; error?: string }>;
       listModels: () => Promise<{ success: boolean; data?: Array<{ name: string; displayName: string; description: string; supportedMethods: string[] }>; error?: string }>;
     };
-    electronOrchestrator: {
-      enable: (sessionId: string, orchestratorPersonaId: string) => Promise<{ success: boolean; error?: string }>;
+    electronConductor: {
+      enable: (sessionId: string, conductorPersonaId: string) => Promise<{ success: boolean; error?: string }>;
       disable: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
       processTurn: (sessionId: string) => Promise<{ 
         success: boolean; 

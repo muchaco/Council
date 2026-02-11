@@ -18,8 +18,8 @@ const baseRepository: SessionStateRepositoryService = {
   incrementAutoReplyCount: () => Effect.void,
   readAutoReplyCount: () => Effect.succeed(0),
   resetAutoReplyCount: () => Effect.void,
-  enableOrchestrator: () => Effect.void,
-  disableOrchestrator: () => Effect.void,
+  enableConductor: () => Effect.void,
+  disableConductor: () => Effect.void,
   archiveSession: () => Effect.void,
   unarchiveSession: () => Effect.void,
   isSessionArchived: () => Effect.succeed(false),
@@ -46,7 +46,7 @@ describe('execute_session_state_commands_use_case_spec', () => {
         },
         {
           enabled: true,
-          orchestratorPersonaId: 'orchestrator-1',
+          conductorPersonaId: 'conductor-1',
         }
       ).pipe(
         Effect.provideService(SessionStateRepository, writeCapableRepository),
@@ -64,8 +64,8 @@ describe('execute_session_state_commands_use_case_spec', () => {
           problemDescription: 'Need a safe FCIS rollout',
           outputGoal: 'Produce an execution plan',
         },
-        orchestratorEnabled: true,
-        orchestratorPersonaId: 'orchestrator-1',
+        conductorEnabled: true,
+        conductorPersonaId: 'conductor-1',
       },
     ]);
     expect(session.id).toBe('session-1');

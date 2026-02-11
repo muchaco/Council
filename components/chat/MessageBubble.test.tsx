@@ -10,7 +10,7 @@ describe('message_bubble_spec', () => {
     senderName: 'Test Persona',
     timestamp: '2026-02-07T10:30:00.000Z',
     isUser: false,
-    isOrchestrator: false,
+    isConductor: false,
   };
 
   // Helper to convert hex to RGB string for comparison with computed styles
@@ -87,21 +87,21 @@ describe('message_bubble_spec', () => {
     });
   });
 
-  describe('an_orchestrator_message_uses_neutral_styling', () => {
+  describe('a_conductor_message_uses_neutral_styling', () => {
     it('applies_bg_card_class', () => {
-      render(<MessageBubble {...baseProps} isOrchestrator={true} />);
+      render(<MessageBubble {...baseProps} isConductor={true} />);
       const bubble = screen.getByTestId('message-bubble');
       expect(bubble.classList.contains('bg-card')).toBe(true);
     });
 
     it('applies_border_class', () => {
-      render(<MessageBubble {...baseProps} isOrchestrator={true} />);
+      render(<MessageBubble {...baseProps} isConductor={true} />);
       const bubble = screen.getByTestId('message-bubble');
       expect(bubble.classList.contains('border')).toBe(true);
     });
 
     it('ignores_accent_color_even_when_provided', () => {
-      render(<MessageBubble {...baseProps} isOrchestrator={true} accentColor="#3B82F6" />);
+      render(<MessageBubble {...baseProps} isConductor={true} accentColor="#3B82F6" />);
       const bubble = screen.getByTestId('message-bubble');
       expect(bubble.style.borderLeft).toBe('');
       expect(bubble.style.backgroundColor).toBe('');

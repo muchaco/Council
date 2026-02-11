@@ -12,7 +12,7 @@ export interface PersistedSessionParticipantRow {
   readonly verbosity: string | undefined;
   readonly createdAt: string;
   readonly updatedAt: string;
-  readonly isOrchestrator: number | boolean;
+  readonly isConductor: number | boolean;
   readonly hushTurnsRemaining: number | null;
   readonly hushedAt: string | null;
 }
@@ -29,7 +29,7 @@ export interface SessionParticipantProfile {
   readonly verbosity: string | undefined;
   readonly createdAt: string;
   readonly updatedAt: string;
-  readonly isOrchestrator: boolean;
+  readonly isConductor: boolean;
   readonly hushTurnsRemaining: number;
   readonly hushedAt: string | null;
 }
@@ -51,7 +51,7 @@ export interface SessionParticipationRepositoryService {
   readonly addSessionParticipant: (
     sessionId: string,
     personaId: string,
-    isOrchestrator: boolean
+    isConductor: boolean
   ) => Effect.Effect<void, SessionParticipationInfrastructureError>;
   readonly listSessionParticipants: (
     sessionId: string

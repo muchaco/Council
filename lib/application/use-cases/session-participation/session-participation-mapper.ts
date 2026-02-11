@@ -17,7 +17,7 @@ export const mapPersistedSessionParticipantRowToSessionPersona = (
   verbosity: row.verbosity,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
-  isOrchestrator: Boolean(row.isOrchestrator),
+  isConductor: Boolean(row.isConductor),
   hushTurnsRemaining: row.hushTurnsRemaining ?? 0,
   hushedAt: row.hushedAt ?? null,
 });

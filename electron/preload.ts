@@ -21,8 +21,8 @@ const dbAPI = {
   getMessages: (sessionId: string) => ipcRenderer.invoke('db:message:getBySession', sessionId),
   
   // Session Personas
-  addPersonaToSession: (sessionId: string, personaId: string, isOrchestrator: boolean) => 
-    ipcRenderer.invoke('db:sessionPersona:add', sessionId, personaId, isOrchestrator),
+  addPersonaToSession: (sessionId: string, personaId: string, isConductor: boolean) =>
+    ipcRenderer.invoke('db:sessionPersona:add', sessionId, personaId, isConductor),
   getSessionPersonas: (sessionId: string) => ipcRenderer.invoke('db:sessionPersona:getBySession', sessionId),
   
   // Hush - "The Hush Button" feature
@@ -65,16 +65,16 @@ const settingsAPI = {
   listModels: () => ipcRenderer.invoke('settings:listModels'),
 };
 
-// Orchestrator API
-const orchestratorAPI = {
-  enable: (sessionId: string, orchestratorPersonaId: string) => 
-    ipcRenderer.invoke('orchestrator:enable', { sessionId, orchestratorPersonaId }),
-  disable: (sessionId: string) => ipcRenderer.invoke('orchestrator:disable', sessionId),
-  processTurn: (sessionId: string) => ipcRenderer.invoke('orchestrator:processTurn', sessionId),
-  resetCircuitBreaker: (sessionId: string) => ipcRenderer.invoke('orchestrator:resetCircuitBreaker', sessionId),
-  getBlackboard: (sessionId: string) => ipcRenderer.invoke('orchestrator:getBlackboard', sessionId),
+// Conductor API
+const conductorAPI = {
+  enable: (sessionId: string, conductorPersonaId: string) =>
+    ipcRenderer.invoke('conductor:enable', { sessionId, conductorPersonaId }),
+  disable: (sessionId: string) => ipcRenderer.invoke('conductor:disable', sessionId),
+  processTurn: (sessionId: string) => ipcRenderer.invoke('conductor:processTurn', sessionId),
+  resetCircuitBreaker: (sessionId: string) => ipcRenderer.invoke('conductor:resetCircuitBreaker', sessionId),
+  getBlackboard: (sessionId: string) => ipcRenderer.invoke('conductor:getBlackboard', sessionId),
   updateBlackboard: (sessionId: string, blackboard: unknown) => 
-    ipcRenderer.invoke('orchestrator:updateBlackboard', { sessionId, blackboard }),
+    ipcRenderer.invoke('conductor:updateBlackboard', { sessionId, blackboard }),
 };
 
 // Export API
@@ -87,11 +87,11 @@ const exportAPI = {
 contextBridge.exposeInMainWorld('electronDB', dbAPI);
 contextBridge.exposeInMainWorld('electronLLM', llmAPI);
 contextBridge.exposeInMainWorld('electronSettings', settingsAPI);
-contextBridge.exposeInMainWorld('electronOrchestrator', orchestratorAPI);
+contextBridge.exposeInMainWorld('electronConductor', conductorAPI);
 contextBridge.exposeInMainWorld('electronExport', exportAPI);
 
 export type ElectronDB = typeof dbAPI;
 export type ElectronLLM = typeof llmAPI;
 export type ElectronSettings = typeof settingsAPI;
-export type ElectronOrchestrator = typeof orchestratorAPI;
+export type ElectronConductor = typeof conductorAPI;
 export type ElectronExport = typeof exportAPI;

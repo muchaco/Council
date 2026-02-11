@@ -52,8 +52,8 @@ export async function getSessionForExport(sessionId: string): Promise<SessionExp
       status,
       token_count as tokenCount,
       cost_estimate as costEstimate,
-      orchestrator_enabled as orchestratorEnabled,
-      orchestrator_persona_id as orchestratorPersonaId,
+      orchestrator_enabled as conductorEnabled,
+      orchestrator_persona_id as conductorPersonaId,
       blackboard,
       auto_reply_count as autoReplyCount,
       token_budget as tokenBudget,
@@ -70,7 +70,7 @@ export async function getSessionForExport(sessionId: string): Promise<SessionExp
 
   const session: Session = {
     ...sessionRow,
-    orchestratorEnabled: Boolean(sessionRow.orchestratorEnabled),
+    conductorEnabled: Boolean(sessionRow.conductorEnabled),
     blackboard: sessionRow.blackboard ? JSON.parse(sessionRow.blackboard) : null,
   };
 
@@ -101,7 +101,7 @@ export async function getSessionForExport(sessionId: string): Promise<SessionExp
 
   const messages: ExportableMessage[] = messageRows.map((row, index) => {
     const metadata: MessageMetadata | null = row.metadata ? JSON.parse(row.metadata) : null;
-    const isOrchestratorMessage = metadata?.isOrchestratorMessage || false;
+    const isConductorMessage = metadata?.isConductorMessage || false;
     
     let personaName: string;
     let personaRole: string | undefined;
@@ -121,9 +121,9 @@ export async function getSessionForExport(sessionId: string): Promise<SessionExp
           order: participants.size,
         });
       }
-    } else if (isOrchestratorMessage) {
-      // Orchestrator message (no persona_id or persona was deleted)
-      personaName = 'Orchestrator';
+    } else if (isConductorMessage) {
+      // Conductor message (no persona_id or persona was deleted)
+      personaName = 'Conductor';
       personaRole = 'System';
       personaColor = '#8B5CF6';
     } else if (row.personaId && !row.personaName) {

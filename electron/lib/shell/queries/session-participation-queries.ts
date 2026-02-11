@@ -14,9 +14,9 @@ import { runSessionParticipationRead } from './context.js';
 export async function addPersonaToSession(
   sessionId: string,
   personaId: string,
-  isOrchestrator: boolean = false
+  isConductor: boolean = false
 ): Promise<void> {
-  await runSessionParticipationRead(executeAddSessionParticipant(sessionId, personaId, isOrchestrator));
+  await runSessionParticipationRead(executeAddSessionParticipant(sessionId, personaId, isConductor));
 }
 
 export async function getSessionPersonas(sessionId: string): Promise<SessionPersona[]> {

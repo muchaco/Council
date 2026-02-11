@@ -8,11 +8,11 @@ import type { ConductorDomainError } from '../../errors/conductor-error';
 
 export interface ConductorSessionPreconditions {
   readonly session: ConductorSessionSnapshot;
-  readonly orchestratorPersonaId: string;
+  readonly conductorPersonaId: string;
 }
 
 export interface ConductorParticipantPreconditions {
-  readonly orchestratorPersona: ConductorPersonaSnapshot;
+  readonly conductorPersona: ConductorPersonaSnapshot;
 }
 
 export const decideConductorSessionPreconditions = (
@@ -25,22 +25,22 @@ export const decideConductorSessionPreconditions = (
     });
   }
 
-  if (!session.orchestratorEnabled || !session.orchestratorPersonaId) {
+  if (!session.conductorEnabled || !session.conductorPersonaId) {
     return Either.left({
       _tag: 'ConductorNotEnabledError',
-      message: 'Orchestrator not enabled for this session',
+      message: 'Conductor not enabled for this session',
     });
   }
 
   return Either.right({
     session,
-    orchestratorPersonaId: session.orchestratorPersonaId,
+    conductorPersonaId: session.conductorPersonaId,
   });
 };
 
 export const decideConductorParticipantPreconditions = (
   personas: readonly ConductorPersonaSnapshot[],
-  orchestratorPersonaId: string
+  conductorPersonaId: string
 ): Either.Either<ConductorParticipantPreconditions, ConductorDomainError> => {
   if (personas.length === 0) {
     return Either.left({
@@ -49,13 +49,13 @@ export const decideConductorParticipantPreconditions = (
     });
   }
 
-  const orchestratorPersona = personas.find((persona) => persona.id === orchestratorPersonaId);
-  if (!orchestratorPersona) {
+  const conductorPersona = personas.find((persona) => persona.id === conductorPersonaId);
+  if (!conductorPersona) {
     return Either.left({
       _tag: 'ConductorPersonaMissingError',
-      message: 'Orchestrator persona not found',
+      message: 'Conductor persona not found',
     });
   }
 
-  return Either.right({ orchestratorPersona });
+  return Either.right({ conductorPersona });
 };

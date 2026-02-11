@@ -7,7 +7,7 @@ export interface MessageBubbleProps {
   senderName: string;
   timestamp: string;
   isUser: boolean;
-  isOrchestrator: boolean;
+  isConductor: boolean;
   isIntervention?: boolean;
   accentColor?: string;
 }
@@ -17,11 +17,11 @@ export function MessageBubble({
   senderName,
   timestamp,
   isUser,
-  isOrchestrator,
+  isConductor,
   isIntervention = false,
   accentColor,
 }: MessageBubbleProps) {
-  const hasAccent = accentColor && !isUser && !isOrchestrator && !isIntervention;
+  const hasAccent = accentColor && !isUser && !isConductor && !isIntervention;
   const accentColors = hasAccent ? calculateAccentColor(accentColor) : null;
 
   const bubbleStyles: React.CSSProperties = hasAccent && accentColors

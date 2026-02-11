@@ -64,7 +64,7 @@ describe('decide_speaker_eligibility_spec', () => {
         ...persona,
         hushTurnsRemaining: overrides[persona.id as keyof typeof overrides] ?? 0,
       })),
-      orchestratorPersonaId: 'conductor',
+      conductorPersonaId: 'conductor',
       lastSpeakerId,
     });
 

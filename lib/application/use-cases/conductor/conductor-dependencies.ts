@@ -2,42 +2,45 @@ import { Context, Effect } from 'effect';
 
 import type {
   ConductorBlackboard,
+  ConductorSelectorDecision,
   ConductorMessageSnapshot,
   ConductorPersonaSnapshot,
   ConductorSessionSnapshot,
-  EligibleSpeaker,
-  MutedSpeaker,
 } from '../../../core/domain/conductor';
 
-export interface ConductorInfrastructureError {
-  readonly _tag: 'ConductorInfrastructureError';
-  readonly source: 'repository' | 'selector';
-  readonly message: string;
+export type ConductorInfrastructureError =
+  | {
+      readonly _tag: 'ConductorInfrastructureError';
+      readonly source: 'repository';
+      readonly message: string;
+    }
+  | {
+      readonly _tag: 'ConductorInfrastructureError';
+      readonly source: 'selector';
+      readonly code: 'ExecutionFailed' | 'InvalidSelectorResponse';
+      readonly message: string;
+    }
+  | {
+      readonly _tag: 'ConductorInfrastructureError';
+      readonly source: 'settings';
+      readonly code: 'ApiKeyMissing' | 'ApiKeyDecryptFailed' | 'SettingsReadFailed';
+      readonly message: string;
+    };
+
+export interface ConductorSelectorGenerationPolicy {
+  readonly temperature: number;
+  readonly maxOutputTokens: number;
 }
 
 export interface SelectNextSpeakerRequest {
-  readonly sessionId: string;
+  readonly apiKey: string;
   readonly selectorModel: string;
-  readonly recentMessages: ReadonlyArray<{
-    readonly role: 'user' | 'model';
-    readonly content: string;
-    readonly personaName: string;
-  }>;
-  readonly blackboard: ConductorBlackboard;
-  readonly availablePersonas: readonly EligibleSpeaker[];
-  readonly hushedPersonas: readonly MutedSpeaker[];
-  readonly problemDescription: string;
-  readonly outputGoal: string;
-  readonly lastSpeakerId: string | null;
+  readonly selectorPrompt: string;
+  readonly temperature: number;
+  readonly maxOutputTokens: number;
 }
 
-export interface SelectNextSpeakerResponse {
-  readonly selectedPersonaId: string | 'WAIT_FOR_USER';
-  readonly reasoning: string;
-  readonly isIntervention: boolean;
-  readonly interventionMessage?: string;
-  readonly updateBlackboard: Partial<ConductorBlackboard>;
-}
+export type SelectNextSpeakerResponse = ConductorSelectorDecision;
 
 export interface ConductorTurnRepositoryService {
   readonly getSession: (
@@ -57,6 +60,7 @@ export interface ConductorTurnRepositoryService {
   ) => Effect.Effect<void, ConductorInfrastructureError>;
   readonly getNextTurnNumber: (sessionId: string) => Effect.Effect<number, ConductorInfrastructureError>;
   readonly createInterventionMessage: (input: {
+    readonly messageId: string;
     readonly sessionId: string;
     readonly personaId: string;
     readonly content: string;
@@ -72,6 +76,14 @@ export interface ConductorSelectorGatewayService {
   ) => Effect.Effect<SelectNextSpeakerResponse, ConductorInfrastructureError>;
 }
 
+export interface ConductorSettingsService {
+  readonly getGeminiApiKey: Effect.Effect<string, ConductorInfrastructureError>;
+  readonly getSelectorGenerationPolicy: Effect.Effect<
+    ConductorSelectorGenerationPolicy,
+    ConductorInfrastructureError
+  >;
+}
+
 export class ConductorTurnRepository extends Context.Tag('ConductorTurnRepository')<
   ConductorTurnRepository,
   ConductorTurnRepositoryService
@@ -80,4 +92,9 @@ export class ConductorTurnRepository extends Context.Tag('ConductorTurnRepositor
 export class ConductorSelectorGateway extends Context.Tag('ConductorSelectorGateway')<
   ConductorSelectorGateway,
   ConductorSelectorGatewayService
+>() {}
+
+export class ConductorSettings extends Context.Tag('ConductorSettings')<
+  ConductorSettings,
+  ConductorSettingsService
 >() {}

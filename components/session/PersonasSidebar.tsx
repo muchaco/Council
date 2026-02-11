@@ -5,7 +5,7 @@ import { PersonaListItem } from '@/components/session/PersonaListItem';
 import type { Persona, Session } from '@/lib/types';
 
 interface SessionPersona extends Persona {
-  isOrchestrator: boolean;
+  isConductor: boolean;
   hushTurnsRemaining: number;
   hushedAt: string | null;
 }
@@ -14,11 +14,11 @@ interface PersonasSidebarProps {
   currentSession: Session;
   sessionPersonas: SessionPersona[];
   isArchived: boolean;
-  orchestratorPaused: boolean;
-  orchestratorRunning: boolean;
+  conductorPaused: boolean;
+  conductorRunning: boolean;
   thinkingPersonaId: string | null;
   hushPresets: readonly number[];
-  onToggleOrchestrator: () => void;
+  onToggleConductor: () => void;
   onPauseOrResume: () => void;
   onContinue: () => void;
   onAskToSpeak: (personaId: string) => void;
@@ -31,11 +31,11 @@ export function PersonasSidebar({
   currentSession,
   sessionPersonas,
   isArchived,
-  orchestratorPaused,
-  orchestratorRunning,
+  conductorPaused,
+  conductorRunning,
   thinkingPersonaId,
   hushPresets,
-  onToggleOrchestrator,
+  onToggleConductor,
   onPauseOrResume,
   onContinue,
   onAskToSpeak,
@@ -54,37 +54,37 @@ export function PersonasSidebar({
         </Link>
 
         <div className="mt-3 flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">Orchestrator Mode</span>
+          <span className="text-xs text-muted-foreground">Conductor Mode</span>
           <Button
-            variant={currentSession.orchestratorEnabled ? 'default' : 'outline'}
+            variant={currentSession.conductorEnabled ? 'default' : 'outline'}
             size="sm"
             className="gap-1 text-xs"
-            onClick={onToggleOrchestrator}
+            onClick={onToggleConductor}
             disabled={isArchived}
           >
             <Sparkles className="h-3 w-3" />
-            {currentSession.orchestratorEnabled ? 'On' : 'Off'}
+            {currentSession.conductorEnabled ? 'On' : 'Off'}
           </Button>
         </div>
 
-        {currentSession.orchestratorEnabled && (
+        {currentSession.conductorEnabled && (
           <div className="mt-2 flex gap-1">
             <Button
               variant="outline"
               size="sm"
               className="flex-1 gap-1 text-xs"
               onClick={onPauseOrResume}
-              disabled={orchestratorRunning}
+              disabled={conductorRunning}
             >
-              {orchestratorPaused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
-              {orchestratorPaused ? 'Resume' : 'Pause'}
+              {conductorPaused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
+              {conductorPaused ? 'Resume' : 'Pause'}
             </Button>
             <Button
               variant="outline"
               size="sm"
               className="flex-1 gap-1 text-xs"
               onClick={onContinue}
-              disabled={!orchestratorPaused}
+              disabled={!conductorPaused}
             >
               <RotateCcw className="h-3 w-3" />
               Continue
@@ -98,10 +98,10 @@ export function PersonasSidebar({
           <PersonaListItem
             key={persona.id}
             persona={persona}
-            isOrchestrator={persona.id === currentSession.orchestratorPersonaId}
+            isConductor={persona.id === currentSession.conductorPersonaId}
             isArchived={isArchived}
             thinkingPersonaId={thinkingPersonaId}
-            orchestratorRunning={orchestratorRunning}
+            conductorRunning={conductorRunning}
             hushPresets={hushPresets}
             onAskToSpeak={onAskToSpeak}
             onHush={onHush}
@@ -132,7 +132,7 @@ export function PersonasSidebar({
           </span>
           <span className="font-mono">{formatDuration(currentSession.createdAt)}</span>
         </div>
-        {currentSession.orchestratorEnabled && (
+        {currentSession.conductorEnabled && (
           <div className="flex justify-between text-muted-foreground">
             <span className="flex items-center gap-1">
               <Sparkles className="h-3 w-3" />
