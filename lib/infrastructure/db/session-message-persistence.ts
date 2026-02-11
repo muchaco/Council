@@ -5,7 +5,8 @@ import type {
   SessionMessagePersistenceService,
   SessionMessagingInfrastructureError,
 } from '../../application/use-cases/session-messaging';
-import type { Message, Session } from '../../types';
+import { parseSessionPayload } from '../../boundary/session-payload-parser';
+import type { Message } from '../../types';
 
 interface SessionMessageElectronDB {
   readonly getNextTurnNumber: (sessionId: string) => Promise<{ success: boolean; data?: number; error?: string }>;
@@ -43,51 +44,6 @@ const isMessage = (value: unknown): value is Message => {
     typeof value.turnNumber === 'number' &&
     typeof value.tokenCount === 'number' &&
     typeof value.createdAt === 'string'
-  );
-};
-
-const isBlackboardState = (value: unknown): value is NonNullable<Session['blackboard']> => {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  return (
-    typeof value.consensus === 'string' &&
-    typeof value.conflicts === 'string' &&
-    typeof value.nextStep === 'string' &&
-    typeof value.facts === 'string'
-  );
-};
-
-const isSessionStatus = (value: unknown): value is Session['status'] =>
-  value === 'active' || value === 'completed' || value === 'archived';
-
-const isStringArray = (value: unknown): value is string[] =>
-  Array.isArray(value) && value.every((entry) => typeof entry === 'string');
-
-const isSession = (value: unknown): value is Session => {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  return (
-    typeof value.id === 'string' &&
-    typeof value.title === 'string' &&
-    typeof value.problemDescription === 'string' &&
-    typeof value.outputGoal === 'string' &&
-    isSessionStatus(value.status) &&
-    typeof value.tokenCount === 'number' &&
-    typeof value.costEstimate === 'number' &&
-    typeof value.conductorEnabled === 'boolean' &&
-    (typeof value.conductorPersonaId === 'string' || value.conductorPersonaId === null) &&
-    (value.blackboard === null || isBlackboardState(value.blackboard)) &&
-    typeof value.autoReplyCount === 'number' &&
-    typeof value.tokenBudget === 'number' &&
-    (typeof value.summary === 'string' || value.summary === null) &&
-    (typeof value.archivedAt === 'string' || value.archivedAt === null) &&
-    isStringArray(value.tags) &&
-    typeof value.createdAt === 'string' &&
-    typeof value.updatedAt === 'string'
   );
 };
 
@@ -135,7 +91,9 @@ export const makeSessionMessagePersistenceFromElectronDB = (
       catch: () => infrastructureError('sessionState', 'Failed to update session usage'),
     }).pipe(
       Effect.flatMap((result) => {
-        if (!result.success || !isSession(result.data)) {
+        const parsedSession = result.success ? parseSessionPayload(result.data) : null;
+
+        if (!result.success || !parsedSession) {
           return Effect.fail(
             infrastructureError(
               'sessionState',
@@ -144,7 +102,7 @@ export const makeSessionMessagePersistenceFromElectronDB = (
           );
         }
 
-        return Effect.succeed(result.data);
+        return Effect.succeed(parsedSession);
       })
     ),
 });

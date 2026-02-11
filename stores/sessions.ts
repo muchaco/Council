@@ -14,6 +14,10 @@ import {
   SessionMessagePersistence,
   SessionPersonaResponseGateway,
 } from '../lib/application/use-cases/session-messaging';
+import {
+  parseSessionPayload,
+  parseSessionPayloadList,
+} from '../lib/boundary/session-payload-parser';
 import { makeSessionTagPersistenceFromElectronDB } from '../lib/infrastructure/db';
 import {
   makeSessionMessagePersistenceFromElectronDB,
@@ -22,19 +26,6 @@ import { makeSessionPersonaResponseGatewayFromElectronLLM } from '../lib/infrast
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
-
-const isBlackboardState = (value: unknown): value is BlackboardState => {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  return (
-    typeof value.consensus === 'string' &&
-    typeof value.conflicts === 'string' &&
-    typeof value.nextStep === 'string' &&
-    typeof value.facts === 'string'
-  );
-};
 
 const isTag = (value: unknown): value is Tag =>
   isRecord(value) && typeof value.id === 'number' && typeof value.name === 'string' && typeof value.createdAt === 'string';
@@ -48,53 +39,6 @@ const isMessage = (value: unknown): value is Message =>
   typeof value.turnNumber === 'number' &&
   typeof value.tokenCount === 'number' &&
   typeof value.createdAt === 'string';
-
-const isSessionBase = (value: unknown): value is Omit<Session, 'tags'> & { tags?: unknown } =>
-  isRecord(value) &&
-  typeof value.id === 'string' &&
-  typeof value.title === 'string' &&
-  typeof value.problemDescription === 'string' &&
-  typeof value.outputGoal === 'string' &&
-  (value.status === 'active' || value.status === 'completed' || value.status === 'archived') &&
-  typeof value.tokenCount === 'number' &&
-  typeof value.costEstimate === 'number' &&
-  typeof value.conductorEnabled === 'boolean' &&
-  (typeof value.conductorPersonaId === 'string' || value.conductorPersonaId === null) &&
-  (value.blackboard === null || isBlackboardState(value.blackboard)) &&
-  typeof value.autoReplyCount === 'number' &&
-  typeof value.tokenBudget === 'number' &&
-  (typeof value.summary === 'string' || value.summary === null) &&
-  (typeof value.archivedAt === 'string' || value.archivedAt === null) &&
-  typeof value.createdAt === 'string' &&
-  typeof value.updatedAt === 'string';
-
-const toSession = (value: unknown, fallbackTags: string[] = []): Session | null => {
-  if (!isSessionBase(value)) {
-    return null;
-  }
-
-  const tags = parseStringList(value.tags);
-
-  return {
-    id: value.id,
-    title: value.title,
-    problemDescription: value.problemDescription,
-    outputGoal: value.outputGoal,
-    status: value.status,
-    tokenCount: value.tokenCount,
-    costEstimate: value.costEstimate,
-    conductorEnabled: value.conductorEnabled,
-    conductorPersonaId: value.conductorPersonaId,
-    blackboard: value.blackboard,
-    autoReplyCount: value.autoReplyCount,
-    tokenBudget: value.tokenBudget,
-    summary: value.summary,
-    archivedAt: value.archivedAt,
-    tags: tags ?? fallbackTags,
-    createdAt: value.createdAt,
-    updatedAt: value.updatedAt,
-  };
-};
 
 const isSessionPersona = (value: unknown): value is SessionPersona =>
   isRecord(value) &&
@@ -122,22 +66,8 @@ const parseStringList = (value: unknown): string[] | null =>
 const parseMessageList = (value: unknown): Message[] | null =>
   Array.isArray(value) && value.every(isMessage) ? value : null;
 
-const parseSessionList = (value: unknown): Session[] | null => {
-  if (!Array.isArray(value)) {
-    return null;
-  }
-
-  const sessions: Session[] = [];
-  for (const entry of value) {
-    const session = toSession(entry, []);
-    if (!session) {
-      return null;
-    }
-    sessions.push(session);
-  }
-
-  return sessions;
-};
+const parseSessionList = (value: unknown): Session[] | null =>
+  parseSessionPayloadList(value, { allowMissingTags: true, fallbackTags: [] });
 
 const parseSessionPersonaList = (value: unknown): SessionPersona[] | null =>
   Array.isArray(value) && value.every(isSessionPersona) ? value : null;
@@ -359,7 +289,10 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         return null;
       }
 
-      const session = toSession(sessionResult.data, []);
+      const session = parseSessionPayload(sessionResult.data, {
+        allowMissingTags: true,
+        fallbackTags: [],
+      });
       if (!session) {
         toast.error('Invalid session payload');
         return null;
@@ -431,7 +364,10 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       const tagsResult = await window.electronDB.sessionTags.getBySession(id);
       const sessionTags = parseStringList(tagsResult.data) ?? [];
 
-      const parsedSession = toSession(sessionResult.data, sessionTags);
+      const parsedSession = parseSessionPayload(sessionResult.data, {
+        allowMissingTags: true,
+        fallbackTags: sessionTags,
+      });
       if (!parsedSession) {
         toast.error('Invalid session payload');
         return;
@@ -469,7 +405,10 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   updateSession: async (id: string, data) => {
     try {
       const result = await window.electronDB.updateSession(id, data);
-      const updated = toSession(result.data, []);
+      const updated = parseSessionPayload(result.data, {
+        allowMissingTags: true,
+        fallbackTags: [],
+      });
       if (result.success && updated) {
         set(state => ({
           currentSession: state.currentSession?.id === id ? updated : state.currentSession,
@@ -858,7 +797,10 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       
       if (result.success) {
         const refreshedSessionResult = await window.electronDB.getSession(id);
-        const refreshedSession = toSession(refreshedSessionResult.data, []);
+        const refreshedSession = parseSessionPayload(refreshedSessionResult.data, {
+          allowMissingTags: true,
+          fallbackTags: [],
+        });
         if (refreshedSessionResult.success && refreshedSession) {
           set(state => ({
             sessions: state.sessions.map(s => (s.id === id ? refreshedSession : s)),
@@ -890,7 +832,10 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       
       if (result.success) {
         const refreshedSessionResult = await window.electronDB.getSession(id);
-        const refreshedSession = toSession(refreshedSessionResult.data, []);
+        const refreshedSession = parseSessionPayload(refreshedSessionResult.data, {
+          allowMissingTags: true,
+          fallbackTags: [],
+        });
         if (refreshedSessionResult.success && refreshedSession) {
           set(state => ({
             sessions: state.sessions.map(s => (s.id === id ? refreshedSession : s)),
