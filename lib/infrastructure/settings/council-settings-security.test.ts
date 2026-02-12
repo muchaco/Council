@@ -1,3 +1,6 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -33,5 +36,40 @@ describe('council_settings_security_policy_spec', () => {
     });
 
     expect(resolved).toBe(strongKey);
+  });
+
+  it('creates_and_reuses_local_random_development_bootstrap_key', () => {
+    const tempRootPath = fs.mkdtempSync(path.join(os.tmpdir(), 'council-key-spec-'));
+    const bootstrapKeyPath = path.join(tempRootPath, 'dev-encryption.key');
+
+    const firstResolution = resolveCouncilEncryptionKey({
+      councilEncryptionKey: undefined,
+      isPackaged: false,
+      developmentBootstrapKeyPath: bootstrapKeyPath,
+    });
+
+    const secondResolution = resolveCouncilEncryptionKey({
+      councilEncryptionKey: undefined,
+      isPackaged: false,
+      developmentBootstrapKeyPath: bootstrapKeyPath,
+    });
+
+    expect(firstResolution).toHaveLength(64);
+    expect(secondResolution).toBe(firstResolution);
+    expect(fs.existsSync(bootstrapKeyPath)).toBe(true);
+  });
+
+  it('rejects_weak_development_bootstrap_key_file', () => {
+    const tempRootPath = fs.mkdtempSync(path.join(os.tmpdir(), 'council-key-spec-'));
+    const bootstrapKeyPath = path.join(tempRootPath, 'dev-encryption.key');
+    fs.writeFileSync(bootstrapKeyPath, 'short-key\n');
+
+    expect(() =>
+      resolveCouncilEncryptionKey({
+        councilEncryptionKey: undefined,
+        isPackaged: false,
+        developmentBootstrapKeyPath: bootstrapKeyPath,
+      })
+    ).toThrow('Stored development bootstrap key is weak');
   });
 });

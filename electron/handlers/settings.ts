@@ -39,6 +39,7 @@ const KEY_LENGTH = 32;
 const ENCRYPTION_KEY_MATERIAL = resolveCouncilEncryptionKey({
   councilEncryptionKey: process.env.COUNCIL_ENCRYPTION_KEY,
   isPackaged: app.isPackaged,
+  developmentBootstrapKeyPath: process.env.COUNCIL_DEV_ENCRYPTION_KEY_PATH,
 });
 
 function getEncryptionKey(): Buffer {
