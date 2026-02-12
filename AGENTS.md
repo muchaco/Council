@@ -150,6 +150,7 @@ Shell should not host domain policy branches.
 - Core decisions: table-driven tests are primary confidence source.
 - Use-cases: a few focused tests for orchestration + error mapping.
 - Shell: minimal tests (wiring and boundary behavior).
+- For any unit test work, follow the `unit-testing` skill (Good Unit Tests / GUT) when available.
 
 Suggested pattern names:
 
