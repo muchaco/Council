@@ -78,7 +78,66 @@ describe('session_tags_integration_spec', () => {
       allTags: [],
     });
 
-    Object.assign(window, { electronDB: mockElectronDB });
+    Object.assign(window, {
+      electronDB: mockElectronDB,
+      electronSessionCommand: {
+        createFull: async (command: {
+          input: unknown;
+          personaIds: string[];
+          conductorConfig?: { enabled: boolean; mode?: 'automatic' | 'manual' };
+        }) => {
+          const result = await mockElectronDB.createSession({
+            ...(command.input as Record<string, unknown>),
+            conductorConfig: command.conductorConfig,
+          });
+          if (!result.success || !result.data) {
+            return result;
+          }
+
+          for (const personaId of command.personaIds) {
+            const participantResult = await mockElectronDB.addPersonaToSession(
+              (result.data as { id: string }).id,
+              personaId,
+              false
+            );
+            if (!participantResult.success) {
+              return { success: false, error: participantResult.error ?? 'Failed to add session participant' };
+            }
+          }
+
+          return result;
+        },
+        update: (sessionId: string, input: unknown) => mockElectronDB.updateSession(sessionId, input),
+        delete: (sessionId: string) => mockElectronDB.deleteSession(sessionId),
+        archive: (sessionId: string) => mockElectronDB.archiveSession(sessionId),
+        unarchive: (sessionId: string) => mockElectronDB.unarchiveSession(sessionId),
+      },
+      electronSessionQuery: {
+        list: () => mockElectronDB.getSessions(),
+        get: (sessionId: string) => mockElectronDB.getSession(sessionId),
+        getParticipants: (sessionId: string) => mockElectronDB.getSessionPersonas(sessionId),
+        loadSnapshot: async (sessionId: string) => {
+          const [sessionResult, messagesResult, participantsResult, tagsResult] = await Promise.all([
+            mockElectronDB.getSession(sessionId),
+            mockElectronDB.getMessages(sessionId),
+            mockElectronDB.getSessionPersonas(sessionId),
+            mockElectronDB.sessionTags.getBySession(sessionId),
+          ]);
+          if (!sessionResult.success || !messagesResult.success || !participantsResult.success || !tagsResult.success) {
+            return { success: false, error: 'Snapshot failed' };
+          }
+          return {
+            success: true,
+            data: {
+              session: sessionResult.data,
+              messages: messagesResult.data,
+              participants: participantsResult.data,
+              tags: tagsResult.data,
+            },
+          };
+        },
+      },
+    });
   });
 
   describe('creating_a_session_with_tags', () => {
