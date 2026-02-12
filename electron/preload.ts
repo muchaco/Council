@@ -23,13 +23,6 @@ const dbAPI = Object.freeze({
   updatePersona: (id: string, data: unknown) => ipcRenderer.invoke('db:persona:update', id, data),
   deletePersona: (id: string) => ipcRenderer.invoke('db:persona:delete', id),
   
-  // Sessions
-  createSession: (data: unknown) => ipcRenderer.invoke('db:session:create', data),
-  getSessions: () => ipcRenderer.invoke('db:session:getAll'),
-  getSession: (id: string) => ipcRenderer.invoke('db:session:get', id),
-  updateSession: (id: string, data: unknown) => ipcRenderer.invoke('db:session:update', id, data),
-  deleteSession: (id: string) => ipcRenderer.invoke('db:session:delete', id),
-  
   // Messages
   createMessage: (data: unknown) => ipcRenderer.invoke('db:message:create', data),
   getMessages: (sessionId: string) => ipcRenderer.invoke('db:message:getBySession', sessionId),
@@ -45,10 +38,6 @@ const dbAPI = Object.freeze({
     ipcRenderer.invoke('db:persona:hush', sessionId, personaId, turns),
   unhushPersona: (sessionId: string, personaId: string) => 
     ipcRenderer.invoke('db:persona:unhush', sessionId, personaId),
-  
-  // Archive
-  archiveSession: (id: string) => ipcRenderer.invoke('db:session:archive', id),
-  unarchiveSession: (id: string) => ipcRenderer.invoke('db:session:unarchive', id),
   
   // Tags
   tags: dbTagsAPI,
@@ -68,7 +57,6 @@ const settingsAPI = Object.freeze({
   getDefaultModel: () => ipcRenderer.invoke('settings:getDefaultModel'),
   setDefaultModel: (defaultModel: string) => ipcRenderer.invoke('settings:setDefaultModel', defaultModel),
   getModelCatalog: () => ipcRenderer.invoke('settings:getModelCatalog'),
-  listModels: () => ipcRenderer.invoke('settings:listModels'),
 });
 
 // Conductor API

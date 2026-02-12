@@ -22,7 +22,6 @@ export default defineConfig({
         'electron/main.ts',
         'electron/preload.ts',
         'electron/lib/db.ts',
-        'electron/lib/export.ts',
         'electron/lib/queries.ts',
         'electron/lib/sql-query-executor.ts',
         'electron/lib/query-runners/**',

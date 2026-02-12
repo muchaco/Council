@@ -16,11 +16,6 @@ declare global {
       getPersona: (id: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
       updatePersona: (id: string, data: unknown) => Promise<{ success: boolean; data?: unknown; error?: string }>;
       deletePersona: (id: string) => Promise<{ success: boolean; error?: string }>;
-      createSession: (data: unknown) => Promise<{ success: boolean; data?: unknown; error?: string }>;
-      getSessions: () => Promise<{ success: boolean; data?: unknown; error?: string }>;
-      getSession: (id: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
-      updateSession: (id: string, data: unknown) => Promise<{ success: boolean; data?: unknown; error?: string }>;
-      deleteSession: (id: string) => Promise<{ success: boolean; error?: string }>;
       createMessage: (data: unknown) => Promise<{ success: boolean; data?: unknown; error?: string }>;
       getMessages: (sessionId: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
       getNextTurnNumber: (sessionId: string) => Promise<{ success: boolean; data?: number; error?: string }>;
@@ -28,8 +23,6 @@ declare global {
       getSessionPersonas: (sessionId: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
       hushPersona: (sessionId: string, personaId: string, turns: number) => Promise<{ success: boolean; error?: string }>;
       unhushPersona: (sessionId: string, personaId: string) => Promise<{ success: boolean; error?: string }>;
-      archiveSession: (id: string) => Promise<{ success: boolean; error?: string }>;
-      unarchiveSession: (id: string) => Promise<{ success: boolean; error?: string }>;
       tags: {
         create: (name: string) => Promise<{ success: boolean; data?: Tag; error?: string }>;
         getAll: () => Promise<{ success: boolean; data?: Tag[]; error?: string }>;
@@ -61,7 +54,6 @@ declare global {
         };
         error?: string;
       }>;
-      listModels: () => Promise<{ success: boolean; data?: Array<{ name: string; displayName: string; description: string; supportedMethods: string[] }>; error?: string }>;
     };
     electronConductor: {
       enable: (sessionId: string, mode: 'automatic' | 'manual') => Promise<{ success: boolean; error?: string }>;

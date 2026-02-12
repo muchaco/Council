@@ -67,4 +67,11 @@ export const updateConductorBlackboardCommand = async (
 
 export const getSessionTagPersistenceBoundary = () => window.electronDB;
 
-export const getSessionMessagePersistenceBoundary = () => window.electronDB;
+export const getSessionMessagePersistenceBoundary = () => ({
+  getNextTurnNumber: window.electronDB.getNextTurnNumber,
+  createMessage: window.electronDB.createMessage,
+  updateSession: (
+    sessionId: string,
+    data: { tokenCount: number; costEstimate: number }
+  ) => window.electronSessionCommand.update(sessionId, data),
+});

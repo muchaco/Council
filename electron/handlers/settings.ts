@@ -307,30 +307,4 @@ export function setupSettingsHandlers(): void {
     },
   });
 
-  // List available models
-  ipcMain.handle('settings:listModels', async () => {
-    try {
-      const encrypted = (store as any).get('apiKey') as string | undefined;
-      if (!encrypted) {
-        return { success: false, error: 'API key not set' };
-      }
-      
-      const apiKey = decrypt(encrypted);
-      const models = await fetchAvailableModels(apiKey);
-      
-      return { success: true, data: models };
-    } catch {
-      console.error('Error fetching Gemini models');
-      return {
-        success: false,
-        error: mapSettingsNetworkFailureToPublicError('listModels'),
-      };
-    }
-  }, {
-    argsSchema: noArgsSchema,
-    rateLimit: {
-      maxRequests: 30,
-      windowMs: 60_000,
-    },
-  });
 }

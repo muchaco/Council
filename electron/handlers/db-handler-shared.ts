@@ -19,13 +19,6 @@ export const tagIdSchema = z.number().int().positive();
 export const hushTurnsSchema = z.number().int().nonnegative();
 export const tagNameSchema = z.string().trim().min(1).max(64);
 
-export const blackboardSchema = z.object({
-  consensus: z.string(),
-  conflicts: z.string(),
-  nextStep: z.string(),
-  facts: z.string(),
-});
-
 export const personaInputSchema = z.object({
   name: z.string().min(1),
   role: z.string().min(1),
@@ -37,34 +30,6 @@ export const personaInputSchema = z.object({
   verbosity: z.string().optional(),
 });
 
-export const sessionCreateInputSchema = z.object({
-  title: z.string().min(1),
-  problemDescription: z.string().min(1),
-  outputGoal: z.string().optional().default(''),
-  conductorConfig: z
-    .object({
-      enabled: z.boolean(),
-      mode: z.enum(['automatic', 'manual']).optional(),
-    })
-    .optional(),
-});
-
-export const sessionUpdateInputSchema = z
-  .object({
-    title: z.string().min(1).optional(),
-    problemDescription: z.string().min(1).optional(),
-    outputGoal: z.string().min(1).optional(),
-    status: z.string().min(1).optional(),
-    tokenCount: z.number().optional(),
-    costEstimate: z.number().optional(),
-    conductorEnabled: z.boolean().optional(),
-    conductorMode: z.enum(['automatic', 'manual']).optional(),
-    blackboard: blackboardSchema.nullable().optional(),
-    autoReplyCount: z.number().int().optional(),
-    tokenBudget: z.number().int().optional(),
-    summary: z.string().nullable().optional(),
-  })
-  .strict();
 
 export const messageMetadataSchema = z
   .object({
