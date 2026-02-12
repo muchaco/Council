@@ -31,9 +31,7 @@ function createWindow(): void {
       preload: preloadPath,
       contextIsolation: true,
       nodeIntegration: false,
-      // Disable sandbox to allow preload script to load properly
-      // This is safe because we use contextIsolation and don't expose Node APIs
-      sandbox: false,
+      sandbox: true,
     },
     titleBarStyle: 'default',
     show: false,
