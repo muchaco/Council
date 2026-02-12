@@ -55,7 +55,7 @@ declare global {
       listModels: () => Promise<{ success: boolean; data?: Array<{ name: string; displayName: string; description: string; supportedMethods: string[] }>; error?: string }>;
     };
     electronConductor: {
-      enable: (sessionId: string, conductorPersonaId: string) => Promise<{ success: boolean; error?: string }>;
+      enable: (sessionId: string, mode: 'automatic' | 'manual') => Promise<{ success: boolean; error?: string }>;
       disable: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
       processTurn: (sessionId: string) => Promise<ConductorProcessTurnResponse>;
       resetCircuitBreaker: (sessionId: string) => Promise<{ success: boolean; error?: string }>;

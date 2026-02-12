@@ -50,7 +50,7 @@ const validSession: Session = {
   tokenCount: 0,
   costEstimate: 0,
   conductorEnabled: false,
-  conductorPersonaId: null,
+  conductorMode: 'automatic',
   blackboard: null,
   autoReplyCount: 0,
   tokenBudget: 1000,

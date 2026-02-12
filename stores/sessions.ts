@@ -31,15 +31,37 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isTag = (value: unknown): value is Tag =>
   isRecord(value) && typeof value.id === 'number' && typeof value.name === 'string' && typeof value.createdAt === 'string';
 
-const isMessage = (value: unknown): value is Message =>
-  isRecord(value) &&
-  typeof value.id === 'string' &&
-  typeof value.sessionId === 'string' &&
-  (typeof value.personaId === 'string' || value.personaId === null) &&
-  typeof value.content === 'string' &&
-  typeof value.turnNumber === 'number' &&
-  typeof value.tokenCount === 'number' &&
-  typeof value.createdAt === 'string';
+const parseMessage = (value: unknown): Message | null => {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== 'string' ||
+    typeof value.sessionId !== 'string' ||
+    (typeof value.personaId !== 'string' && value.personaId !== null) ||
+    typeof value.content !== 'string' ||
+    typeof value.turnNumber !== 'number' ||
+    typeof value.tokenCount !== 'number' ||
+    typeof value.createdAt !== 'string'
+  ) {
+    return null;
+  }
+
+  const source =
+    value.source === 'user' || value.source === 'persona' || value.source === 'conductor'
+      ? value.source
+      : value.personaId === null
+        ? value.metadata && isRecord(value.metadata) && value.metadata.isConductorMessage === true
+          ? 'conductor'
+          : 'user'
+        : 'persona';
+
+  return {
+    ...value,
+    source,
+    metadata: isRecord(value.metadata) || value.metadata === null || value.metadata === undefined
+      ? (value.metadata as Message['metadata']) ?? null
+      : null,
+  } as Message;
+};
 
 const isSessionPersona = (value: unknown): value is SessionPersona =>
   isRecord(value) &&
@@ -64,8 +86,22 @@ const parseTagList = (value: unknown): Tag[] | null =>
 const parseStringList = (value: unknown): string[] | null =>
   Array.isArray(value) && value.every((entry) => typeof entry === 'string') ? value : null;
 
-const parseMessageList = (value: unknown): Message[] | null =>
-  Array.isArray(value) && value.every(isMessage) ? value : null;
+const parseMessageList = (value: unknown): Message[] | null => {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const messages: Message[] = [];
+  for (const entry of value) {
+    const parsed = parseMessage(entry);
+    if (!parsed) {
+      return null;
+    }
+    messages.push(parsed);
+  }
+
+  return messages;
+};
 
 const parseSessionList = (value: unknown): Session[] | null =>
   parseSessionPayloadList(value, { allowMissingTags: true, fallbackTags: [] });
@@ -93,13 +129,13 @@ interface SessionsState {
 
   // Actions
   fetchSessions: () => Promise<void>;
-  createSession: (data: SessionInput, personaIds: string[], conductorConfig?: { enabled: boolean; conductorPersonaId?: string }, tags?: string[]) => Promise<string | null>;
+  createSession: (data: SessionInput, personaIds: string[], conductorConfig?: { enabled: boolean; mode?: 'automatic' | 'manual' }, tags?: string[]) => Promise<string | null>;
   loadSession: (id: string) => Promise<void>;
-  updateSession: (id: string, data: Partial<SessionInput> & { status?: string; tokenCount?: number; costEstimate?: number; conductorEnabled?: boolean; conductorPersonaId?: string | null; blackboard?: BlackboardState; autoReplyCount?: number; tokenBudget?: number; summary?: string | null; tags?: string[] }) => Promise<void>;
+  updateSession: (id: string, data: Partial<SessionInput> & { status?: string; tokenCount?: number; costEstimate?: number; conductorEnabled?: boolean; conductorMode?: 'automatic' | 'manual'; blackboard?: BlackboardState; autoReplyCount?: number; tokenBudget?: number; summary?: string | null; tags?: string[] }) => Promise<void>;
   deleteSession: (id: string) => Promise<boolean>;
   sendUserMessage: (content: string) => Promise<void>;
   triggerPersonaResponse: (personaId: string) => Promise<void>;
-  enableConductor: (conductorPersonaId: string) => Promise<void>;
+  enableConductor: (mode: 'automatic' | 'manual') => Promise<void>;
   disableConductor: () => Promise<void>;
   processConductorTurn: () => Promise<void>;
   pauseConductor: () => void;
@@ -268,7 +304,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     }
   },
 
-  createSession: async (data: SessionInput, personaIds: string[], conductorConfig?: { enabled: boolean; conductorPersonaId?: string }, tags?: string[]) => {
+  createSession: async (data: SessionInput, personaIds: string[], conductorConfig?: { enabled: boolean; mode?: 'automatic' | 'manual' }, tags?: string[]) => {
     try {
       set({ isLoading: true });
 
@@ -301,8 +337,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 
       // Add personas to session
       for (const personaId of personaIds) {
-        const isConductor = !!(conductorConfig?.enabled && conductorConfig.conductorPersonaId === personaId);
-        await window.electronDB.addPersonaToSession(session.id, personaId, isConductor);
+        await window.electronDB.addPersonaToSession(session.id, personaId, false);
       }
 
       set(state => ({
@@ -557,16 +592,16 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
 
   // Conductor actions
-  enableConductor: async (conductorPersonaId: string) => {
+  enableConductor: async (mode: 'automatic' | 'manual') => {
     const { currentSession } = get();
     if (!currentSession) return;
     
     try {
-      const result = await window.electronConductor.enable(currentSession.id, conductorPersonaId);
+      const result = await window.electronConductor.enable(currentSession.id, mode);
       if (result.success) {
         await get().updateSession(currentSession.id, {
           conductorEnabled: true,
-          conductorPersonaId,
+          conductorMode: mode,
         });
         toast.success('Conductor enabled');
       } else {
@@ -586,7 +621,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       if (result.success) {
         await get().updateSession(currentSession.id, {
           conductorEnabled: false,
-          conductorPersonaId: null,
+          conductorMode: currentSession.conductorMode,
         });
         set({ conductorRunning: false, conductorPaused: false });
         toast.success('Conductor disabled');
@@ -635,6 +670,16 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       if (shellPlan._tag === 'WaitForUser') {
         set(shellPlan.statePatch);
         toast.info(shellPlan.toast.message);
+        if (shellPlan.suggestedPersonaId) {
+          const suggestedPersona = get().sessionPersonas.find(
+            (persona) => persona.id === shellPlan.suggestedPersonaId
+          );
+          toast.info(
+            suggestedPersona
+              ? `Suggested next speaker: ${suggestedPersona.name}`
+              : `Suggested next speaker ID: ${shellPlan.suggestedPersonaId}`
+          );
+        }
         return;
       }
 

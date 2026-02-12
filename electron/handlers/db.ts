@@ -38,7 +38,7 @@ const sessionCreateInputSchema = z.object({
   conductorConfig: z
     .object({
       enabled: z.boolean(),
-      conductorPersonaId: z.string().min(1).optional(),
+      mode: z.enum(['automatic', 'manual']).optional(),
     })
     .optional(),
 });
@@ -52,7 +52,7 @@ const sessionUpdateInputSchema = z
     tokenCount: z.number().optional(),
     costEstimate: z.number().optional(),
     conductorEnabled: z.boolean().optional(),
-    conductorPersonaId: z.string().min(1).nullable().optional(),
+    conductorMode: z.enum(['automatic', 'manual']).optional(),
     blackboard: blackboardSchema.nullable().optional(),
     autoReplyCount: z.number().int().optional(),
     tokenBudget: z.number().int().optional(),

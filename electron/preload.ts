@@ -72,8 +72,8 @@ const settingsAPI = Object.freeze({
 
 // Conductor API
 const conductorAPI = Object.freeze({
-  enable: (sessionId: string, conductorPersonaId: string) =>
-    ipcRenderer.invoke('conductor:enable', { sessionId, conductorPersonaId }),
+  enable: (sessionId: string, mode: 'automatic' | 'manual') =>
+    ipcRenderer.invoke('conductor:enable', { sessionId, mode }),
   disable: (sessionId: string) => ipcRenderer.invoke('conductor:disable', sessionId),
   processTurn: (sessionId: string) => ipcRenderer.invoke('conductor:processTurn', sessionId),
   resetCircuitBreaker: (sessionId: string) => ipcRenderer.invoke('conductor:resetCircuitBreaker', sessionId),

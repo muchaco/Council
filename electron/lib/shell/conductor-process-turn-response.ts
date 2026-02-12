@@ -65,6 +65,12 @@ export const mapConductorTurnOutcomeToProcessTurnResponse = (
       action: 'WAIT_FOR_USER',
       reasoning: result.reasoning,
       blackboardUpdate: result.blackboardUpdate,
+      ...(result.suggestedPersonaId
+        ? {
+            suggestedPersonaId: result.suggestedPersonaId,
+            isInterventionSuggestion: result.isInterventionSuggestion,
+          }
+        : {}),
     };
   }
 

@@ -174,7 +174,7 @@ describe('database_handler_security_spec', () => {
         outputGoal: 'Deliver an execution brief',
         conductorConfig: {
           enabled: true,
-          conductorPersonaId: 'persona-7',
+          mode: 'manual',
         },
       }
     );
@@ -188,7 +188,7 @@ describe('database_handler_security_spec', () => {
       },
       {
         enabled: true,
-        conductorPersonaId: 'persona-7',
+        mode: 'manual',
       }
     );
   });

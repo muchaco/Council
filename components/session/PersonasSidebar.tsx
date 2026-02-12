@@ -98,7 +98,7 @@ export function PersonasSidebar({
           <PersonaListItem
             key={persona.id}
             persona={persona}
-            isConductor={persona.id === currentSession.conductorPersonaId}
+            isConductor={false}
             isArchived={isArchived}
             thinkingPersonaId={thinkingPersonaId}
             conductorRunning={conductorRunning}

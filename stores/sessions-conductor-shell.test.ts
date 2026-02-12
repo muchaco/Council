@@ -63,7 +63,7 @@ const makeSession = (overrides: Partial<Session> = {}): Session => ({
   tokenCount: 0,
   costEstimate: 0,
   conductorEnabled: false,
-  conductorPersonaId: null,
+  conductorMode: 'automatic',
   blackboard: null,
   autoReplyCount: 0,
   tokenBudget: 1000,
@@ -120,6 +120,7 @@ describe('session_store_conductor_shell_spec', () => {
           id: 'message-1',
           sessionId: 'session-1',
           personaId: null,
+          source: 'user',
           content: 'hello',
           turnNumber: 7,
           tokenCount: 0,
@@ -134,6 +135,7 @@ describe('session_store_conductor_shell_spec', () => {
       expect(mockElectronDB.createMessage).toHaveBeenCalledWith({
         sessionId: 'session-1',
         personaId: null,
+        source: 'user',
         content: 'hello',
         turnNumber: 7,
         tokenCount: 0,
@@ -171,6 +173,7 @@ describe('session_store_conductor_shell_spec', () => {
           id: 'message-2',
           sessionId: 'session-1',
           personaId: 'persona-1',
+          source: 'persona',
           content: 'Response',
           turnNumber: 12,
           tokenCount: 20,
@@ -299,21 +302,21 @@ describe('session_store_conductor_shell_spec', () => {
       mockElectronConductor.enable.mockResolvedValue({ success: true });
       mockElectronDB.updateSession.mockResolvedValue({
         success: true,
-        data: makeSession({ conductorEnabled: true, conductorPersonaId: 'persona-1' }),
+        data: makeSession({ conductorEnabled: true, conductorMode: 'manual' }),
       });
 
-      await useSessionsStore.getState().enableConductor('persona-1');
+      await useSessionsStore.getState().enableConductor('manual');
 
-      expect(mockElectronConductor.enable).toHaveBeenCalledWith('session-1', 'persona-1');
+      expect(mockElectronConductor.enable).toHaveBeenCalledWith('session-1', 'manual');
       expect(mockElectronDB.updateSession).toHaveBeenCalledWith('session-1', {
         conductorEnabled: true,
-        conductorPersonaId: 'persona-1',
+        conductorMode: 'manual',
       });
       expect(toast.success).toHaveBeenCalledWith('Conductor enabled');
     });
 
     it('disables_conductor_and_clears_runtime_flags', async () => {
-      const session = makeSession({ conductorEnabled: true, conductorPersonaId: 'persona-1' });
+      const session = makeSession({ conductorEnabled: true, conductorMode: 'manual' });
       useSessionsStore.setState({
         currentSession: session,
         sessions: [session],
@@ -324,7 +327,7 @@ describe('session_store_conductor_shell_spec', () => {
       mockElectronConductor.disable.mockResolvedValue({ success: true });
       mockElectronDB.updateSession.mockResolvedValue({
         success: true,
-        data: makeSession({ conductorEnabled: false, conductorPersonaId: null }),
+        data: makeSession({ conductorEnabled: false, conductorMode: 'manual' }),
       });
 
       await useSessionsStore.getState().disableConductor();
@@ -336,7 +339,7 @@ describe('session_store_conductor_shell_spec', () => {
     });
 
     it('pauses_the_loop_when_process_turn_returns_circuit_breaker', async () => {
-      const session = makeSession({ conductorEnabled: true, conductorPersonaId: 'persona-1' });
+      const session = makeSession({ conductorEnabled: true, conductorMode: 'manual' });
       useSessionsStore.setState({ currentSession: session, sessions: [session] });
 
       mockElectronConductor.processTurn.mockResolvedValue({
@@ -352,7 +355,7 @@ describe('session_store_conductor_shell_spec', () => {
     });
 
     it('stops_running_when_process_turn_returns_wait_for_user', async () => {
-      const session = makeSession({ conductorEnabled: true, conductorPersonaId: 'persona-1' });
+      const session = makeSession({ conductorEnabled: true, conductorMode: 'manual' });
       useSessionsStore.setState({ currentSession: session, sessions: [session], conductorRunning: false });
 
       mockElectronConductor.processTurn.mockResolvedValue({
@@ -374,13 +377,13 @@ describe('session_store_conductor_shell_spec', () => {
     });
 
     it('resets_the_circuit_breaker_then_continues_the_loop', async () => {
-      const session = makeSession({ conductorEnabled: true, conductorPersonaId: 'persona-1' });
+      const session = makeSession({ conductorEnabled: true, conductorMode: 'manual' });
       useSessionsStore.setState({ currentSession: session, sessions: [session], conductorPaused: true });
 
       mockElectronConductor.resetCircuitBreaker.mockResolvedValue({ success: true });
       mockElectronDB.updateSession.mockResolvedValue({
         success: true,
-        data: makeSession({ conductorEnabled: true, conductorPersonaId: 'persona-1', autoReplyCount: 0 }),
+        data: makeSession({ conductorEnabled: true, conductorMode: 'manual', autoReplyCount: 0 }),
       });
       mockElectronConductor.processTurn.mockResolvedValue({
         success: true,

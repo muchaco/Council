@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Plus, ArrowLeft, Loader2, Users, Sparkles, Crown, HelpCircle, Tag } from 'lucide-react';
+import { Plus, ArrowLeft, Loader2, Users, Sparkles, HelpCircle, Tag } from 'lucide-react';
 import { usePersonasStore } from '@/stores/personas';
 import { useSessionsStore } from '@/stores/sessions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -24,7 +24,7 @@ export default function NewSessionPage() {
   });
   const [selectedPersonas, setSelectedPersonas] = useState<string[]>([]);
   const [enableConductor, setEnableConductor] = useState(false);
-  const [conductorPersonaId, setConductorPersonaId] = useState<string>('');
+  const [conductorMode, setConductorMode] = useState<'automatic' | 'manual'>('automatic');
   const [sessionTags, setSessionTags] = useState<string[]>([]);
 
   useEffect(() => {
@@ -42,10 +42,6 @@ export default function NewSessionPage() {
   const togglePersona = (personaId: string) => {
     setSelectedPersonas(prev => {
       if (prev.includes(personaId)) {
-        // Removing a persona - reset conductor if it was this persona
-        if (conductorPersonaId === personaId) {
-          setConductorPersonaId('');
-        }
         return prev.filter(id => id !== personaId);
       }
       if (prev.length >= 4) {
@@ -60,8 +56,8 @@ export default function NewSessionPage() {
       return;
     }
 
-    const conductorConfig = enableConductor && conductorPersonaId
-      ? { enabled: true, conductorPersonaId }
+    const conductorConfig = enableConductor
+      ? { enabled: true, mode: conductorMode }
       : undefined;
 
     const sessionId = await createSession({
@@ -218,43 +214,39 @@ export default function NewSessionPage() {
                 </div>
               </div>
 
-              {/* Conductor Persona Selection */}
               {enableConductor && canEnableConductor && (
                 <div className="mt-4 pt-4 border-t border-border">
                   <p className="text-sm font-medium text-foreground mb-3">
-                    Select which persona will act as the Conductor:
+                    Select how the Conductor should behave:
                   </p>
                   <div className="grid gap-2 md:grid-cols-2">
-                    {personas
-                      .filter(p => selectedPersonas.includes(p.id))
-                      .map((persona) => (
-                        <button
-                          key={persona.id}
-                      onClick={() => setConductorPersonaId(persona.id)}
+                    <button
+                      onClick={() => setConductorMode('automatic')}
                       className={`p-3 rounded-lg border text-left transition-all ${
-                        conductorPersonaId === persona.id
+                        conductorMode === 'automatic'
                           ? 'border-primary bg-secondary'
                           : 'border-border hover:border-muted'
                       }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: persona.color }}
-                            />
-                            <span className="font-medium text-sm">{persona.name}</span>
-                            {conductorPersonaId === persona.id && (
-                              <Crown className="w-4 h-4 text-primary ml-auto" />
-                            )}
-                          </div>
-                        </button>
-                      ))}
+                    >
+                      <span className="font-medium text-sm">Automatic</span>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Conductor selects and triggers the next speaker.
+                      </p>
+                    </button>
+                    <button
+                      onClick={() => setConductorMode('manual')}
+                      className={`p-3 rounded-lg border text-left transition-all ${
+                        conductorMode === 'manual'
+                          ? 'border-primary bg-secondary'
+                          : 'border-border hover:border-muted'
+                      }`}
+                    >
+                      <span className="font-medium text-sm">Manual</span>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Conductor suggests and waits for your confirmation.
+                      </p>
+                    </button>
                   </div>
-                  {!conductorPersonaId && (
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Please select one persona to be the Conductor
-                    </p>
-                  )}
                 </div>
               )}
             </Card>
@@ -313,9 +305,9 @@ export default function NewSessionPage() {
               {selectedPersonas.length > 0 && (
                 <p className="text-sm text-muted-foreground mt-3">
                   {selectedPersonas.length} persona{selectedPersonas.length !== 1 ? 's' : ''} selected
-                  {enableConductor && conductorPersonaId && selectedPersonas.includes(conductorPersonaId) && (
+                  {enableConductor && (
                     <span className="text-primary ml-2">
-                      • {personas.find(p => p.id === conductorPersonaId)?.name} will be Conductor
+                      • Conductor {conductorMode === 'manual' ? 'suggests and waits' : 'runs automatically'}
                     </span>
                   )}
                 </p>
@@ -326,7 +318,7 @@ export default function NewSessionPage() {
             <div className="flex gap-2 pt-4">
               <Button
                 onClick={handleCreateSession}
-                disabled={!isValid || isLoading || (enableConductor && !conductorPersonaId)}
+                disabled={!isValid || isLoading}
               >
                 {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Create Session

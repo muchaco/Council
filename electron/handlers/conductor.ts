@@ -48,7 +48,7 @@ const sessionIdSchema = z.string();
 const enableConductorArgsSchema = z.tuple([
   z.object({
     sessionId: sessionIdSchema,
-    conductorPersonaId: z.string(),
+    mode: z.enum(['automatic', 'manual']),
   }),
 ]);
 const updateBlackboardArgsSchema = z.tuple([
@@ -73,9 +73,9 @@ export function setupConductorHandlers(): void {
   const settings = makeConductorSettingsService(decrypt, settingsStore);
 
   // Enable conductor for a session
-  ipcMain.handle('conductor:enable', async (_, { sessionId, conductorPersonaId }: { sessionId: string; conductorPersonaId: string }) => {
+  ipcMain.handle('conductor:enable', async (_, { sessionId, mode }: { sessionId: string; mode: 'automatic' | 'manual' }) => {
     try {
-      await queries.enableConductor(sessionId, conductorPersonaId);
+      await queries.enableConductor(sessionId, mode as 'automatic' | 'manual');
       return mapVoidSuccessResponse();
     } catch (error) {
       console.error('Error enabling conductor:', error);

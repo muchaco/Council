@@ -13,7 +13,6 @@ import {
   Clock,
   DollarSign,
   MessageSquare,
-  Crown,
   Sparkles,
   Download,
   Archive,
@@ -128,14 +127,7 @@ function SessionContent() {
     if (currentSession.conductorEnabled) {
       await disableConductor();
     } else {
-      // Find first non-conductor persona to be the conductor
-      const nonConductorPersonas = sessionPersonas.filter(p => !p.isConductor);
-      if (nonConductorPersonas.length === 0) {
-        toast.error('Need at least one non-conductor persona');
-        return;
-      }
-      // For simplicity, use the first persona as conductor
-      await enableConductor(nonConductorPersonas[0].id);
+      await enableConductor(currentSession.conductorMode);
     }
   };
 
@@ -284,15 +276,19 @@ function SessionContent() {
           ) : (
             messages.map((msg) => {
               const persona = sessionPersonas.find(p => p.id === msg.personaId);
-              const isUser = msg.personaId === null;
+              const isConductorMessage = msg.source === 'conductor' || msg.metadata?.isConductorMessage === true;
+              const isUserSide = msg.source === 'user' || isConductorMessage;
               const isIntervention = msg.metadata?.isIntervention;
-              const isConductorMessage = msg.metadata?.isConductorMessage ||
-                (persona?.id === currentSession.conductorPersonaId);
+              const senderName = isConductorMessage
+                ? 'Conductor'
+                : isUserSide
+                  ? 'You'
+                  : persona?.name || 'Unknown';
               
               return (
                 <div
                   key={msg.id}
-                  className={`flex gap-3 ${isUser ? 'flex-row-reverse' : ''}`}
+                  className={`flex gap-3 ${isUserSide ? 'flex-row-reverse' : ''}`}
                 >
                   {/* Avatar */}
                   <div
@@ -300,19 +296,23 @@ function SessionContent() {
                       isConductorMessage ? 'ring-2 ring-primary' : ''
                     }`}
                     style={{
-                      backgroundColor: isUser ? 'var(--muted-foreground)' : persona?.color,
+                      backgroundColor: isConductorMessage
+                        ? 'var(--primary)'
+                        : isUserSide
+                          ? 'var(--muted-foreground)'
+                          : persona?.color,
                     }}
                   >
-                    {isUser ? 'You' : isConductorMessage ? <Crown className="w-4 h-4" /> : persona?.name.charAt(0)}
+                    {isConductorMessage ? <Sparkles className="w-4 h-4" /> : isUserSide ? 'You' : persona?.name.charAt(0)}
                   </div>
                   
                   {/* Message */}
-                  <div className={`flex-1 max-w-[80%] ${isUser ? 'text-right' : ''}`}>
+                  <div className={`flex-1 max-w-[80%] ${isUserSide ? 'text-right' : ''}`}>
                     <MessageBubble
                       content={msg.content}
-                      senderName={isUser ? 'You' : persona?.name || 'Unknown'}
+                      senderName={senderName}
                       timestamp={msg.createdAt}
-                      isUser={isUser}
+                      isUser={isUserSide}
                       isConductor={isConductorMessage}
                       isIntervention={isIntervention}
                       accentColor={persona?.color}

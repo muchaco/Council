@@ -29,6 +29,8 @@ export type ConductorTurnShellPlan =
       readonly _tag: 'WaitForUser';
       readonly statePatch: ConductorStatePatch;
       readonly toast: ToastPlan;
+      readonly suggestedPersonaId?: string;
+      readonly isInterventionSuggestion?: boolean;
     } & ConductorTurnPlanBase)
   | ({
       readonly _tag: 'TriggerPersona';
@@ -124,6 +126,8 @@ export const decideConductorTurnShellPlan = (
         statePatch: { conductorRunning: false },
         toast: { level: 'info', message: 'Conductor waiting for user input' },
         blackboardUpdate,
+        suggestedPersonaId: response.suggestedPersonaId,
+        isInterventionSuggestion: response.isInterventionSuggestion,
         warning: response.warning,
       };
     case 'TRIGGER_PERSONA':

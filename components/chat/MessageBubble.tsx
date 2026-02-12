@@ -32,6 +32,9 @@ export function MessageBubble({
     : {};
 
   const bubbleClassName = (() => {
+    if (isUser && isConductor) {
+      return 'bg-primary/90 text-primary-foreground border border-primary/40';
+    }
     if (isUser) {
       return 'bg-primary text-primary-foreground';
     }
@@ -51,6 +54,11 @@ export function MessageBubble({
         {isIntervention && (
           <Badge variant="outline" className="text-xs">
             Intervention
+          </Badge>
+        )}
+        {isConductor && (
+          <Badge variant="secondary" className="text-xs">
+            Conductor
           </Badge>
         )}
         <span className="text-xs text-muted-foreground">
