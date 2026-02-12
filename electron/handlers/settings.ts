@@ -87,6 +87,30 @@ interface ModelCache {
 
 let modelCache: ModelCache | null = null;
 const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+const GEMINI_MODELS_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+const GEMINI_API_KEY_HEADER = 'x-goog-api-key';
+
+type SettingsNetworkOperation = 'testConnection' | 'listModels';
+
+const SETTINGS_NETWORK_PUBLIC_ERROR_MESSAGE: Record<SettingsNetworkOperation, string> = {
+  testConnection: 'Unable to verify Gemini API key',
+  listModels: 'Unable to load Gemini models',
+};
+
+export const mapSettingsNetworkFailureToPublicError = (
+  operation: SettingsNetworkOperation
+): string => SETTINGS_NETWORK_PUBLIC_ERROR_MESSAGE[operation];
+
+export const createGeminiModelsRequest = (
+  apiKey: string
+): { readonly url: string; readonly init: RequestInit } => ({
+  url: GEMINI_MODELS_URL,
+  init: {
+    headers: {
+      [GEMINI_API_KEY_HEADER]: apiKey,
+    },
+  },
+});
 
 function getApiKeyHash(apiKey: string): string {
   return crypto.createHash('sha256').update(apiKey).digest('hex').substring(0, 16);
@@ -104,12 +128,11 @@ async function fetchAvailableModels(apiKey: string): Promise<ModelInfo[]> {
   }
   
   // Fetch from API
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
-  );
+  const request = createGeminiModelsRequest(apiKey);
+  const response = await fetch(request.url, request.init);
   
   if (!response.ok) {
-    throw new Error(`Failed to fetch models: ${response.statusText}`);
+    throw new Error(`GEMINI_MODELS_HTTP_${response.status}`);
   }
   
   const data = await response.json() as { models?: any[] };
@@ -175,21 +198,25 @@ export function setupSettingsHandlers(): void {
       }
       
       const apiKey = decrypt(encrypted);
-      
+
       // Test the API key with a simple request
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
-      );
+      const request = createGeminiModelsRequest(apiKey);
+      const response = await fetch(request.url, request.init);
       
       if (response.ok) {
         return { success: true, data: true };
       } else {
-        const error = await response.text();
-        return { success: false, error: `API test failed: ${error}` };
+        return {
+          success: false,
+          error: mapSettingsNetworkFailureToPublicError('testConnection'),
+        };
       }
-    } catch (error) {
-      console.error('Error testing connection:', error);
-      return { success: false, error: (error as Error).message };
+    } catch {
+      console.error('Error testing Gemini API connection');
+      return {
+        success: false,
+        error: mapSettingsNetworkFailureToPublicError('testConnection'),
+      };
     }
   });
 
@@ -224,9 +251,12 @@ export function setupSettingsHandlers(): void {
       const models = await fetchAvailableModels(apiKey);
       
       return { success: true, data: models };
-    } catch (error) {
-      console.error('Error fetching models:', error);
-      return { success: false, error: (error as Error).message };
+    } catch {
+      console.error('Error fetching Gemini models');
+      return {
+        success: false,
+        error: mapSettingsNetworkFailureToPublicError('listModels'),
+      };
     }
   });
 }
