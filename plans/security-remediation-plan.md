@@ -36,6 +36,7 @@ Scope: Electron main/preload/IPC boundaries, settings secret handling, protocol 
   - `npm run test`
   - `npm run electron:build`
 - Current status: all gates passing after Slice 7 changes.
+- Bug registry status: BUG-003, BUG-004, BUG-005, BUG-006, BUG-007, and BUG-008 are marked `resolved`.
 
 ## Objectives
 
