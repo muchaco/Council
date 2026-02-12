@@ -21,8 +21,7 @@ const ipcMain = {
 
 const noArgsSchema = z.tuple([]);
 const apiKeyValueSchema = z.string().min(1);
-const settingsKeySchema = z.enum(['defaultModel']);
-const settingsValueSchema = z.string();
+const defaultModelValueSchema = z.string().min(1);
 
 interface StoreSchema {
   apiKey: string;
@@ -242,29 +241,28 @@ export function setupSettingsHandlers(): void {
     },
   });
 
-  // Generic get/set for other settings
-  ipcMain.handle('settings:get', (_, key: z.infer<typeof settingsKeySchema>) => {
+  ipcMain.handle('settings:getDefaultModel', () => {
     try {
-      const value = (store as any).get(key);
+      const value = (store as any).get('defaultModel');
       return { success: true, data: value };
     } catch (error) {
       console.error('Error loading setting:', error);
-      return { success: false, error: 'Failed to load setting' };
+      return { success: false, error: 'Failed to load default model' };
     }
   }, {
-    argsSchema: z.tuple([settingsKeySchema]),
+    argsSchema: noArgsSchema,
   });
 
-  ipcMain.handle('settings:set', (_, key: z.infer<typeof settingsKeySchema>, value: z.infer<typeof settingsValueSchema>) => {
+  ipcMain.handle('settings:setDefaultModel', (_, defaultModel: string) => {
     try {
-      (store as any).set(key, value);
+      (store as any).set('defaultModel', defaultModel);
       return { success: true };
     } catch (error) {
       console.error('Error saving setting:', error);
-      return { success: false, error: 'Failed to save setting' };
+      return { success: false, error: 'Failed to save default model' };
     }
   }, {
-    argsSchema: z.tuple([settingsKeySchema, settingsValueSchema]),
+    argsSchema: z.tuple([defaultModelValueSchema]),
   });
 
   // List available models

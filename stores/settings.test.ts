@@ -14,8 +14,8 @@ const mockElectronSettings = {
   getApiKeyStatus: vi.fn(),
   setApiKey: vi.fn(),
   testConnection: vi.fn(),
-  getSetting: vi.fn(),
-  setSetting: vi.fn(),
+  getDefaultModel: vi.fn(),
+  setDefaultModel: vi.fn(),
   listModels: vi.fn(),
 };
 

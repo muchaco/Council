@@ -90,7 +90,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   loadDefaultModel: async () => {
     try {
-      const result = await window.electronSettings.getSetting('defaultModel');
+      const result = await window.electronSettings.getDefaultModel();
       if (result.success && result.data) {
         set({ defaultModel: result.data as string });
       }
@@ -103,7 +103,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   setDefaultModel: async (model: string) => {
     try {
-      const result = await window.electronSettings.setSetting('defaultModel', model);
+      const result = await window.electronSettings.setDefaultModel(model);
       if (result.success) {
         set({ defaultModel: model });
       }

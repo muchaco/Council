@@ -50,8 +50,8 @@ declare global {
       getApiKeyStatus: () => Promise<{ success: boolean; data?: { configured: boolean }; error?: string }>;
       setApiKey: (key: string) => Promise<{ success: boolean; error?: string }>;
       testConnection: () => Promise<{ success: boolean; data?: boolean; error?: string }>;
-      getSetting: (key: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
-      setSetting: (key: string, value: unknown) => Promise<{ success: boolean; error?: string }>;
+      getDefaultModel: () => Promise<{ success: boolean; data?: unknown; error?: string }>;
+      setDefaultModel: (defaultModel: string) => Promise<{ success: boolean; error?: string }>;
       listModels: () => Promise<{ success: boolean; data?: Array<{ name: string; displayName: string; description: string; supportedMethods: string[] }>; error?: string }>;
     };
     electronConductor: {

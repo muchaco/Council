@@ -1,7 +1,21 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+const dbTagsAPI = Object.freeze({
+  create: (name: string) => ipcRenderer.invoke('db:tag:create', name),
+  getAll: () => ipcRenderer.invoke('db:tag:getAll'),
+  getByName: (name: string) => ipcRenderer.invoke('db:tag:getByName', name),
+  delete: (id: number) => ipcRenderer.invoke('db:tag:delete', id),
+  cleanupOrphaned: () => ipcRenderer.invoke('db:tag:cleanupOrphaned'),
+});
+
+const dbSessionTagsAPI = Object.freeze({
+  add: (sessionId: string, tagId: number) => ipcRenderer.invoke('db:sessionTag:add', sessionId, tagId),
+  remove: (sessionId: string, tagId: number) => ipcRenderer.invoke('db:sessionTag:remove', sessionId, tagId),
+  getBySession: (sessionId: string) => ipcRenderer.invoke('db:sessionTag:getBySession', sessionId),
+});
+
 // Database API
-const dbAPI = {
+const dbAPI = Object.freeze({
   // Personas
   createPersona: (data: unknown) => ipcRenderer.invoke('db:persona:create', data),
   getPersonas: () => ipcRenderer.invoke('db:persona:getAll'),
@@ -37,37 +51,27 @@ const dbAPI = {
   unarchiveSession: (id: string) => ipcRenderer.invoke('db:session:unarchive', id),
   
   // Tags
-  tags: {
-    create: (name: string) => ipcRenderer.invoke('db:tag:create', name),
-    getAll: () => ipcRenderer.invoke('db:tag:getAll'),
-    getByName: (name: string) => ipcRenderer.invoke('db:tag:getByName', name),
-    delete: (id: number) => ipcRenderer.invoke('db:tag:delete', id),
-    cleanupOrphaned: () => ipcRenderer.invoke('db:tag:cleanupOrphaned'),
-  },
-  sessionTags: {
-    add: (sessionId: string, tagId: number) => ipcRenderer.invoke('db:sessionTag:add', sessionId, tagId),
-    remove: (sessionId: string, tagId: number) => ipcRenderer.invoke('db:sessionTag:remove', sessionId, tagId),
-    getBySession: (sessionId: string) => ipcRenderer.invoke('db:sessionTag:getBySession', sessionId),
-  },
-};
+  tags: dbTagsAPI,
+  sessionTags: dbSessionTagsAPI,
+});
 
 // LLM API
-const llmAPI = {
+const llmAPI = Object.freeze({
   chat: (request: unknown) => ipcRenderer.invoke('llm:chat', request),
-};
+});
 
 // Settings API
-const settingsAPI = {
+const settingsAPI = Object.freeze({
   getApiKeyStatus: () => ipcRenderer.invoke('settings:getApiKeyStatus'),
   setApiKey: (key: string) => ipcRenderer.invoke('settings:setApiKey', key),
   testConnection: () => ipcRenderer.invoke('settings:testConnection'),
-  getSetting: (key: string) => ipcRenderer.invoke('settings:get', key),
-  setSetting: (key: string, value: unknown) => ipcRenderer.invoke('settings:set', key, value),
+  getDefaultModel: () => ipcRenderer.invoke('settings:getDefaultModel'),
+  setDefaultModel: (defaultModel: string) => ipcRenderer.invoke('settings:setDefaultModel', defaultModel),
   listModels: () => ipcRenderer.invoke('settings:listModels'),
-};
+});
 
 // Conductor API
-const conductorAPI = {
+const conductorAPI = Object.freeze({
   enable: (sessionId: string, conductorPersonaId: string) =>
     ipcRenderer.invoke('conductor:enable', { sessionId, conductorPersonaId }),
   disable: (sessionId: string) => ipcRenderer.invoke('conductor:disable', sessionId),
@@ -76,13 +80,13 @@ const conductorAPI = {
   getBlackboard: (sessionId: string) => ipcRenderer.invoke('conductor:getBlackboard', sessionId),
   updateBlackboard: (sessionId: string, blackboard: unknown) => 
     ipcRenderer.invoke('conductor:updateBlackboard', { sessionId, blackboard }),
-};
+});
 
 // Export API
-const exportAPI = {
+const exportAPI = Object.freeze({
   exportSessionToMarkdown: (sessionId: string) => 
     ipcRenderer.invoke('export:sessionToMarkdown', sessionId),
-};
+});
 
 // Expose APIs to renderer
 contextBridge.exposeInMainWorld('electronDB', dbAPI);
