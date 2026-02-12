@@ -1,5 +1,6 @@
 import { app, ipcMain as electronIpcMain } from 'electron';
 import { Effect } from 'effect';
+import { z } from 'zod';
 
 import { decrypt } from './settings.js';
 import * as queries from '../lib/queries.js';
@@ -28,13 +29,22 @@ import {
   mapErrorFailureResponse,
   mapVoidSuccessResponse,
 } from '../lib/shell/conductor-handler-response.js';
-import { registerPrivilegedIpcHandle } from '../lib/security/privileged-ipc.js';
+import {
+  registerPrivilegedIpcHandle,
+  type PrivilegedIpcHandleOptions,
+} from '../lib/security/privileged-ipc.js';
 
 const ipcMain = {
-  handle: (channelName: string, handler: (...args: any[]) => unknown): void => {
-    registerPrivilegedIpcHandle(electronIpcMain, channelName, handler as any);
+  handle: (
+    channelName: string,
+    handler: (...args: any[]) => unknown,
+    options?: PrivilegedIpcHandleOptions
+  ): void => {
+    registerPrivilegedIpcHandle(electronIpcMain, channelName, handler as any, options);
   },
 };
+
+const sessionIdSchema = z.string();
 
 export function setupConductorHandlers(): void {
   const sqlExecutor = makeElectronSqlQueryExecutor();
@@ -87,6 +97,12 @@ export function setupConductorHandlers(): void {
       console.error('Orchestration error:', error);
       return mapErrorFailureResponse(error);
     }
+  }, {
+    argsSchema: z.tuple([sessionIdSchema]),
+    rateLimit: {
+      maxRequests: 20,
+      windowMs: 60_000,
+    },
   });
 
   // Reset circuit breaker (user clicked continue)

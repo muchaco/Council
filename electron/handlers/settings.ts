@@ -1,16 +1,25 @@
 import { app, ipcMain as electronIpcMain } from 'electron';
 import crypto from 'crypto';
+import { z } from 'zod';
 import { registerPrivilegedIpcHandle } from '../lib/security/privileged-ipc.js';
 import {
   createCouncilSettingsStore,
   resolveCouncilEncryptionKey,
 } from '../../lib/infrastructure/settings/council-settings-security.js';
 
+import type { PrivilegedIpcHandleOptions } from '../lib/security/privileged-ipc.js';
+
 const ipcMain = {
-  handle: (channelName: string, handler: (...args: any[]) => unknown): void => {
-    registerPrivilegedIpcHandle(electronIpcMain, channelName, handler as any);
+  handle: (
+    channelName: string,
+    handler: (...args: any[]) => unknown,
+    options?: PrivilegedIpcHandleOptions
+  ): void => {
+    registerPrivilegedIpcHandle(electronIpcMain, channelName, handler as any, options);
   },
 };
+
+const noArgsSchema = z.tuple([]);
 
 interface StoreSchema {
   apiKey: string;
@@ -218,6 +227,12 @@ export function setupSettingsHandlers(): void {
         error: mapSettingsNetworkFailureToPublicError('testConnection'),
       };
     }
+  }, {
+    argsSchema: noArgsSchema,
+    rateLimit: {
+      maxRequests: 30,
+      windowMs: 60_000,
+    },
   });
 
   // Generic get/set for other settings
@@ -258,5 +273,11 @@ export function setupSettingsHandlers(): void {
         error: mapSettingsNetworkFailureToPublicError('listModels'),
       };
     }
+  }, {
+    argsSchema: noArgsSchema,
+    rateLimit: {
+      maxRequests: 30,
+      windowMs: 60_000,
+    },
   });
 }

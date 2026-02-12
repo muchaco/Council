@@ -1,6 +1,7 @@
 import { app, ipcMain as electronIpcMain } from 'electron';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Effect, Either } from 'effect';
+import { z } from 'zod';
 
 import { decrypt } from './settings.js';
 import { makeElectronSqlQueryExecutor } from '../lib/sql-query-executor.js';
@@ -19,11 +20,18 @@ import {
   createCouncilSettingsStore,
   makeCouncilChatSettingsService,
 } from '../../lib/infrastructure/settings';
-import { registerPrivilegedIpcHandle } from '../lib/security/privileged-ipc.js';
+import {
+  registerPrivilegedIpcHandle,
+  type PrivilegedIpcHandleOptions,
+} from '../lib/security/privileged-ipc.js';
 
 const ipcMain = {
-  handle: (channelName: string, handler: (...args: any[]) => unknown): void => {
-    registerPrivilegedIpcHandle(electronIpcMain, channelName, handler as any);
+  handle: (
+    channelName: string,
+    handler: (...args: any[]) => unknown,
+    options?: PrivilegedIpcHandleOptions
+  ): void => {
+    registerPrivilegedIpcHandle(electronIpcMain, channelName, handler as any, options);
   },
 };
 
@@ -44,6 +52,31 @@ interface ChatRequest {
     role: string;
   }>;
 }
+
+const chatRequestSchema = z.object({
+  personaId: z.string(),
+  sessionId: z.string(),
+  model: z.string(),
+  systemPrompt: z.string(),
+  hiddenAgenda: z.string().optional(),
+  verbosity: z.string().optional(),
+  temperature: z.number(),
+  problemContext: z.string(),
+  outputGoal: z.string(),
+  blackboard: z.object({
+    consensus: z.string(),
+    conflicts: z.string(),
+    nextStep: z.string(),
+    facts: z.string(),
+  }),
+  otherPersonas: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      role: z.string(),
+    })
+  ),
+});
 
 const mapErrorToMessage = (error: CouncilChatUseCaseError): string => error.message;
 
@@ -124,5 +157,11 @@ export function setupLLMHandlers(): void {
         error: (error as Error).message,
       };
     }
+  }, {
+    argsSchema: z.tuple([chatRequestSchema]),
+    rateLimit: {
+      maxRequests: 12,
+      windowMs: 60_000,
+    },
   });
 }
