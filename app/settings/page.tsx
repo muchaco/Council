@@ -12,6 +12,8 @@ export default function SettingsPage() {
     isApiKeyConfigured,
     isConnected,
     isLoading,
+    isModelCatalogLoading,
+    modelCatalogError,
     defaultModel,
     availableModels,
     loadApiKeyStatus,
@@ -133,9 +135,17 @@ export default function SettingsPage() {
                 <div className="mt-1 w-full px-3 py-2 bg-muted border border-border rounded text-muted-foreground text-sm">
                   Configure LLM provider
                 </div>
-              ) : availableModels.length === 0 ? (
+              ) : isModelCatalogLoading ? (
                 <div className="mt-1 w-full px-3 py-2 bg-muted border border-border rounded text-muted-foreground text-sm">
                   Loading available models...
+                </div>
+              ) : modelCatalogError && availableModels.length === 0 ? (
+                <div className="mt-1 w-full px-3 py-2 bg-red-950/40 border border-red-900 rounded text-red-300 text-sm">
+                  Unable to load models. Check API key and click Refresh.
+                </div>
+              ) : availableModels.length === 0 ? (
+                <div className="mt-1 w-full px-3 py-2 bg-muted border border-border rounded text-muted-foreground text-sm">
+                  No models found. Click Refresh to try again.
                 </div>
               ) : (
                 <select
@@ -158,10 +168,12 @@ export default function SettingsPage() {
                 </select>
               )}
               <div className="flex items-center gap-2 mt-1">
-                <p className="text-xs text-muted-foreground">
-                  {availableModels.length > 0
-                    ? `${availableModels.length} models available`
-                    : 'Add API key to see available models'}
+                <p className={`text-xs ${modelCatalogError ? 'text-red-400' : 'text-muted-foreground'}`}>
+                  {modelCatalogError
+                    ? modelCatalogError
+                    : availableModels.length > 0
+                      ? `${availableModels.length} models available`
+                      : 'Add API key to see available models'}
                 </p>
                 {isApiKeyConfigured && (
                   <Button
@@ -171,10 +183,10 @@ export default function SettingsPage() {
                       invalidateModelCache();
                       fetchAvailableModels();
                     }}
-                    disabled={isLoading}
+                    disabled={isLoading || isModelCatalogLoading}
                     className="h-6 px-2 text-xs"
                   >
-                    <RefreshCw className="w-3 h-3 mr-1" />
+                    <RefreshCw className={`w-3 h-3 mr-1 ${isModelCatalogLoading ? 'animate-spin' : ''}`} />
                     Refresh
                   </Button>
                 )}

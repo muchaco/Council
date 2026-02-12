@@ -34,7 +34,7 @@ const personaInputSchema = z.object({
 const sessionCreateInputSchema = z.object({
   title: z.string().min(1),
   problemDescription: z.string().min(1),
-  outputGoal: z.string().min(1),
+  outputGoal: z.string().optional().default(''),
   conductorConfig: z
     .object({
       enabled: z.boolean(),

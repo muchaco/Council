@@ -26,17 +26,50 @@ describe('settings_store_spec', () => {
       isApiKeyConfigured: false,
       isConnected: false,
       isLoading: false,
+      isModelCatalogLoading: false,
+      modelCatalogError: null,
       defaultModel: '',
       availableModels: [],
       modelsLastFetched: null,
     });
     Object.assign(window, { electronSettings: mockElectronSettings });
+    mockElectronSettings.getApiKeyStatus.mockResolvedValue({
+      success: true,
+      data: { configured: false },
+    });
   });
 
   it('does_not_fetch_model_catalog_when_api_key_is_missing', async () => {
     await useSettingsStore.getState().fetchAvailableModels();
 
     expect(mockElectronSettings.listModels).not.toHaveBeenCalled();
+  });
+
+  it('hydrates_api_key_status_before_refreshing_model_catalog', async () => {
+    const models: ModelInfo[] = [
+      {
+        name: 'gemini-2.0-flash',
+        displayName: 'Gemini 2.0 Flash',
+        description: 'Fast',
+        supportedMethods: ['generateContent'],
+      },
+    ];
+
+    useSettingsStore.setState({
+      isApiKeyConfigured: false,
+      availableModels: [],
+      modelsLastFetched: null,
+    });
+    mockElectronSettings.getApiKeyStatus.mockResolvedValue({
+      success: true,
+      data: { configured: true },
+    });
+    mockElectronSettings.listModels.mockResolvedValue({ success: true, data: models });
+
+    await useSettingsStore.getState().fetchAvailableModels();
+
+    expect(useSettingsStore.getState().isApiKeyConfigured).toBe(true);
+    expect(useSettingsStore.getState().availableModels).toEqual(models);
   });
 
   it('does_not_fetch_model_catalog_when_cache_is_still_valid', async () => {
@@ -51,6 +84,10 @@ describe('settings_store_spec', () => {
         },
       ],
       modelsLastFetched: Date.now(),
+    });
+    mockElectronSettings.getApiKeyStatus.mockResolvedValue({
+      success: true,
+      data: { configured: true },
     });
 
     await useSettingsStore.getState().fetchAvailableModels();
@@ -73,6 +110,10 @@ describe('settings_store_spec', () => {
       availableModels: models,
       modelsLastFetched: 0,
     });
+    mockElectronSettings.getApiKeyStatus.mockResolvedValue({
+      success: true,
+      data: { configured: true },
+    });
     mockElectronSettings.listModels.mockResolvedValue({ success: true, data: models });
 
     await useSettingsStore.getState().fetchAvailableModels();
@@ -80,5 +121,82 @@ describe('settings_store_spec', () => {
     expect(mockElectronSettings.listModels).toHaveBeenCalledTimes(1);
     expect(useSettingsStore.getState().availableModels).toEqual(models);
     expect(useSettingsStore.getState().modelsLastFetched).not.toBeNull();
+  });
+
+  it('refreshes_model_catalog_after_api_key_is_saved', async () => {
+    const models: ModelInfo[] = [
+      {
+        name: 'gemini-2.5-pro',
+        displayName: 'Gemini 2.5 Pro',
+        description: 'Reasoning model',
+        supportedMethods: ['generateContent'],
+      },
+    ];
+
+    mockElectronSettings.setApiKey.mockResolvedValue({ success: true });
+    mockElectronSettings.getApiKeyStatus.mockResolvedValue({
+      success: true,
+      data: { configured: true },
+    });
+    mockElectronSettings.listModels.mockResolvedValue({ success: true, data: models });
+
+    const success = await useSettingsStore.getState().setApiKey('test-api-key');
+
+    expect(success).toBe(true);
+    expect(mockElectronSettings.listModels).toHaveBeenCalledTimes(1);
+    expect(useSettingsStore.getState().availableModels).toEqual(models);
+    expect(useSettingsStore.getState().modelsLastFetched).not.toBeNull();
+  });
+
+  it('refreshes_model_catalog_after_successful_connection_test_when_catalog_is_empty', async () => {
+    const models: ModelInfo[] = [
+      {
+        name: 'gemini-2.0-flash',
+        displayName: 'Gemini 2.0 Flash',
+        description: 'Fast',
+        supportedMethods: ['generateContent'],
+      },
+    ];
+
+    useSettingsStore.setState({
+      isApiKeyConfigured: true,
+      availableModels: [],
+      modelsLastFetched: null,
+    });
+
+    mockElectronSettings.testConnection.mockResolvedValue({ success: true, data: true });
+    mockElectronSettings.getApiKeyStatus.mockResolvedValue({
+      success: true,
+      data: { configured: true },
+    });
+    mockElectronSettings.listModels.mockResolvedValue({ success: true, data: models });
+
+    const success = await useSettingsStore.getState().testConnection();
+
+    expect(success).toBe(true);
+    expect(mockElectronSettings.listModels).toHaveBeenCalledTimes(1);
+    expect(useSettingsStore.getState().availableModels).toEqual(models);
+  });
+
+  it('shows_model_catalog_error_when_refresh_fails', async () => {
+    useSettingsStore.setState({
+      isApiKeyConfigured: true,
+      availableModels: [],
+      modelsLastFetched: 0,
+    });
+    mockElectronSettings.getApiKeyStatus.mockResolvedValue({
+      success: true,
+      data: { configured: true },
+    });
+
+    mockElectronSettings.listModels.mockResolvedValue({
+      success: false,
+      error: 'Unable to load Gemini models',
+    });
+
+    await useSettingsStore.getState().fetchAvailableModels();
+
+    expect(useSettingsStore.getState().isModelCatalogLoading).toBe(false);
+    expect(useSettingsStore.getState().modelCatalogError).toBe('Unable to load Gemini models');
   });
 });

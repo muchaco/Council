@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { ipcHandleSpy, createPersonaMock, getPersonasMock } = vi.hoisted(() => ({
+const { ipcHandleSpy, createPersonaMock, getPersonasMock, createSessionMock } = vi.hoisted(() => ({
   ipcHandleSpy: vi.fn(),
   createPersonaMock: vi.fn(),
   getPersonasMock: vi.fn(),
+  createSessionMock: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
@@ -15,6 +16,7 @@ vi.mock('electron', () => ({
 vi.mock('../lib/queries.js', () => ({
   createPersona: createPersonaMock,
   getPersonas: getPersonasMock,
+  createSession: createSessionMock,
 }));
 
 import { setupDatabaseHandlers } from './db';
@@ -34,6 +36,7 @@ describe('database_handler_security_spec', () => {
     ipcHandleSpy.mockClear();
     createPersonaMock.mockReset();
     getPersonasMock.mockReset();
+    createSessionMock.mockReset();
   });
 
   it('rejects_invalid_payload_before_db_execution', async () => {
@@ -116,5 +119,77 @@ describe('database_handler_security_spec', () => {
     });
 
     expect(throttledResponse).toEqual({ success: false, error: 'Rate limit exceeded' });
+  });
+
+  it('accepts_session_creation_without_optional_output_goal', async () => {
+    createSessionMock.mockResolvedValue({ id: 'session-1' });
+    setupDatabaseHandlers();
+
+    const channelRegistrations = ipcHandleSpy.mock.calls as Array<
+      [string, (event: unknown, ...args: unknown[]) => Promise<unknown>]
+    >;
+    const createSessionHandler = channelRegistrations.find(
+      ([channel]) => channel === 'db:session:create'
+    )?.[1];
+
+    expect(createSessionHandler).toBeDefined();
+
+    const response = await createSessionHandler!(
+      { senderFrame: createMainFrame('app://index.html'), sender: { id: 12 } },
+      {
+        title: 'Launch readiness',
+        problemDescription: 'Align launch decisions',
+      }
+    );
+
+    expect(response).toEqual({ success: true, data: { id: 'session-1' } });
+    expect(createSessionMock).toHaveBeenCalledWith(
+      {
+        title: 'Launch readiness',
+        problemDescription: 'Align launch decisions',
+        outputGoal: '',
+      },
+      undefined
+    );
+  });
+
+  it('accepts_session_creation_with_all_supported_fields', async () => {
+    createSessionMock.mockResolvedValue({ id: 'session-2' });
+    setupDatabaseHandlers();
+
+    const channelRegistrations = ipcHandleSpy.mock.calls as Array<
+      [string, (event: unknown, ...args: unknown[]) => Promise<unknown>]
+    >;
+    const createSessionHandler = channelRegistrations.find(
+      ([channel]) => channel === 'db:session:create'
+    )?.[1];
+
+    expect(createSessionHandler).toBeDefined();
+
+    const response = await createSessionHandler!(
+      { senderFrame: createMainFrame('app://index.html'), sender: { id: 13 } },
+      {
+        title: 'Q2 planning',
+        problemDescription: 'Resolve roadmap conflicts',
+        outputGoal: 'Deliver an execution brief',
+        conductorConfig: {
+          enabled: true,
+          conductorPersonaId: 'persona-7',
+        },
+      }
+    );
+
+    expect(response).toEqual({ success: true, data: { id: 'session-2' } });
+    expect(createSessionMock).toHaveBeenCalledWith(
+      {
+        title: 'Q2 planning',
+        problemDescription: 'Resolve roadmap conflicts',
+        outputGoal: 'Deliver an execution brief',
+      },
+      {
+        enabled: true,
+        conductorPersonaId: 'persona-7',
+      }
+    );
   });
 });

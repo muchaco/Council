@@ -12,8 +12,8 @@ export const mapPersistedReusablePersonaRowToPersona = (
   geminiModel: row.geminiModel,
   temperature: row.temperature,
   color: row.color,
-  hiddenAgenda: row.hiddenAgenda,
-  verbosity: row.verbosity,
+  hiddenAgenda: row.hiddenAgenda ?? undefined,
+  verbosity: row.verbosity ?? undefined,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
 });

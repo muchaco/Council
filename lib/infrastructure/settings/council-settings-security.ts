@@ -106,6 +106,7 @@ export const createCouncilSettingsStore = <Schema extends object>(
 ): Store<Schema> =>
   new Store<Schema>({
     name: 'council-settings',
+    clearInvalidConfig: !isPackaged,
     encryptionKey: resolveCouncilEncryptionKey({
       councilEncryptionKey: process.env.COUNCIL_ENCRYPTION_KEY,
       isPackaged,

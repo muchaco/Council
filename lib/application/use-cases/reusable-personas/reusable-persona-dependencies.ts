@@ -10,8 +10,8 @@ export interface PersistedReusablePersonaRow {
   readonly geminiModel: string;
   readonly temperature: number;
   readonly color: string;
-  readonly hiddenAgenda: string | undefined;
-  readonly verbosity: string | undefined;
+  readonly hiddenAgenda: string | null | undefined;
+  readonly verbosity: string | null | undefined;
   readonly createdAt: string;
   readonly updatedAt: string;
 }

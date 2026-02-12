@@ -7,12 +7,14 @@ import {
   executeRefreshSettingsModelCatalog,
 } from '../lib/application/use-cases/settings';
 import { LiveClockLayer } from '../lib/infrastructure/clock';
-import { makeSettingsModelCatalogGatewayFromElectronSettings } from '../lib/infrastructure/settings';
+import { makeSettingsModelCatalogGatewayFromElectronSettings } from '../lib/infrastructure/settings/settings-model-catalog-gateway';
 
 interface SettingsState {
   isApiKeyConfigured: boolean;
   isConnected: boolean;
   isLoading: boolean;
+  isModelCatalogLoading: boolean;
+  modelCatalogError: string | null;
   defaultModel: string;
   availableModels: ModelInfo[];
   modelsLastFetched: number | null;
@@ -31,6 +33,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   isApiKeyConfigured: false,
   isConnected: false,
   isLoading: false,
+  isModelCatalogLoading: false,
+  modelCatalogError: null,
   defaultModel: '',
   availableModels: [],
   modelsLastFetched: null,
@@ -51,7 +55,19 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       set({ isLoading: true });
       const result = await window.electronSettings.setApiKey(key);
       if (result.success) {
-        set({ isApiKeyConfigured: key.trim().length > 0 });
+        const hasGeminiApiKey = key.trim().length > 0;
+
+        set({
+          isApiKeyConfigured: hasGeminiApiKey,
+          availableModels: [],
+          modelsLastFetched: null,
+          modelCatalogError: null,
+        });
+
+        if (hasGeminiApiKey) {
+          await get().fetchAvailableModels();
+        }
+
         toast.success('API key saved successfully');
         return true;
       } else {
@@ -72,6 +88,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const result = await window.electronSettings.testConnection();
       if (result.success && result.data) {
         set({ isConnected: true });
+
+        if (get().isApiKeyConfigured && get().availableModels.length === 0) {
+          await get().fetchAvailableModels();
+        }
+
         toast.success('Connected to Gemini API successfully');
         return true;
       } else {
@@ -113,12 +134,23 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   fetchAvailableModels: async () => {
-    const { isApiKeyConfigured, modelsLastFetched, availableModels } = get();
+    const { modelsLastFetched, availableModels } = get();
 
     try {
+      set({ isModelCatalogLoading: true, modelCatalogError: null });
+
+      const apiKeyStatus = await window.electronSettings.getApiKeyStatus();
+      const hasGeminiApiKey = apiKeyStatus.success
+        ? apiKeyStatus.data?.configured === true
+        : get().isApiKeyConfigured;
+
+      if (hasGeminiApiKey !== get().isApiKeyConfigured) {
+        set({ isApiKeyConfigured: hasGeminiApiKey });
+      }
+
       const outcome = await Effect.runPromise(
         executeRefreshSettingsModelCatalog({
-          hasGeminiApiKey: isApiKeyConfigured,
+          hasGeminiApiKey,
           cachedModelCount: availableModels.length,
           modelsLastFetchedEpochMs: modelsLastFetched,
         }).pipe(
@@ -133,6 +165,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
       if (Either.isLeft(outcome)) {
         console.error('Failed to fetch models:', outcome.left.message);
+        set({ modelCatalogError: outcome.left.message });
         return;
       }
 
@@ -140,10 +173,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         set({
           availableModels: [...outcome.right.models],
           modelsLastFetched: outcome.right.refreshedAtEpochMs,
+          modelCatalogError: null,
         });
       }
     } catch (error) {
       console.error('Error fetching models:', error);
+      set({ modelCatalogError: 'Unable to load Gemini models' });
+    } finally {
+      set({ isModelCatalogLoading: false });
     }
   },
 

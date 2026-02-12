@@ -5,9 +5,13 @@ import { Clock, IdGenerator } from '../../runtime';
 import {
   ReusablePersonaRepository,
   type CreateReusablePersonaCommand,
+  type PersistedReusablePersonaRow,
   type ReusablePersonaRepositoryService,
 } from './reusable-persona-dependencies';
-import { executeCreateReusablePersona } from './execute-reusable-persona-commands';
+import {
+  executeCreateReusablePersona,
+  executeLoadReusablePersonas,
+} from './execute-reusable-persona-commands';
 
 const baseRepository: ReusablePersonaRepositoryService = {
   createPersona: () => Effect.void,
@@ -65,5 +69,50 @@ describe('execute_reusable_persona_commands_use_case_spec', () => {
     expect(persona.id).toBe('persona-1');
     expect(persona.createdAt).toBe('2026-02-10T11:10:00.000Z');
     expect(persona.updatedAt).toBe('2026-02-10T11:10:00.000Z');
+  });
+
+  it('normalizes_nullable_optional_fields_when_loading_reusable_personas', async () => {
+    const persistedRows: readonly PersistedReusablePersonaRow[] = [
+      {
+        id: 'persona-1',
+        name: 'Architect',
+        role: 'Architecture Lead',
+        systemPrompt: 'Balance quality and delivery speed.',
+        geminiModel: 'gemini-1.5-pro',
+        temperature: 0.6,
+        color: '#3B82F6',
+        hiddenAgenda: null,
+        verbosity: null,
+        createdAt: '2026-02-10T11:10:00.000Z',
+        updatedAt: '2026-02-10T11:10:00.000Z',
+      },
+    ];
+
+    const readCapableRepository: ReusablePersonaRepositoryService = {
+      ...baseRepository,
+      listPersonas: () => Effect.succeed(persistedRows),
+    };
+
+    const personas = await Effect.runPromise(
+      executeLoadReusablePersonas().pipe(
+        Effect.provideService(ReusablePersonaRepository, readCapableRepository)
+      )
+    );
+
+    expect(personas).toEqual([
+      {
+        id: 'persona-1',
+        name: 'Architect',
+        role: 'Architecture Lead',
+        systemPrompt: 'Balance quality and delivery speed.',
+        geminiModel: 'gemini-1.5-pro',
+        temperature: 0.6,
+        color: '#3B82F6',
+        hiddenAgenda: undefined,
+        verbosity: undefined,
+        createdAt: '2026-02-10T11:10:00.000Z',
+        updatedAt: '2026-02-10T11:10:00.000Z',
+      },
+    ]);
   });
 });
