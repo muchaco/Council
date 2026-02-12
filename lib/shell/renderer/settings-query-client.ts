@@ -1,11 +1,13 @@
+import { getRendererBridge } from './renderer-bridge';
+
 export const loadApiKeyStatusQuery = async (): Promise<{
   success: boolean;
   data?: { configured: boolean };
   error?: string;
-}> => window.electronSettings.getApiKeyStatus();
+}> => getRendererBridge().electronSettings.getApiKeyStatus();
 
 export const loadDefaultModelQuery = async (): Promise<{ success: boolean; data?: unknown; error?: string }> =>
-  window.electronSettings.getDefaultModel();
+  getRendererBridge().electronSettings.getDefaultModel();
 
 export const loadAvailableModelsQuery = async (): Promise<{
   success: boolean;
@@ -20,4 +22,4 @@ export const loadAvailableModelsQuery = async (): Promise<{
     fetchedAtEpochMs: number | null;
   };
   error?: string;
-}> => window.electronSettings.getModelCatalog();
+}> => getRendererBridge().electronSettings.getModelCatalog();

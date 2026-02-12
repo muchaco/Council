@@ -1,3 +1,5 @@
+import { getRendererBridge } from './renderer-bridge';
+
 export interface SessionSnapshotQueryResult {
   readonly sessionResult: { success: boolean; data?: unknown; error?: string };
   readonly messagesResult: { success: boolean; data?: unknown; error?: string };
@@ -6,12 +8,12 @@ export interface SessionSnapshotQueryResult {
 }
 
 export const loadSessionsQuery = async (): Promise<{ success: boolean; data?: unknown; error?: string }> =>
-  window.electronSessionQuery.list();
+  getRendererBridge().electronSessionQuery.list();
 
 export const loadSessionSnapshotQuery = async (
   sessionId: string
 ): Promise<SessionSnapshotQueryResult> => {
-  const snapshotResult = await window.electronSessionQuery.loadSnapshot(sessionId);
+  const snapshotResult = await getRendererBridge().electronSessionQuery.loadSnapshot(sessionId);
 
   if (!snapshotResult.success || snapshotResult.data === null || snapshotResult.data === undefined) {
     return {
@@ -32,11 +34,13 @@ export const loadSessionSnapshotQuery = async (
 
 export const loadSessionByIdQuery = async (
   sessionId: string
-): Promise<{ success: boolean; data?: unknown; error?: string }> => window.electronSessionQuery.get(sessionId);
+): Promise<{ success: boolean; data?: unknown; error?: string }> =>
+  getRendererBridge().electronSessionQuery.get(sessionId);
 
 export const loadSessionParticipantsQuery = async (
   sessionId: string
-): Promise<{ success: boolean; data?: unknown; error?: string }> => window.electronSessionQuery.getParticipants(sessionId);
+): Promise<{ success: boolean; data?: unknown; error?: string }> =>
+  getRendererBridge().electronSessionQuery.getParticipants(sessionId);
 
 export const loadAllTagsQuery = async (): Promise<{ success: boolean; data?: unknown; error?: string }> =>
-  window.electronDB.tags.getAll();
+  getRendererBridge().electronDB.tags.getAll();

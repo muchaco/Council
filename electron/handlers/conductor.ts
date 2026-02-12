@@ -13,7 +13,7 @@ import {
   executeEnableConductorForSession,
   executeGetSessionBlackboard,
   executeConductorTurn,
-  executeUpdateSessionBlackboard,
+  executeUpdateConductorSessionBlackboard,
   type SelectNextSpeakerRequest,
 } from '../../lib/application/use-cases/conductor/index.js';
 import {
@@ -212,7 +212,7 @@ export function setupConductorHandlers(): void {
   ipcMain.handle('conductor:updateBlackboard', async (_, { sessionId, blackboard }: { sessionId: string; blackboard: BlackboardState }) => {
     try {
       const outcome = await Effect.runPromise(
-        executeUpdateSessionBlackboard(sessionId, blackboard).pipe(
+        executeUpdateConductorSessionBlackboard(sessionId, blackboard).pipe(
           Effect.provideService(SessionStateRepository, sessionStateRepository),
           Effect.either
         )

@@ -1,12 +1,15 @@
+import { getRendererBridge } from './renderer-bridge';
+
 export const setGeminiApiKeyCommand = async (apiKey: string): Promise<{ success: boolean; error?: string }> =>
-  window.electronSettings.setApiKey(apiKey);
+  getRendererBridge().electronSettings.setApiKey(apiKey);
 
 export const testGeminiConnectionCommand = async (): Promise<{
   success: boolean;
   data?: boolean;
   error?: string;
-}> => window.electronSettings.testConnection();
+}> => getRendererBridge().electronSettings.testConnection();
 
 export const setDefaultGeminiModelCommand = async (
   defaultModel: string
-): Promise<{ success: boolean; error?: string }> => window.electronSettings.setDefaultModel(defaultModel);
+): Promise<{ success: boolean; error?: string }> =>
+  getRendererBridge().electronSettings.setDefaultModel(defaultModel);

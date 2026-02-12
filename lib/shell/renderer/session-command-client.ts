@@ -1,4 +1,5 @@
 import type { BlackboardState, SessionInput } from '../../types';
+import { getRendererBridge } from './renderer-bridge';
 
 export interface CreateSessionCommandInput {
   readonly input: SessionInput;
@@ -9,69 +10,77 @@ export interface CreateSessionCommandInput {
 export const createSessionCommand = async (
   command: CreateSessionCommandInput
 ): Promise<{ success: boolean; data?: unknown; error?: string }> => {
-  return window.electronSessionCommand.createFull(command);
+  return getRendererBridge().electronSessionCommand.createFull(command);
 };
 
 export const updateSessionCommand = async (
   sessionId: string,
   input: unknown
 ): Promise<{ success: boolean; data?: unknown; error?: string }> =>
-  window.electronSessionCommand.update(sessionId, input);
+  getRendererBridge().electronSessionCommand.update(sessionId, input);
 
 export const deleteSessionCommand = async (
   sessionId: string
-): Promise<{ success: boolean; error?: string }> => window.electronSessionCommand.delete(sessionId);
+): Promise<{ success: boolean; error?: string }> =>
+  getRendererBridge().electronSessionCommand.delete(sessionId);
 
 export const archiveSessionCommand = async (
   sessionId: string
-): Promise<{ success: boolean; error?: string }> => window.electronSessionCommand.archive(sessionId);
+): Promise<{ success: boolean; error?: string }> =>
+  getRendererBridge().electronSessionCommand.archive(sessionId);
 
 export const unarchiveSessionCommand = async (
   sessionId: string
-): Promise<{ success: boolean; error?: string }> => window.electronSessionCommand.unarchive(sessionId);
+): Promise<{ success: boolean; error?: string }> =>
+  getRendererBridge().electronSessionCommand.unarchive(sessionId);
 
 export const setPersonaHushCommand = async (
   sessionId: string,
   personaId: string,
   turns: number
-): Promise<{ success: boolean; error?: string }> => window.electronDB.hushPersona(sessionId, personaId, turns);
+): Promise<{ success: boolean; error?: string }> =>
+  getRendererBridge().electronDB.hushPersona(sessionId, personaId, turns);
 
 export const clearPersonaHushCommand = async (
   sessionId: string,
   personaId: string
-): Promise<{ success: boolean; error?: string }> => window.electronDB.unhushPersona(sessionId, personaId);
+): Promise<{ success: boolean; error?: string }> =>
+  getRendererBridge().electronDB.unhushPersona(sessionId, personaId);
 
 export const enableConductorCommand = async (
   sessionId: string,
   mode: 'automatic' | 'manual'
-): Promise<{ success: boolean; error?: string }> => window.electronConductor.enable(sessionId, mode);
+): Promise<{ success: boolean; error?: string }> =>
+  getRendererBridge().electronConductor.enable(sessionId, mode);
 
 export const disableConductorCommand = async (
   sessionId: string
-): Promise<{ success: boolean; error?: string }> => window.electronConductor.disable(sessionId);
+): Promise<{ success: boolean; error?: string }> => getRendererBridge().electronConductor.disable(sessionId);
 
 export const resetConductorCircuitBreakerCommand = async (
   sessionId: string
-): Promise<{ success: boolean; error?: string }> => window.electronConductor.resetCircuitBreaker(sessionId);
+): Promise<{ success: boolean; error?: string }> =>
+  getRendererBridge().electronConductor.resetCircuitBreaker(sessionId);
 
 export const processConductorTurnCommand = async (sessionId: string) =>
-  window.electronConductor.processTurn(sessionId);
+  getRendererBridge().electronConductor.processTurn(sessionId);
 
 export const exportSessionToMarkdownCommand = async (sessionId: string) =>
-  window.electronExport.exportSessionToMarkdown(sessionId);
+  getRendererBridge().electronExport.exportSessionToMarkdown(sessionId);
 
 export const updateConductorBlackboardCommand = async (
   sessionId: string,
   blackboard: BlackboardState
-): Promise<{ success: boolean; error?: string }> => window.electronConductor.updateBlackboard(sessionId, blackboard);
+): Promise<{ success: boolean; error?: string }> =>
+  getRendererBridge().electronConductor.updateBlackboard(sessionId, blackboard);
 
-export const getSessionTagPersistenceBoundary = () => window.electronDB;
+export const getSessionTagPersistenceBoundary = () => getRendererBridge().electronDB;
 
 export const getSessionMessagePersistenceBoundary = () => ({
-  getNextTurnNumber: window.electronDB.getNextTurnNumber,
-  createMessage: window.electronDB.createMessage,
+  getNextTurnNumber: getRendererBridge().electronDB.getNextTurnNumber,
+  createMessage: getRendererBridge().electronDB.createMessage,
   updateSession: (
     sessionId: string,
     data: { tokenCount: number; costEstimate: number }
-  ) => window.electronSessionCommand.update(sessionId, data),
+  ) => getRendererBridge().electronSessionCommand.update(sessionId, data),
 });

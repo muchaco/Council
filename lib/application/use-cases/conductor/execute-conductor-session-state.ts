@@ -44,7 +44,7 @@ export const executeGetSessionBlackboard = (
     return session.blackboard ?? emptyBlackboardState;
   });
 
-export const executeUpdateSessionBlackboard = (
+export const executeUpdateConductorSessionBlackboard = (
   sessionId: string,
   blackboard: BlackboardState
 ): Effect.Effect<void, SessionStateInfrastructureError, SessionStateRepository> =>
