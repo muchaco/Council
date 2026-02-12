@@ -19,7 +19,7 @@ describe('decide_remove_session_tag_spec', () => {
       },
     },
     {
-      name: 'removes_assigned_tag_case_insensitively_for_legacy_mixed_case_data',
+      name: 'removes_assigned_tag_case_insensitively_for_mixed_case_data',
       command: { requestedTagName: 'tag-b' },
       context: {
         sessionId: 'session-1',

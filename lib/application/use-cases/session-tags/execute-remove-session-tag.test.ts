@@ -72,7 +72,7 @@ describe('execute_remove_session_tag_use_case_spec', () => {
     expect(persistence.removeTagFromSession).not.toHaveBeenCalled();
   });
 
-  it('returns_null_refreshed_catalog_when_cleanup_fails_to_preserve_legacy_parity', async () => {
+  it('returns_null_refreshed_catalog_when_cleanup_fails_to_preserve_existing_behavior', async () => {
     const persistence = makePersistence();
     persistence.cleanupOrphanedTags.mockReturnValue(
       Effect.fail({
