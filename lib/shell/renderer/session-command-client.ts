@@ -64,3 +64,7 @@ export const updateConductorBlackboardCommand = async (
   sessionId: string,
   blackboard: BlackboardState
 ): Promise<{ success: boolean; error?: string }> => window.electronConductor.updateBlackboard(sessionId, blackboard);
+
+export const getSessionTagPersistenceBoundary = () => window.electronDB;
+
+export const getSessionMessagePersistenceBoundary = () => window.electronDB;

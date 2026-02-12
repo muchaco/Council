@@ -34,6 +34,8 @@ import {
   disableConductorCommand,
   enableConductorCommand,
   exportSessionToMarkdownCommand,
+  getSessionMessagePersistenceBoundary,
+  getSessionTagPersistenceBoundary,
   processConductorTurnCommand,
   resetConductorCircuitBreakerCommand,
   setPersonaHushCommand,
@@ -141,7 +143,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         }).pipe(
           Effect.provideService(
             SessionTagPersistence,
-            makeSessionTagPersistenceFromElectronDB(window.electronDB)
+            makeSessionTagPersistenceFromElectronDB(getSessionTagPersistenceBoundary())
           ),
           Effect.either
         )
@@ -197,7 +199,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         }).pipe(
           Effect.provideService(
             SessionTagPersistence,
-            makeSessionTagPersistenceFromElectronDB(window.electronDB)
+            makeSessionTagPersistenceFromElectronDB(getSessionTagPersistenceBoundary())
           ),
           Effect.either
         )
@@ -427,7 +429,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         }).pipe(
           Effect.provideService(
             SessionMessagePersistence,
-            makeSessionMessagePersistenceFromElectronDB(window.electronDB)
+            makeSessionMessagePersistenceFromElectronDB(getSessionMessagePersistenceBoundary())
           ),
           Effect.either
         )
@@ -480,7 +482,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
           ),
           Effect.provideService(
             SessionMessagePersistence,
-            makeSessionMessagePersistenceFromElectronDB(window.electronDB)
+            makeSessionMessagePersistenceFromElectronDB(getSessionMessagePersistenceBoundary())
           ),
           Effect.either
         )
