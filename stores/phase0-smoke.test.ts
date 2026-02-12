@@ -137,6 +137,36 @@ describe('phase0_smoke_spec', () => {
 
     Object.assign(window, {
       electronDB,
+      electronSessionCommand: {
+        createFull: (command: unknown) => electronDB.createSession((command as { input: unknown }).input),
+        update: (sessionId: string, input: unknown) => electronDB.updateSession(sessionId, input),
+        delete: (sessionId: string) => electronDB.deleteSession(sessionId),
+        archive: (sessionId: string) => electronDB.archiveSession(sessionId),
+        unarchive: (sessionId: string) => electronDB.unarchiveSession(sessionId),
+      },
+      electronSessionQuery: {
+        list: () => electronDB.getSessions(),
+        get: (sessionId: string) => electronDB.getSession(sessionId),
+        getParticipants: (sessionId: string) => electronDB.getSessionPersonas(sessionId),
+        loadSnapshot: async (sessionId: string) => {
+          const [sessionResult, messagesResult, participantsResult, tagsResult] = await Promise.all([
+            electronDB.getSession(sessionId),
+            electronDB.getMessages(sessionId),
+            electronDB.getSessionPersonas(sessionId),
+            electronDB.sessionTags.getBySession(sessionId),
+          ]);
+          return {
+            success:
+              sessionResult.success && messagesResult.success && participantsResult.success && tagsResult.success,
+            data: {
+              session: sessionResult.data,
+              messages: messagesResult.data,
+              participants: participantsResult.data,
+              tags: tagsResult.data,
+            },
+          };
+        },
+      },
       electronConductor,
       electronExport,
       electronSettings,

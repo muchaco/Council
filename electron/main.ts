@@ -5,6 +5,7 @@ import { setupLLMHandlers } from './handlers/llm.js';
 import { setupSettingsHandlers } from './handlers/settings.js';
 import { setupConductorHandlers } from './handlers/conductor.js';
 import { setupExportHandlers } from './handlers/export.js';
+import { setupSessionStateHandlers } from './handlers/session-state-handlers.js';
 import { resolveAppProtocolRequestPath } from './lib/security/app-protocol-path.js';
 import {
   configureTrustedRendererFileEntrypoints,
@@ -122,6 +123,7 @@ app.whenReady().then(() => {
   setupSettingsHandlers();
   setupConductorHandlers();
   setupExportHandlers();
+  setupSessionStateHandlers();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

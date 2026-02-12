@@ -80,6 +80,28 @@ declare global {
         error?: string;
       }>;
     };
+    electronSessionCommand: {
+      createFull: (command: unknown) => Promise<{ success: boolean; data?: unknown; error?: string }>;
+      update: (sessionId: string, input: unknown) => Promise<{ success: boolean; data?: unknown; error?: string }>;
+      delete: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
+      archive: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
+      unarchive: (sessionId: string) => Promise<{ success: boolean; error?: string }>;
+    };
+    electronSessionQuery: {
+      list: () => Promise<{ success: boolean; data?: unknown; error?: string }>;
+      get: (sessionId: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
+      getParticipants: (sessionId: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;
+      loadSnapshot: (sessionId: string) => Promise<{
+        success: boolean;
+        data?: {
+          session: unknown;
+          messages: unknown;
+          participants: unknown;
+          tags: unknown;
+        } | null;
+        error?: string;
+      }>;
+    };
   }
 }
 

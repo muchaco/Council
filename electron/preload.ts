@@ -89,15 +89,34 @@ const exportAPI = Object.freeze({
     ipcRenderer.invoke('export:sessionToMarkdown', sessionId),
 });
 
+const sessionCommandAPI = Object.freeze({
+  createFull: (command: unknown) => ipcRenderer.invoke('session:command:createFull', command),
+  update: (sessionId: string, input: unknown) => ipcRenderer.invoke('session:command:update', sessionId, input),
+  delete: (sessionId: string) => ipcRenderer.invoke('session:command:delete', sessionId),
+  archive: (sessionId: string) => ipcRenderer.invoke('session:command:archive', sessionId),
+  unarchive: (sessionId: string) => ipcRenderer.invoke('session:command:unarchive', sessionId),
+});
+
+const sessionQueryAPI = Object.freeze({
+  list: () => ipcRenderer.invoke('session:query:list'),
+  get: (sessionId: string) => ipcRenderer.invoke('session:query:get', sessionId),
+  getParticipants: (sessionId: string) => ipcRenderer.invoke('session:query:participants', sessionId),
+  loadSnapshot: (sessionId: string) => ipcRenderer.invoke('session:query:loadSnapshot', sessionId),
+});
+
 // Expose APIs to renderer
 contextBridge.exposeInMainWorld('electronDB', dbAPI);
 contextBridge.exposeInMainWorld('electronLLM', llmAPI);
 contextBridge.exposeInMainWorld('electronSettings', settingsAPI);
 contextBridge.exposeInMainWorld('electronConductor', conductorAPI);
 contextBridge.exposeInMainWorld('electronExport', exportAPI);
+contextBridge.exposeInMainWorld('electronSessionCommand', sessionCommandAPI);
+contextBridge.exposeInMainWorld('electronSessionQuery', sessionQueryAPI);
 
 export type ElectronDB = typeof dbAPI;
 export type ElectronLLM = typeof llmAPI;
 export type ElectronSettings = typeof settingsAPI;
 export type ElectronConductor = typeof conductorAPI;
 export type ElectronExport = typeof exportAPI;
+export type ElectronSessionCommand = typeof sessionCommandAPI;
+export type ElectronSessionQuery = typeof sessionQueryAPI;

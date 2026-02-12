@@ -80,6 +80,38 @@ describe('session_store_transport_boundary_spec', () => {
 
     Object.assign(window, {
       electronDB: mockElectronDB,
+      electronSessionCommand: {
+        createFull: (command: unknown) => mockElectronDB.createSession((command as { input: unknown }).input),
+        update: (sessionId: string, input: unknown) => mockElectronDB.updateSession(sessionId, input),
+        delete: (sessionId: string) => mockElectronDB.deleteSession(sessionId),
+        archive: (sessionId: string) => mockElectronDB.archiveSession(sessionId),
+        unarchive: (sessionId: string) => mockElectronDB.unarchiveSession(sessionId),
+      },
+      electronSessionQuery: {
+        list: () => mockElectronDB.getSessions(),
+        get: (sessionId: string) => mockElectronDB.getSession(sessionId),
+        getParticipants: (sessionId: string) => mockElectronDB.getSessionPersonas(sessionId),
+        loadSnapshot: async (sessionId: string) => {
+          const [sessionResult, messagesResult, participantsResult, tagsResult] = await Promise.all([
+            mockElectronDB.getSession(sessionId),
+            mockElectronDB.getMessages(sessionId),
+            mockElectronDB.getSessionPersonas(sessionId),
+            mockElectronDB.sessionTags.getBySession(sessionId),
+          ]);
+          if (!sessionResult.success || !messagesResult.success || !participantsResult.success || !tagsResult.success) {
+            return { success: false, error: 'Snapshot failed' };
+          }
+          return {
+            success: true,
+            data: {
+              session: sessionResult.data,
+              messages: messagesResult.data,
+              participants: participantsResult.data,
+              tags: tagsResult.data,
+            },
+          };
+        },
+      },
       electronConductor: {
         enable: vi.fn(),
         disable: vi.fn(),

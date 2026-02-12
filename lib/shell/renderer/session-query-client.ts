@@ -6,33 +6,37 @@ export interface SessionSnapshotQueryResult {
 }
 
 export const loadSessionsQuery = async (): Promise<{ success: boolean; data?: unknown; error?: string }> =>
-  window.electronDB.getSessions();
+  window.electronSessionQuery.list();
 
 export const loadSessionSnapshotQuery = async (
   sessionId: string
 ): Promise<SessionSnapshotQueryResult> => {
-  const [sessionResult, messagesResult, participantsResult, tagsResult] = await Promise.all([
-    window.electronDB.getSession(sessionId),
-    window.electronDB.getMessages(sessionId),
-    window.electronDB.getSessionPersonas(sessionId),
-    window.electronDB.sessionTags.getBySession(sessionId),
-  ]);
+  const snapshotResult = await window.electronSessionQuery.loadSnapshot(sessionId);
+
+  if (!snapshotResult.success || snapshotResult.data === null || snapshotResult.data === undefined) {
+    return {
+      sessionResult: { success: false, error: snapshotResult.error },
+      messagesResult: { success: false, error: snapshotResult.error },
+      participantsResult: { success: false, error: snapshotResult.error },
+      tagsResult: { success: false, error: snapshotResult.error },
+    };
+  }
 
   return {
-    sessionResult,
-    messagesResult,
-    participantsResult,
-    tagsResult,
+    sessionResult: { success: true, data: snapshotResult.data.session },
+    messagesResult: { success: true, data: snapshotResult.data.messages },
+    participantsResult: { success: true, data: snapshotResult.data.participants },
+    tagsResult: { success: true, data: snapshotResult.data.tags },
   };
 };
 
 export const loadSessionByIdQuery = async (
   sessionId: string
-): Promise<{ success: boolean; data?: unknown; error?: string }> => window.electronDB.getSession(sessionId);
+): Promise<{ success: boolean; data?: unknown; error?: string }> => window.electronSessionQuery.get(sessionId);
 
 export const loadSessionParticipantsQuery = async (
   sessionId: string
-): Promise<{ success: boolean; data?: unknown; error?: string }> => window.electronDB.getSessionPersonas(sessionId);
+): Promise<{ success: boolean; data?: unknown; error?: string }> => window.electronSessionQuery.getParticipants(sessionId);
 
 export const loadAllTagsQuery = async (): Promise<{ success: boolean; data?: unknown; error?: string }> =>
   window.electronDB.tags.getAll();

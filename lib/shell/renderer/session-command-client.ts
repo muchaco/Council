@@ -9,66 +9,26 @@ export interface CreateSessionCommandInput {
 export const createSessionCommand = async (
   command: CreateSessionCommandInput
 ): Promise<{ success: boolean; data?: unknown; error?: string }> => {
-  const result = await window.electronDB.createSession({
-    ...command.input,
-    conductorConfig: command.conductorConfig,
-  });
-
-  if (!result.success || !result.data || typeof result.data !== 'object' || result.data === null) {
-    return result;
-  }
-
-  const createdSession = result.data as { id?: unknown };
-  if (typeof createdSession.id !== 'string') {
-    return {
-      success: false,
-      error: 'Invalid session payload',
-    };
-  }
-
-  for (const personaId of command.personaIds) {
-    const participantResult = await window.electronDB.addPersonaToSession(createdSession.id, personaId, false);
-    if (!participantResult.success) {
-      return {
-        success: false,
-        error: participantResult.error ?? 'Failed to add session participant',
-      };
-    }
-  }
-
-  return result;
+  return window.electronSessionCommand.createFull(command);
 };
 
 export const updateSessionCommand = async (
   sessionId: string,
   input: unknown
 ): Promise<{ success: boolean; data?: unknown; error?: string }> =>
-  window.electronDB.updateSession(sessionId, input);
+  window.electronSessionCommand.update(sessionId, input);
 
 export const deleteSessionCommand = async (
   sessionId: string
-): Promise<{ success: boolean; error?: string }> => {
-  const result = await window.electronDB.deleteSession(sessionId);
-  if (!result.success) {
-    return result;
-  }
-
-  try {
-    await window.electronDB.tags.cleanupOrphaned();
-  } catch {
-    // Best-effort cleanup to preserve pre-migration behavior.
-  }
-
-  return result;
-};
+): Promise<{ success: boolean; error?: string }> => window.electronSessionCommand.delete(sessionId);
 
 export const archiveSessionCommand = async (
   sessionId: string
-): Promise<{ success: boolean; error?: string }> => window.electronDB.archiveSession(sessionId);
+): Promise<{ success: boolean; error?: string }> => window.electronSessionCommand.archive(sessionId);
 
 export const unarchiveSessionCommand = async (
   sessionId: string
-): Promise<{ success: boolean; error?: string }> => window.electronDB.unarchiveSession(sessionId);
+): Promise<{ success: boolean; error?: string }> => window.electronSessionCommand.unarchive(sessionId);
 
 export const setPersonaHushCommand = async (
   sessionId: string,
