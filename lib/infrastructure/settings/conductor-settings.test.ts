@@ -8,7 +8,7 @@ describe('conductor_settings_service_spec', () => {
     const service = makeConductorSettingsService(() => 'decrypted', { get: () => 'x' } as any);
 
     const policy = await Effect.runPromise(service.getSelectorGenerationPolicy);
-    expect(policy).toEqual({ temperature: 0.3, maxOutputTokens: 2048 });
+    expect(policy).toEqual({ temperature: 0.3, maxOutputTokens: 4096 });
   });
 
   it('uses_default_model_as_selector_model_when_present', async () => {

@@ -4,7 +4,18 @@ import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Settings, Save, TestTube, Eye, EyeOff, Loader2, RefreshCw } from 'lucide-react';
+import {
+  Settings,
+  Save,
+  TestTube,
+  Eye,
+  EyeOff,
+  Loader2,
+  RefreshCw,
+  FolderOpen,
+  ClipboardCopy,
+  FileDown,
+} from 'lucide-react';
 import { useSettingsStore } from '@/stores/settings';
 
 export default function SettingsPage() {
@@ -16,6 +27,10 @@ export default function SettingsPage() {
     modelCatalogError,
     defaultModel,
     availableModels,
+    diagnosticsSessionId,
+    diagnosticsLogDirectoryPath,
+    diagnosticsLogFilePath,
+    isDiagnosticsLoading,
     loadApiKeyStatus,
     setApiKey,
     testConnection,
@@ -23,6 +38,10 @@ export default function SettingsPage() {
     setDefaultModel,
     fetchAvailableModels,
     invalidateModelCache,
+    loadDiagnosticsStatus,
+    openDiagnosticsLogsDirectory,
+    copyDiagnosticsSummary,
+    exportDiagnosticsBundle,
   } = useSettingsStore();
   
   const [apiKeyInput, setApiKeyInput] = useState('');
@@ -32,7 +51,8 @@ export default function SettingsPage() {
   useEffect(() => {
     loadApiKeyStatus();
     loadDefaultModel();
-  }, [loadApiKeyStatus, loadDefaultModel]);
+    loadDiagnosticsStatus();
+  }, [loadApiKeyStatus, loadDefaultModel, loadDiagnosticsStatus]);
 
   const handleSaveApiKey = async () => {
     const success = await setApiKey(apiKeyInput);
@@ -196,6 +216,52 @@ export default function SettingsPage() {
                   Current model is unavailable. Please select a different model.
                 </p>
               )}
+            </div>
+          </Card>
+
+          {/* About */}
+          <Card className="p-6 bg-card border-border">
+            <h2 className="text-lg font-semibold text-foreground mb-4">Diagnostics</h2>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Use diagnostics when reporting bugs or local development failures.
+              </p>
+
+              <div className="grid grid-cols-1 gap-2 text-xs text-muted-foreground">
+                <p>
+                  Session ID:{' '}
+                  <span className="text-foreground font-mono">
+                    {diagnosticsSessionId ?? (isDiagnosticsLoading ? 'Loading...' : 'Unavailable')}
+                  </span>
+                </p>
+                <p>
+                  Logs folder:{' '}
+                  <span className="text-foreground font-mono break-all">
+                    {diagnosticsLogDirectoryPath ?? 'Unavailable'}
+                  </span>
+                </p>
+                <p>
+                  Active log file:{' '}
+                  <span className="text-foreground font-mono break-all">
+                    {diagnosticsLogFilePath ?? 'Unavailable'}
+                  </span>
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={() => openDiagnosticsLogsDirectory()}>
+                  <FolderOpen className="w-4 h-4 mr-2" />
+                  Open Logs Folder
+                </Button>
+                <Button variant="outline" onClick={() => copyDiagnosticsSummary()}>
+                  <ClipboardCopy className="w-4 h-4 mr-2" />
+                  Copy Summary
+                </Button>
+                <Button variant="outline" onClick={() => exportDiagnosticsBundle()}>
+                  <FileDown className="w-4 h-4 mr-2" />
+                  Export Bundle
+                </Button>
+              </div>
             </div>
           </Card>
 

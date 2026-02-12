@@ -1,12 +1,12 @@
 import type {
   BlackboardState,
+  ConductorFlowState,
   ConductorProcessTurnFailureCode,
   ConductorProcessTurnResponse,
 } from '../../types';
 
 interface ConductorStatePatch {
-  readonly conductorRunning?: boolean;
-  readonly conductorPaused?: boolean;
+  readonly conductorFlowState?: ConductorFlowState;
 }
 
 interface ToastPlan {
@@ -63,42 +63,49 @@ const mapFailurePlan = (
     case 'CIRCUIT_BREAKER':
       return {
         _tag: 'Failure',
-        statePatch: { conductorPaused: true },
+        statePatch: { conductorFlowState: 'blocked' },
         toast: { level: 'warning', message: error || 'Circuit breaker triggered' },
         blackboardUpdate,
       };
     case 'SELECTOR_AGENT_ERROR':
       return {
         _tag: 'Failure',
-        statePatch: { conductorRunning: false },
+        statePatch: { conductorFlowState: 'blocked' },
         toast: { level: 'error', message: error || 'Selector agent error' },
         blackboardUpdate,
       };
     case 'API_KEY_NOT_CONFIGURED':
       return {
         _tag: 'Failure',
-        statePatch: { conductorRunning: false, conductorPaused: true },
+        statePatch: { conductorFlowState: 'blocked' },
         toast: { level: 'error', message: error || 'API key not configured' },
         blackboardUpdate,
       };
     case 'API_KEY_DECRYPT_FAILED':
       return {
         _tag: 'Failure',
-        statePatch: { conductorRunning: false, conductorPaused: true },
+        statePatch: { conductorFlowState: 'blocked' },
         toast: { level: 'error', message: error || 'Failed to decrypt API key' },
         blackboardUpdate,
       };
     case 'SETTINGS_READ_ERROR':
       return {
         _tag: 'Failure',
-        statePatch: { conductorRunning: false, conductorPaused: true },
+        statePatch: { conductorFlowState: 'blocked' },
         toast: { level: 'error', message: error || 'Failed to load conductor settings' },
+        blackboardUpdate,
+      };
+    case 'PERSONA_NOT_FOUND':
+      return {
+        _tag: 'WaitForUser',
+        statePatch: { conductorFlowState: 'awaiting_input' },
+        toast: { level: 'warning', message: error || 'Selected persona not found - your turn' },
         blackboardUpdate,
       };
     default:
       return {
         _tag: 'Failure',
-        statePatch: { conductorRunning: false },
+        statePatch: { conductorFlowState: 'blocked' },
         toast: { level: 'error', message: error || 'Conductor error' },
         blackboardUpdate,
       };
@@ -123,7 +130,7 @@ export const decideConductorTurnShellPlan = (
     case 'WAIT_FOR_USER':
       return {
         _tag: 'WaitForUser',
-        statePatch: { conductorRunning: false },
+        statePatch: { conductorFlowState: 'awaiting_input' },
         toast: { level: 'info', message: 'Conductor waiting for user input' },
         blackboardUpdate,
         suggestedPersonaId: response.suggestedPersonaId,

@@ -2,6 +2,7 @@ import { app, ipcMain as electronIpcMain } from 'electron';
 import crypto from 'crypto';
 import { z } from 'zod';
 import { registerPrivilegedIpcHandle } from '../lib/security/privileged-ipc.js';
+import { logDiagnosticsError, logDiagnosticsEvent } from '../lib/diagnostics/logger.js';
 import {
   createCouncilSettingsStore,
   resolveCouncilEncryptionKey,
@@ -136,6 +137,14 @@ async function fetchAvailableModels(apiKey: string): Promise<ModelInfo[]> {
   if (modelCache && 
       modelCache.apiKeyHash === apiKeyHash && 
       now - modelCache.timestamp < CACHE_DURATION_MS) {
+    logDiagnosticsEvent({
+      event_name: 'settings.model_catalog.fetch.completed',
+      context: {
+        outcome: 'success',
+        source: 'cache',
+        model_count: modelCache.models.length,
+      },
+    });
     return modelCache.models;
   }
   
@@ -144,6 +153,15 @@ async function fetchAvailableModels(apiKey: string): Promise<ModelInfo[]> {
   const response = await fetch(request.url, request.init);
   
   if (!response.ok) {
+    logDiagnosticsEvent({
+      event_name: 'settings.model_catalog.fetch.completed',
+      level: 'error',
+      context: {
+        outcome: 'network_error',
+        source: 'remote',
+        status_code: response.status,
+      },
+    });
     throw new Error(`GEMINI_MODELS_HTTP_${response.status}`);
   }
   
@@ -168,6 +186,16 @@ async function fetchAvailableModels(apiKey: string): Promise<ModelInfo[]> {
     timestamp: now,
     apiKeyHash,
   };
+
+  logDiagnosticsEvent({
+    event_name: 'settings.model_catalog.fetch.completed',
+    context: {
+      outcome: 'success',
+      source: 'remote',
+      model_count: models.length,
+      cache_ttl_ms: CACHE_DURATION_MS,
+    },
+  });
   
   return models;
 }
@@ -184,7 +212,7 @@ export function setupSettingsHandlers(): void {
         },
       };
     } catch (error) {
-      console.error('Error loading API key status:', error);
+      logDiagnosticsError('settings.api_key_status.failed', error);
       return { success: false, error: 'Failed to load API key status' };
     }
   }, {
@@ -198,7 +226,7 @@ export function setupSettingsHandlers(): void {
       (store as any).set('apiKey', encrypted);
       return { success: true };
     } catch (error) {
-      console.error('Error encrypting API key:', error);
+      logDiagnosticsError('settings.set_api_key.failed', error);
       return { success: false, error: 'Failed to encrypt API key' };
     }
   }, {
@@ -227,8 +255,8 @@ export function setupSettingsHandlers(): void {
           error: mapSettingsNetworkFailureToPublicError('testConnection'),
         };
       }
-    } catch {
-      console.error('Error testing Gemini API connection');
+    } catch (error) {
+      logDiagnosticsError('settings.test_connection.failed', error);
       return {
         success: false,
         error: mapSettingsNetworkFailureToPublicError('testConnection'),
@@ -247,7 +275,7 @@ export function setupSettingsHandlers(): void {
       const value = (store as any).get('defaultModel');
       return { success: true, data: value };
     } catch (error) {
-      console.error('Error loading setting:', error);
+      logDiagnosticsError('settings.get_default_model.failed', error);
       return { success: false, error: 'Failed to load default model' };
     }
   }, {
@@ -259,7 +287,9 @@ export function setupSettingsHandlers(): void {
       (store as any).set('defaultModel', defaultModel);
       return { success: true };
     } catch (error) {
-      console.error('Error saving setting:', error);
+      logDiagnosticsError('settings.set_default_model.failed', error, {
+        has_default_model: defaultModel.trim().length > 0,
+      });
       return { success: false, error: 'Failed to save default model' };
     }
   }, {
@@ -292,8 +322,8 @@ export function setupSettingsHandlers(): void {
           fetchedAtEpochMs: modelCache?.timestamp ?? null,
         },
       };
-    } catch {
-      console.error('Error fetching Gemini model catalog');
+    } catch (error) {
+      logDiagnosticsError('settings.get_model_catalog.failed', error);
       return {
         success: false,
         error: mapSettingsNetworkFailureToPublicError('listModels'),

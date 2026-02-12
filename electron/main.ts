@@ -1,11 +1,13 @@
 import { app, BrowserWindow, protocol } from 'electron';
 import path from 'path';
+import { logDiagnosticsError, logDiagnosticsEvent } from './lib/diagnostics/logger.js';
 import { setupDatabaseHandlers } from './handlers/db.js';
 import { setupLLMHandlers } from './handlers/llm.js';
 import { setupSettingsHandlers } from './handlers/settings.js';
 import { setupConductorHandlers } from './handlers/conductor.js';
 import { setupExportHandlers } from './handlers/export.js';
 import { setupSessionStateHandlers } from './handlers/session-state-handlers.js';
+import { setupDiagnosticsHandlers } from './handlers/diagnostics.js';
 import { resolveAppProtocolRequestPath } from './lib/security/app-protocol-path.js';
 import {
   configureTrustedRendererFileEntrypoints,
@@ -21,7 +23,13 @@ function createWindow(): void {
   const isDev = process.env.NODE_ENV === 'development';
   const preloadPath = path.join(__dirname, 'preload.js');
   const outDirectoryPath = path.resolve(__dirname, '..', '..', '..', 'out');
-  console.log('Loading preload script from:', preloadPath);
+  logDiagnosticsEvent({
+    event_name: 'app.window.create.started',
+    context: {
+      preload_path: preloadPath,
+      is_development: isDev,
+    },
+  });
   
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -40,7 +48,9 @@ function createWindow(): void {
 
   // Log preload script loading errors
   mainWindow.webContents.on('preload-error', (event, preloadPath, error) => {
-    console.error('Preload script error:', preloadPath, error);
+    logDiagnosticsError('app.window.preload_error', error, {
+      preload_path: preloadPath,
+    });
   });
 
   // Set Content Security Policy
@@ -83,14 +93,23 @@ function createWindow(): void {
   });
 
   mainWindow.webContents.setWindowOpenHandler(() => {
-    console.warn('Blocked window open attempt from renderer');
+    logDiagnosticsEvent({
+      event_name: 'app.security.window_open_blocked',
+      level: 'error',
+    });
     return { action: 'deny' };
   });
 
   mainWindow.webContents.on('will-navigate', (event, url) => {
     if (!isTrustedNavigationTarget(url, isDev)) {
       event.preventDefault();
-      console.warn('Blocked untrusted navigation target from renderer');
+      logDiagnosticsEvent({
+        event_name: 'app.security.navigation_blocked',
+        level: 'error',
+        context: {
+          url,
+        },
+      });
     }
   });
 
@@ -108,7 +127,13 @@ app.whenReady().then(() => {
     const resolvedRequestPath = resolveAppProtocolRequestPath(request.url, outDirectoryPath);
 
     if (resolvedRequestPath === null) {
-      console.warn('Blocked unsafe app protocol request');
+      logDiagnosticsEvent({
+        event_name: 'app.security.protocol_request_blocked',
+        level: 'error',
+        context: {
+          url: request.url,
+        },
+      });
       callback({ error: -10 });
       return;
     }
@@ -124,6 +149,7 @@ app.whenReady().then(() => {
   setupConductorHandlers();
   setupExportHandlers();
   setupSessionStateHandlers();
+  setupDiagnosticsHandlers();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

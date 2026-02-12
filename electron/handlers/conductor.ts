@@ -3,6 +3,7 @@ import { Effect, Either } from 'effect';
 import { z } from 'zod';
 
 import { decrypt } from './settings.js';
+import { logDiagnosticsError, logDiagnosticsEvent } from '../lib/diagnostics/logger.js';
 import { makeElectronSqlQueryExecutor } from '../lib/sql-query-executor.js';
 import type { BlackboardState } from '../lib/types.js';
 import {
@@ -101,7 +102,10 @@ export function setupConductorHandlers(): void {
 
       return mapVoidSuccessResponse();
     } catch (error) {
-      console.error('Error enabling conductor:', error);
+      logDiagnosticsError('conductor.enable.failed', error, {
+        session_id: sessionId,
+        mode,
+      });
       return mapErrorFailureResponse(error);
     }
   }, {
@@ -124,7 +128,9 @@ export function setupConductorHandlers(): void {
 
       return mapVoidSuccessResponse();
     } catch (error) {
-      console.error('Error disabling conductor:', error);
+      logDiagnosticsError('conductor.disable.failed', error, {
+        session_id: sessionId,
+      });
       return mapErrorFailureResponse(error);
     }
   }, {
@@ -144,10 +150,31 @@ export function setupConductorHandlers(): void {
         )
       );
 
+      const errorContext =
+        outcome._tag === 'Left'
+          ? {
+              error_tag: (outcome.left as { _tag?: string })._tag ?? 'Unknown',
+              error_message: (outcome.left as { message?: string }).message ?? 'No message',
+              error_code: (outcome.left as { code?: string }).code ?? null,
+              error_source: (outcome.left as { source?: string }).source ?? null,
+            }
+          : {};
+
+      logDiagnosticsEvent({
+        event_name: 'conductor.turn.completed',
+        context: {
+          session_id: sessionId,
+          outcome_tag: outcome._tag,
+          ...errorContext,
+        },
+      });
+
       return mapConductorTurnOutcomeToProcessTurnResponse(outcome);
 
     } catch (error) {
-      console.error('Orchestration error:', error);
+      logDiagnosticsError('conductor.turn.failed', error, {
+        session_id: sessionId,
+      });
       return mapErrorFailureResponse(error);
     }
   }, {
@@ -174,7 +201,9 @@ export function setupConductorHandlers(): void {
 
       return mapVoidSuccessResponse();
     } catch (error) {
-      console.error('Error resetting circuit breaker:', error);
+      logDiagnosticsError('conductor.circuit_breaker_reset.failed', error, {
+        session_id: sessionId,
+      });
       return mapErrorFailureResponse(error);
     }
   }, {
@@ -201,7 +230,9 @@ export function setupConductorHandlers(): void {
 
       return mapBlackboardLookupResponse({ blackboard: outcome.right });
     } catch (error) {
-      console.error('Error getting blackboard:', error);
+      logDiagnosticsError('conductor.blackboard.get.failed', error, {
+        session_id: sessionId,
+      });
       return mapErrorFailureResponse(error);
     }
   }, {
@@ -224,7 +255,9 @@ export function setupConductorHandlers(): void {
 
       return mapVoidSuccessResponse();
     } catch (error) {
-      console.error('Error updating blackboard:', error);
+      logDiagnosticsError('conductor.blackboard.update.failed', error, {
+        session_id: sessionId,
+      });
       return mapErrorFailureResponse(error);
     }
   }, {

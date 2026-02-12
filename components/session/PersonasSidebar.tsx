@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Clock, DollarSign, MessageSquare, Pause, Play, RotateCcw, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PersonaListItem } from '@/components/session/PersonaListItem';
-import type { Persona, Session } from '@/lib/types';
+import type { Persona, Session, ConductorFlowState } from '@/lib/types';
 
 interface SessionPersona extends Persona {
   isConductor: boolean;
@@ -14,8 +14,7 @@ interface PersonasSidebarProps {
   currentSession: Session;
   sessionPersonas: SessionPersona[];
   isArchived: boolean;
-  conductorPaused: boolean;
-  conductorRunning: boolean;
+  conductorFlowState: ConductorFlowState;
   thinkingPersonaId: string | null;
   hushPresets: readonly number[];
   onToggleConductor: () => void;
@@ -31,8 +30,7 @@ export function PersonasSidebar({
   currentSession,
   sessionPersonas,
   isArchived,
-  conductorPaused,
-  conductorRunning,
+  conductorFlowState,
   thinkingPersonaId,
   hushPresets,
   onToggleConductor,
@@ -43,6 +41,14 @@ export function PersonasSidebar({
   onUnhush,
   formatDuration,
 }: PersonasSidebarProps) {
+  // Determine button state based on flow state
+  const isProcessing = conductorFlowState === 'processing';
+  const isAwaitingInput = conductorFlowState === 'awaiting_input';
+  const isManualPaused = conductorFlowState === 'manual_paused';
+  const isBlocked = conductorFlowState === 'blocked';
+  const canPause = conductorFlowState === 'idle' || conductorFlowState === 'processing';
+  const canResume = isManualPaused || isBlocked;
+  
   return (
     <div className="flex w-64 flex-col border-r border-border bg-card">
       <div className="border-b border-border p-4">
@@ -69,22 +75,37 @@ export function PersonasSidebar({
 
         {currentSession.conductorEnabled && (
           <div className="mt-2 flex gap-1">
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex-1 gap-1 text-xs"
-              onClick={onPauseOrResume}
-              disabled={conductorRunning}
-            >
-              {conductorPaused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
-              {conductorPaused ? 'Resume' : 'Pause'}
-            </Button>
+            {isAwaitingInput ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 gap-1 text-xs"
+                disabled
+              >
+                <MessageSquare className="h-3 w-3" />
+                Waiting...
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 gap-1 text-xs"
+                onClick={onPauseOrResume}
+                disabled={!canPause && !canResume}
+              >
+                {isManualPaused || isBlocked ? (
+                  <><Play className="h-3 w-3" /> Resume</>
+                ) : (
+                  <><Pause className="h-3 w-3" /> Pause</>
+                )}
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
               className="flex-1 gap-1 text-xs"
               onClick={onContinue}
-              disabled={!conductorPaused}
+              disabled={!isBlocked}
             >
               <RotateCcw className="h-3 w-3" />
               Continue
@@ -101,7 +122,7 @@ export function PersonasSidebar({
             isConductor={false}
             isArchived={isArchived}
             thinkingPersonaId={thinkingPersonaId}
-            conductorRunning={conductorRunning}
+            conductorRunning={isProcessing}
             hushPresets={hushPresets}
             onAskToSpeak={onAskToSpeak}
             onHush={onHush}

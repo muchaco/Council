@@ -12,17 +12,22 @@ export interface DecideNextActionInput {
   readonly controlMode: ConductorControlMode;
 }
 
+const normalizePersonaId = (id: string): string => id.trim().toLowerCase();
+
 export const decideNextAction = (
   input: DecideNextActionInput
 ): Either.Either<NextActionPlan, ConductorSelectedPersonaNotFoundError> => {
-  if (input.selectedPersonaId === 'WAIT_FOR_USER') {
+  const normalizedSelectedId = normalizePersonaId(input.selectedPersonaId);
+
+  if (normalizedSelectedId === 'wait_for_user') {
     return Either.right({
       _tag: 'WaitForUser',
       reasoning: input.reasoning,
     });
   }
 
-  if (!input.knownPersonaIds.includes(input.selectedPersonaId)) {
+  const normalizedKnownIds = input.knownPersonaIds.map(normalizePersonaId);
+  if (!normalizedKnownIds.includes(normalizedSelectedId)) {
     return Either.left({
       _tag: 'ConductorSelectedPersonaNotFoundError',
       message: `Selected persona ${input.selectedPersonaId} not found`,

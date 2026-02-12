@@ -43,8 +43,7 @@ describe('phase0_smoke_spec', () => {
       sessionPersonas: [],
       isLoading: false,
       thinkingPersonaId: null,
-      conductorRunning: false,
-      conductorPaused: false,
+      conductorFlowState: 'idle',
       blackboard: null,
       allTags: [],
     });

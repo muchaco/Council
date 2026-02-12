@@ -1,6 +1,8 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron';
+import crypto from 'crypto';
 import { z } from 'zod';
 
+import { logDiagnosticsEvent } from '../diagnostics/logger.js';
 import { assertTrustedSender } from './trusted-sender.js';
 
 const UNAUTHORIZED_SENDER_ERROR_CODE = 'UNAUTHORIZED_IPC_SENDER';
@@ -123,6 +125,11 @@ export const registerPrivilegedIpcHandle = (
   const rateLimit = options?.rateLimit;
 
   electronIpcMain.handle(channelName, async (event, ...args) => {
+    const requestId = crypto.randomUUID();
+    const startedAt = Date.now();
+    let outcome: 'success' | 'public_failure' | 'unhandled_error' = 'success';
+    let failureCode: string | null = null;
+
     try {
       assertTrustedSender(event);
 
@@ -135,10 +142,28 @@ export const registerPrivilegedIpcHandle = (
     } catch (error) {
       const publicFailure = mapPrivilegedIpcErrorToPublicFailure(error);
       if (publicFailure !== null) {
+        outcome = 'public_failure';
+        failureCode = publicFailure.error;
         return publicFailure;
       }
 
+      outcome = 'unhandled_error';
+      failureCode = error instanceof Error ? error.message : 'UNKNOWN_ERROR';
       throw error;
+    } finally {
+      logDiagnosticsEvent({
+        event_name: 'ipc.request.completed',
+        level: outcome === 'unhandled_error' ? 'error' : 'info',
+        context: {
+          request_id: requestId,
+          channel: channelName,
+          sender_id: typeof event.sender?.id === 'number' ? event.sender.id : null,
+          argument_count: args.length,
+          duration_ms: Date.now() - startedAt,
+          outcome,
+          failure_code: failureCode,
+        },
+      });
     }
   });
 };

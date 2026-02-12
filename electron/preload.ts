@@ -92,6 +92,13 @@ const sessionQueryAPI = Object.freeze({
   loadSnapshot: (sessionId: string) => ipcRenderer.invoke('session:query:loadSnapshot', sessionId),
 });
 
+const diagnosticsAPI = Object.freeze({
+  getStatus: () => ipcRenderer.invoke('diagnostics:getStatus'),
+  openLogsDirectory: () => ipcRenderer.invoke('diagnostics:openLogsDirectory'),
+  getSummary: () => ipcRenderer.invoke('diagnostics:getSummary'),
+  exportBundle: () => ipcRenderer.invoke('diagnostics:exportBundle'),
+});
+
 // Expose APIs to renderer
 contextBridge.exposeInMainWorld('electronDB', dbAPI);
 contextBridge.exposeInMainWorld('electronLLM', llmAPI);
@@ -100,6 +107,7 @@ contextBridge.exposeInMainWorld('electronConductor', conductorAPI);
 contextBridge.exposeInMainWorld('electronExport', exportAPI);
 contextBridge.exposeInMainWorld('electronSessionCommand', sessionCommandAPI);
 contextBridge.exposeInMainWorld('electronSessionQuery', sessionQueryAPI);
+contextBridge.exposeInMainWorld('electronDiagnostics', diagnosticsAPI);
 
 export type ElectronDB = typeof dbAPI;
 export type ElectronLLM = typeof llmAPI;
@@ -108,3 +116,4 @@ export type ElectronConductor = typeof conductorAPI;
 export type ElectronExport = typeof exportAPI;
 export type ElectronSessionCommand = typeof sessionCommandAPI;
 export type ElectronSessionQuery = typeof sessionQueryAPI;
+export type ElectronDiagnostics = typeof diagnosticsAPI;

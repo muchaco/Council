@@ -84,8 +84,7 @@ describe('session_store_conductor_shell_spec', () => {
       sessionPersonas: [],
       isLoading: false,
       thinkingPersonaId: null,
-      conductorRunning: false,
-      conductorPaused: false,
+      conductorFlowState: 'idle',
       blackboard: null,
       allTags: [],
     });
@@ -347,13 +346,32 @@ describe('session_store_conductor_shell_spec', () => {
       expect(toast.success).toHaveBeenCalledWith('Conductor enabled');
     });
 
+    it('automatically_kickstarts_conversation_when_enabling_conductor', async () => {
+      const session = makeSession();
+      useSessionsStore.setState({ currentSession: session, sessions: [session] });
+
+      mockElectronConductor.enable.mockResolvedValue({ success: true });
+      mockElectronDB.updateSession.mockResolvedValue({
+        success: true,
+        data: makeSession({ conductorEnabled: true, conductorMode: 'automatic' }),
+      });
+      mockElectronConductor.processTurn.mockResolvedValue({
+        success: true,
+        action: 'WAIT_FOR_USER',
+        blackboardUpdate: {},
+      });
+
+      await useSessionsStore.getState().enableConductor('automatic');
+
+      expect(mockElectronConductor.processTurn).toHaveBeenCalledWith('session-1');
+    });
+
     it('disables_conductor_and_clears_runtime_flags', async () => {
       const session = makeSession({ conductorEnabled: true, conductorMode: 'manual' });
       useSessionsStore.setState({
         currentSession: session,
         sessions: [session],
-        conductorRunning: true,
-        conductorPaused: true,
+        conductorFlowState: 'manual_paused',
       });
 
       mockElectronConductor.disable.mockResolvedValue({ success: true });
@@ -365,8 +383,7 @@ describe('session_store_conductor_shell_spec', () => {
       await useSessionsStore.getState().disableConductor();
 
       expect(mockElectronConductor.disable).toHaveBeenCalledWith('session-1');
-      expect(useSessionsStore.getState().conductorRunning).toBe(false);
-      expect(useSessionsStore.getState().conductorPaused).toBe(false);
+      expect(useSessionsStore.getState().conductorFlowState).toBe('idle');
       expect(toast.success).toHaveBeenCalledWith('Conductor disabled');
     });
 
@@ -382,7 +399,7 @@ describe('session_store_conductor_shell_spec', () => {
 
       await useSessionsStore.getState().processConductorTurn();
 
-      expect(useSessionsStore.getState().conductorPaused).toBe(true);
+      expect(useSessionsStore.getState().conductorFlowState).toBe('blocked');
       expect(toast.warning).toHaveBeenCalledWith('Stop auto replies');
     });
 
@@ -391,7 +408,7 @@ describe('session_store_conductor_shell_spec', () => {
       useSessionsStore.setState({
         currentSession: session,
         sessions: [session],
-        conductorRunning: false,
+        conductorFlowState: 'idle',
         sessionPersonas: [
           {
             id: 'persona-1',
@@ -421,7 +438,7 @@ describe('session_store_conductor_shell_spec', () => {
 
       await useSessionsStore.getState().processConductorTurn();
 
-      expect(useSessionsStore.getState().conductorRunning).toBe(false);
+      expect(useSessionsStore.getState().conductorFlowState).toBe('awaiting_input');
       expect(useSessionsStore.getState().blackboard).toEqual({
         consensus: '',
         conflicts: '',
@@ -434,7 +451,7 @@ describe('session_store_conductor_shell_spec', () => {
 
     it('resets_the_circuit_breaker_then_continues_the_loop', async () => {
       const session = makeSession({ conductorEnabled: true, conductorMode: 'manual' });
-      useSessionsStore.setState({ currentSession: session, sessions: [session], conductorPaused: true });
+      useSessionsStore.setState({ currentSession: session, sessions: [session], conductorFlowState: 'blocked' });
 
       mockElectronConductor.resetCircuitBreaker.mockResolvedValue({ success: true });
       mockElectronDB.updateSession.mockResolvedValue({

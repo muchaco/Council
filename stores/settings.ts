@@ -7,10 +7,18 @@ import {
   testGeminiConnectionCommand,
 } from '../lib/shell/renderer/settings-command-client';
 import {
+  exportDiagnosticsBundleCommand,
+  openDiagnosticsLogsDirectoryCommand,
+} from '../lib/shell/renderer/diagnostics-command-client';
+import {
   loadApiKeyStatusQuery,
   loadDefaultModelQuery,
   loadAvailableModelsQuery,
 } from '../lib/shell/renderer/settings-query-client';
+import {
+  loadDiagnosticsStatusQuery,
+  loadDiagnosticsSummaryQuery,
+} from '../lib/shell/renderer/diagnostics-query-client';
 
 interface SettingsState {
   isApiKeyConfigured: boolean;
@@ -21,6 +29,10 @@ interface SettingsState {
   defaultModel: string;
   availableModels: ModelInfo[];
   modelsLastFetched: number | null;
+  diagnosticsSessionId: string | null;
+  diagnosticsLogDirectoryPath: string | null;
+  diagnosticsLogFilePath: string | null;
+  isDiagnosticsLoading: boolean;
 
   // Actions
   loadApiKeyStatus: () => Promise<void>;
@@ -30,6 +42,10 @@ interface SettingsState {
   setDefaultModel: (model: string) => Promise<void>;
   fetchAvailableModels: () => Promise<void>;
   invalidateModelCache: () => void;
+  loadDiagnosticsStatus: () => Promise<void>;
+  openDiagnosticsLogsDirectory: () => Promise<void>;
+  copyDiagnosticsSummary: () => Promise<void>;
+  exportDiagnosticsBundle: () => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -41,6 +57,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   defaultModel: '',
   availableModels: [],
   modelsLastFetched: null,
+  diagnosticsSessionId: null,
+  diagnosticsLogDirectoryPath: null,
+  diagnosticsLogFilePath: null,
+  isDiagnosticsLoading: false,
 
   loadApiKeyStatus: async () => {
     try {
@@ -164,5 +184,70 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   invalidateModelCache: () => {
     set({ modelsLastFetched: null });
+  },
+
+  loadDiagnosticsStatus: async () => {
+    try {
+      set({ isDiagnosticsLoading: true });
+      const result = await loadDiagnosticsStatusQuery();
+      if (!result.success || !result.data) {
+        return;
+      }
+
+      set({
+        diagnosticsSessionId: result.data.sessionId,
+        diagnosticsLogDirectoryPath: result.data.logDirectoryPath,
+        diagnosticsLogFilePath: result.data.logFilePath,
+      });
+    } catch (error) {
+      console.error('Error loading diagnostics status:', error);
+    } finally {
+      set({ isDiagnosticsLoading: false });
+    }
+  },
+
+  openDiagnosticsLogsDirectory: async () => {
+    try {
+      const result = await openDiagnosticsLogsDirectoryCommand();
+      if (!result.success) {
+        toast.error(result.error ?? 'Unable to open logs directory');
+      }
+    } catch (error) {
+      toast.error('Unable to open logs directory');
+    }
+  },
+
+  copyDiagnosticsSummary: async () => {
+    try {
+      const result = await loadDiagnosticsSummaryQuery();
+      if (!result.success || !result.data) {
+        toast.error(result.error ?? 'Unable to copy diagnostics summary');
+        return;
+      }
+
+      await navigator.clipboard.writeText(result.data.summary);
+      toast.success('Diagnostics summary copied to clipboard');
+    } catch (error) {
+      toast.error('Unable to copy diagnostics summary');
+    }
+  },
+
+  exportDiagnosticsBundle: async () => {
+    try {
+      const result = await exportDiagnosticsBundleCommand();
+      if (!result.success) {
+        toast.error(result.error ?? 'Unable to export diagnostics bundle');
+        return;
+      }
+
+      if (result.cancelled) {
+        toast.info('Diagnostics export cancelled');
+        return;
+      }
+
+      toast.success('Diagnostics bundle exported');
+    } catch (error) {
+      toast.error('Unable to export diagnostics bundle');
+    }
   },
 }));

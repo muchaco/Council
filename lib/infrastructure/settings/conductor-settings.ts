@@ -58,7 +58,7 @@ const resolveSelectorGenerationPolicy = (
   options: ConductorSettingsOptions | undefined
 ): ConductorSelectorGenerationPolicy => ({
   temperature: options?.selectorTemperature ?? 0.3,
-  maxOutputTokens: options?.selectorMaxOutputTokens ?? 2048,
+  maxOutputTokens: options?.selectorMaxOutputTokens ?? 4096,
 });
 
 export const makeConductorSettingsService = (

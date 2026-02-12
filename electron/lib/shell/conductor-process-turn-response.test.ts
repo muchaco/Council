@@ -4,7 +4,7 @@ import { Either } from 'effect';
 import { mapConductorTurnOutcomeToProcessTurnResponse } from './conductor-process-turn-response';
 
 describe('conductor_process_turn_response_mapper_spec', () => {
-  it('maps_selector_error_to_selector_agent_code', () => {
+  it('maps_execution_failed_error_to_detailed_message', () => {
     const response = mapConductorTurnOutcomeToProcessTurnResponse(
       Either.left({
         _tag: 'ConductorInfrastructureError',
@@ -16,7 +16,24 @@ describe('conductor_process_turn_response_mapper_spec', () => {
 
     expect(response).toEqual({
       success: false,
-      error: 'Failed to select next speaker',
+      error: 'Selector agent failed: Selector timed out',
+      code: 'SELECTOR_AGENT_ERROR',
+    });
+  });
+
+  it('maps_invalid_response_error_to_detailed_message', () => {
+    const response = mapConductorTurnOutcomeToProcessTurnResponse(
+      Either.left({
+        _tag: 'ConductorInfrastructureError',
+        source: 'selector',
+        code: 'InvalidSelectorResponse',
+        message: 'No JSON found in selector response',
+      })
+    );
+
+    expect(response).toEqual({
+      success: false,
+      error: 'Selector returned invalid response: No JSON found in selector response',
       code: 'SELECTOR_AGENT_ERROR',
     });
   });

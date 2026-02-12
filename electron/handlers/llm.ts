@@ -4,6 +4,7 @@ import { Effect, Either } from 'effect';
 import { z } from 'zod';
 
 import { decrypt } from './settings.js';
+import { logDiagnosticsError, logDiagnosticsEvent } from '../lib/diagnostics/logger.js';
 import { makeElectronSqlQueryExecutor } from '../lib/sql-query-executor.js';
 import type { BlackboardState } from '../lib/types.js';
 import {
@@ -176,11 +177,40 @@ export function setupLLMHandlers(): void {
       );
 
       if (Either.isLeft(outcome)) {
+        const errorSource = 'source' in outcome.left ? outcome.left.source : 'domain';
+        const errorCode = 'code' in outcome.left ? outcome.left.code : null;
+
+        logDiagnosticsEvent({
+          event_name: 'llm.chat.completed',
+          level: 'error',
+          context: {
+            session_id: request.sessionId,
+            persona_id: request.personaId,
+            model: request.model,
+            outcome: 'domain_failure',
+            error_tag: outcome.left._tag,
+            error_source: errorSource,
+            error_code: errorCode,
+          },
+        });
+
         return {
           success: false,
           error: mapErrorToMessage(outcome.left),
         };
       }
+
+      logDiagnosticsEvent({
+        event_name: 'llm.chat.completed',
+        context: {
+          session_id: request.sessionId,
+          persona_id: request.personaId,
+          model: request.model,
+          outcome: 'success',
+          token_count: outcome.right.tokenCount,
+          response_characters: outcome.right.content.length,
+        },
+      });
 
       return {
         success: true,
@@ -190,7 +220,11 @@ export function setupLLMHandlers(): void {
         },
       };
     } catch (error) {
-      console.error('Error in LLM chat:', error);
+      logDiagnosticsError('llm.chat.failed', error, {
+        session_id: request.sessionId,
+        persona_id: request.personaId,
+        model: request.model,
+      });
       return {
         success: false,
         error: LLM_CHAT_PUBLIC_ERROR_MESSAGE,

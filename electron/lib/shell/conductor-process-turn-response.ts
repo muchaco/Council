@@ -13,9 +13,12 @@ export const mapConductorTurnOutcomeToProcessTurnResponse = (
     const error = outcome.left;
 
     if (error._tag === 'ConductorInfrastructureError' && error.source === 'selector') {
+      const isParseError = error.code === 'InvalidSelectorResponse';
       return {
         success: false,
-        error: 'Failed to select next speaker',
+        error: isParseError
+          ? `Selector returned invalid response: ${error.message}`
+          : `Selector agent failed: ${error.message}`,
         code: 'SELECTOR_AGENT_ERROR',
       };
     }
@@ -41,6 +44,14 @@ export const mapConductorTurnOutcomeToProcessTurnResponse = (
         success: false,
         error: 'Unable to load conductor settings',
         code: 'SETTINGS_READ_ERROR',
+      };
+    }
+
+    if (error._tag === 'ConductorSelectedPersonaNotFoundError') {
+      return {
+        success: false,
+        error: error.message,
+        code: 'PERSONA_NOT_FOUND',
       };
     }
 

@@ -115,7 +115,15 @@ export type ConductorProcessTurnFailureCode =
   | 'API_KEY_NOT_CONFIGURED'
   | 'API_KEY_DECRYPT_FAILED'
   | 'SETTINGS_READ_ERROR'
-  | 'CIRCUIT_BREAKER';
+  | 'CIRCUIT_BREAKER'
+  | 'PERSONA_NOT_FOUND';
+
+export type ConductorFlowState =
+  | 'idle'
+  | 'processing'
+  | 'awaiting_input'
+  | 'manual_paused'
+  | 'blocked';
 
 export type ConductorProcessTurnResponse =
   | {

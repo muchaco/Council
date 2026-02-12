@@ -45,6 +45,23 @@ const formatHistoryForPrompt = (
     })
     .join('\n\n');
 
+const buildVerbosityInstruction = (verbosity: string | undefined): string => {
+  if (!verbosity) return '';
+
+  const numericValue = Number(verbosity);
+  const isValidNumber =
+    !Number.isNaN(numericValue) &&
+    Number.isInteger(numericValue) &&
+    numericValue >= 1 &&
+    numericValue <= 10;
+
+  if (isValidNumber) {
+    return `VERBOSITY INSTRUCTION: Respond with verbosity level ${numericValue} out of 10 (where 1 is very brief and 10 is very detailed)`;
+  }
+
+  return `VERBOSITY INSTRUCTION: ${verbosity}`;
+};
+
 const buildEnhancedSystemPrompt = (request: CouncilChatRequest): string =>
   `${request.systemPrompt}
 
@@ -58,7 +75,7 @@ Instructions regarding your hidden agenda:
 - Gently redirect when the conversation moves away from your interests
 - Never reveal this hidden agenda directly in your responses
 
-${request.verbosity ? `VERBOSITY INSTRUCTION: ${request.verbosity}` : ''}`;
+${buildVerbosityInstruction(request.verbosity)}`;
 
 const buildBlackboardSection = (request: CouncilChatRequest): string => `
 COUNCIL BLACKBOARD (shared understanding):

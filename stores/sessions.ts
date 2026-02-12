@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
 import { Effect, Either } from 'effect';
-import type { Session, SessionInput, Message, Persona, BlackboardState, Tag } from '../lib/types';
+import type { Session, SessionInput, Message, Persona, BlackboardState, Tag, ConductorFlowState } from '../lib/types';
 import {
   executeAssignSessionTag,
   executeRemoveSessionTag,
@@ -67,8 +67,7 @@ interface SessionsState {
   sessionPersonas: SessionPersona[];
   isLoading: boolean;
   thinkingPersonaId: string | null;
-  conductorRunning: boolean;
-  conductorPaused: boolean;
+  conductorFlowState: ConductorFlowState;
   blackboard: BlackboardState | null;
   allTags: Tag[];
 
@@ -104,8 +103,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   sessionPersonas: [],
   isLoading: false,
   thinkingPersonaId: null,
-  conductorRunning: false,
-  conductorPaused: false,
+  conductorFlowState: 'idle',
   blackboard: null,
   allTags: [],
 
@@ -368,6 +366,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         currentSession: sessionWithTags,
         messages: parsedMessages,
         sessionPersonas: parsedSessionPersonas,
+        conductorFlowState: 'idle',
       });
     } catch (error) {
       toast.error('Error loading session');
@@ -515,8 +514,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       currentSession: null,
       messages: [],
       sessionPersonas: [],
-      conductorRunning: false,
-      conductorPaused: false,
+      conductorFlowState: 'idle',
       blackboard: null,
     });
   },
@@ -534,6 +532,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
           conductorMode: mode,
         });
         toast.success('Conductor enabled');
+        // Kickstart the conversation automatically
+        get().processConductorTurn();
       } else {
         toast.error(result.error || 'Failed to enable conductor');
       }
@@ -553,7 +553,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
             conductorEnabled: false,
           conductorMode: currentSession.conductorMode,
         });
-        set({ conductorRunning: false, conductorPaused: false });
+        set({ conductorFlowState: 'idle' });
         toast.success('Conductor disabled');
       } else {
         toast.error(result.error || 'Failed to disable conductor');
@@ -564,11 +564,13 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
 
   processConductorTurn: async () => {
-    const { currentSession, conductorPaused } = get();
-    if (!currentSession || !currentSession.conductorEnabled || conductorPaused) return;
+    const { currentSession, conductorFlowState } = get();
+    // Only process if conductor is enabled and in a resumable state
+    if (!currentSession || !currentSession.conductorEnabled) return;
+    if (conductorFlowState === 'processing' || conductorFlowState === 'manual_paused' || conductorFlowState === 'blocked') return;
     
     try {
-      set({ conductorRunning: true });
+      set({ conductorFlowState: 'processing' });
       
       const result = await processConductorTurnCommand(currentSession.id);
       const shellPlan = decideConductorTurnShellPlan(result);
@@ -618,29 +620,29 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         await get().triggerPersonaResponse(shellPlan.personaId);
         
         // Continue orchestration loop if not paused
-        const { conductorPaused: stillPaused } = get();
-        if (!stillPaused) {
+        const { conductorFlowState: currentState } = get();
+        if (currentState === 'processing') {
+          // Set back to idle before next turn (it will set to processing again)
+          set({ conductorFlowState: 'idle' });
           // Small delay to prevent rapid-fire requests
           setTimeout(() => {
             get().processConductorTurn();
           }, 1000);
-        } else {
-          set({ conductorRunning: false });
         }
       }
     } catch (error) {
       toast.error('Conductor error');
-      set({ conductorRunning: false });
+      set({ conductorFlowState: 'blocked' });
     }
   },
 
   pauseConductor: () => {
-    set({ conductorPaused: true });
+    set({ conductorFlowState: 'manual_paused' });
     toast.info('Conductor paused');
   },
 
   resumeConductor: () => {
-    set({ conductorPaused: false });
+    set({ conductorFlowState: 'idle' });
     toast.info('Conductor resumed');
     // Resume processing
     get().processConductorTurn();
@@ -654,7 +656,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       const result = await resetConductorCircuitBreakerCommand(currentSession.id);
         if (result.success) {
           await get().updateSession(currentSession.id, { autoReplyCount: 0 });
-        set({ conductorPaused: false });
+        set({ conductorFlowState: 'idle' });
         toast.success('Circuit breaker reset');
         // Resume orchestration
         get().processConductorTurn();

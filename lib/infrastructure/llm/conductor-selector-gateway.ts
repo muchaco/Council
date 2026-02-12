@@ -49,8 +49,10 @@ const parseSelectorDecision = (rawText: string): ConductorSelectorDecision => {
     throw new Error('Selector response missing selectedPersonaId');
   }
 
+  const normalizedPersonaId = parsed.selectedPersonaId.trim();
+
   return {
-    selectedPersonaId: parsed.selectedPersonaId,
+    selectedPersonaId: normalizedPersonaId,
     reasoning:
       typeof parsed.reasoning === 'string' && parsed.reasoning.trim().length > 0
         ? parsed.reasoning

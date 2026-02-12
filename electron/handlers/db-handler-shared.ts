@@ -1,6 +1,7 @@
 import { ipcMain as electronIpcMain } from 'electron';
 import { z } from 'zod';
 
+import { logDiagnosticsError } from '../lib/diagnostics/logger.js';
 import {
   registerPrivilegedIpcHandle,
   type PrivilegedIpcHandleOptions,
@@ -66,6 +67,8 @@ export const mapDatabaseFailure = (
   operationName: string,
   error: unknown
 ): { success: false; error: string } => {
-  console.error(`Error during ${operationName}:`, error);
+  logDiagnosticsError('database.operation.failed', error, {
+    operation: operationName,
+  });
   return { success: false, error: DATABASE_OPERATION_PUBLIC_ERROR };
 };

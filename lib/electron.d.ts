@@ -94,6 +94,29 @@ declare global {
         error?: string;
       }>;
     };
+    electronDiagnostics: {
+      getStatus: () => Promise<{
+        success: boolean;
+        data?: {
+          sessionId: string;
+          logDirectoryPath: string;
+          logFilePath: string;
+        };
+        error?: string;
+      }>;
+      openLogsDirectory: () => Promise<{ success: boolean; error?: string }>;
+      getSummary: () => Promise<{
+        success: boolean;
+        data?: { summary: string };
+        error?: string;
+      }>;
+      exportBundle: () => Promise<{
+        success: boolean;
+        cancelled?: boolean;
+        filePath?: string;
+        error?: string;
+      }>;
+    };
   }
 }
 

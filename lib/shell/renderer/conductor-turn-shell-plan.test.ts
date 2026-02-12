@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { decideConductorTurnShellPlan } from './conductor-turn-shell-plan';
 
 describe('conductor_turn_shell_plan_spec', () => {
-  it('maps_circuit_breaker_failure_to_pause_warning_plan', () => {
+  it('maps_circuit_breaker_failure_to_blocked_state', () => {
     const plan = decideConductorTurnShellPlan({
       success: false,
       code: 'CIRCUIT_BREAKER',
@@ -12,13 +12,13 @@ describe('conductor_turn_shell_plan_spec', () => {
 
     expect(plan).toEqual({
       _tag: 'Failure',
-      statePatch: { conductorPaused: true },
+      statePatch: { conductorFlowState: 'blocked' },
       toast: { level: 'warning', message: 'Circuit breaker triggered' },
       blackboardUpdate: {},
     });
   });
 
-  it('maps_settings_failure_to_stop_and_pause_plan', () => {
+  it('maps_settings_failure_to_blocked_state', () => {
     const plan = decideConductorTurnShellPlan({
       success: false,
       code: 'API_KEY_NOT_CONFIGURED',
@@ -27,13 +27,28 @@ describe('conductor_turn_shell_plan_spec', () => {
 
     expect(plan).toEqual({
       _tag: 'Failure',
-      statePatch: { conductorRunning: false, conductorPaused: true },
+      statePatch: { conductorFlowState: 'blocked' },
       toast: { level: 'error', message: 'API key not configured' },
       blackboardUpdate: {},
     });
   });
 
-  it('maps_wait_for_user_to_info_plan_and_blackboard_patch', () => {
+  it('maps_selector_agent_error_to_blocked_state', () => {
+    const plan = decideConductorTurnShellPlan({
+      success: false,
+      code: 'SELECTOR_AGENT_ERROR',
+      error: 'Selector agent error',
+    });
+
+    expect(plan).toEqual({
+      _tag: 'Failure',
+      statePatch: { conductorFlowState: 'blocked' },
+      toast: { level: 'error', message: 'Selector agent error' },
+      blackboardUpdate: {},
+    });
+  });
+
+  it('maps_wait_for_user_to_awaiting_input_state', () => {
     const plan = decideConductorTurnShellPlan({
       success: true,
       action: 'WAIT_FOR_USER',
@@ -45,7 +60,7 @@ describe('conductor_turn_shell_plan_spec', () => {
 
     expect(plan).toEqual({
       _tag: 'WaitForUser',
-      statePatch: { conductorRunning: false },
+      statePatch: { conductorFlowState: 'awaiting_input' },
       toast: { level: 'info', message: 'Conductor waiting for user input' },
       blackboardUpdate: { nextStep: 'Collect more user context' },
       warning: undefined,
@@ -64,7 +79,7 @@ describe('conductor_turn_shell_plan_spec', () => {
 
     expect(plan).toEqual({
       _tag: 'WaitForUser',
-      statePatch: { conductorRunning: false },
+      statePatch: { conductorFlowState: 'awaiting_input' },
       toast: { level: 'info', message: 'Conductor waiting for user input' },
       blackboardUpdate: { nextStep: 'Ask architect to propose a rollout' },
       suggestedPersonaId: 'persona-architect',

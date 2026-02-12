@@ -83,4 +83,61 @@ describe('decide_next_action_spec', () => {
       });
     }
   });
+
+  it('matches_persona_ids_case_insensitively', () => {
+    const decision = decideNextAction({
+      selectedPersonaId: 'SPEAKER-A',
+      reasoning: 'Uppercase ID from LLM',
+      isIntervention: false,
+      knownPersonaIds: ['speaker-a'],
+      controlMode: 'automatic',
+    });
+
+    expect(Either.isRight(decision)).toBe(true);
+
+    if (Either.isRight(decision)) {
+      expect(decision.right._tag).toBe('TriggerPersona');
+      if (decision.right._tag === 'TriggerPersona') {
+        expect(decision.right.personaId).toBe('SPEAKER-A');
+      }
+    }
+  });
+
+  it('handles_wait_for_user_in_any_case', () => {
+    const decision = decideNextAction({
+      selectedPersonaId: 'wait_for_user',
+      reasoning: 'Lowercase wait request',
+      isIntervention: false,
+      knownPersonaIds: ['speaker-a'],
+      controlMode: 'automatic',
+    });
+
+    expect(Either.isRight(decision)).toBe(true);
+
+    if (Either.isRight(decision)) {
+      expect(decision.right).toEqual({
+        _tag: 'WaitForUser',
+        reasoning: 'Lowercase wait request',
+      });
+    }
+  });
+
+  it('trims_whitespace_from_persona_id', () => {
+    const decision = decideNextAction({
+      selectedPersonaId: '  speaker-a  ',
+      reasoning: 'ID with whitespace from LLM',
+      isIntervention: false,
+      knownPersonaIds: ['speaker-a'],
+      controlMode: 'automatic',
+    });
+
+    expect(Either.isRight(decision)).toBe(true);
+
+    if (Either.isRight(decision)) {
+      expect(decision.right._tag).toBe('TriggerPersona');
+      if (decision.right._tag === 'TriggerPersona') {
+        expect(decision.right.personaId).toBe('  speaker-a  ');
+      }
+    }
+  });
 });

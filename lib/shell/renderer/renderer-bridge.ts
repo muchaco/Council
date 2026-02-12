@@ -89,6 +89,29 @@ interface RendererBridge {
       error?: string;
     }>;
   };
+  readonly electronDiagnostics: {
+    readonly getStatus: () => Promise<{
+      success: boolean;
+      data?: {
+        sessionId: string;
+        logDirectoryPath: string;
+        logFilePath: string;
+      };
+      error?: string;
+    }>;
+    readonly openLogsDirectory: () => Promise<{ success: boolean; error?: string }>;
+    readonly getSummary: () => Promise<{
+      success: boolean;
+      data?: { summary: string };
+      error?: string;
+    }>;
+    readonly exportBundle: () => Promise<{
+      success: boolean;
+      cancelled?: boolean;
+      filePath?: string;
+      error?: string;
+    }>;
+  };
 }
 
 export const getRendererBridge = (): RendererBridge => globalThis as unknown as RendererBridge;

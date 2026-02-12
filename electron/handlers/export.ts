@@ -2,6 +2,7 @@ import { ipcMain as electronIpcMain, dialog } from 'electron';
 import { promises as fs } from 'fs';
 import { Effect, Either } from 'effect';
 import { z } from 'zod';
+import { logDiagnosticsError, logDiagnosticsEvent } from '../lib/diagnostics/logger.js';
 import { makeElectronSqlQueryExecutor } from '../lib/sql-query-executor.js';
 import { executeExportSessionMarkdown } from '../../lib/application/use-cases/council-transcript/index.js';
 import { QueryLayerRepository } from '../../lib/application/use-cases/query-layer/index.js';
@@ -42,7 +43,12 @@ export function setupExportHandlers(): void {
 
   ipcMain.handle('export:sessionToMarkdown', async (_, sessionId: string) => {
     try {
-      console.log('Exporting session to markdown:', sessionId);
+      logDiagnosticsEvent({
+        event_name: 'export.session_markdown.started',
+        context: {
+          session_id: sessionId,
+        },
+      });
 
       const exportOutcome = await Effect.runPromise(
         executeExportSessionMarkdown(sessionId).pipe(
@@ -54,6 +60,14 @@ export function setupExportHandlers(): void {
       );
 
       if (Either.isLeft(exportOutcome)) {
+        logDiagnosticsEvent({
+          event_name: 'export.session_markdown.completed',
+          level: 'error',
+          context: {
+            session_id: sessionId,
+            outcome: 'domain_failure',
+          },
+        });
         return {
           success: false,
           error: EXPORT_OPERATION_PUBLIC_ERROR,
@@ -80,21 +94,37 @@ export function setupExportHandlers(): void {
       });
 
       if (canceled || !filePath) {
-        console.log('Export cancelled by user');
+        logDiagnosticsEvent({
+          event_name: 'export.session_markdown.completed',
+          context: {
+            session_id: sessionId,
+            outcome: 'cancelled',
+          },
+        });
         return { success: true, cancelled: true };
       }
 
       // Write file
       await fs.writeFile(filePath, exportOutcome.right.markdown, 'utf-8');
       
-      console.log('Session exported successfully to:', filePath);
+      logDiagnosticsEvent({
+        event_name: 'export.session_markdown.completed',
+        context: {
+          session_id: sessionId,
+          outcome: 'success',
+          message_count: exportOutcome.right.messageCount,
+          file_path: filePath,
+        },
+      });
       return { 
         success: true, 
         filePath,
         messageCount: exportOutcome.right.messageCount,
       };
     } catch (error) {
-      console.error('Error exporting session:', error);
+      logDiagnosticsError('export.session_markdown.failed', error, {
+        session_id: sessionId,
+      });
       return { 
         success: false, 
         error: EXPORT_OPERATION_PUBLIC_ERROR,

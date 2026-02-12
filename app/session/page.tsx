@@ -37,8 +37,7 @@ function SessionContent() {
     sessionPersonas,
     isLoading,
     thinkingPersonaId,
-    conductorRunning,
-    conductorPaused,
+    conductorFlowState,
     blackboard,
     allTags,
     loadSession,
@@ -89,7 +88,7 @@ function SessionContent() {
     await sendUserMessage(content);
     
     // If conductor is enabled and not paused, trigger it
-    if (currentSession?.conductorEnabled && !conductorPaused) {
+    if (currentSession?.conductorEnabled && conductorFlowState !== 'manual_paused' && conductorFlowState !== 'blocked') {
       processConductorTurn();
     }
   };
@@ -103,7 +102,7 @@ function SessionContent() {
     await triggerPersonaResponse(personaId);
     
     // If conductor is enabled and not paused, trigger it after response
-    if (currentSession?.conductorEnabled && !conductorPaused) {
+    if (currentSession?.conductorEnabled && conductorFlowState !== 'manual_paused' && conductorFlowState !== 'blocked') {
       setTimeout(() => processConductorTurn(), 1000);
     }
   };
@@ -180,12 +179,11 @@ function SessionContent() {
         currentSession={currentSession}
         sessionPersonas={sessionPersonas}
         isArchived={isArchived}
-        conductorPaused={conductorPaused}
-        conductorRunning={conductorRunning}
+        conductorFlowState={conductorFlowState}
         thinkingPersonaId={thinkingPersonaId}
         hushPresets={HUSH_PRESETS}
         onToggleConductor={handleConductorToggle}
-        onPauseOrResume={conductorPaused ? resumeConductor : pauseConductor}
+        onPauseOrResume={(conductorFlowState === 'manual_paused' || conductorFlowState === 'blocked') ? resumeConductor : pauseConductor}
         onContinue={resetCircuitBreaker}
         onAskToSpeak={handleAskToSpeak}
         onHush={handleHushPersona}
@@ -356,7 +354,7 @@ function SessionContent() {
           )}
           
             {/* Conductor thinking indicator */}
-            {conductorRunning && !thinkingPersonaId && (
+            {conductorFlowState === 'processing' && !thinkingPersonaId && (
               <div className="flex gap-3">
                 <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-primary-foreground text-xs font-medium bg-primary animate-pulse">
                   <Sparkles className="w-4 h-4" />
@@ -405,11 +403,11 @@ function SessionContent() {
                     }
                   }}
                   className="bg-input border-border"
-                  disabled={conductorRunning}
+                  disabled={conductorFlowState === 'processing'}
                 />
                 <Button
                   onClick={handleSendMessage}
-                  disabled={!newMessage.trim() || conductorRunning}
+                  disabled={!newMessage.trim() || conductorFlowState === 'processing'}
                   className="flex-shrink-0"
                 >
                   <Send className="w-4 h-4" />
@@ -417,7 +415,7 @@ function SessionContent() {
               </div>
               <p className="text-xs text-muted-foreground mt-2">
                 Press Enter to send, Shift+Enter for new line
-                {currentSession.conductorEnabled && conductorPaused && (
+                {currentSession.conductorEnabled && (conductorFlowState === 'manual_paused' || conductorFlowState === 'blocked') && (
                   <span className="ml-2 text-primary">• Conductor paused - click Resume or Continue to proceed</span>
                 )}
               </p>
