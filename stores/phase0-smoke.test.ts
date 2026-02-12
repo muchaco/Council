@@ -117,17 +117,22 @@ describe('phase0_smoke_spec', () => {
       testConnection: vi.fn(),
       getDefaultModel: vi.fn(),
       setDefaultModel: vi.fn(),
-      listModels: vi.fn().mockResolvedValue({
+      getModelCatalog: vi.fn().mockResolvedValue({
         success: true,
-        data: [
-          {
-            name: 'gemini-2.5-flash',
-            displayName: 'Gemini 2.5 Flash',
-            description: 'Fast model',
-            supportedMethods: ['generateContent'],
-          },
-        ],
+        data: {
+          configured: true,
+          models: [
+            {
+              name: 'gemini-2.5-flash',
+              displayName: 'Gemini 2.5 Flash',
+              description: 'Fast model',
+              supportedMethods: ['generateContent'],
+            },
+          ],
+          fetchedAtEpochMs: Date.now(),
+        },
       }),
+      listModels: vi.fn(),
     };
 
     Object.assign(window, {
@@ -181,7 +186,7 @@ describe('phase0_smoke_spec', () => {
     expect(createdSessionId).toBe('session-1');
     expect(electronConductor.processTurn).toHaveBeenCalledWith('session-1');
     expect(electronExport.exportSessionToMarkdown).toHaveBeenCalledWith('session-1');
-    expect(electronSettings.listModels).toHaveBeenCalledTimes(1);
+    expect(electronSettings.getModelCatalog).toHaveBeenCalledTimes(1);
     expect(toast.success).toHaveBeenCalledWith('Session created successfully');
   });
 });

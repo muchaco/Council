@@ -1,13 +1,6 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
-import { Effect, Either } from 'effect';
 import type { ModelInfo } from '../lib/types';
-import {
-  SettingsModelCatalogGateway,
-  executeRefreshSettingsModelCatalog,
-} from '../lib/application/use-cases/settings';
-import { LiveClockLayer } from '../lib/infrastructure/clock';
-import { makeSettingsModelCatalogGatewayFromElectronSettings } from '../lib/infrastructure/settings/settings-model-catalog-gateway';
 import {
   setDefaultGeminiModelCommand,
   setGeminiApiKeyCommand,
@@ -144,48 +137,23 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   fetchAvailableModels: async () => {
-    const { modelsLastFetched, availableModels } = get();
-
     try {
       set({ isModelCatalogLoading: true, modelCatalogError: null });
 
-      const apiKeyStatus = await loadApiKeyStatusQuery();
-      const hasGeminiApiKey = apiKeyStatus.success
-        ? apiKeyStatus.data?.configured === true
-        : get().isApiKeyConfigured;
-
-      if (hasGeminiApiKey !== get().isApiKeyConfigured) {
-        set({ isApiKeyConfigured: hasGeminiApiKey });
-      }
-
-      const outcome = await Effect.runPromise(
-        executeRefreshSettingsModelCatalog({
-          hasGeminiApiKey,
-          cachedModelCount: availableModels.length,
-          modelsLastFetchedEpochMs: modelsLastFetched,
-        }).pipe(
-          Effect.provideService(
-            SettingsModelCatalogGateway,
-            makeSettingsModelCatalogGatewayFromElectronSettings({ listModels: loadAvailableModelsQuery })
-          ),
-          Effect.provide(LiveClockLayer),
-          Effect.either
-        )
-      );
-
-      if (Either.isLeft(outcome)) {
-        console.error('Failed to fetch models:', outcome.left.message);
-        set({ modelCatalogError: outcome.left.message });
+      const result = await loadAvailableModelsQuery();
+      if (!result.success || !result.data) {
+        const errorMessage = result.error ?? 'Unable to load Gemini models';
+        console.error('Failed to fetch models:', errorMessage);
+        set({ modelCatalogError: errorMessage });
         return;
       }
 
-      if (outcome.right._tag === 'SettingsModelCatalogRefreshed') {
-        set({
-          availableModels: [...outcome.right.models],
-          modelsLastFetched: outcome.right.refreshedAtEpochMs,
-          modelCatalogError: null,
-        });
-      }
+      set({
+        isApiKeyConfigured: result.data.configured,
+        availableModels: [...result.data.models],
+        modelsLastFetched: result.data.fetchedAtEpochMs,
+        modelCatalogError: null,
+      });
     } catch (error) {
       console.error('Error fetching models:', error);
       set({ modelCatalogError: 'Unable to load Gemini models' });

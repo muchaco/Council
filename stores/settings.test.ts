@@ -16,6 +16,7 @@ const mockElectronSettings = {
   testConnection: vi.fn(),
   getDefaultModel: vi.fn(),
   setDefaultModel: vi.fn(),
+  getModelCatalog: vi.fn(),
   listModels: vi.fn(),
 };
 
@@ -37,12 +38,30 @@ describe('settings_store_spec', () => {
       success: true,
       data: { configured: false },
     });
+    mockElectronSettings.getModelCatalog.mockResolvedValue({
+      success: true,
+      data: {
+        configured: false,
+        models: [],
+        fetchedAtEpochMs: null,
+      },
+    });
   });
 
-  it('does_not_fetch_model_catalog_when_api_key_is_missing', async () => {
+  it('loads_model_catalog_snapshot_when_api_key_is_missing', async () => {
+    mockElectronSettings.getModelCatalog.mockResolvedValue({
+      success: true,
+      data: {
+        configured: false,
+        models: [],
+        fetchedAtEpochMs: null,
+      },
+    });
+
     await useSettingsStore.getState().fetchAvailableModels();
 
-    expect(mockElectronSettings.listModels).not.toHaveBeenCalled();
+    expect(mockElectronSettings.getModelCatalog).toHaveBeenCalledTimes(1);
+    expect(useSettingsStore.getState().isApiKeyConfigured).toBe(false);
   });
 
   it('hydrates_api_key_status_before_refreshing_model_catalog', async () => {
@@ -60,11 +79,14 @@ describe('settings_store_spec', () => {
       availableModels: [],
       modelsLastFetched: null,
     });
-    mockElectronSettings.getApiKeyStatus.mockResolvedValue({
+    mockElectronSettings.getModelCatalog.mockResolvedValue({
       success: true,
-      data: { configured: true },
+      data: {
+        configured: true,
+        models,
+        fetchedAtEpochMs: Date.now(),
+      },
     });
-    mockElectronSettings.listModels.mockResolvedValue({ success: true, data: models });
 
     await useSettingsStore.getState().fetchAvailableModels();
 
@@ -72,7 +94,7 @@ describe('settings_store_spec', () => {
     expect(useSettingsStore.getState().availableModels).toEqual(models);
   });
 
-  it('does_not_fetch_model_catalog_when_cache_is_still_valid', async () => {
+  it('accepts_cached_model_catalog_from_main_process_snapshot', async () => {
     useSettingsStore.setState({
       isApiKeyConfigured: true,
       availableModels: [
@@ -85,14 +107,18 @@ describe('settings_store_spec', () => {
       ],
       modelsLastFetched: Date.now(),
     });
-    mockElectronSettings.getApiKeyStatus.mockResolvedValue({
+    mockElectronSettings.getModelCatalog.mockResolvedValue({
       success: true,
-      data: { configured: true },
+      data: {
+        configured: true,
+        models: useSettingsStore.getState().availableModels,
+        fetchedAtEpochMs: Date.now(),
+      },
     });
 
     await useSettingsStore.getState().fetchAvailableModels();
 
-    expect(mockElectronSettings.listModels).not.toHaveBeenCalled();
+    expect(mockElectronSettings.getModelCatalog).toHaveBeenCalledTimes(1);
   });
 
   it('fetches_and_persists_model_catalog_when_cache_is_stale', async () => {
@@ -110,15 +136,18 @@ describe('settings_store_spec', () => {
       availableModels: models,
       modelsLastFetched: 0,
     });
-    mockElectronSettings.getApiKeyStatus.mockResolvedValue({
+    mockElectronSettings.getModelCatalog.mockResolvedValue({
       success: true,
-      data: { configured: true },
+      data: {
+        configured: true,
+        models,
+        fetchedAtEpochMs: Date.now(),
+      },
     });
-    mockElectronSettings.listModels.mockResolvedValue({ success: true, data: models });
 
     await useSettingsStore.getState().fetchAvailableModels();
 
-    expect(mockElectronSettings.listModels).toHaveBeenCalledTimes(1);
+    expect(mockElectronSettings.getModelCatalog).toHaveBeenCalledTimes(1);
     expect(useSettingsStore.getState().availableModels).toEqual(models);
     expect(useSettingsStore.getState().modelsLastFetched).not.toBeNull();
   });
@@ -134,16 +163,19 @@ describe('settings_store_spec', () => {
     ];
 
     mockElectronSettings.setApiKey.mockResolvedValue({ success: true });
-    mockElectronSettings.getApiKeyStatus.mockResolvedValue({
+    mockElectronSettings.getModelCatalog.mockResolvedValue({
       success: true,
-      data: { configured: true },
+      data: {
+        configured: true,
+        models,
+        fetchedAtEpochMs: Date.now(),
+      },
     });
-    mockElectronSettings.listModels.mockResolvedValue({ success: true, data: models });
 
     const success = await useSettingsStore.getState().setApiKey('test-api-key');
 
     expect(success).toBe(true);
-    expect(mockElectronSettings.listModels).toHaveBeenCalledTimes(1);
+    expect(mockElectronSettings.getModelCatalog).toHaveBeenCalledTimes(1);
     expect(useSettingsStore.getState().availableModels).toEqual(models);
     expect(useSettingsStore.getState().modelsLastFetched).not.toBeNull();
   });
@@ -165,16 +197,19 @@ describe('settings_store_spec', () => {
     });
 
     mockElectronSettings.testConnection.mockResolvedValue({ success: true, data: true });
-    mockElectronSettings.getApiKeyStatus.mockResolvedValue({
+    mockElectronSettings.getModelCatalog.mockResolvedValue({
       success: true,
-      data: { configured: true },
+      data: {
+        configured: true,
+        models,
+        fetchedAtEpochMs: Date.now(),
+      },
     });
-    mockElectronSettings.listModels.mockResolvedValue({ success: true, data: models });
 
     const success = await useSettingsStore.getState().testConnection();
 
     expect(success).toBe(true);
-    expect(mockElectronSettings.listModels).toHaveBeenCalledTimes(1);
+    expect(mockElectronSettings.getModelCatalog).toHaveBeenCalledTimes(1);
     expect(useSettingsStore.getState().availableModels).toEqual(models);
   });
 
@@ -184,12 +219,7 @@ describe('settings_store_spec', () => {
       availableModels: [],
       modelsLastFetched: 0,
     });
-    mockElectronSettings.getApiKeyStatus.mockResolvedValue({
-      success: true,
-      data: { configured: true },
-    });
-
-    mockElectronSettings.listModels.mockResolvedValue({
+    mockElectronSettings.getModelCatalog.mockResolvedValue({
       success: false,
       error: 'Unable to load Gemini models',
     });

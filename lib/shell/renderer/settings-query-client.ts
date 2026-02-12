@@ -9,11 +9,15 @@ export const loadDefaultModelQuery = async (): Promise<{ success: boolean; data?
 
 export const loadAvailableModelsQuery = async (): Promise<{
   success: boolean;
-  data?: Array<{
-    name: string;
-    displayName: string;
-    description: string;
-    supportedMethods: string[];
-  }>;
+  data?: {
+    configured: boolean;
+    models: Array<{
+      name: string;
+      displayName: string;
+      description: string;
+      supportedMethods: string[];
+    }>;
+    fetchedAtEpochMs: number | null;
+  };
   error?: string;
-}> => window.electronSettings.listModels();
+}> => window.electronSettings.getModelCatalog();
