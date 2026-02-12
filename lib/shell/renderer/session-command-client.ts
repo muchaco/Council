@@ -53,7 +53,12 @@ export const deleteSessionCommand = async (
     return result;
   }
 
-  await window.electronDB.tags.cleanupOrphaned();
+  try {
+    await window.electronDB.tags.cleanupOrphaned();
+  } catch {
+    // Best-effort cleanup to preserve pre-migration behavior.
+  }
+
   return result;
 };
 

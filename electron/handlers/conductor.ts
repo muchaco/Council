@@ -1,19 +1,29 @@
 import { app, ipcMain as electronIpcMain } from 'electron';
-import { Effect } from 'effect';
+import { Effect, Either } from 'effect';
 import { z } from 'zod';
 
 import { decrypt } from './settings.js';
-import * as queries from '../lib/queries.js';
 import { makeElectronSqlQueryExecutor } from '../lib/sql-query-executor.js';
 import type { BlackboardState } from '../lib/types.js';
 import {
   ConductorSettings,
   ConductorSelectorGateway,
   ConductorTurnRepository,
+  executeDisableConductorForSession,
+  executeEnableConductorForSession,
+  executeGetSessionBlackboard,
   executeConductorTurn,
+  executeUpdateSessionBlackboard,
   type SelectNextSpeakerRequest,
 } from '../../lib/application/use-cases/conductor/index.js';
 import {
+  executeResetSessionAutoReplyCount,
+  SessionStateRepository,
+} from '../../lib/application/use-cases/session-state/index.js';
+import { QueryLayerRepository } from '../../lib/application/use-cases/query-layer/index.js';
+import {
+  makeQueryLayerRepositoryFromSqlExecutor,
+  makeSessionStateRepositoryFromSqlExecutor,
   makeConductorTurnRepositoryFromSqlExecutor,
 } from '../../lib/infrastructure/db/index.js';
 import { LiveIdGeneratorLayer } from '../../lib/infrastructure/id/index.js';
@@ -27,6 +37,7 @@ import { executeConductorSelectorRequest } from '../lib/shell/conductor-selector
 import {
   mapBlackboardLookupResponse,
   mapErrorFailureResponse,
+  mapSessionNotFoundResponse,
   mapVoidSuccessResponse,
 } from '../lib/shell/conductor-handler-response.js';
 import {
@@ -66,6 +77,8 @@ const updateBlackboardArgsSchema = z.tuple([
 export function setupConductorHandlers(): void {
   const sqlExecutor = makeElectronSqlQueryExecutor();
   const repository = makeConductorTurnRepositoryFromSqlExecutor(sqlExecutor);
+  const sessionStateRepository = makeSessionStateRepositoryFromSqlExecutor(sqlExecutor);
+  const queryLayerRepository = makeQueryLayerRepositoryFromSqlExecutor(sqlExecutor);
   const selectorGateway = makeConductorSelectorGatewayFromExecutor((request: SelectNextSpeakerRequest) =>
     executeConductorSelectorRequest(request)
   );
@@ -75,7 +88,17 @@ export function setupConductorHandlers(): void {
   // Enable conductor for a session
   ipcMain.handle('conductor:enable', async (_, { sessionId, mode }: { sessionId: string; mode: 'automatic' | 'manual' }) => {
     try {
-      await queries.enableConductor(sessionId, mode as 'automatic' | 'manual');
+      const outcome = await Effect.runPromise(
+        executeEnableConductorForSession(sessionId, mode).pipe(
+          Effect.provideService(SessionStateRepository, sessionStateRepository),
+          Effect.either
+        )
+      );
+
+      if (Either.isLeft(outcome)) {
+        return mapErrorFailureResponse(outcome.left);
+      }
+
       return mapVoidSuccessResponse();
     } catch (error) {
       console.error('Error enabling conductor:', error);
@@ -88,8 +111,17 @@ export function setupConductorHandlers(): void {
   // Disable conductor for a session
   ipcMain.handle('conductor:disable', async (_, sessionId: string) => {
     try {
-      await queries.disableConductor(sessionId);
-      await queries.resetAutoReplyCount(sessionId);
+      const outcome = await Effect.runPromise(
+        executeDisableConductorForSession(sessionId).pipe(
+          Effect.provideService(SessionStateRepository, sessionStateRepository),
+          Effect.either
+        )
+      );
+
+      if (Either.isLeft(outcome)) {
+        return mapErrorFailureResponse(outcome.left);
+      }
+
       return mapVoidSuccessResponse();
     } catch (error) {
       console.error('Error disabling conductor:', error);
@@ -129,7 +161,17 @@ export function setupConductorHandlers(): void {
   // Reset circuit breaker (user clicked continue)
   ipcMain.handle('conductor:resetCircuitBreaker', async (_, sessionId: string) => {
     try {
-      await queries.resetAutoReplyCount(sessionId);
+      const outcome = await Effect.runPromise(
+        executeResetSessionAutoReplyCount(sessionId).pipe(
+          Effect.provideService(SessionStateRepository, sessionStateRepository),
+          Effect.either
+        )
+      );
+
+      if (Either.isLeft(outcome)) {
+        return mapErrorFailureResponse(outcome.left);
+      }
+
       return mapVoidSuccessResponse();
     } catch (error) {
       console.error('Error resetting circuit breaker:', error);
@@ -142,8 +184,22 @@ export function setupConductorHandlers(): void {
   // Get blackboard state
   ipcMain.handle('conductor:getBlackboard', async (_, sessionId: string) => {
     try {
-      const session = await queries.getSession(sessionId);
-      return mapBlackboardLookupResponse(session);
+      const outcome = await Effect.runPromise(
+        executeGetSessionBlackboard(sessionId).pipe(
+          Effect.provideService(QueryLayerRepository, queryLayerRepository),
+          Effect.either
+        )
+      );
+
+      if (Either.isLeft(outcome)) {
+        return mapErrorFailureResponse(outcome.left);
+      }
+
+      if (outcome.right === null) {
+        return mapSessionNotFoundResponse();
+      }
+
+      return mapBlackboardLookupResponse({ blackboard: outcome.right });
     } catch (error) {
       console.error('Error getting blackboard:', error);
       return mapErrorFailureResponse(error);
@@ -155,7 +211,17 @@ export function setupConductorHandlers(): void {
   // Update blackboard manually (for testing or debugging)
   ipcMain.handle('conductor:updateBlackboard', async (_, { sessionId, blackboard }: { sessionId: string; blackboard: BlackboardState }) => {
     try {
-      await queries.updateBlackboard(sessionId, blackboard);
+      const outcome = await Effect.runPromise(
+        executeUpdateSessionBlackboard(sessionId, blackboard).pipe(
+          Effect.provideService(SessionStateRepository, sessionStateRepository),
+          Effect.either
+        )
+      );
+
+      if (Either.isLeft(outcome)) {
+        return mapErrorFailureResponse(outcome.left);
+      }
+
       return mapVoidSuccessResponse();
     } catch (error) {
       console.error('Error updating blackboard:', error);
