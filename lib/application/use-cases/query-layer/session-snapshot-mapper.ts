@@ -43,7 +43,7 @@ export const mapPersistedSessionSnapshotRowToSession = (
   tokenCount: row.tokenCount,
   costEstimate: row.costEstimate,
   conductorEnabled: Boolean(row.conductorEnabled),
-  conductorPersonaId: row.conductorPersonaId,
+  conductorMode: row.conductorMode ?? 'automatic',
   blackboard: parseBlackboard(row.blackboard),
   autoReplyCount: row.autoReplyCount,
   tokenBudget: row.tokenBudget,

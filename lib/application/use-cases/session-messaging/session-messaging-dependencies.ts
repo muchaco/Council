@@ -23,6 +23,7 @@ export interface TriggerSessionPersonaResponseRequest {
 export interface CreateSessionMessageCommand {
   readonly sessionId: string;
   readonly personaId: string | null;
+  readonly source: 'user' | 'persona' | 'conductor';
   readonly content: string;
   readonly turnNumber: number;
   readonly tokenCount: number;

@@ -6,6 +6,7 @@ export interface PersistedCouncilTranscriptMessageRow {
   readonly id: string;
   readonly sessionId: string;
   readonly personaId: string | null;
+  readonly source: 'user' | 'persona' | 'conductor' | null;
   readonly content: string;
   readonly turnNumber: number;
   readonly tokenCount: number;
@@ -24,6 +25,7 @@ export interface CreateCouncilTranscriptMessageCommand {
   readonly now: string;
   readonly sessionId: string;
   readonly personaId: string | null;
+  readonly source: 'user' | 'persona' | 'conductor';
   readonly content: string;
   readonly turnNumber: number;
   readonly tokenCount: number;

@@ -22,7 +22,7 @@ type SessionUpdateInput = Partial<SessionInput> & {
   tokenCount?: number;
   costEstimate?: number;
   conductorEnabled?: boolean;
-  conductorPersonaId?: string | null;
+  conductorMode?: 'automatic' | 'manual';
   blackboard?: any;
   autoReplyCount?: number;
   tokenBudget?: number;
@@ -31,7 +31,7 @@ type SessionUpdateInput = Partial<SessionInput> & {
 
 export async function createSession(
   data: SessionInput,
-  conductorConfig?: { enabled: boolean; conductorPersonaId?: string }
+  conductorConfig?: { enabled: boolean; mode?: 'automatic' | 'manual' }
 ): Promise<Session> {
   return runSessionState(executeCreateSessionState(data, conductorConfig));
 }
@@ -75,8 +75,11 @@ export async function resetAutoReplyCount(sessionId: string): Promise<void> {
   await runSessionState(executeResetSessionAutoReplyCount(sessionId));
 }
 
-export async function enableConductor(sessionId: string, conductorPersonaId: string): Promise<void> {
-  await runSessionState(executeEnableSessionConductor(sessionId, conductorPersonaId));
+export async function enableConductor(
+  sessionId: string,
+  conductorMode: 'automatic' | 'manual'
+): Promise<void> {
+  await runSessionState(executeEnableSessionConductor(sessionId, conductorMode));
 }
 
 export async function disableConductor(sessionId: string): Promise<void> {

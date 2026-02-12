@@ -115,7 +115,7 @@ export async function getSessionForExport(sessionId: string): Promise<SessionExp
       token_count as tokenCount,
       cost_estimate as costEstimate,
       orchestrator_enabled as conductorEnabled,
-      orchestrator_persona_id as conductorPersonaId,
+      conductor_mode as conductorMode,
       blackboard,
       auto_reply_count as autoReplyCount,
       token_budget as tokenBudget,
@@ -141,6 +141,7 @@ export async function getSessionForExport(sessionId: string): Promise<SessionExp
     SELECT 
       m.id,
       m.session_id as sessionId,
+      m.source,
       m.persona_id as personaId,
       m.content,
       m.turn_number as turnNumber,
@@ -163,7 +164,8 @@ export async function getSessionForExport(sessionId: string): Promise<SessionExp
 
   const messages: ExportableMessage[] = messageRows.map((row, index) => {
     const metadata: MessageMetadata | null = parseMessageMetadata(row.metadata);
-    const isConductorMessage = metadata?.isConductorMessage || false;
+    const source = row.source ?? (row.personaId ? 'persona' : 'user');
+    const isConductorMessage = source === 'conductor' || metadata?.isConductorMessage === true;
     
     let personaName: string;
     let personaRole: string | undefined;
@@ -208,6 +210,7 @@ export async function getSessionForExport(sessionId: string): Promise<SessionExp
       id: row.id,
       sessionId: row.sessionId,
       personaId: row.personaId,
+      source,
       content: row.content,
       turnNumber: row.turnNumber,
       tokenCount: row.tokenCount,

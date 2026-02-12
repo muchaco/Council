@@ -35,7 +35,7 @@ export interface Session {
   tokenCount: number;
   costEstimate: number;
   conductorEnabled: boolean;
-  conductorPersonaId: string | null;
+  conductorMode: 'automatic' | 'manual';
   blackboard: BlackboardState | null;
   autoReplyCount: number;
   tokenBudget: number;
@@ -50,6 +50,7 @@ export interface Message {
   id: string;
   sessionId: string;
   personaId: string | null;
+  source: 'user' | 'persona' | 'conductor';
   content: string;
   turnNumber: number;
   tokenCount: number;
@@ -77,6 +78,7 @@ export interface SessionInput {
 export interface MessageInput {
   sessionId: string;
   personaId: string | null;
+  source?: 'user' | 'persona' | 'conductor';
   content: string;
   turnNumber: number;
   tokenCount?: number;

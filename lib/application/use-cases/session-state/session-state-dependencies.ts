@@ -13,7 +13,7 @@ export interface CreateSessionStateCommand {
   readonly now: string;
   readonly input: SessionInput;
   readonly conductorEnabled: boolean;
-  readonly conductorPersonaId: string | null;
+  readonly conductorMode: 'automatic' | 'manual';
 }
 
 export interface UpdateSessionStateCommand {
@@ -24,7 +24,7 @@ export interface UpdateSessionStateCommand {
     readonly tokenCount?: number;
     readonly costEstimate?: number;
     readonly conductorEnabled?: boolean;
-    readonly conductorPersonaId?: string | null;
+    readonly conductorMode?: 'automatic' | 'manual';
     readonly blackboard?: unknown;
     readonly autoReplyCount?: number;
     readonly tokenBudget?: number;
@@ -49,7 +49,7 @@ export interface SessionStateRepositoryService {
   readonly resetAutoReplyCount: (sessionId: string) => Effect.Effect<void, SessionStateInfrastructureError>;
   readonly enableConductor: (
     sessionId: string,
-    conductorPersonaId: string
+    conductorMode: 'automatic' | 'manual'
   ) => Effect.Effect<void, SessionStateInfrastructureError>;
   readonly disableConductor: (sessionId: string) => Effect.Effect<void, SessionStateInfrastructureError>;
   readonly archiveSession: (sessionId: string, archivedAt: string) => Effect.Effect<void, SessionStateInfrastructureError>;

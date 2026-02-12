@@ -40,6 +40,7 @@ const isMessage = (value: unknown): value is Message => {
     typeof value.id === 'string' &&
     typeof value.sessionId === 'string' &&
     (typeof value.personaId === 'string' || value.personaId === null) &&
+    (value.source === 'user' || value.source === 'persona' || value.source === 'conductor') &&
     typeof value.content === 'string' &&
     typeof value.turnNumber === 'number' &&
     typeof value.tokenCount === 'number' &&

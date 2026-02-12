@@ -10,7 +10,7 @@ import {
 
 export const executeCreateSessionState = (
   input: SessionInput,
-  conductorConfig?: { readonly enabled: boolean; readonly conductorPersonaId?: string }
+  conductorConfig?: { readonly enabled: boolean; readonly mode?: 'automatic' | 'manual' }
 ): Effect.Effect<
   Session,
   SessionStateInfrastructureError,
@@ -23,14 +23,14 @@ export const executeCreateSessionState = (
     const id = yield* idGenerator.generate;
     const now = (yield* clock.now).toISOString();
     const conductorEnabled = conductorConfig?.enabled ?? false;
-    const conductorPersonaId = conductorConfig?.conductorPersonaId ?? null;
+    const conductorMode = conductorConfig?.mode ?? 'automatic';
 
     yield* repository.createSession({
       id,
       now,
       input,
       conductorEnabled,
-      conductorPersonaId,
+      conductorMode,
     });
 
     return {
@@ -42,7 +42,7 @@ export const executeCreateSessionState = (
       tokenCount: 0,
       costEstimate: 0,
       conductorEnabled,
-      conductorPersonaId,
+      conductorMode,
       blackboard: null,
       autoReplyCount: 0,
       tokenBudget: 100000,
@@ -109,11 +109,11 @@ export const executeResetSessionAutoReplyCount = (
 
 export const executeEnableSessionConductor = (
   sessionId: string,
-  conductorPersonaId: string
+  conductorMode: 'automatic' | 'manual'
 ): Effect.Effect<void, SessionStateInfrastructureError, SessionStateRepository> =>
   Effect.gen(function* () {
     const repository = yield* SessionStateRepository;
-    yield* repository.enableConductor(sessionId, conductorPersonaId);
+    yield* repository.enableConductor(sessionId, conductorMode);
   });
 
 export const executeDisableSessionConductor = (

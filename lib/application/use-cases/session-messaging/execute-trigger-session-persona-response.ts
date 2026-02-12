@@ -60,6 +60,7 @@ export const executeTriggerSessionPersonaResponse = (
     const createdMessage = yield* messagePersistence.createMessage({
       sessionId: input.session.id,
       personaId: input.persona.id,
+      source: 'persona',
       content: generatedResponse.content,
       turnNumber,
       tokenCount: generatedResponse.tokenCount,

@@ -7,7 +7,7 @@ let db: sqlite3.Database | null = null;
 let initPromise: Promise<sqlite3.Database> | null = null;
 let initAttempts = 0;
 const MAX_INIT_ATTEMPTS = 3;
-const CURRENT_SCHEMA_VERSION = 8;
+const CURRENT_SCHEMA_VERSION = 9;
 
 export function getDatabasePath(): string {
   try {
@@ -211,6 +211,13 @@ async function initializeSchemaWithMigrations(database: sqlite3.Database): Promi
     await runMigrationV8(database, run);
     await run('INSERT OR REPLACE INTO schema_version (version) VALUES (8)');
     console.log('Migration to version 8 complete');
+  }
+
+  if (currentVersion < 9) {
+    console.log('Running migration to version 9...');
+    await runMigrationV9(database, run);
+    await run('INSERT OR REPLACE INTO schema_version (version) VALUES (9)');
+    console.log('Migration to version 9 complete');
   }
 
   console.log('All migrations complete');
@@ -484,6 +491,80 @@ async function runMigrationV8(database: sqlite3.Database, run: (sql: string) => 
 
     await run('COMMIT');
     console.log(`Normalized legacy metadata key on ${updatedCount} message(s)`);
+  } catch (error) {
+    await run('ROLLBACK');
+    throw error;
+  }
+}
+
+async function runMigrationV9(database: sqlite3.Database, run: (sql: string) => Promise<void>): Promise<void> {
+  const all = (sql: string, params: readonly unknown[]): Promise<readonly Record<string, unknown>[]> =>
+    new Promise((resolve, reject) => {
+      database.all(sql, params, (err, rows) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve((rows as readonly Record<string, unknown>[]) ?? []);
+      });
+    });
+
+  const update = (sql: string, params: readonly unknown[]): Promise<void> =>
+    new Promise((resolve, reject) => {
+      database.run(sql, params, (err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve();
+      });
+    });
+
+  try {
+    await run(`ALTER TABLE sessions ADD COLUMN conductor_mode TEXT CHECK (conductor_mode IN ('automatic', 'manual')) DEFAULT 'automatic'`);
+    console.log('Added conductor_mode column to sessions table');
+  } catch {
+    console.log('Note: conductor_mode column may already exist');
+  }
+
+  try {
+    await run(`ALTER TABLE messages ADD COLUMN source TEXT CHECK (source IN ('user', 'persona', 'conductor'))`);
+    console.log('Added source column to messages table');
+  } catch {
+    console.log('Note: source column may already exist');
+  }
+
+  await run('BEGIN TRANSACTION');
+  try {
+    await run(`UPDATE sessions SET conductor_mode = 'automatic' WHERE conductor_mode IS NULL`);
+
+    await run(`UPDATE messages SET source = 'persona' WHERE source IS NULL AND persona_id IS NOT NULL`);
+    await run(`UPDATE messages SET source = 'user' WHERE source IS NULL AND persona_id IS NULL`);
+
+    const conductorRows = await all(
+      `SELECT id, metadata
+       FROM messages
+       WHERE source = 'user' AND metadata LIKE '%isConductorMessage%'`,
+      []
+    );
+
+    for (const row of conductorRows) {
+      const metadata = row.metadata;
+      if (typeof metadata !== 'string') {
+        continue;
+      }
+
+      try {
+        const parsed = JSON.parse(metadata) as Record<string, unknown>;
+        if (parsed.isConductorMessage === true) {
+          await update('UPDATE messages SET source = ? WHERE id = ?', ['conductor', row.id]);
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    await run('COMMIT');
   } catch (error) {
     await run('ROLLBACK');
     throw error;

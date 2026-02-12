@@ -48,6 +48,7 @@ export const mapPersistedCouncilTranscriptMessageRowToMessage = (
   id: row.id,
   sessionId: row.sessionId,
   personaId: row.personaId,
+  source: row.source ?? (row.personaId === null ? 'user' : 'persona'),
   content: row.content,
   turnNumber: row.turnNumber,
   tokenCount: row.tokenCount,

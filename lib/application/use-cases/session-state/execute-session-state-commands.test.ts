@@ -46,7 +46,7 @@ describe('execute_session_state_commands_use_case_spec', () => {
         },
         {
           enabled: true,
-          conductorPersonaId: 'conductor-1',
+          mode: 'manual',
         }
       ).pipe(
         Effect.provideService(SessionStateRepository, writeCapableRepository),
@@ -65,7 +65,7 @@ describe('execute_session_state_commands_use_case_spec', () => {
           outputGoal: 'Produce an execution plan',
         },
         conductorEnabled: true,
-        conductorPersonaId: 'conductor-1',
+        conductorMode: 'manual',
       },
     ]);
     expect(session.id).toBe('session-1');

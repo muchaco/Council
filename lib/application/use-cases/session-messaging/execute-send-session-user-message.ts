@@ -21,6 +21,7 @@ export const executeSendSessionUserMessage = (
     return yield* messagePersistence.createMessage({
       sessionId: input.sessionId,
       personaId: null,
+      source: 'user',
       content: input.content,
       turnNumber,
       tokenCount: 0,

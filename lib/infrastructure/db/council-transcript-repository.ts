@@ -27,11 +27,12 @@ export const makeCouncilTranscriptRepositoryFromSqlExecutor = (
     Effect.tryPromise({
       try: () =>
         sql.run(
-          `INSERT INTO messages (id, session_id, persona_id, content, turn_number, token_count, metadata, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO messages (id, session_id, source, persona_id, content, turn_number, token_count, metadata, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             command.id,
             command.sessionId,
+            command.source,
             command.personaId,
             command.content,
             command.turnNumber,
@@ -50,6 +51,7 @@ export const makeCouncilTranscriptRepositoryFromSqlExecutor = (
           `SELECT
             id,
             session_id as sessionId,
+            source,
             persona_id as personaId,
             content,
             turn_number as turnNumber,
@@ -71,6 +73,7 @@ export const makeCouncilTranscriptRepositoryFromSqlExecutor = (
           `SELECT
             id,
             session_id as sessionId,
+            source,
             persona_id as personaId,
             content,
             turn_number as turnNumber,

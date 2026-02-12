@@ -15,6 +15,7 @@ describe('execute_send_session_user_message_use_case_spec', () => {
         id: 'message-4',
         sessionId: 'session-1',
         personaId: null,
+        source: 'user' as const,
         content: 'Hello council',
         turnNumber: 4,
         tokenCount: 0,
@@ -39,6 +40,7 @@ describe('execute_send_session_user_message_use_case_spec', () => {
     expect(createMessage).toHaveBeenCalledWith({
       sessionId: 'session-1',
       personaId: null,
+      source: 'user',
       content: 'Hello council',
       turnNumber: 4,
       tokenCount: 0,
@@ -59,6 +61,7 @@ describe('execute_send_session_user_message_use_case_spec', () => {
         id: 'message-ignored',
         sessionId: 'session-1',
         personaId: null,
+        source: 'user' as const,
         content: 'Hello council',
         turnNumber: 1,
         tokenCount: 0,
@@ -111,6 +114,7 @@ describe('execute_send_session_user_message_use_case_spec', () => {
     expect(createMessage).toHaveBeenCalledWith({
       sessionId: 'session-1',
       personaId: null,
+      source: 'user',
       content: 'Hello council',
       turnNumber: 5,
       tokenCount: 0,

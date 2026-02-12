@@ -18,7 +18,7 @@ const baseSessionRow: PersistedSessionSnapshotRow = {
   tokenCount: 42,
   costEstimate: 0.12,
   conductorEnabled: 1,
-  conductorPersonaId: 'persona-1',
+  conductorMode: 'manual',
   blackboard: JSON.stringify({ consensus: 'agreed', conflicts: '', nextStep: 'ship', facts: 'none' }),
   autoReplyCount: 2,
   tokenBudget: 100_000,

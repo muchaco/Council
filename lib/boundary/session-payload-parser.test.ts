@@ -11,7 +11,7 @@ const validSessionPayload = {
   tokenCount: 42,
   costEstimate: 1.25,
   conductorEnabled: true,
-  conductorPersonaId: 'persona-1',
+  conductorMode: 'automatic',
   blackboard: {
     consensus: '',
     conflicts: '',

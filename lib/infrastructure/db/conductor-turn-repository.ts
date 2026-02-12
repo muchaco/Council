@@ -21,7 +21,7 @@ const repositoryError = (message: string): ConductorInfrastructureError => ({
 interface ConductorSessionRow {
   readonly sessionId: string;
   readonly conductorEnabled: number;
-  readonly conductorPersonaId: string | null;
+  readonly controlMode: 'automatic' | 'manual' | null;
   readonly autoReplyCount: number;
   readonly tokenCount: number;
   readonly problemDescription: string;
@@ -38,6 +38,7 @@ interface ConductorPersonaRow {
 }
 
 interface ConductorMessageRow {
+  readonly source: 'user' | 'persona' | 'conductor' | null;
   readonly personaId: string | null;
   readonly content: string;
 }
@@ -79,7 +80,7 @@ const mapSessionRowToSnapshot = (
   return {
     sessionId: row.sessionId,
     conductorEnabled: Boolean(row.conductorEnabled),
-    conductorPersonaId: row.conductorPersonaId,
+    controlMode: row.controlMode ?? 'automatic',
     autoReplyCount: row.autoReplyCount,
     tokenCount: row.tokenCount,
     problemDescription: row.problemDescription,
@@ -98,7 +99,7 @@ export const makeConductorTurnRepositoryFromSqlExecutor = (
           `SELECT
             id as sessionId,
             orchestrator_enabled as conductorEnabled,
-            orchestrator_persona_id as conductorPersonaId,
+            conductor_mode as controlMode,
             auto_reply_count as autoReplyCount,
             token_count as tokenCount,
             problem_description as problemDescription,
@@ -147,6 +148,7 @@ export const makeConductorTurnRepositoryFromSqlExecutor = (
       try: () =>
         sql.all<ConductorMessageRow>(
           `SELECT
+            source,
             persona_id as personaId,
             content
            FROM messages
@@ -156,7 +158,15 @@ export const makeConductorTurnRepositoryFromSqlExecutor = (
           [sessionId, limit]
         ),
       catch: () => repositoryError('Failed to load recent messages'),
-    }).pipe(Effect.map((rows) => [...rows].reverse())),
+    }).pipe(
+      Effect.map((rows) =>
+        [...rows].reverse().map((row) => ({
+          source: row.source ?? (row.personaId === null ? 'user' : 'persona'),
+          personaId: row.personaId,
+          content: row.content,
+        }))
+      )
+    ),
 
   updateBlackboard: (sessionId, blackboard) =>
     Effect.tryPromise({
@@ -187,6 +197,7 @@ export const makeConductorTurnRepositoryFromSqlExecutor = (
           `INSERT INTO messages (
              id,
              session_id,
+             source,
              persona_id,
              content,
              turn_number,
@@ -198,17 +209,20 @@ export const makeConductorTurnRepositoryFromSqlExecutor = (
              ?,
              ?,
              ?,
+             ?,
              0,
              ?
            )`,
           [
             input.messageId,
             input.sessionId,
-            input.personaId,
+            'conductor',
+            null,
             input.content,
             input.turnNumber,
             JSON.stringify({
               isIntervention: true,
+              isConductorMessage: true,
               selectorReasoning: input.selectorReasoning,
             }),
           ]

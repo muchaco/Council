@@ -11,7 +11,7 @@ export interface PersistedSessionSnapshotRow {
   readonly tokenCount: number;
   readonly costEstimate: number;
   readonly conductorEnabled: number | boolean;
-  readonly conductorPersonaId: string | null;
+  readonly conductorMode: 'automatic' | 'manual' | null;
   readonly blackboard: string | null;
   readonly autoReplyCount: number;
   readonly tokenBudget: number;

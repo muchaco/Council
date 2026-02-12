@@ -19,7 +19,7 @@ describe('conductor_turn_repository_spec', () => {
           ({
             sessionId: 'session-1',
             conductorEnabled: 1,
-            conductorPersonaId: 'conductor',
+            controlMode: 'manual',
             autoReplyCount: 2,
             tokenCount: 300,
             problemDescription: 'Ship FCIS',
@@ -39,7 +39,7 @@ describe('conductor_turn_repository_spec', () => {
     expect(outcome).toEqual({
       sessionId: 'session-1',
       conductorEnabled: true,
-      conductorPersonaId: 'conductor',
+      controlMode: 'manual',
       autoReplyCount: 2,
       tokenCount: 300,
       problemDescription: 'Ship FCIS',
@@ -60,7 +60,7 @@ describe('conductor_turn_repository_spec', () => {
           ({
             sessionId: 'session-1',
             conductorEnabled: 1,
-            conductorPersonaId: 'conductor',
+            controlMode: 'automatic',
             autoReplyCount: 0,
             tokenCount: 0,
             problemDescription: 'Ship FCIS',
@@ -88,7 +88,6 @@ describe('conductor_turn_repository_spec', () => {
       repository.createInterventionMessage({
         messageId: 'msg-123',
         sessionId: 'session-1',
-        personaId: 'conductor',
         content: 'Please refocus on rollout risk.',
         turnNumber: 4,
         selectorReasoning: 'topic drift',

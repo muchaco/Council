@@ -24,6 +24,9 @@ const isBlackboardState = (value: unknown): value is BlackboardState => {
 const isSessionStatus = (value: unknown): value is Session['status'] =>
   value === 'active' || value === 'completed' || value === 'archived';
 
+const isConductorMode = (value: unknown): value is Session['conductorMode'] =>
+  value === 'automatic' || value === 'manual';
+
 const parseStringArray = (value: unknown): string[] | null =>
   Array.isArray(value) && value.every((entry) => typeof entry === 'string') ? value : null;
 
@@ -41,7 +44,7 @@ const isSessionBase = (value: unknown): value is Omit<Session, 'tags'> & { reado
     typeof value.tokenCount === 'number' &&
     typeof value.costEstimate === 'number' &&
     typeof value.conductorEnabled === 'boolean' &&
-    (typeof value.conductorPersonaId === 'string' || value.conductorPersonaId === null) &&
+    isConductorMode(value.conductorMode) &&
     (value.blackboard === null || isBlackboardState(value.blackboard)) &&
     typeof value.autoReplyCount === 'number' &&
     typeof value.tokenBudget === 'number' &&
@@ -77,7 +80,7 @@ export const parseSessionPayload = (
     tokenCount: value.tokenCount,
     costEstimate: value.costEstimate,
     conductorEnabled: value.conductorEnabled,
-    conductorPersonaId: value.conductorPersonaId,
+    conductorMode: value.conductorMode,
     blackboard: value.blackboard,
     autoReplyCount: value.autoReplyCount,
     tokenBudget: value.tokenBudget,
