@@ -1,4 +1,5 @@
 import type { Persona, PersonaInput } from '../../types';
+import { parsePersonaPayload, parsePersonaPayloadList } from '../../boundary/persona-payload-parser';
 
 interface PersonaCatalogElectronDB {
   readonly getPersonas: () => Promise<{ success: boolean; data?: unknown; error?: string }>;
@@ -10,53 +11,28 @@ interface PersonaCatalogElectronDB {
   readonly deletePersona: (personaId: string) => Promise<{ success: boolean; error?: string }>;
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null;
-
-const isPersona = (value: unknown): value is Persona => {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  return (
-    typeof value.id === 'string' &&
-    typeof value.name === 'string' &&
-    typeof value.role === 'string' &&
-    typeof value.systemPrompt === 'string' &&
-    typeof value.geminiModel === 'string' &&
-    typeof value.temperature === 'number' &&
-    typeof value.color === 'string' &&
-    (value.hiddenAgenda === undefined || typeof value.hiddenAgenda === 'string') &&
-    (value.verbosity === undefined || typeof value.verbosity === 'string') &&
-    typeof value.createdAt === 'string' &&
-    typeof value.updatedAt === 'string'
-  );
-};
-
 const parsePersonaList = (value: unknown): Persona[] => {
-  if (!Array.isArray(value) || !value.every(isPersona)) {
+  const parsed = parsePersonaPayloadList(value);
+  if (parsed === null) {
     throw new Error('Invalid persona catalog payload');
   }
 
-  return value;
+  return parsed;
 };
 
 const parsePersona = (value: unknown): Persona => {
-  if (!isPersona(value)) {
+  const parsed = parsePersonaPayload(value);
+  if (parsed === null) {
     throw new Error('Invalid persona payload');
   }
 
-  return value;
+  return parsed;
 };
 
 export const loadPersonaCatalog = async (electronDB: PersonaCatalogElectronDB): Promise<Persona[]> => {
   const result = await electronDB.getPersonas();
   if (!result.success) {
     throw new Error(result.error || 'Failed to fetch personas');
-  }
-
-  if (!Array.isArray(result.data)) {
-    throw new Error('Invalid persona catalog payload');
   }
 
   return parsePersonaList(result.data);

@@ -18,6 +18,13 @@ import {
   parseSessionPayload,
   parseSessionPayloadList,
 } from '../lib/boundary/session-payload-parser';
+import {
+  parseSessionTransportMessages,
+  parseSessionTransportParticipants,
+  parseSessionTransportTagNames,
+  parseSessionTransportTags,
+  type SessionTransportPersona,
+} from '../lib/boundary/session-transport-parser';
 import { decideConductorTurnShellPlan } from '../lib/shell/renderer/conductor-turn-shell-plan';
 import {
   archiveSessionCommand,
@@ -46,95 +53,10 @@ import {
 } from '../lib/infrastructure/db';
 import { makeSessionPersonaResponseGatewayFromElectronLLM } from '../lib/infrastructure/llm';
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null;
-
-const isTag = (value: unknown): value is Tag =>
-  isRecord(value) && typeof value.id === 'number' && typeof value.name === 'string' && typeof value.createdAt === 'string';
-
-const parseMessage = (value: unknown): Message | null => {
-  if (
-    !isRecord(value) ||
-    typeof value.id !== 'string' ||
-    typeof value.sessionId !== 'string' ||
-    (typeof value.personaId !== 'string' && value.personaId !== null) ||
-    typeof value.content !== 'string' ||
-    typeof value.turnNumber !== 'number' ||
-    typeof value.tokenCount !== 'number' ||
-    typeof value.createdAt !== 'string'
-  ) {
-    return null;
-  }
-
-  const source =
-    value.source === 'user' || value.source === 'persona' || value.source === 'conductor'
-      ? value.source
-      : value.personaId === null
-        ? value.metadata && isRecord(value.metadata) && value.metadata.isConductorMessage === true
-          ? 'conductor'
-          : 'user'
-        : 'persona';
-
-  return {
-    ...value,
-    source,
-    metadata: isRecord(value.metadata) || value.metadata === null || value.metadata === undefined
-      ? (value.metadata as Message['metadata']) ?? null
-      : null,
-  } as Message;
-};
-
-const isSessionPersona = (value: unknown): value is SessionPersona =>
-  isRecord(value) &&
-  typeof value.id === 'string' &&
-  typeof value.name === 'string' &&
-  typeof value.role === 'string' &&
-  typeof value.systemPrompt === 'string' &&
-  typeof value.geminiModel === 'string' &&
-  typeof value.temperature === 'number' &&
-  typeof value.color === 'string' &&
-  (value.hiddenAgenda === undefined || typeof value.hiddenAgenda === 'string') &&
-  (value.verbosity === undefined || typeof value.verbosity === 'string') &&
-  typeof value.createdAt === 'string' &&
-  typeof value.updatedAt === 'string' &&
-  typeof value.isConductor === 'boolean' &&
-  typeof value.hushTurnsRemaining === 'number' &&
-  (typeof value.hushedAt === 'string' || value.hushedAt === null);
-
-const parseTagList = (value: unknown): Tag[] | null =>
-  Array.isArray(value) && value.every(isTag) ? value : null;
-
-const parseStringList = (value: unknown): string[] | null =>
-  Array.isArray(value) && value.every((entry) => typeof entry === 'string') ? value : null;
-
-const parseMessageList = (value: unknown): Message[] | null => {
-  if (!Array.isArray(value)) {
-    return null;
-  }
-
-  const messages: Message[] = [];
-  for (const entry of value) {
-    const parsed = parseMessage(entry);
-    if (!parsed) {
-      return null;
-    }
-    messages.push(parsed);
-  }
-
-  return messages;
-};
-
 const parseSessionList = (value: unknown): Session[] | null =>
   parseSessionPayloadList(value, { allowMissingTags: true, fallbackTags: [] });
 
-const parseSessionPersonaList = (value: unknown): SessionPersona[] | null =>
-  Array.isArray(value) && value.every(isSessionPersona) ? value : null;
-
-interface SessionPersona extends Persona {
-  isConductor: boolean;
-  hushTurnsRemaining: number;
-  hushedAt: string | null;
-}
+type SessionPersona = SessionTransportPersona;
 
 interface SessionsState {
   sessions: Session[];
@@ -188,7 +110,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   fetchAllTags: async () => {
     try {
       const result = await loadAllTagsQuery();
-      const parsedTags = parseTagList(result.data);
+      const parsedTags = parseSessionTransportTags(result.data);
       if (result.success && parsedTags) {
         set({ allTags: parsedTags });
       }
@@ -412,7 +334,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         return;
       }
 
-      const sessionTags = parseStringList(tagsResult.data) ?? [];
+      const sessionTags = parseSessionTransportTagNames(tagsResult.data) ?? [];
 
       const parsedSession = parseSessionPayload(sessionResult.data, {
         allowMissingTags: true,
@@ -423,13 +345,13 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         return;
       }
 
-      const parsedMessages = parseMessageList(messagesResult.data);
+      const parsedMessages = parseSessionTransportMessages(messagesResult.data);
       if (parsedMessages === null) {
         toast.error('Invalid messages payload');
         return;
       }
 
-      const parsedSessionPersonas = parseSessionPersonaList(participantsResult.data);
+      const parsedSessionPersonas = parseSessionTransportParticipants(participantsResult.data);
       if (parsedSessionPersonas === null) {
         toast.error('Invalid session personas payload');
         return;
@@ -774,7 +696,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       const result = await setPersonaHushCommand(currentSession.id, personaId, turns);
         if (result.success) {
         const refreshedPersonas = await loadSessionParticipantsQuery(currentSession.id);
-        const parsedSessionPersonas = parseSessionPersonaList(refreshedPersonas.data);
+        const parsedSessionPersonas = parseSessionTransportParticipants(refreshedPersonas.data);
         if (refreshedPersonas.success && parsedSessionPersonas) {
           set({ sessionPersonas: parsedSessionPersonas });
           toast.success(`Persona hushed for ${turns} turns`);
@@ -802,7 +724,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       const result = await clearPersonaHushCommand(currentSession.id, personaId);
         if (result.success) {
         const refreshedPersonas = await loadSessionParticipantsQuery(currentSession.id);
-        const parsedSessionPersonas = parseSessionPersonaList(refreshedPersonas.data);
+        const parsedSessionPersonas = parseSessionTransportParticipants(refreshedPersonas.data);
         if (refreshedPersonas.success && parsedSessionPersonas) {
           set({ sessionPersonas: parsedSessionPersonas });
           toast.success('Persona unhushed');
