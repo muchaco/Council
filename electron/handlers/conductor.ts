@@ -45,6 +45,23 @@ const ipcMain = {
 };
 
 const sessionIdSchema = z.string();
+const enableConductorArgsSchema = z.tuple([
+  z.object({
+    sessionId: sessionIdSchema,
+    conductorPersonaId: z.string(),
+  }),
+]);
+const updateBlackboardArgsSchema = z.tuple([
+  z.object({
+    sessionId: sessionIdSchema,
+    blackboard: z.object({
+      consensus: z.string(),
+      conflicts: z.string(),
+      nextStep: z.string(),
+      facts: z.string(),
+    }),
+  }),
+]);
 
 export function setupConductorHandlers(): void {
   const sqlExecutor = makeElectronSqlQueryExecutor();
@@ -64,6 +81,8 @@ export function setupConductorHandlers(): void {
       console.error('Error enabling conductor:', error);
       return mapErrorFailureResponse(error);
     }
+  }, {
+    argsSchema: enableConductorArgsSchema,
   });
 
   // Disable conductor for a session
@@ -76,6 +95,8 @@ export function setupConductorHandlers(): void {
       console.error('Error disabling conductor:', error);
       return mapErrorFailureResponse(error);
     }
+  }, {
+    argsSchema: z.tuple([sessionIdSchema]),
   });
 
   // Process a turn - this is the main orchestration loop
@@ -114,6 +135,8 @@ export function setupConductorHandlers(): void {
       console.error('Error resetting circuit breaker:', error);
       return mapErrorFailureResponse(error);
     }
+  }, {
+    argsSchema: z.tuple([sessionIdSchema]),
   });
 
   // Get blackboard state
@@ -125,6 +148,8 @@ export function setupConductorHandlers(): void {
       console.error('Error getting blackboard:', error);
       return mapErrorFailureResponse(error);
     }
+  }, {
+    argsSchema: z.tuple([sessionIdSchema]),
   });
 
   // Update blackboard manually (for testing or debugging)
@@ -136,5 +161,7 @@ export function setupConductorHandlers(): void {
       console.error('Error updating blackboard:', error);
       return mapErrorFailureResponse(error);
     }
+  }, {
+    argsSchema: updateBlackboardArgsSchema,
   });
 }

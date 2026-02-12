@@ -16,7 +16,7 @@ describe('conductor_process_turn_response_mapper_spec', () => {
 
     expect(response).toEqual({
       success: false,
-      error: 'Selector timed out',
+      error: 'Failed to select next speaker',
       code: 'SELECTOR_AGENT_ERROR',
     });
   });
@@ -33,7 +33,7 @@ describe('conductor_process_turn_response_mapper_spec', () => {
 
     expect(response).toEqual({
       success: false,
-      error: 'API key not configured',
+      error: 'Gemini API key is not configured',
       code: 'API_KEY_NOT_CONFIGURED',
     });
   });
@@ -50,7 +50,7 @@ describe('conductor_process_turn_response_mapper_spec', () => {
 
     expect(response).toEqual({
       success: false,
-      error: 'Unable to decrypt key',
+      error: 'Failed to decrypt Gemini API key',
       code: 'API_KEY_DECRYPT_FAILED',
     });
   });
@@ -67,7 +67,7 @@ describe('conductor_process_turn_response_mapper_spec', () => {
 
     expect(response).toEqual({
       success: false,
-      error: 'Settings store unavailable',
+      error: 'Unable to load conductor settings',
       code: 'SETTINGS_READ_ERROR',
     });
   });

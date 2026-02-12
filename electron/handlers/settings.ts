@@ -20,6 +20,9 @@ const ipcMain = {
 };
 
 const noArgsSchema = z.tuple([]);
+const apiKeyValueSchema = z.string().min(1);
+const settingsKeySchema = z.enum(['defaultModel']);
+const settingsValueSchema = z.string();
 
 interface StoreSchema {
   apiKey: string;
@@ -184,6 +187,8 @@ export function setupSettingsHandlers(): void {
       console.error('Error loading API key status:', error);
       return { success: false, error: 'Failed to load API key status' };
     }
+  }, {
+    argsSchema: noArgsSchema,
   });
 
   // Set API Key
@@ -196,6 +201,8 @@ export function setupSettingsHandlers(): void {
       console.error('Error encrypting API key:', error);
       return { success: false, error: 'Failed to encrypt API key' };
     }
+  }, {
+    argsSchema: z.tuple([apiKeyValueSchema]),
   });
 
   // Test Connection
@@ -236,22 +243,28 @@ export function setupSettingsHandlers(): void {
   });
 
   // Generic get/set for other settings
-  ipcMain.handle('settings:get', (_, key: string) => {
+  ipcMain.handle('settings:get', (_, key: z.infer<typeof settingsKeySchema>) => {
     try {
       const value = (store as any).get(key);
       return { success: true, data: value };
     } catch (error) {
-      return { success: false, error: (error as Error).message };
+      console.error('Error loading setting:', error);
+      return { success: false, error: 'Failed to load setting' };
     }
+  }, {
+    argsSchema: z.tuple([settingsKeySchema]),
   });
 
-  ipcMain.handle('settings:set', (_, key: string, value: unknown) => {
+  ipcMain.handle('settings:set', (_, key: z.infer<typeof settingsKeySchema>, value: z.infer<typeof settingsValueSchema>) => {
     try {
       (store as any).set(key, value);
       return { success: true };
     } catch (error) {
-      return { success: false, error: (error as Error).message };
+      console.error('Error saving setting:', error);
+      return { success: false, error: 'Failed to save setting' };
     }
+  }, {
+    argsSchema: z.tuple([settingsKeySchema, settingsValueSchema]),
   });
 
   // List available models

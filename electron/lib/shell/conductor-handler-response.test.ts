@@ -14,7 +14,7 @@ describe('conductor_handler_response_mapper_spec', () => {
   it('maps_unknown_error_to_failure_response', () => {
     expect(mapErrorFailureResponse(new Error('boom'))).toEqual({
       success: false,
-      error: 'boom',
+      error: 'Conductor operation failed',
     });
   });
 

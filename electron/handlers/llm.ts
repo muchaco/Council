@@ -78,7 +78,46 @@ const chatRequestSchema = z.object({
   ),
 });
 
-const mapErrorToMessage = (error: CouncilChatUseCaseError): string => error.message;
+const mapErrorToMessage = (error: CouncilChatUseCaseError): string => {
+  if (error._tag === 'CouncilChatPersonaNotFoundError') {
+    return 'Selected persona is not available in this session';
+  }
+
+  if (error.source === 'settings') {
+    if (error.code === 'ApiKeyMissing') {
+      return 'Gemini API key is not configured';
+    }
+
+    if (error.code === 'ApiKeyDecryptFailed') {
+      return 'Failed to decrypt Gemini API key';
+    }
+
+    return 'Unable to load model settings';
+  }
+
+  if (error.source === 'llmGateway') {
+    if (error.code === 'AuthenticationFailed') {
+      return 'Gemini authentication failed';
+    }
+
+    if (error.code === 'ModelNotFound') {
+      return 'Selected model is unavailable';
+    }
+
+    if (error.code === 'RateLimited') {
+      return 'Gemini request limit reached';
+    }
+
+    if (error.code === 'Timeout') {
+      return 'Gemini request timed out';
+    }
+
+    return 'Unable to generate response';
+  }
+
+  return 'Unable to load required session data';
+};
+const LLM_CHAT_PUBLIC_ERROR_MESSAGE = 'Unable to generate response';
 
 const generateCouncilPersonaTurnWithGemini = async (
   command: GenerateCouncilPersonaTurnCommand
@@ -154,7 +193,7 @@ export function setupLLMHandlers(): void {
       console.error('Error in LLM chat:', error);
       return {
         success: false,
-        error: (error as Error).message,
+        error: LLM_CHAT_PUBLIC_ERROR_MESSAGE,
       };
     }
   }, {

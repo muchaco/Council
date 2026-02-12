@@ -15,7 +15,7 @@ export const mapConductorTurnOutcomeToProcessTurnResponse = (
     if (error._tag === 'ConductorInfrastructureError' && error.source === 'selector') {
       return {
         success: false,
-        error: error.message,
+        error: 'Failed to select next speaker',
         code: 'SELECTOR_AGENT_ERROR',
       };
     }
@@ -24,7 +24,7 @@ export const mapConductorTurnOutcomeToProcessTurnResponse = (
       if (error.code === 'ApiKeyMissing') {
         return {
           success: false,
-          error: error.message,
+          error: 'Gemini API key is not configured',
           code: 'API_KEY_NOT_CONFIGURED',
         };
       }
@@ -32,21 +32,21 @@ export const mapConductorTurnOutcomeToProcessTurnResponse = (
       if (error.code === 'ApiKeyDecryptFailed') {
         return {
           success: false,
-          error: error.message,
+          error: 'Failed to decrypt Gemini API key',
           code: 'API_KEY_DECRYPT_FAILED',
         };
       }
 
       return {
         success: false,
-        error: error.message,
+        error: 'Unable to load conductor settings',
         code: 'SETTINGS_READ_ERROR',
       };
     }
 
     return {
       success: false,
-      error: error.message,
+      error: 'Unable to process conductor turn',
     };
   }
 

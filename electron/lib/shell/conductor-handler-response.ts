@@ -11,18 +11,17 @@ const emptyBlackboardState: BlackboardState = {
   facts: '',
 };
 
-const toErrorMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : 'Unknown error';
+const CONDUCTOR_HANDLER_PUBLIC_ERROR = 'Conductor operation failed';
 
 export const mapVoidSuccessResponse = (): { readonly success: true } => ({
   success: true,
 });
 
 export const mapErrorFailureResponse = (
-  error: unknown
+  _error: unknown
 ): { readonly success: false; readonly error: string } => ({
   success: false,
-  error: toErrorMessage(error),
+  error: CONDUCTOR_HANDLER_PUBLIC_ERROR,
 });
 
 export const mapSessionNotFoundResponse = (): {

@@ -1,12 +1,22 @@
 import { ipcMain as electronIpcMain, dialog } from 'electron';
 import { promises as fs } from 'fs';
-import * as path from 'path';
+import { z } from 'zod';
 import { getSessionForExport, formatSessionAsMarkdown } from '../lib/export.js';
-import { registerPrivilegedIpcHandle } from '../lib/security/privileged-ipc.js';
+import {
+  registerPrivilegedIpcHandle,
+  type PrivilegedIpcHandleOptions,
+} from '../lib/security/privileged-ipc.js';
+
+const EXPORT_OPERATION_PUBLIC_ERROR = 'Failed to export session';
+const sessionIdSchema = z.string().min(1);
 
 const ipcMain = {
-  handle: (channelName: string, handler: (...args: any[]) => unknown): void => {
-    registerPrivilegedIpcHandle(electronIpcMain, channelName, handler as any);
+  handle: (
+    channelName: string,
+    handler: (...args: any[]) => unknown,
+    options?: PrivilegedIpcHandleOptions
+  ): void => {
+    registerPrivilegedIpcHandle(electronIpcMain, channelName, handler as any, options);
   },
 };
 
@@ -58,8 +68,10 @@ export function setupExportHandlers(): void {
       console.error('Error exporting session:', error);
       return { 
         success: false, 
-        error: (error as Error).message,
+        error: EXPORT_OPERATION_PUBLIC_ERROR,
       };
     }
+  }, {
+    argsSchema: z.tuple([sessionIdSchema]),
   });
 }
