@@ -5,6 +5,8 @@ import { setupLLMHandlers } from './handlers/llm.js';
 import { setupSettingsHandlers } from './handlers/settings.js';
 import { setupConductorHandlers } from './handlers/conductor.js';
 import { setupExportHandlers } from './handlers/export.js';
+import { resolveAppProtocolRequestPath } from './lib/security/app-protocol-path.js';
+import { isTrustedNavigationTarget } from './lib/security/trusted-sender.js';
 
 // Disable GPU acceleration to avoid VAAPI version errors
 app.commandLine.appendSwitch('disable-gpu');
@@ -12,7 +14,9 @@ app.commandLine.appendSwitch('disable-gpu');
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow(): void {
+  const isDev = process.env.NODE_ENV === 'development';
   const preloadPath = path.join(__dirname, 'preload.js');
+  const outDirectoryPath = path.resolve(__dirname, '..', '..', '..', 'out');
   console.log('Loading preload script from:', preloadPath);
   
   mainWindow = new BrowserWindow({
@@ -65,14 +69,12 @@ function createWindow(): void {
     });
   });
 
-  const isDev = process.env.NODE_ENV === 'development';
-  
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
     // In production, use the static build with hash-based routing
-    const indexPath = path.join(__dirname, '..', '..', '..', 'out', 'index.html');
+    const indexPath = path.join(outDirectoryPath, 'index.html');
     mainWindow.loadFile(indexPath);
   }
 
@@ -80,15 +82,15 @@ function createWindow(): void {
     mainWindow?.show();
   });
 
-  // Handle navigation for hash-based routing
+  mainWindow.webContents.setWindowOpenHandler(() => {
+    console.warn('Blocked window open attempt from renderer');
+    return { action: 'deny' };
+  });
+
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    // Prevent default navigation for internal links
-    if (url.startsWith('file://')) {
+    if (!isTrustedNavigationTarget(url, isDev)) {
       event.preventDefault();
-      const hash = url.split('#')[1] || '';
-      mainWindow?.webContents.executeJavaScript(`
-        window.location.hash = '${hash}';
-      `);
+      console.warn('Blocked untrusted navigation target from renderer');
     }
   });
 
@@ -98,11 +100,19 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  const outDirectoryPath = path.resolve(__dirname, '..', '..', '..', 'out');
+
   // Register protocol for static files
   protocol.registerFileProtocol('app', (request, callback) => {
-    const url = request.url.substr(6); // Remove 'app://'
-    const filePath = path.join(__dirname, '..', '..', '..', 'out', url);
-    callback({ path: filePath });
+    const resolvedRequestPath = resolveAppProtocolRequestPath(request.url, outDirectoryPath);
+
+    if (resolvedRequestPath === null) {
+      console.warn('Blocked unsafe app protocol request');
+      callback({ error: -10 });
+      return;
+    }
+
+    callback({ path: resolvedRequestPath });
   });
 
   createWindow();
