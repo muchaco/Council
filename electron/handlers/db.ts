@@ -73,6 +73,7 @@ const messageInputSchema = z
   .object({
     sessionId: sessionIdSchema,
     personaId: z.string().min(1).nullable(),
+    source: z.enum(['user', 'persona', 'conductor']).optional(),
     content: z.string().min(1),
     turnNumber: z.number().int().nonnegative(),
     tokenCount: z.number().int().nonnegative().optional(),

@@ -356,12 +356,35 @@ describe('session_store_conductor_shell_spec', () => {
 
     it('stops_running_when_process_turn_returns_wait_for_user', async () => {
       const session = makeSession({ conductorEnabled: true, conductorMode: 'manual' });
-      useSessionsStore.setState({ currentSession: session, sessions: [session], conductorRunning: false });
+      useSessionsStore.setState({
+        currentSession: session,
+        sessions: [session],
+        conductorRunning: false,
+        sessionPersonas: [
+          {
+            id: 'persona-1',
+            name: 'Architect',
+            role: 'Architecture',
+            systemPrompt: 'Focus on rollout strategy',
+            geminiModel: 'gemini-2.0-flash',
+            temperature: 0.3,
+            color: '#3B82F6',
+            hiddenAgenda: undefined,
+            verbosity: undefined,
+            createdAt: '2024-01-01',
+            updatedAt: '2024-01-01',
+            isConductor: false,
+            hushTurnsRemaining: 0,
+            hushedAt: null,
+          },
+        ],
+      });
 
       mockElectronConductor.processTurn.mockResolvedValue({
         success: true,
         action: 'WAIT_FOR_USER',
         blackboardUpdate: { nextStep: 'Await user answer' },
+        suggestedPersonaId: 'persona-1',
       });
 
       await useSessionsStore.getState().processConductorTurn();
@@ -374,6 +397,7 @@ describe('session_store_conductor_shell_spec', () => {
         facts: '',
       });
       expect(toast.info).toHaveBeenCalledWith('Conductor waiting for user input');
+      expect(toast.info).toHaveBeenCalledWith('Suggested next speaker: Architect');
     });
 
     it('resets_the_circuit_breaker_then_continues_the_loop', async () => {

@@ -88,4 +88,25 @@ describe('conductor_process_turn_response_mapper_spec', () => {
       blackboardUpdate: { nextStep: 'Await user clarification' },
     });
   });
+
+  it('maps_wait_for_user_with_manual_suggestion_fields', () => {
+    const response = mapConductorTurnOutcomeToProcessTurnResponse(
+      Either.right({
+        _tag: 'WaitForUser',
+        reasoning: 'Architect should go next',
+        blackboardUpdate: { nextStep: 'Ask architect for rollout plan' },
+        suggestedPersonaId: 'persona-architect',
+        isInterventionSuggestion: true,
+      })
+    );
+
+    expect(response).toEqual({
+      success: true,
+      action: 'WAIT_FOR_USER',
+      reasoning: 'Architect should go next',
+      blackboardUpdate: { nextStep: 'Ask architect for rollout plan' },
+      suggestedPersonaId: 'persona-architect',
+      isInterventionSuggestion: true,
+    });
+  });
 });

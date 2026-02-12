@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { ipcHandleSpy, createPersonaMock, getPersonasMock, createSessionMock } = vi.hoisted(() => ({
+const { ipcHandleSpy, createPersonaMock, getPersonasMock, createSessionMock, createMessageMock } = vi.hoisted(() => ({
   ipcHandleSpy: vi.fn(),
   createPersonaMock: vi.fn(),
   getPersonasMock: vi.fn(),
   createSessionMock: vi.fn(),
+  createMessageMock: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
@@ -17,6 +18,7 @@ vi.mock('../lib/queries.js', () => ({
   createPersona: createPersonaMock,
   getPersonas: getPersonasMock,
   createSession: createSessionMock,
+  createMessage: createMessageMock,
 }));
 
 import { setupDatabaseHandlers } from './db';
@@ -37,6 +39,7 @@ describe('database_handler_security_spec', () => {
     createPersonaMock.mockReset();
     getPersonasMock.mockReset();
     createSessionMock.mockReset();
+    createMessageMock.mockReset();
   });
 
   it('rejects_invalid_payload_before_db_execution', async () => {
@@ -191,5 +194,68 @@ describe('database_handler_security_spec', () => {
         mode: 'manual',
       }
     );
+  });
+
+  it('accepts_message_creation_with_source_field', async () => {
+    createMessageMock.mockResolvedValue({ id: 'message-1' });
+    setupDatabaseHandlers();
+
+    const channelRegistrations = ipcHandleSpy.mock.calls as Array<
+      [string, (event: unknown, ...args: unknown[]) => Promise<unknown>]
+    >;
+    const createMessageHandler = channelRegistrations.find(
+      ([channel]) => channel === 'db:message:create'
+    )?.[1];
+
+    expect(createMessageHandler).toBeDefined();
+
+    const response = await createMessageHandler!(
+      { senderFrame: createMainFrame('app://index.html'), sender: { id: 14 } },
+      {
+        sessionId: 'session-1',
+        personaId: null,
+        source: 'conductor',
+        content: 'Please refocus on the objective.',
+        turnNumber: 3,
+        tokenCount: 0,
+      }
+    );
+
+    expect(response).toEqual({ success: true, data: { id: 'message-1' } });
+    expect(createMessageMock).toHaveBeenCalledWith({
+      sessionId: 'session-1',
+      personaId: null,
+      source: 'conductor',
+      content: 'Please refocus on the objective.',
+      turnNumber: 3,
+      tokenCount: 0,
+    });
+  });
+
+  it('rejects_message_creation_when_source_is_invalid', async () => {
+    setupDatabaseHandlers();
+
+    const channelRegistrations = ipcHandleSpy.mock.calls as Array<
+      [string, (event: unknown, ...args: unknown[]) => Promise<unknown>]
+    >;
+    const createMessageHandler = channelRegistrations.find(
+      ([channel]) => channel === 'db:message:create'
+    )?.[1];
+
+    expect(createMessageHandler).toBeDefined();
+
+    const response = await createMessageHandler!(
+      { senderFrame: createMainFrame('app://index.html'), sender: { id: 15 } },
+      {
+        sessionId: 'session-1',
+        personaId: null,
+        source: 'system',
+        content: 'Invalid source message.',
+        turnNumber: 4,
+      }
+    );
+
+    expect(response).toEqual({ success: false, error: 'Invalid request payload' });
+    expect(createMessageMock).not.toHaveBeenCalled();
   });
 });

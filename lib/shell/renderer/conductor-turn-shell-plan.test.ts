@@ -52,6 +52,27 @@ describe('conductor_turn_shell_plan_spec', () => {
     });
   });
 
+  it('preserves_manual_suggestion_fields_in_wait_for_user_plan', () => {
+    const plan = decideConductorTurnShellPlan({
+      success: true,
+      action: 'WAIT_FOR_USER',
+      blackboardUpdate: { nextStep: 'Ask architect to propose a rollout' },
+      reasoning: 'Architect should speak next',
+      suggestedPersonaId: 'persona-architect',
+      isInterventionSuggestion: true,
+    });
+
+    expect(plan).toEqual({
+      _tag: 'WaitForUser',
+      statePatch: { conductorRunning: false },
+      toast: { level: 'info', message: 'Conductor waiting for user input' },
+      blackboardUpdate: { nextStep: 'Ask architect to propose a rollout' },
+      suggestedPersonaId: 'persona-architect',
+      isInterventionSuggestion: true,
+      warning: undefined,
+    });
+  });
+
   it('maps_trigger_persona_to_trigger_plan', () => {
     const plan = decideConductorTurnShellPlan({
       success: true,
