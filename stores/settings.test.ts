@@ -11,7 +11,7 @@ vi.mock('sonner', () => ({
 }));
 
 const mockElectronSettings = {
-  getApiKey: vi.fn(),
+  getApiKeyStatus: vi.fn(),
   setApiKey: vi.fn(),
   testConnection: vi.fn(),
   getSetting: vi.fn(),
@@ -23,7 +23,7 @@ describe('settings_store_spec', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useSettingsStore.setState({
-      geminiApiKey: null,
+      isApiKeyConfigured: false,
       isConnected: false,
       isLoading: false,
       defaultModel: '',
@@ -41,7 +41,7 @@ describe('settings_store_spec', () => {
 
   it('does_not_fetch_model_catalog_when_cache_is_still_valid', async () => {
     useSettingsStore.setState({
-      geminiApiKey: 'test-key',
+      isApiKeyConfigured: true,
       availableModels: [
         {
           name: 'gemini-2.0-flash',
@@ -69,7 +69,7 @@ describe('settings_store_spec', () => {
     ];
 
     useSettingsStore.setState({
-      geminiApiKey: 'test-key',
+      isApiKeyConfigured: true,
       availableModels: models,
       modelsLastFetched: 0,
     });

@@ -138,18 +138,19 @@ async function fetchAvailableModels(apiKey: string): Promise<ModelInfo[]> {
 }
 
 export function setupSettingsHandlers(): void {
-  // Get API Key
-  ipcMain.handle('settings:getApiKey', () => {
+  // Get API key status without exposing plaintext key
+  ipcMain.handle('settings:getApiKeyStatus', () => {
     try {
       const encrypted = (store as any).get('apiKey') as string | undefined;
-      if (!encrypted) {
-        return { success: true, data: null };
-      }
-      const decrypted = decrypt(encrypted);
-      return { success: true, data: decrypted };
+      return {
+        success: true,
+        data: {
+          configured: typeof encrypted === 'string' && encrypted.trim().length > 0,
+        },
+      };
     } catch (error) {
-      console.error('Error decrypting API key:', error);
-      return { success: false, error: 'Failed to decrypt API key' };
+      console.error('Error loading API key status:', error);
+      return { success: false, error: 'Failed to load API key status' };
     }
   });
 

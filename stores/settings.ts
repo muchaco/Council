@@ -10,7 +10,7 @@ import { LiveClockLayer } from '../lib/infrastructure/clock';
 import { makeSettingsModelCatalogGatewayFromElectronSettings } from '../lib/infrastructure/settings';
 
 interface SettingsState {
-  geminiApiKey: string | null;
+  isApiKeyConfigured: boolean;
   isConnected: boolean;
   isLoading: boolean;
   defaultModel: string;
@@ -18,7 +18,7 @@ interface SettingsState {
   modelsLastFetched: number | null;
 
   // Actions
-  loadApiKey: () => Promise<void>;
+  loadApiKeyStatus: () => Promise<void>;
   setApiKey: (key: string) => Promise<boolean>;
   testConnection: () => Promise<boolean>;
   loadDefaultModel: () => Promise<void>;
@@ -28,21 +28,21 @@ interface SettingsState {
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
-  geminiApiKey: null,
+  isApiKeyConfigured: false,
   isConnected: false,
   isLoading: false,
   defaultModel: '',
   availableModels: [],
   modelsLastFetched: null,
 
-  loadApiKey: async () => {
+  loadApiKeyStatus: async () => {
     try {
-      const result = await window.electronSettings.getApiKey();
+      const result = await window.electronSettings.getApiKeyStatus();
       if (result.success && result.data) {
-        set({ geminiApiKey: result.data });
+        set({ isApiKeyConfigured: result.data.configured });
       }
     } catch (error) {
-      console.error('Error loading API key:', error);
+      console.error('Error loading API key status:', error);
     }
   },
 
@@ -51,7 +51,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       set({ isLoading: true });
       const result = await window.electronSettings.setApiKey(key);
       if (result.success) {
-        set({ geminiApiKey: key });
+        set({ isApiKeyConfigured: key.trim().length > 0 });
         toast.success('API key saved successfully');
         return true;
       } else {
@@ -113,12 +113,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   fetchAvailableModels: async () => {
-    const { geminiApiKey, modelsLastFetched, availableModels } = get();
+    const { isApiKeyConfigured, modelsLastFetched, availableModels } = get();
 
     try {
       const outcome = await Effect.runPromise(
         executeRefreshSettingsModelCatalog({
-          hasGeminiApiKey: (geminiApiKey ?? '').trim().length > 0,
+          hasGeminiApiKey: isApiKeyConfigured,
           cachedModelCount: availableModels.length,
           modelsLastFetchedEpochMs: modelsLastFetched,
         }).pipe(

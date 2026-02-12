@@ -47,7 +47,7 @@ declare global {
       chat: (request: unknown) => Promise<{ success: boolean; data?: { content: string; tokenCount: number }; error?: string }>;
     };
     electronSettings: {
-      getApiKey: () => Promise<{ success: boolean; data?: string | null; error?: string }>;
+      getApiKeyStatus: () => Promise<{ success: boolean; data?: { configured: boolean }; error?: string }>;
       setApiKey: (key: string) => Promise<{ success: boolean; error?: string }>;
       testConnection: () => Promise<{ success: boolean; data?: boolean; error?: string }>;
       getSetting: (key: string) => Promise<{ success: boolean; data?: unknown; error?: string }>;

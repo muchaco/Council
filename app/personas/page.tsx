@@ -29,7 +29,7 @@ import {
 
 export default function PersonasPage() {
   const { personas, isLoading, fetchPersonas, createPersona, updatePersona, deletePersona } = usePersonasStore();
-  const { availableModels, fetchAvailableModels, geminiApiKey } = useSettingsStore();
+  const { availableModels, fetchAvailableModels, isApiKeyConfigured } = useSettingsStore();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -287,7 +287,7 @@ export default function PersonasPage() {
             {/* Model */}
             <div>
               <label className="text-sm font-medium text-foreground">Gemini Model</label>
-              {!geminiApiKey ? (
+              {!isApiKeyConfigured ? (
                 <div className="mt-1 w-full px-3 py-2 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded text-amber-700 dark:text-amber-400 text-sm">
                   <div className="flex items-center gap-2">
                     <AlertCircle className="w-4 h-4" />

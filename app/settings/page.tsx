@@ -9,12 +9,12 @@ import { useSettingsStore } from '@/stores/settings';
 
 export default function SettingsPage() {
   const {
-    geminiApiKey,
+    isApiKeyConfigured,
     isConnected,
     isLoading,
     defaultModel,
     availableModels,
-    loadApiKey,
+    loadApiKeyStatus,
     setApiKey,
     testConnection,
     loadDefaultModel,
@@ -28,17 +28,9 @@ export default function SettingsPage() {
   const [hasChanges, setHasChanges] = useState(false);
 
   useEffect(() => {
-    loadApiKey();
+    loadApiKeyStatus();
     loadDefaultModel();
-  }, [loadApiKey, loadDefaultModel]);
-
-  // Use a separate effect to sync the input with the loaded API key
-  // This runs only when geminiApiKey changes and input is empty
-  useEffect(() => {
-    if (geminiApiKey && apiKeyInput === '' && !hasChanges) {
-      setApiKeyInput(geminiApiKey);
-    }
-  }, [geminiApiKey]);
+  }, [loadApiKeyStatus, loadDefaultModel]);
 
   const handleSaveApiKey = async () => {
     const success = await setApiKey(apiKeyInput);
@@ -100,7 +92,9 @@ export default function SettingsPage() {
                   </button>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Your API key is encrypted and stored securely
+                  {isApiKeyConfigured
+                    ? 'API key is configured. Enter a new key to rotate it.'
+                    : 'Your API key is encrypted and stored securely'}
                 </p>
               </div>
               
@@ -114,7 +108,7 @@ export default function SettingsPage() {
                 </Button>
                 <Button
                   onClick={handleTestConnection}
-                  disabled={!geminiApiKey || isLoading}
+                  disabled={!isApiKeyConfigured || isLoading}
                   variant="outline"
                 >
                   {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <TestTube className="w-4 h-4 mr-2" />}
@@ -135,7 +129,7 @@ export default function SettingsPage() {
             <h2 className="text-lg font-semibold text-foreground mb-4">Default Model</h2>
             <div>
               <label className="text-sm font-medium text-foreground">Default Gemini Model</label>
-              {!geminiApiKey ? (
+              {!isApiKeyConfigured ? (
                 <div className="mt-1 w-full px-3 py-2 bg-muted border border-border rounded text-muted-foreground text-sm">
                   Configure LLM provider
                 </div>
@@ -169,7 +163,7 @@ export default function SettingsPage() {
                     ? `${availableModels.length} models available`
                     : 'Add API key to see available models'}
                 </p>
-                {geminiApiKey && (
+                {isApiKeyConfigured && (
                   <Button
                     variant="ghost"
                     size="sm"

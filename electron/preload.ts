@@ -58,7 +58,7 @@ const llmAPI = {
 
 // Settings API
 const settingsAPI = {
-  getApiKey: () => ipcRenderer.invoke('settings:getApiKey'),
+  getApiKeyStatus: () => ipcRenderer.invoke('settings:getApiKeyStatus'),
   setApiKey: (key: string) => ipcRenderer.invoke('settings:setApiKey', key),
   testConnection: () => ipcRenderer.invoke('settings:testConnection'),
   getSetting: (key: string) => ipcRenderer.invoke('settings:get', key),
