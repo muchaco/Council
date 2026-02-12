@@ -67,6 +67,7 @@ const settingsAPI = Object.freeze({
   testConnection: () => ipcRenderer.invoke('settings:testConnection'),
   getDefaultModel: () => ipcRenderer.invoke('settings:getDefaultModel'),
   setDefaultModel: (defaultModel: string) => ipcRenderer.invoke('settings:setDefaultModel', defaultModel),
+  getModelCatalog: () => ipcRenderer.invoke('settings:getModelCatalog'),
   listModels: () => ipcRenderer.invoke('settings:listModels'),
 });
 

@@ -266,6 +266,47 @@ export function setupSettingsHandlers(): void {
     argsSchema: z.tuple([defaultModelValueSchema]),
   });
 
+  ipcMain.handle('settings:getModelCatalog', async () => {
+    try {
+      const encrypted = (store as any).get('apiKey') as string | undefined;
+      if (!encrypted) {
+        modelCache = null;
+        return {
+          success: true,
+          data: {
+            configured: false,
+            models: [],
+            fetchedAtEpochMs: null,
+          },
+        };
+      }
+
+      const apiKey = decrypt(encrypted);
+      const models = await fetchAvailableModels(apiKey);
+
+      return {
+        success: true,
+        data: {
+          configured: true,
+          models,
+          fetchedAtEpochMs: modelCache?.timestamp ?? null,
+        },
+      };
+    } catch {
+      console.error('Error fetching Gemini model catalog');
+      return {
+        success: false,
+        error: mapSettingsNetworkFailureToPublicError('listModels'),
+      };
+    }
+  }, {
+    argsSchema: noArgsSchema,
+    rateLimit: {
+      maxRequests: 30,
+      windowMs: 60_000,
+    },
+  });
+
   // List available models
   ipcMain.handle('settings:listModels', async () => {
     try {

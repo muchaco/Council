@@ -52,6 +52,15 @@ declare global {
       testConnection: () => Promise<{ success: boolean; data?: boolean; error?: string }>;
       getDefaultModel: () => Promise<{ success: boolean; data?: unknown; error?: string }>;
       setDefaultModel: (defaultModel: string) => Promise<{ success: boolean; error?: string }>;
+      getModelCatalog: () => Promise<{
+        success: boolean;
+        data?: {
+          configured: boolean;
+          models: Array<{ name: string; displayName: string; description: string; supportedMethods: string[] }>;
+          fetchedAtEpochMs: number | null;
+        };
+        error?: string;
+      }>;
       listModels: () => Promise<{ success: boolean; data?: Array<{ name: string; displayName: string; description: string; supportedMethods: string[] }>; error?: string }>;
     };
     electronConductor: {
