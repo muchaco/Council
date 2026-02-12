@@ -62,10 +62,7 @@ const resolveSelectorGenerationPolicy = (
 
 export const makeConductorSettingsService = (
   decrypt: Decrypt,
-  store: Store<ConductorStoreSchema> = new Store<ConductorStoreSchema>({
-    name: 'council-settings',
-    encryptionKey: process.env.COUNCIL_ENCRYPTION_KEY || 'council-default-key-change-in-production',
-  }),
+  store: Store<ConductorStoreSchema>,
   options?: ConductorSettingsOptions
 ): ConductorSettingsService => ({
   getGeminiApiKey: Effect.try({

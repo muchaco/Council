@@ -1,4 +1,4 @@
-import { ipcMain as electronIpcMain } from 'electron';
+import { app, ipcMain as electronIpcMain } from 'electron';
 import { Effect } from 'effect';
 
 import { decrypt } from './settings.js';
@@ -17,7 +17,10 @@ import {
 } from '../../lib/infrastructure/db/index.js';
 import { LiveIdGeneratorLayer } from '../../lib/infrastructure/id/index.js';
 import { makeConductorSelectorGatewayFromExecutor } from '../../lib/infrastructure/llm/index.js';
-import { makeConductorSettingsService } from '../../lib/infrastructure/settings/index.js';
+import {
+  createCouncilSettingsStore,
+  makeConductorSettingsService,
+} from '../../lib/infrastructure/settings/index.js';
 import { mapConductorTurnOutcomeToProcessTurnResponse } from '../lib/shell/conductor-process-turn-response.js';
 import { executeConductorSelectorRequest } from '../lib/shell/conductor-selector-executor.js';
 import {
@@ -39,7 +42,8 @@ export function setupConductorHandlers(): void {
   const selectorGateway = makeConductorSelectorGatewayFromExecutor((request: SelectNextSpeakerRequest) =>
     executeConductorSelectorRequest(request)
   );
-  const settings = makeConductorSettingsService(decrypt);
+  const settingsStore = createCouncilSettingsStore<{ apiKey?: string }>(app.isPackaged);
+  const settings = makeConductorSettingsService(decrypt, settingsStore);
 
   // Enable conductor for a session
   ipcMain.handle('conductor:enable', async (_, { sessionId, conductorPersonaId }: { sessionId: string; conductorPersonaId: string }) => {

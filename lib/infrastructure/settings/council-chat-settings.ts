@@ -62,10 +62,7 @@ const resolveGenerationPolicy = (
 
 export const makeCouncilChatSettingsService = (
   decrypt: Decrypt,
-  store: Store<CouncilStoreSchema> = new Store<CouncilStoreSchema>({
-    name: 'council-settings',
-    encryptionKey: process.env.COUNCIL_ENCRYPTION_KEY || 'council-default-key-change-in-production',
-  }),
+  store: Store<CouncilStoreSchema>,
   options?: CouncilChatSettingsOptions
 ): CouncilChatSettingsService => ({
   getGeminiApiKey: Effect.try({

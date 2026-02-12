@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('electron', () => ({
+  app: {
+    isPackaged: false,
+  },
   ipcMain: {
     handle: vi.fn(),
   },
@@ -20,6 +23,8 @@ vi.mock('electron-store', () => ({
 
 import {
   createGeminiModelsRequest,
+  decrypt,
+  encrypt,
   mapSettingsNetworkFailureToPublicError,
 } from './settings';
 
@@ -44,5 +49,19 @@ describe('settings_handler_network_security_spec', () => {
     expect(mapSettingsNetworkFailureToPublicError('listModels')).toBe(
       'Unable to load Gemini models'
     );
+  });
+
+  it('decrypts_new_format_written_without_unused_salt', () => {
+    const encryptedValue = encrypt('secret-value');
+
+    expect(decrypt(encryptedValue)).toBe('secret-value');
+    expect(encryptedValue.split(':')).toHaveLength(3);
+  });
+
+  it('decrypts_legacy_four_segment_format_for_backward_compatibility', () => {
+    const encryptedValue = encrypt('legacy-secret');
+    const legacyEncryptedValue = `legacysalt:${encryptedValue}`;
+
+    expect(decrypt(legacyEncryptedValue)).toBe('legacy-secret');
   });
 });

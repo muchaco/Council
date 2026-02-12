@@ -1,7 +1,10 @@
-import { ipcMain as electronIpcMain } from 'electron';
-import Store from 'electron-store';
+import { app, ipcMain as electronIpcMain } from 'electron';
 import crypto from 'crypto';
 import { registerPrivilegedIpcHandle } from '../lib/security/privileged-ipc.js';
+import {
+  createCouncilSettingsStore,
+  resolveCouncilEncryptionKey,
+} from '../../lib/infrastructure/settings/council-settings-security.js';
 
 const ipcMain = {
   handle: (channelName: string, handler: (...args: any[]) => unknown): void => {
@@ -14,28 +17,25 @@ interface StoreSchema {
   defaultModel: string;
 }
 
-const store = new Store<StoreSchema>({
-  name: 'council-settings',
-  encryptionKey: process.env.COUNCIL_ENCRYPTION_KEY || 'council-default-key-change-in-production',
-});
+const store = createCouncilSettingsStore<StoreSchema>(app.isPackaged);
 
 // Encryption utilities
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 const AUTH_TAG_LENGTH = 16;
-const SALT_LENGTH = 64;
 const KEY_LENGTH = 32;
 
+const ENCRYPTION_KEY_MATERIAL = resolveCouncilEncryptionKey({
+  councilEncryptionKey: process.env.COUNCIL_ENCRYPTION_KEY,
+  isPackaged: app.isPackaged,
+});
+
 function getEncryptionKey(): Buffer {
-  // In production, this should come from a secure key management system
-  // For now, we use a derived key from the machine-specific data
-  const machineId = process.env.COUNCIL_ENCRYPTION_KEY || 'council-default-key';
-  return crypto.scryptSync(machineId, 'council-salt', KEY_LENGTH);
+  return crypto.scryptSync(ENCRYPTION_KEY_MATERIAL, 'council-salt', KEY_LENGTH);
 }
 
 export function encrypt(text: string): string {
   const iv = crypto.randomBytes(IV_LENGTH);
-  const salt = crypto.randomBytes(SALT_LENGTH);
   const key = getEncryptionKey();
   
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
@@ -45,20 +45,20 @@ export function encrypt(text: string): string {
   
   const authTag = cipher.getAuthTag();
   
-  // Combine salt + iv + authTag + encrypted
-  return salt.toString('hex') + ':' + iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted;
+  // Combine iv + authTag + encrypted
+  return iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted;
 }
 
 export function decrypt(encryptedData: string): string {
   const parts = encryptedData.split(':');
-  if (parts.length !== 4) {
+  if (parts.length !== 3 && parts.length !== 4) {
     throw new Error('Invalid encrypted data format');
   }
-  
-  const salt = Buffer.from(parts[0], 'hex');
-  const iv = Buffer.from(parts[1], 'hex');
-  const authTag = Buffer.from(parts[2], 'hex');
-  const encrypted = parts[3];
+
+  const hasLegacySalt = parts.length === 4;
+  const iv = Buffer.from(parts[hasLegacySalt ? 1 : 0], 'hex');
+  const authTag = Buffer.from(parts[hasLegacySalt ? 2 : 1], 'hex');
+  const encrypted = parts[hasLegacySalt ? 3 : 2];
   
   const key = getEncryptionKey();
   

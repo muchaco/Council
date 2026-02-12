@@ -1,4 +1,4 @@
-import { ipcMain as electronIpcMain } from 'electron';
+import { app, ipcMain as electronIpcMain } from 'electron';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Effect, Either } from 'effect';
 
@@ -15,7 +15,10 @@ import {
 } from '../../lib/application/use-cases/council-chat';
 import { makeCouncilChatRepositoryFromSqlExecutor } from '../../lib/infrastructure/db';
 import { makeCouncilChatGatewayFromExecutor } from '../../lib/infrastructure/llm';
-import { makeCouncilChatSettingsService } from '../../lib/infrastructure/settings';
+import {
+  createCouncilSettingsStore,
+  makeCouncilChatSettingsService,
+} from '../../lib/infrastructure/settings';
 import { registerPrivilegedIpcHandle } from '../lib/security/privileged-ipc.js';
 
 const ipcMain = {
@@ -72,7 +75,8 @@ const generateCouncilPersonaTurnWithGemini = async (
 export function setupLLMHandlers(): void {
   const repository = makeCouncilChatRepositoryFromSqlExecutor(makeElectronSqlQueryExecutor());
   const gateway = makeCouncilChatGatewayFromExecutor(generateCouncilPersonaTurnWithGemini);
-  const settings = makeCouncilChatSettingsService(decrypt);
+  const settingsStore = createCouncilSettingsStore<{ apiKey: string }>(app.isPackaged);
+  const settings = makeCouncilChatSettingsService(decrypt, settingsStore);
 
   ipcMain.handle('llm:chat', async (_, request: ChatRequest) => {
     try {
