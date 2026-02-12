@@ -46,7 +46,7 @@ describe('database_handler_security_spec', () => {
     expect(getPersonaHandler).toBeDefined();
 
     const response = await getPersonaHandler!(
-      { senderFrame: createMainFrame('file://index.html'), sender: { id: 10 } },
+      { senderFrame: createMainFrame('app://index.html'), sender: { id: 10 } },
       42
     );
 
@@ -67,7 +67,7 @@ describe('database_handler_security_spec', () => {
     expect(getAllPersonasHandler).toBeDefined();
 
     const response = await getAllPersonasHandler!({
-      senderFrame: createMainFrame('file://index.html'),
+      senderFrame: createMainFrame('app://index.html'),
       sender: { id: 11 },
     });
 

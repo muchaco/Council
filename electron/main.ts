@@ -6,7 +6,10 @@ import { setupSettingsHandlers } from './handlers/settings.js';
 import { setupConductorHandlers } from './handlers/conductor.js';
 import { setupExportHandlers } from './handlers/export.js';
 import { resolveAppProtocolRequestPath } from './lib/security/app-protocol-path.js';
-import { isTrustedNavigationTarget } from './lib/security/trusted-sender.js';
+import {
+  configureTrustedRendererFileEntrypoints,
+  isTrustedNavigationTarget,
+} from './lib/security/trusted-sender.js';
 
 // Disable GPU acceleration to avoid VAAPI version errors
 app.commandLine.appendSwitch('disable-gpu');
@@ -73,9 +76,7 @@ function createWindow(): void {
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
-    // In production, use the static build with hash-based routing
-    const indexPath = path.join(outDirectoryPath, 'index.html');
-    mainWindow.loadFile(indexPath);
+    mainWindow.loadURL('app://index.html');
   }
 
   mainWindow.once('ready-to-show', () => {
@@ -101,6 +102,7 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   const outDirectoryPath = path.resolve(__dirname, '..', '..', '..', 'out');
+  configureTrustedRendererFileEntrypoints([path.join(outDirectoryPath, 'index.html')]);
 
   // Register protocol for static files
   protocol.registerFileProtocol('app', (request, callback) => {

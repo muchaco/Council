@@ -1,7 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import path from 'path';
 
 import {
   assertTrustedSender,
+  clearTrustedRendererFileEntrypoints,
+  configureTrustedRendererFileEntrypoints,
   isTrustedNavigationTarget,
   isTrustedSenderFrame,
 } from './trusted-sender';
@@ -27,6 +30,10 @@ const createSubframe = (url: string, topFrameUrl: string): SenderFrameLike => ({
 });
 
 describe('trusted_sender_spec', () => {
+  afterEach(() => {
+    clearTrustedRendererFileEntrypoints();
+  });
+
   it('allows_main_frame_sender_for_localhost_in_development', () => {
     const trustedFrame = createMainFrame('http://localhost:5173/settings');
 
@@ -55,5 +62,32 @@ describe('trusted_sender_spec', () => {
 
   it('denies_external_navigation_targets', () => {
     expect(isTrustedNavigationTarget('https://example.com', true)).toBe(false);
+  });
+
+  it('allows_only_app_index_entrypoint_in_production', () => {
+    expect(isTrustedNavigationTarget('app://index.html', false)).toBe(true);
+    expect(isTrustedNavigationTarget('app://nested/index.html', false)).toBe(false);
+  });
+
+  it('denies_arbitrary_file_scheme_sender_and_navigation_targets', () => {
+    const fileFrame = createMainFrame('file:///tmp/evil.html');
+
+    expect(isTrustedSenderFrame(fileFrame, false)).toBe(false);
+    expect(isTrustedNavigationTarget('file:///tmp/evil.html', false)).toBe(false);
+  });
+
+  it('allows_only_allowlisted_packaged_file_entrypoint_in_production', () => {
+    configureTrustedRendererFileEntrypoints([path.resolve('/opt/Council/out/index.html')]);
+
+    expect(isTrustedNavigationTarget('file:///opt/Council/out/index.html', false)).toBe(true);
+    expect(isTrustedNavigationTarget('file:///opt/Council/out/other.html', false)).toBe(false);
+  });
+
+  it('denies_encoded_file_path_bypass_attempts', () => {
+    configureTrustedRendererFileEntrypoints([path.resolve('/opt/Council/out/index.html')]);
+
+    expect(
+      isTrustedNavigationTarget('file:///opt/Council/out/%69ndex.html%2f..%2fevil.html', false)
+    ).toBe(false);
   });
 });

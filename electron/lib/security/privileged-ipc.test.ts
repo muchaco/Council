@@ -104,7 +104,7 @@ describe('privileged_ipc_security_spec', () => {
     );
 
     const response = await invokeHandler!(
-      { senderFrame: createMainFrame('file://index.html'), sender: { id: 11 } },
+      { senderFrame: createMainFrame('app://index.html'), sender: { id: 11 } },
       { sessionId: 42 }
     );
 
@@ -138,7 +138,7 @@ describe('privileged_ipc_security_spec', () => {
     );
 
     const trustedEvent = {
-      senderFrame: createMainFrame('file://index.html'),
+      senderFrame: createMainFrame('app://index.html'),
       sender: { id: 9 },
     };
 

@@ -1,3 +1,6 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
+
 type SenderFrameLike = {
   readonly url: string;
   readonly top: unknown;
@@ -8,7 +11,9 @@ type SenderEventLike = {
 };
 
 const DEV_SERVER_ORIGIN = 'http://localhost:5173';
-const TRUSTED_PROTOCOLS = new Set(['app:', 'file:']);
+const TRUSTED_APP_ENTRYPOINT = 'index.html';
+
+let trustedRendererFileEntrypoints = new Set<string>();
 
 const tryParseUrl = (candidateUrl: string): URL | null => {
   try {
@@ -16,6 +21,56 @@ const tryParseUrl = (candidateUrl: string): URL | null => {
   } catch {
     return null;
   }
+};
+
+const getAppEntrypoint = (rendererUrl: URL): string | null => {
+  const hostSegment = rendererUrl.hostname.length > 0 ? [rendererUrl.hostname] : [];
+  const pathSegments = rendererUrl.pathname.split('/').filter((segment) => segment.length > 0);
+  const segments = [...hostSegment, ...pathSegments];
+
+  if (segments.length === 0) {
+    return TRUSTED_APP_ENTRYPOINT;
+  }
+
+  if (segments.length !== 1) {
+    return null;
+  }
+
+  const [entrypoint] = segments;
+  return entrypoint.length > 0 ? entrypoint : null;
+};
+
+const toCanonicalFilePath = (rendererUrl: URL): string | null => {
+  try {
+    return path.resolve(fileURLToPath(rendererUrl));
+  } catch {
+    return null;
+  }
+};
+
+const isTrustedPackagedFileEntrypoint = (rendererUrl: URL): boolean => {
+  if (rendererUrl.protocol !== 'file:') {
+    return false;
+  }
+
+  const canonicalFilePath = toCanonicalFilePath(rendererUrl);
+  if (canonicalFilePath === null) {
+    return false;
+  }
+
+  return trustedRendererFileEntrypoints.has(canonicalFilePath);
+};
+
+export const configureTrustedRendererFileEntrypoints = (
+  entrypointPaths: readonly string[]
+): void => {
+  trustedRendererFileEntrypoints = new Set(
+    entrypointPaths.map((entrypointPath) => path.resolve(entrypointPath))
+  );
+};
+
+export const clearTrustedRendererFileEntrypoints = (): void => {
+  trustedRendererFileEntrypoints.clear();
 };
 
 const isMainFrame = (
@@ -37,7 +92,11 @@ export const isTrustedRendererUrl = (
     return false;
   }
 
-  if (TRUSTED_PROTOCOLS.has(parsedUrl.protocol)) {
+  if (parsedUrl.protocol === 'app:') {
+    return getAppEntrypoint(parsedUrl) === TRUSTED_APP_ENTRYPOINT;
+  }
+
+  if (isTrustedPackagedFileEntrypoint(parsedUrl)) {
     return true;
   }
 
