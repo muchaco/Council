@@ -19,6 +19,27 @@ import {
   parseSessionPayloadList,
 } from '../lib/boundary/session-payload-parser';
 import { decideConductorTurnShellPlan } from '../lib/shell/renderer/conductor-turn-shell-plan';
+import {
+  archiveSessionCommand,
+  clearPersonaHushCommand,
+  createSessionCommand,
+  deleteSessionCommand,
+  disableConductorCommand,
+  enableConductorCommand,
+  exportSessionToMarkdownCommand,
+  processConductorTurnCommand,
+  resetConductorCircuitBreakerCommand,
+  setPersonaHushCommand,
+  unarchiveSessionCommand,
+  updateSessionCommand,
+} from '../lib/shell/renderer/session-command-client';
+import {
+  loadAllTagsQuery,
+  loadSessionByIdQuery,
+  loadSessionParticipantsQuery,
+  loadSessionSnapshotQuery,
+  loadSessionsQuery,
+} from '../lib/shell/renderer/session-query-client';
 import { makeSessionTagPersistenceFromElectronDB } from '../lib/infrastructure/db';
 import {
   makeSessionMessagePersistenceFromElectronDB,
@@ -166,7 +187,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 
   fetchAllTags: async () => {
     try {
-      const result = await window.electronDB.tags.getAll();
+      const result = await loadAllTagsQuery();
       const parsedTags = parseTagList(result.data);
       if (result.success && parsedTags) {
         set({ allTags: parsedTags });
@@ -290,7 +311,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   fetchSessions: async () => {
     try {
       set({ isLoading: true });
-      const result = await window.electronDB.getSessions();
+      const result = await loadSessionsQuery();
       const parsedSessions = parseSessionList(result.data);
       if (result.success && parsedSessions) {
         set({ sessions: parsedSessions });
@@ -320,7 +341,11 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       const validatedTags = [...validationOutcome.right];
 
       // Create session with conductor config
-      const sessionResult = await window.electronDB.createSession({ ...data, conductorConfig });
+      const sessionResult = await createSessionCommand({
+        input: data,
+        personaIds,
+        conductorConfig,
+      });
       if (!sessionResult.success || !sessionResult.data) {
         toast.error(sessionResult.error || 'Failed to create session');
         return null;
@@ -333,11 +358,6 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       if (!session) {
         toast.error('Invalid session payload');
         return null;
-      }
-
-      // Add personas to session
-      for (const personaId of personaIds) {
-        await window.electronDB.addPersonaToSession(session.id, personaId, false);
       }
 
       set(state => ({
@@ -374,30 +394,24 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   loadSession: async (id: string) => {
     try {
       set({ isLoading: true });
-      
-      // Get session details
-      const sessionResult = await window.electronDB.getSession(id);
+
+      const { sessionResult, messagesResult, participantsResult, tagsResult } =
+        await loadSessionSnapshotQuery(id);
       if (!sessionResult.success || !sessionResult.data) {
         toast.error(sessionResult.error || 'Failed to load session');
         return;
       }
-      
-      // Get messages
-      const messagesResult = await window.electronDB.getMessages(id);
+
       if (!messagesResult.success) {
         toast.error(messagesResult.error || 'Failed to load messages');
         return;
       }
-      
-      // Get session personas
-      const personasResult = await window.electronDB.getSessionPersonas(id);
-      if (!personasResult.success) {
-        toast.error(personasResult.error || 'Failed to load session personas');
+
+      if (!participantsResult.success) {
+        toast.error(participantsResult.error || 'Failed to load session personas');
         return;
       }
-      
-      // Get session tags
-      const tagsResult = await window.electronDB.sessionTags.getBySession(id);
+
       const sessionTags = parseStringList(tagsResult.data) ?? [];
 
       const parsedSession = parseSessionPayload(sessionResult.data, {
@@ -415,7 +429,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         return;
       }
 
-      const parsedSessionPersonas = parseSessionPersonaList(personasResult.data);
+      const parsedSessionPersonas = parseSessionPersonaList(participantsResult.data);
       if (parsedSessionPersonas === null) {
         toast.error('Invalid session personas payload');
         return;
@@ -440,7 +454,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 
   updateSession: async (id: string, data) => {
     try {
-      const result = await window.electronDB.updateSession(id, data);
+      const result = await updateSessionCommand(id, data);
       const updated = parseSessionPayload(result.data, {
         allowMissingTags: true,
         fallbackTags: [],
@@ -459,16 +473,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   deleteSession: async (id: string) => {
     try {
       set({ isLoading: true });
-      const result = await window.electronDB.deleteSession(id);
+      const result = await deleteSessionCommand(id);
       if (result.success) {
-        // Clean up orphaned tags (tags with no session associations)
-        try {
-          await window.electronDB.tags.cleanupOrphaned();
-        } catch (cleanupError) {
-          console.error('Error cleaning up orphaned tags:', cleanupError);
-          // Non-fatal error, don't fail the delete operation
-        }
-        
         set(state => ({
           sessions: state.sessions.filter(s => s.id !== id),
           currentSession: state.currentSession?.id === id ? null : state.currentSession,
@@ -593,14 +599,14 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 
   // Conductor actions
   enableConductor: async (mode: 'automatic' | 'manual') => {
-    const { currentSession } = get();
-    if (!currentSession) return;
-    
-    try {
-      const result = await window.electronConductor.enable(currentSession.id, mode);
-      if (result.success) {
-        await get().updateSession(currentSession.id, {
-          conductorEnabled: true,
+      const { currentSession } = get();
+      if (!currentSession) return;
+      
+      try {
+      const result = await enableConductorCommand(currentSession.id, mode);
+        if (result.success) {
+          await get().updateSession(currentSession.id, {
+            conductorEnabled: true,
           conductorMode: mode,
         });
         toast.success('Conductor enabled');
@@ -613,14 +619,14 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
 
   disableConductor: async () => {
-    const { currentSession } = get();
-    if (!currentSession) return;
-    
-    try {
-      const result = await window.electronConductor.disable(currentSession.id);
-      if (result.success) {
-        await get().updateSession(currentSession.id, {
-          conductorEnabled: false,
+      const { currentSession } = get();
+      if (!currentSession) return;
+      
+      try {
+      const result = await disableConductorCommand(currentSession.id);
+        if (result.success) {
+          await get().updateSession(currentSession.id, {
+            conductorEnabled: false,
           conductorMode: currentSession.conductorMode,
         });
         set({ conductorRunning: false, conductorPaused: false });
@@ -640,7 +646,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     try {
       set({ conductorRunning: true });
       
-      const result = await window.electronConductor.processTurn(currentSession.id);
+      const result = await processConductorTurnCommand(currentSession.id);
       const shellPlan = decideConductorTurnShellPlan(result);
 
       if (shellPlan.warning) {
@@ -717,13 +723,13 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
 
   resetCircuitBreaker: async () => {
-    const { currentSession } = get();
-    if (!currentSession) return;
-    
-    try {
-      const result = await window.electronConductor.resetCircuitBreaker(currentSession.id);
-      if (result.success) {
-        await get().updateSession(currentSession.id, { autoReplyCount: 0 });
+      const { currentSession } = get();
+      if (!currentSession) return;
+      
+      try {
+      const result = await resetConductorCircuitBreakerCommand(currentSession.id);
+        if (result.success) {
+          await get().updateSession(currentSession.id, { autoReplyCount: 0 });
         set({ conductorPaused: false });
         toast.success('Circuit breaker reset');
         // Resume orchestration
@@ -737,11 +743,11 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
 
   exportSessionToMarkdown: async (sessionId: string) => {
-    try {
-      set({ isLoading: true });
-      const result = await window.electronExport.exportSessionToMarkdown(sessionId);
+      try {
+        set({ isLoading: true });
+      const result = await exportSessionToMarkdownCommand(sessionId);
       
-      if (result.success) {
+        if (result.success) {
         if (result.cancelled) {
           toast.info('Export cancelled');
         } else {
@@ -761,13 +767,13 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
 
   hushPersona: async (personaId: string, turns: number) => {
-    const { currentSession } = get();
-    if (!currentSession) return false;
-    
-    try {
-      const result = await window.electronDB.hushPersona(currentSession.id, personaId, turns);
-      if (result.success) {
-        const refreshedPersonas = await window.electronDB.getSessionPersonas(currentSession.id);
+      const { currentSession } = get();
+      if (!currentSession) return false;
+      
+      try {
+      const result = await setPersonaHushCommand(currentSession.id, personaId, turns);
+        if (result.success) {
+        const refreshedPersonas = await loadSessionParticipantsQuery(currentSession.id);
         const parsedSessionPersonas = parseSessionPersonaList(refreshedPersonas.data);
         if (refreshedPersonas.success && parsedSessionPersonas) {
           set({ sessionPersonas: parsedSessionPersonas });
@@ -789,13 +795,13 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
 
   unhushPersona: async (personaId: string) => {
-    const { currentSession } = get();
-    if (!currentSession) return false;
-    
-    try {
-      const result = await window.electronDB.unhushPersona(currentSession.id, personaId);
-      if (result.success) {
-        const refreshedPersonas = await window.electronDB.getSessionPersonas(currentSession.id);
+      const { currentSession } = get();
+      if (!currentSession) return false;
+      
+      try {
+      const result = await clearPersonaHushCommand(currentSession.id, personaId);
+        if (result.success) {
+        const refreshedPersonas = await loadSessionParticipantsQuery(currentSession.id);
         const parsedSessionPersonas = parseSessionPersonaList(refreshedPersonas.data);
         if (refreshedPersonas.success && parsedSessionPersonas) {
           set({ sessionPersonas: parsedSessionPersonas });
@@ -817,12 +823,12 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
 
   archiveSession: async (id: string) => {
-    try {
-      set({ isLoading: true });
-      const result = await window.electronDB.archiveSession(id);
+      try {
+        set({ isLoading: true });
+      const result = await archiveSessionCommand(id);
       
-      if (result.success) {
-        const refreshedSessionResult = await window.electronDB.getSession(id);
+        if (result.success) {
+        const refreshedSessionResult = await loadSessionByIdQuery(id);
         const refreshedSession = parseSessionPayload(refreshedSessionResult.data, {
           allowMissingTags: true,
           fallbackTags: [],
@@ -852,12 +858,12 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
 
   unarchiveSession: async (id: string) => {
-    try {
-      set({ isLoading: true });
-      const result = await window.electronDB.unarchiveSession(id);
+      try {
+        set({ isLoading: true });
+      const result = await unarchiveSessionCommand(id);
       
-      if (result.success) {
-        const refreshedSessionResult = await window.electronDB.getSession(id);
+        if (result.success) {
+        const refreshedSessionResult = await loadSessionByIdQuery(id);
         const refreshedSession = parseSessionPayload(refreshedSessionResult.data, {
           allowMissingTags: true,
           fallbackTags: [],

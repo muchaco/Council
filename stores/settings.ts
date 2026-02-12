@@ -8,6 +8,16 @@ import {
 } from '../lib/application/use-cases/settings';
 import { LiveClockLayer } from '../lib/infrastructure/clock';
 import { makeSettingsModelCatalogGatewayFromElectronSettings } from '../lib/infrastructure/settings/settings-model-catalog-gateway';
+import {
+  setDefaultGeminiModelCommand,
+  setGeminiApiKeyCommand,
+  testGeminiConnectionCommand,
+} from '../lib/shell/renderer/settings-command-client';
+import {
+  loadApiKeyStatusQuery,
+  loadDefaultModelQuery,
+  loadAvailableModelsQuery,
+} from '../lib/shell/renderer/settings-query-client';
 
 interface SettingsState {
   isApiKeyConfigured: boolean;
@@ -41,7 +51,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   loadApiKeyStatus: async () => {
     try {
-      const result = await window.electronSettings.getApiKeyStatus();
+      const result = await loadApiKeyStatusQuery();
       if (result.success && result.data) {
         set({ isApiKeyConfigured: result.data.configured });
       }
@@ -53,7 +63,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setApiKey: async (key: string) => {
     try {
       set({ isLoading: true });
-      const result = await window.electronSettings.setApiKey(key);
+      const result = await setGeminiApiKeyCommand(key);
       if (result.success) {
         const hasGeminiApiKey = key.trim().length > 0;
 
@@ -85,7 +95,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   testConnection: async () => {
     try {
       set({ isLoading: true });
-      const result = await window.electronSettings.testConnection();
+      const result = await testGeminiConnectionCommand();
       if (result.success && result.data) {
         set({ isConnected: true });
 
@@ -111,7 +121,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   loadDefaultModel: async () => {
     try {
-      const result = await window.electronSettings.getDefaultModel();
+      const result = await loadDefaultModelQuery();
       if (result.success && result.data) {
         set({ defaultModel: result.data as string });
       }
@@ -124,7 +134,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   setDefaultModel: async (model: string) => {
     try {
-      const result = await window.electronSettings.setDefaultModel(model);
+      const result = await setDefaultGeminiModelCommand(model);
       if (result.success) {
         set({ defaultModel: model });
       }
@@ -139,7 +149,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     try {
       set({ isModelCatalogLoading: true, modelCatalogError: null });
 
-      const apiKeyStatus = await window.electronSettings.getApiKeyStatus();
+      const apiKeyStatus = await loadApiKeyStatusQuery();
       const hasGeminiApiKey = apiKeyStatus.success
         ? apiKeyStatus.data?.configured === true
         : get().isApiKeyConfigured;
@@ -156,7 +166,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         }).pipe(
           Effect.provideService(
             SettingsModelCatalogGateway,
-            makeSettingsModelCatalogGatewayFromElectronSettings(window.electronSettings)
+            makeSettingsModelCatalogGatewayFromElectronSettings({ listModels: loadAvailableModelsQuery })
           ),
           Effect.provide(LiveClockLayer),
           Effect.either
