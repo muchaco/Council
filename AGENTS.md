@@ -23,6 +23,22 @@ This repository is **not Next.js**. Prefer Vite/Electron conventions.
 
 If you only remember one rule: **Decide in core, execute in application/shell.**
 
+## Boundary Guardrails
+
+- Renderer stores must call boundary clients in `lib/shell/renderer/*`; they should not orchestrate direct `window.electronDB.*` CRUD flows.
+- Electron handlers for bounded-context commands should call application use-cases + repository/gateway services, not ad-hoc query helpers.
+- Keep one transport contract per boundary (shared schema parser + mapper), and parse payloads at the edge once.
+
+### Allowed Entrypoints by Bounded Context
+
+- **Session State:** `lib/shell/renderer/session-command-client.ts`, `lib/shell/renderer/session-query-client.ts`, `electron/handlers/session-state-handlers.ts`
+- **Session Participation:** `lib/shell/renderer/session-command-client.ts`, `lib/shell/renderer/session-query-client.ts`, `electron/handlers/session-participation-handlers.ts`
+- **Session Messaging:** `lib/shell/renderer/session-command-client.ts`, `electron/handlers/session-message-handlers.ts`
+- **Session Tags:** `lib/shell/renderer/session-command-client.ts`, `lib/shell/renderer/session-query-client.ts`, `electron/handlers/session-tags-handlers.ts`
+- **Conductor:** `lib/shell/renderer/session-command-client.ts`, `electron/handlers/conductor.ts`
+- **Settings:** `lib/shell/renderer/settings-command-client.ts`, `lib/shell/renderer/settings-query-client.ts`, `electron/handlers/settings.ts`
+- **Export:** `lib/shell/renderer/session-command-client.ts`, `electron/handlers/export.ts`
+
 ## DDD Alignment Rules
 
 When implementing or refactoring features, align code with **Domain-Driven Design (DDD)**:

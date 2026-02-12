@@ -5,3 +5,6 @@
 /build/
 /electron/dist/
 /coverage/
+/plans/
+/requirements/
+/bugs/
