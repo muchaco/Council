@@ -1,7 +1,14 @@
-import { ipcMain, dialog } from 'electron';
+import { ipcMain as electronIpcMain, dialog } from 'electron';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { getSessionForExport, formatSessionAsMarkdown } from '../lib/export.js';
+import { registerPrivilegedIpcHandle } from '../lib/security/privileged-ipc.js';
+
+const ipcMain = {
+  handle: (channelName: string, handler: (...args: any[]) => unknown): void => {
+    registerPrivilegedIpcHandle(electronIpcMain, channelName, handler as any);
+  },
+};
 
 export function setupExportHandlers(): void {
   ipcMain.handle('export:sessionToMarkdown', async (_, sessionId: string) => {

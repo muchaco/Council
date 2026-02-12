@@ -1,6 +1,13 @@
-import { ipcMain } from 'electron';
+import { ipcMain as electronIpcMain } from 'electron';
 import Store from 'electron-store';
 import crypto from 'crypto';
+import { registerPrivilegedIpcHandle } from '../lib/security/privileged-ipc.js';
+
+const ipcMain = {
+  handle: (channelName: string, handler: (...args: any[]) => unknown): void => {
+    registerPrivilegedIpcHandle(electronIpcMain, channelName, handler as any);
+  },
+};
 
 interface StoreSchema {
   apiKey: string;

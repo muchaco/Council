@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import { ipcMain as electronIpcMain } from 'electron';
 import { Effect } from 'effect';
 
 import { decrypt } from './settings.js';
@@ -25,6 +25,13 @@ import {
   mapErrorFailureResponse,
   mapVoidSuccessResponse,
 } from '../lib/shell/conductor-handler-response.js';
+import { registerPrivilegedIpcHandle } from '../lib/security/privileged-ipc.js';
+
+const ipcMain = {
+  handle: (channelName: string, handler: (...args: any[]) => unknown): void => {
+    registerPrivilegedIpcHandle(electronIpcMain, channelName, handler as any);
+  },
+};
 
 export function setupConductorHandlers(): void {
   const sqlExecutor = makeElectronSqlQueryExecutor();

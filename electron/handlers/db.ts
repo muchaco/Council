@@ -1,5 +1,12 @@
-import { ipcMain } from 'electron';
+import { ipcMain as electronIpcMain } from 'electron';
 import * as queries from '../lib/queries.js';
+import { registerPrivilegedIpcHandle } from '../lib/security/privileged-ipc.js';
+
+const ipcMain = {
+  handle: (channelName: string, handler: (...args: any[]) => unknown): void => {
+    registerPrivilegedIpcHandle(electronIpcMain, channelName, handler as any);
+  },
+};
 
 export function setupDatabaseHandlers(): void {
   // Persona handlers

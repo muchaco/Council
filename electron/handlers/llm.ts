@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import { ipcMain as electronIpcMain } from 'electron';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Effect, Either } from 'effect';
 
@@ -16,6 +16,13 @@ import {
 import { makeCouncilChatRepositoryFromSqlExecutor } from '../../lib/infrastructure/db';
 import { makeCouncilChatGatewayFromExecutor } from '../../lib/infrastructure/llm';
 import { makeCouncilChatSettingsService } from '../../lib/infrastructure/settings';
+import { registerPrivilegedIpcHandle } from '../lib/security/privileged-ipc.js';
+
+const ipcMain = {
+  handle: (channelName: string, handler: (...args: any[]) => unknown): void => {
+    registerPrivilegedIpcHandle(electronIpcMain, channelName, handler as any);
+  },
+};
 
 interface ChatRequest {
   personaId: string;
