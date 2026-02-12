@@ -1,7 +1,17 @@
 import { ipcMain as electronIpcMain, dialog } from 'electron';
 import { promises as fs } from 'fs';
+import { Effect, Either } from 'effect';
 import { z } from 'zod';
-import { getSessionForExport, formatSessionAsMarkdown } from '../lib/export.js';
+import { makeElectronSqlQueryExecutor } from '../lib/sql-query-executor.js';
+import { executeExportSessionMarkdown } from '../../lib/application/use-cases/council-transcript/index.js';
+import { QueryLayerRepository } from '../../lib/application/use-cases/query-layer/index.js';
+import { SessionParticipationRepository } from '../../lib/application/use-cases/session-participation/index.js';
+import { CouncilTranscriptRepository } from '../../lib/application/use-cases/council-transcript/index.js';
+import {
+  makeCouncilTranscriptRepositoryFromSqlExecutor,
+  makeQueryLayerRepositoryFromSqlExecutor,
+  makeSessionParticipationRepositoryFromSqlExecutor,
+} from '../../lib/infrastructure/db/index.js';
 import {
   registerPrivilegedIpcHandle,
   type PrivilegedIpcHandleOptions,
@@ -25,18 +35,33 @@ const ipcMain = {
 };
 
 export function setupExportHandlers(): void {
+  const sqlExecutor = makeElectronSqlQueryExecutor();
+  const queryLayerRepository = makeQueryLayerRepositoryFromSqlExecutor(sqlExecutor);
+  const councilTranscriptRepository = makeCouncilTranscriptRepositoryFromSqlExecutor(sqlExecutor);
+  const sessionParticipationRepository = makeSessionParticipationRepositoryFromSqlExecutor(sqlExecutor);
+
   ipcMain.handle('export:sessionToMarkdown', async (_, sessionId: string) => {
     try {
       console.log('Exporting session to markdown:', sessionId);
 
-      // Get session data
-      const sessionData = await getSessionForExport(sessionId);
-      
-      // Format as markdown
-      const markdown = formatSessionAsMarkdown(sessionData);
-      
+      const exportOutcome = await Effect.runPromise(
+        executeExportSessionMarkdown(sessionId).pipe(
+          Effect.provideService(QueryLayerRepository, queryLayerRepository),
+          Effect.provideService(CouncilTranscriptRepository, councilTranscriptRepository),
+          Effect.provideService(SessionParticipationRepository, sessionParticipationRepository),
+          Effect.either
+        )
+      );
+
+      if (Either.isLeft(exportOutcome)) {
+        return {
+          success: false,
+          error: EXPORT_OPERATION_PUBLIC_ERROR,
+        };
+      }
+
       // Generate default filename
-      const sanitizedTitle = sessionData.session.title
+      const sanitizedTitle = exportOutcome.right.sessionTitle
         .replace(/[^a-zA-Z0-9\s-]/g, '')
         .replace(/\s+/g, '-')
         .toLowerCase()
@@ -60,13 +85,13 @@ export function setupExportHandlers(): void {
       }
 
       // Write file
-      await fs.writeFile(filePath, markdown, 'utf-8');
+      await fs.writeFile(filePath, exportOutcome.right.markdown, 'utf-8');
       
       console.log('Session exported successfully to:', filePath);
       return { 
         success: true, 
         filePath,
-        messageCount: sessionData.messages.length,
+        messageCount: exportOutcome.right.messageCount,
       };
     } catch (error) {
       console.error('Error exporting session:', error);
