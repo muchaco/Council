@@ -79,4 +79,23 @@ describe('execute_query_layer_session_reads_use_case_spec', () => {
 
     expect(session).toBeNull();
   });
+
+  it('maps_malformed_blackboard_payload_to_null_without_throwing', async () => {
+    const repository = makeRepository({
+      listSessions: () =>
+        Effect.succeed([
+          {
+            ...baseSessionRow,
+            blackboard: '{"consensus":',
+          },
+        ]),
+    });
+
+    const sessions = await Effect.runPromise(
+      executeLoadSessions().pipe(Effect.provideService(QueryLayerRepository, repository))
+    );
+
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0]?.blackboard).toBeNull();
+  });
 });

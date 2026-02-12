@@ -13,6 +13,68 @@ interface SessionExportData {
   participants: Map<string, { name: string; role: string; color: string; order: number }>;
 }
 
+const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+export const parseOptionalJson = <Value>(serializedValue: string | null | undefined): Value | null => {
+  if (serializedValue === null || serializedValue === undefined || serializedValue.trim().length === 0) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(serializedValue) as Value;
+  } catch {
+    return null;
+  }
+};
+
+const isSessionBlackboard = (value: unknown): value is NonNullable<Session['blackboard']> => {
+  if (!isObjectRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.consensus === 'string' &&
+    typeof value.conflicts === 'string' &&
+    typeof value.nextStep === 'string' &&
+    typeof value.facts === 'string'
+  );
+};
+
+const parseSessionBlackboard = (serializedBlackboard: string | null): Session['blackboard'] => {
+  const parsed = parseOptionalJson<unknown>(serializedBlackboard);
+  return isSessionBlackboard(parsed) ? parsed : null;
+};
+
+const isMessageMetadata = (value: unknown): value is MessageMetadata => {
+  if (!isObjectRecord(value)) {
+    return false;
+  }
+
+  if ('isIntervention' in value && typeof value.isIntervention !== 'boolean') {
+    return false;
+  }
+
+  if ('driftDetected' in value && typeof value.driftDetected !== 'boolean') {
+    return false;
+  }
+
+  if ('selectorReasoning' in value && typeof value.selectorReasoning !== 'string') {
+    return false;
+  }
+
+  if ('isConductorMessage' in value && typeof value.isConductorMessage !== 'boolean') {
+    return false;
+  }
+
+  return true;
+};
+
+const parseMessageMetadata = (serializedMetadata: string | null): MessageMetadata | null => {
+  const parsed = parseOptionalJson<unknown>(serializedMetadata);
+  return isMessageMetadata(parsed) ? parsed : null;
+};
+
 // Ensure database is initialized before any query
 async function ensureDb(): Promise<void> {
   await ensureDatabaseReady();
@@ -71,7 +133,7 @@ export async function getSessionForExport(sessionId: string): Promise<SessionExp
   const session: Session = {
     ...sessionRow,
     conductorEnabled: Boolean(sessionRow.conductorEnabled),
-    blackboard: sessionRow.blackboard ? JSON.parse(sessionRow.blackboard) : null,
+    blackboard: parseSessionBlackboard(sessionRow.blackboard),
   };
 
   // Get all messages with persona info
@@ -100,7 +162,7 @@ export async function getSessionForExport(sessionId: string): Promise<SessionExp
   const participants = new Map<string, { name: string; role: string; color: string; order: number }>();
 
   const messages: ExportableMessage[] = messageRows.map((row, index) => {
-    const metadata: MessageMetadata | null = row.metadata ? JSON.parse(row.metadata) : null;
+    const metadata: MessageMetadata | null = parseMessageMetadata(row.metadata);
     const isConductorMessage = metadata?.isConductorMessage || false;
     
     let personaName: string;

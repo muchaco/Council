@@ -2,8 +2,34 @@ import type { Session } from '../../../types';
 
 import type { PersistedSessionSnapshotRow } from './query-layer-dependencies';
 
-const parseBlackboard = (serializedBlackboard: string | null): Session['blackboard'] =>
-  serializedBlackboard ? (JSON.parse(serializedBlackboard) as Session['blackboard']) : null;
+const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const isSessionBlackboard = (value: unknown): value is NonNullable<Session['blackboard']> => {
+  if (!isObjectRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.consensus === 'string' &&
+    typeof value.conflicts === 'string' &&
+    typeof value.nextStep === 'string' &&
+    typeof value.facts === 'string'
+  );
+};
+
+const parseBlackboard = (serializedBlackboard: string | null): Session['blackboard'] => {
+  if (serializedBlackboard === null || serializedBlackboard.trim().length === 0) {
+    return null;
+  }
+
+  try {
+    const parsedBlackboard = JSON.parse(serializedBlackboard) as unknown;
+    return isSessionBlackboard(parsedBlackboard) ? parsedBlackboard : null;
+  } catch {
+    return null;
+  }
+};
 
 export const mapPersistedSessionSnapshotRowToSession = (
   row: PersistedSessionSnapshotRow,

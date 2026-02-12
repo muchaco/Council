@@ -87,6 +87,34 @@ describe('execute_load_council_transcript_use_case_spec', () => {
     expect(messages.map((message) => message.id)).toEqual(['m2', 'm3']);
   });
 
+  it('maps_malformed_message_metadata_to_null_without_throwing', async () => {
+    const malformedMetadataRepository: CouncilTranscriptRepositoryService = {
+      ...repository,
+      listMessagesBySession: () =>
+        Effect.succeed([
+          {
+            id: 'm1',
+            sessionId: 's1',
+            personaId: null,
+            content: 'Corrupt metadata row',
+            turnNumber: 1,
+            tokenCount: 1,
+            metadata: '{"isIntervention":',
+            createdAt: '2026-02-10T10:00:00.000Z',
+          },
+        ]),
+    };
+
+    const messages = await Effect.runPromise(
+      executeLoadCouncilTranscript('s1').pipe(
+        Effect.provideService(CouncilTranscriptRepository, malformedMetadataRepository)
+      )
+    );
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.metadata).toBeNull();
+  });
+
   it('creates_message_and_calculates_next_turn_number', async () => {
     const createdMessageIds: string[] = [];
     const writeCapableRepository: CouncilTranscriptRepositoryService = {
