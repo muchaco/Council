@@ -1,5 +1,5 @@
 import type { IpcMain } from 'electron';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 
 import {
@@ -19,6 +19,11 @@ const createMainFrame = (url: string): { url: string; top: unknown } => {
 };
 
 describe('privileged_ipc_security_spec', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    clearPrivilegedIpcRateLimitState();
+  });
+
   it('maps_invalid_payload_error_to_stable_public_failure', () => {
     const response = mapPrivilegedIpcErrorToPublicFailure(new Error('INVALID_IPC_PAYLOAD'));
 
@@ -113,7 +118,6 @@ describe('privileged_ipc_security_spec', () => {
   });
 
   it('returns_rate_limit_failure_for_high_frequency_calls_per_sender', async () => {
-    clearPrivilegedIpcRateLimitState();
     let invokeHandler: ((event: unknown, ...args: unknown[]) => Promise<unknown>) | undefined;
 
     const fakeIpcMain: Pick<IpcMain, 'handle'> = {
@@ -147,5 +151,49 @@ describe('privileged_ipc_security_spec', () => {
 
     expect(firstResponse).toEqual({ success: true });
     expect(secondResponse).toEqual({ success: false, error: 'Rate limit exceeded' });
+  });
+
+  it('resets_rate_limit_window_after_policy_duration_elapses', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+
+    let invokeHandler: ((event: unknown, ...args: unknown[]) => Promise<unknown>) | undefined;
+
+    const fakeIpcMain: Pick<IpcMain, 'handle'> = {
+      handle: (
+        _channel: string,
+        listener: (event: unknown, ...args: unknown[]) => Promise<unknown>
+      ): void => {
+        invokeHandler = listener;
+      },
+    } as Pick<IpcMain, 'handle'>;
+
+    registerPrivilegedIpcHandle(
+      fakeIpcMain,
+      'export:sessionToMarkdown',
+      async () => ({ success: true }),
+      {
+        rateLimit: {
+          maxRequests: 1,
+          windowMs: 60_000,
+        },
+      }
+    );
+
+    const trustedEvent = {
+      senderFrame: createMainFrame('app://index.html'),
+      sender: { id: 42 },
+    };
+
+    const firstResponse = await invokeHandler!(trustedEvent);
+    const secondResponse = await invokeHandler!(trustedEvent);
+
+    vi.advanceTimersByTime(60_001);
+
+    const thirdResponse = await invokeHandler!(trustedEvent);
+
+    expect(firstResponse).toEqual({ success: true });
+    expect(secondResponse).toEqual({ success: false, error: 'Rate limit exceeded' });
+    expect(thirdResponse).toEqual({ success: true });
   });
 });

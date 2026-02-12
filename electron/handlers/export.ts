@@ -9,6 +9,10 @@ import {
 
 const EXPORT_OPERATION_PUBLIC_ERROR = 'Failed to export session';
 const sessionIdSchema = z.string().min(1);
+const EXPORT_OPERATION_RATE_LIMIT = {
+  maxRequests: 20,
+  windowMs: 60_000,
+} as const;
 
 const ipcMain = {
   handle: (
@@ -73,5 +77,6 @@ export function setupExportHandlers(): void {
     }
   }, {
     argsSchema: z.tuple([sessionIdSchema]),
+    rateLimit: EXPORT_OPERATION_RATE_LIMIT,
   });
 }

@@ -83,6 +83,11 @@ const messageInputSchema = z
 const tagNameSchema = z.string().trim().min(1).max(64);
 const hushTurnsSchema = z.number().int().nonnegative();
 
+const DB_MUTATION_RATE_LIMIT = {
+  maxRequests: 120,
+  windowMs: 60_000,
+} as const;
+
 const ipcMain = {
   handle: (
     channelName: string,
@@ -109,7 +114,10 @@ export function setupDatabaseHandlers(): void {
         return mapDatabaseFailure('persona creation', error);
       }
     },
-    { argsSchema: z.tuple([personaInputSchema]) }
+    {
+      argsSchema: z.tuple([personaInputSchema]),
+      rateLimit: DB_MUTATION_RATE_LIMIT,
+    }
   );
 
   ipcMain.handle('db:persona:getAll', async () => {
@@ -148,7 +156,10 @@ export function setupDatabaseHandlers(): void {
         return mapDatabaseFailure('persona update', error);
       }
     },
-    { argsSchema: z.tuple([personaIdSchema, personaInputSchema.partial()]) }
+    {
+      argsSchema: z.tuple([personaIdSchema, personaInputSchema.partial()]),
+      rateLimit: DB_MUTATION_RATE_LIMIT,
+    }
   );
 
   ipcMain.handle(
@@ -161,7 +172,10 @@ export function setupDatabaseHandlers(): void {
         return mapDatabaseFailure('persona deletion', error);
       }
     },
-    { argsSchema: z.tuple([personaIdSchema]) }
+    {
+      argsSchema: z.tuple([personaIdSchema]),
+      rateLimit: DB_MUTATION_RATE_LIMIT,
+    }
   );
 
   ipcMain.handle(
@@ -175,7 +189,10 @@ export function setupDatabaseHandlers(): void {
         return mapDatabaseFailure('session creation', error);
       }
     },
-    { argsSchema: z.tuple([sessionCreateInputSchema]) }
+    {
+      argsSchema: z.tuple([sessionCreateInputSchema]),
+      rateLimit: DB_MUTATION_RATE_LIMIT,
+    }
   );
 
   ipcMain.handle('db:session:getAll', async () => {
@@ -214,7 +231,10 @@ export function setupDatabaseHandlers(): void {
         return mapDatabaseFailure('session update', error);
       }
     },
-    { argsSchema: z.tuple([sessionIdSchema, sessionUpdateInputSchema]) }
+    {
+      argsSchema: z.tuple([sessionIdSchema, sessionUpdateInputSchema]),
+      rateLimit: DB_MUTATION_RATE_LIMIT,
+    }
   );
 
   ipcMain.handle(
@@ -227,7 +247,10 @@ export function setupDatabaseHandlers(): void {
         return mapDatabaseFailure('session deletion', error);
       }
     },
-    { argsSchema: z.tuple([sessionIdSchema]) }
+    {
+      argsSchema: z.tuple([sessionIdSchema]),
+      rateLimit: DB_MUTATION_RATE_LIMIT,
+    }
   );
 
   ipcMain.handle(
@@ -240,7 +263,10 @@ export function setupDatabaseHandlers(): void {
         return mapDatabaseFailure('message creation', error);
       }
     },
-    { argsSchema: z.tuple([messageInputSchema]) }
+    {
+      argsSchema: z.tuple([messageInputSchema]),
+      rateLimit: DB_MUTATION_RATE_LIMIT,
+    }
   );
 
   ipcMain.handle(
@@ -279,7 +305,10 @@ export function setupDatabaseHandlers(): void {
         return mapDatabaseFailure('session participant add', error);
       }
     },
-    { argsSchema: z.tuple([sessionIdSchema, personaIdSchema, z.boolean()]) }
+    {
+      argsSchema: z.tuple([sessionIdSchema, personaIdSchema, z.boolean()]),
+      rateLimit: DB_MUTATION_RATE_LIMIT,
+    }
   );
 
   ipcMain.handle(
@@ -305,7 +334,10 @@ export function setupDatabaseHandlers(): void {
         return mapDatabaseFailure('persona hush', error);
       }
     },
-    { argsSchema: z.tuple([sessionIdSchema, personaIdSchema, hushTurnsSchema]) }
+    {
+      argsSchema: z.tuple([sessionIdSchema, personaIdSchema, hushTurnsSchema]),
+      rateLimit: DB_MUTATION_RATE_LIMIT,
+    }
   );
 
   ipcMain.handle(
@@ -318,7 +350,10 @@ export function setupDatabaseHandlers(): void {
         return mapDatabaseFailure('persona unhush', error);
       }
     },
-    { argsSchema: z.tuple([sessionIdSchema, personaIdSchema]) }
+    {
+      argsSchema: z.tuple([sessionIdSchema, personaIdSchema]),
+      rateLimit: DB_MUTATION_RATE_LIMIT,
+    }
   );
 
   ipcMain.handle(
@@ -331,7 +366,10 @@ export function setupDatabaseHandlers(): void {
         return mapDatabaseFailure('session archive', error);
       }
     },
-    { argsSchema: z.tuple([sessionIdSchema]) }
+    {
+      argsSchema: z.tuple([sessionIdSchema]),
+      rateLimit: DB_MUTATION_RATE_LIMIT,
+    }
   );
 
   ipcMain.handle(
@@ -344,7 +382,10 @@ export function setupDatabaseHandlers(): void {
         return mapDatabaseFailure('session unarchive', error);
       }
     },
-    { argsSchema: z.tuple([sessionIdSchema]) }
+    {
+      argsSchema: z.tuple([sessionIdSchema]),
+      rateLimit: DB_MUTATION_RATE_LIMIT,
+    }
   );
 
   ipcMain.handle(
@@ -357,7 +398,10 @@ export function setupDatabaseHandlers(): void {
         return mapDatabaseFailure('tag creation', error);
       }
     },
-    { argsSchema: z.tuple([tagNameSchema]) }
+    {
+      argsSchema: z.tuple([tagNameSchema]),
+      rateLimit: DB_MUTATION_RATE_LIMIT,
+    }
   );
 
   ipcMain.handle('db:tag:getAll', async () => {
@@ -392,7 +436,10 @@ export function setupDatabaseHandlers(): void {
         return mapDatabaseFailure('tag deletion', error);
       }
     },
-    { argsSchema: z.tuple([tagIdSchema]) }
+    {
+      argsSchema: z.tuple([tagIdSchema]),
+      rateLimit: DB_MUTATION_RATE_LIMIT,
+    }
   );
 
   ipcMain.handle(
@@ -405,7 +452,10 @@ export function setupDatabaseHandlers(): void {
         return mapDatabaseFailure('session tag add', error);
       }
     },
-    { argsSchema: z.tuple([sessionIdSchema, tagIdSchema]) }
+    {
+      argsSchema: z.tuple([sessionIdSchema, tagIdSchema]),
+      rateLimit: DB_MUTATION_RATE_LIMIT,
+    }
   );
 
   ipcMain.handle(
@@ -418,7 +468,10 @@ export function setupDatabaseHandlers(): void {
         return mapDatabaseFailure('session tag removal', error);
       }
     },
-    { argsSchema: z.tuple([sessionIdSchema, tagIdSchema]) }
+    {
+      argsSchema: z.tuple([sessionIdSchema, tagIdSchema]),
+      rateLimit: DB_MUTATION_RATE_LIMIT,
+    }
   );
 
   ipcMain.handle(
@@ -441,5 +494,8 @@ export function setupDatabaseHandlers(): void {
     } catch (error) {
       return mapDatabaseFailure('orphaned tag cleanup', error);
     }
-  }, { argsSchema: z.tuple([]) });
+  }, {
+    argsSchema: z.tuple([]),
+    rateLimit: DB_MUTATION_RATE_LIMIT,
+  });
 }
