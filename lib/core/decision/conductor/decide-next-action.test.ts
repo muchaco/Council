@@ -10,6 +10,7 @@ describe('decide_next_action_spec', () => {
       reasoning: 'Need user confirmation before proceeding',
       isIntervention: false,
       knownPersonaIds: ['speaker-a', 'speaker-b'],
+      controlMode: 'automatic',
     });
 
     expect(Either.isRight(decision)).toBe(true);
@@ -28,6 +29,7 @@ describe('decide_next_action_spec', () => {
       reasoning: 'Architect should resolve the open conflict',
       isIntervention: true,
       knownPersonaIds: ['speaker-a', 'speaker-b'],
+      controlMode: 'automatic',
     });
 
     expect(Either.isRight(decision)).toBe(true);
@@ -42,12 +44,34 @@ describe('decide_next_action_spec', () => {
     }
   });
 
+  it('returns_suggest_persona_and_wait_action_in_manual_mode', () => {
+    const decision = decideNextAction({
+      selectedPersonaId: 'speaker-a',
+      reasoning: 'Architect should resolve the open conflict',
+      isIntervention: false,
+      knownPersonaIds: ['speaker-a', 'speaker-b'],
+      controlMode: 'manual',
+    });
+
+    expect(Either.isRight(decision)).toBe(true);
+
+    if (Either.isRight(decision)) {
+      expect(decision.right).toEqual({
+        _tag: 'SuggestPersonaAndWaitForUser',
+        personaId: 'speaker-a',
+        reasoning: 'Architect should resolve the open conflict',
+        isIntervention: false,
+      });
+    }
+  });
+
   it('returns_domain_error_when_selector_chooses_missing_persona', () => {
     const decision = decideNextAction({
       selectedPersonaId: 'speaker-missing',
       reasoning: 'Missing speaker',
       isIntervention: false,
       knownPersonaIds: ['speaker-a'],
+      controlMode: 'automatic',
     });
 
     expect(Either.isLeft(decision)).toBe(true);

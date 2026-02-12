@@ -10,7 +10,6 @@ import {
 } from '../../domain/conductor';
 import type { ConductorDomainError } from '../../errors/conductor-error';
 import type { ConductorSelectorPlan } from '../../plan/conductor-plan';
-import { decideConductorParticipantPreconditions } from './decide-conductor-preconditions';
 import { decideSpeakerEligibility } from './decide-speaker-eligibility';
 import { decideWaitForUser } from './decide-wait-for-user';
 
@@ -18,25 +17,23 @@ export interface DecideConductorSelectorPlanInput {
   readonly session: ConductorSessionSnapshot;
   readonly personas: readonly ConductorPersonaSnapshot[];
   readonly messages: readonly ConductorMessageSnapshot[];
-  readonly conductorPersonaId: string;
+  readonly selectorModel: string;
 }
 
 export const decideConductorSelectorPlan = (
   input: DecideConductorSelectorPlanInput
 ): Either.Either<ConductorSelectorPlan, ConductorDomainError> => {
-  const participantPreconditions = decideConductorParticipantPreconditions(
-    input.personas,
-    input.conductorPersonaId
-  );
-  if (Either.isLeft(participantPreconditions)) {
-    return Either.left(participantPreconditions.left);
+  if (input.personas.length === 0) {
+    return Either.left({
+      _tag: 'ConductorNoPersonasError',
+      message: 'No personas in session',
+    });
   }
 
   const lastSpeakerId = findLastSpeakerId(input.messages);
 
   const speakerEligibility = decideSpeakerEligibility({
     personas: input.personas,
-    conductorPersonaId: input.conductorPersonaId,
     lastSpeakerId,
   });
 
@@ -61,9 +58,8 @@ export const decideConductorSelectorPlan = (
 
   return Either.right({
     _tag: 'RequestSelectorDecision',
-    selectorModel: participantPreconditions.right.conductorPersona.geminiModel,
+    selectorModel: input.selectorModel,
     selectorPromptInput,
     currentBlackboard,
-    conductorPersonaId: participantPreconditions.right.conductorPersona.id,
   });
 };

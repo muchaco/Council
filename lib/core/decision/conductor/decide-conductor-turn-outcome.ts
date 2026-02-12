@@ -1,6 +1,7 @@
 import { Either } from 'effect';
 
 import type {
+  ConductorControlMode,
   ConductorBlackboard,
   ConductorSelectorDecision,
 } from '../../domain/conductor';
@@ -16,6 +17,7 @@ export interface DecideConductorTurnOutcomePlanInput {
   readonly currentBlackboard: ConductorBlackboard;
   readonly selectorResult: ConductorSelectorDecision;
   readonly knownPersonaIds: readonly string[];
+  readonly controlMode: ConductorControlMode;
 }
 
 export const decideConductorTurnOutcomePlan = (
@@ -34,6 +36,7 @@ export const decideConductorTurnOutcomePlan = (
     reasoning: input.selectorResult.reasoning,
     isIntervention: input.selectorResult.isIntervention,
     knownPersonaIds: input.knownPersonaIds,
+    controlMode: input.controlMode,
   });
 
   if (Either.isLeft(nextActionDecision)) {
@@ -45,6 +48,17 @@ export const decideConductorTurnOutcomePlan = (
     return Either.right({
       _tag: 'WaitForUserAfterSelection',
       reasoning: nextAction.reasoning,
+      blackboardUpdate: input.selectorResult.updateBlackboard,
+      followUpEffects,
+    });
+  }
+
+  if (nextAction._tag === 'SuggestPersonaAndWaitForUser') {
+    return Either.right({
+      _tag: 'SuggestNextSpeakerAndWaitForUser',
+      suggestedPersonaId: nextAction.personaId,
+      reasoning: nextAction.reasoning,
+      isIntervention: nextAction.isIntervention,
       blackboardUpdate: input.selectorResult.updateBlackboard,
       followUpEffects,
     });

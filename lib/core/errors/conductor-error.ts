@@ -8,8 +8,8 @@ export interface ConductorNotEnabledError {
   readonly message: string;
 }
 
-export interface ConductorPersonaMissingError {
-  readonly _tag: 'ConductorPersonaMissingError';
+export interface ConductorInvalidControlModeError {
+  readonly _tag: 'ConductorInvalidControlModeError';
   readonly message: string;
 }
 
@@ -26,6 +26,6 @@ export interface ConductorSelectedPersonaNotFoundError {
 export type ConductorDomainError =
   | ConductorSessionNotFoundError
   | ConductorNotEnabledError
-  | ConductorPersonaMissingError
+  | ConductorInvalidControlModeError
   | ConductorNoPersonasError
   | ConductorSelectedPersonaNotFoundError;

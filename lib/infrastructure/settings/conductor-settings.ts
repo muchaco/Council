@@ -9,6 +9,7 @@ import type {
 
 interface ConductorStoreSchema {
   apiKey?: string;
+  defaultModel?: string;
 }
 
 interface ConductorSettingsOptions {
@@ -77,6 +78,21 @@ export const makeConductorSettingsService = (
         error instanceof Error ? error.message : 'Failed to load Gemini API key'
       );
     },
+  }),
+  getSelectorModel: Effect.try({
+    try: () => {
+      const rawDefaultModel = (store as unknown as { get: (key: string) => unknown }).get('defaultModel');
+      if (typeof rawDefaultModel !== 'string' || rawDefaultModel.trim().length === 0) {
+        return 'gemini-2.5-flash';
+      }
+
+      return rawDefaultModel;
+    },
+    catch: (error) =>
+      settingsError(
+        'SettingsReadFailed',
+        error instanceof Error ? error.message : 'Failed to load selector model'
+      ),
   }),
   getSelectorGenerationPolicy: Effect.sync(() => resolveSelectorGenerationPolicy(options)),
 });

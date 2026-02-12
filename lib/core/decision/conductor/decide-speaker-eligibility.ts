@@ -7,7 +7,6 @@ import type { SpeakerEligibilityPlan } from '../../plan/conductor-plan';
 
 export interface DecideSpeakerEligibilityInput {
   readonly personas: readonly ConductorPersonaSnapshot[];
-  readonly conductorPersonaId: string;
   readonly lastSpeakerId: string | null;
 }
 
@@ -27,10 +26,9 @@ export const decideSpeakerEligibility = (
       continue;
     }
 
-    const isConductor = persona.id === input.conductorPersonaId;
     const isLastSpeaker = input.lastSpeakerId !== null && persona.id === input.lastSpeakerId;
 
-    if (!isConductor && !isLastSpeaker) {
+    if (!isLastSpeaker) {
       eligibleSpeakers.push({
         id: persona.id,
         name: persona.name,

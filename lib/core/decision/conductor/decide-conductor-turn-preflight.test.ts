@@ -7,7 +7,7 @@ import { decideConductorTurnPreflight } from './decide-conductor-turn-preflight'
 const baseSession: ConductorSessionSnapshot = {
   sessionId: 'session-1',
   conductorEnabled: true,
-  conductorPersonaId: 'conductor',
+  controlMode: 'automatic',
   autoReplyCount: 0,
   tokenCount: 0,
   problemDescription: 'Ship FCIS migration safely',
@@ -60,7 +60,6 @@ describe('decide_conductor_turn_preflight_spec', () => {
       }
       if (expectedRight._tag === 'ContinueConductorTurn' && outcome.right._tag === 'ContinueConductorTurn') {
         expect(outcome.right.warning).toBe(expectedRight.warning);
-        expect(outcome.right.conductorPersonaId).toBe('conductor');
       }
     }
   });

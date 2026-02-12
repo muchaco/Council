@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Either } from 'effect';
 
 import type { ConductorSessionSnapshot } from '../../domain/conductor';
-import { decideConductorParticipantPreconditions, decideConductorSessionPreconditions } from './decide-conductor-preconditions';
+import { decideConductorSessionPreconditions } from './decide-conductor-preconditions';
 
 describe('decide_conductor_preconditions_spec', () => {
   it.each([
@@ -19,7 +19,7 @@ describe('decide_conductor_preconditions_spec', () => {
       session: {
         sessionId: 'session-1',
         conductorEnabled: false,
-        conductorPersonaId: null,
+        controlMode: 'automatic',
         autoReplyCount: 0,
         tokenCount: 0,
         problemDescription: 'Problem',
@@ -29,6 +29,23 @@ describe('decide_conductor_preconditions_spec', () => {
       expected: {
         _tag: 'ConductorNotEnabledError',
         message: 'Conductor not enabled for this session',
+      },
+    },
+    {
+      name: 'fails_when_control_mode_is_invalid',
+      session: {
+        sessionId: 'session-1',
+        conductorEnabled: true,
+        controlMode: 'hybrid' as unknown as ConductorSessionSnapshot['controlMode'],
+        autoReplyCount: 0,
+        tokenCount: 0,
+        problemDescription: 'Problem',
+        outputGoal: 'Goal',
+        blackboard: null,
+      },
+      expected: {
+        _tag: 'ConductorInvalidControlModeError',
+        message: 'Unsupported conductor control mode: hybrid',
       },
     },
   ])('$name', ({ session, expected }) => {
@@ -41,58 +58,22 @@ describe('decide_conductor_preconditions_spec', () => {
     }
   });
 
-  it('returns_conductor_persona_when_participant_preconditions_pass', () => {
-    const decision = decideConductorParticipantPreconditions(
-      [
-        {
-          id: 'conductor',
-          name: 'Conductor',
-          role: 'System',
-          geminiModel: 'gemini-1.5-flash',
-          hushTurnsRemaining: 0,
-        },
-      ],
-      'conductor'
-    );
+  it('returns_session_preconditions_when_session_is_enabled_and_mode_is_valid', () => {
+    const session: ConductorSessionSnapshot = {
+      sessionId: 'session-1',
+      conductorEnabled: true,
+      controlMode: 'manual',
+      autoReplyCount: 0,
+      tokenCount: 0,
+      problemDescription: 'Problem',
+      outputGoal: 'Goal',
+      blackboard: null,
+    };
 
+    const decision = decideConductorSessionPreconditions(session);
     expect(Either.isRight(decision)).toBe(true);
     if (Either.isRight(decision)) {
-      expect(decision.right.conductorPersona.id).toBe('conductor');
-    }
-  });
-
-  it.each([
-    {
-      name: 'fails_when_session_has_no_personas',
-      personas: [],
-      conductorPersonaId: 'conductor',
-      expected: {
-        _tag: 'ConductorNoPersonasError',
-        message: 'No personas in session',
-      },
-    },
-    {
-      name: 'fails_when_conductor_persona_is_missing',
-      personas: [
-        {
-          id: 'speaker-a',
-          name: 'Architect',
-          role: 'Architecture',
-          geminiModel: 'gemini-1.5-pro',
-          hushTurnsRemaining: 0,
-        },
-      ],
-      conductorPersonaId: 'conductor',
-      expected: {
-        _tag: 'ConductorPersonaMissingError',
-        message: 'Conductor persona not found',
-      },
-    },
-  ])('$name', ({ personas, conductorPersonaId, expected }) => {
-    const decision = decideConductorParticipantPreconditions(personas, conductorPersonaId);
-    expect(Either.isLeft(decision)).toBe(true);
-    if (Either.isLeft(decision)) {
-      expect(decision.left).toEqual(expected);
+      expect(decision.right.session).toEqual(session);
     }
   });
 });

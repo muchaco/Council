@@ -43,7 +43,14 @@ export interface TriggerPersonaPlan {
   readonly isIntervention: boolean;
 }
 
-export type NextActionPlan = WaitForUserPlan | TriggerPersonaPlan;
+export interface SuggestPersonaAndWaitForUserPlan {
+  readonly _tag: 'SuggestPersonaAndWaitForUser';
+  readonly personaId: string;
+  readonly reasoning: string;
+  readonly isIntervention: boolean;
+}
+
+export type NextActionPlan = WaitForUserPlan | TriggerPersonaPlan | SuggestPersonaAndWaitForUserPlan;
 
 export interface MergeBlackboardPlan {
   readonly _tag: 'MergeBlackboard';
@@ -68,7 +75,6 @@ export interface StopForCircuitBreakerPlan {
 export interface ContinueConductorTurnPlan {
   readonly _tag: 'ContinueConductorTurn';
   readonly session: ConductorSessionSnapshot;
-  readonly conductorPersonaId: string;
   readonly warning?: string;
 }
 
@@ -84,7 +90,6 @@ export interface RequestSelectorDecisionPlan {
   readonly selectorModel: string;
   readonly selectorPromptInput: ConductorSelectorPromptInput;
   readonly currentBlackboard: ConductorBlackboard;
-  readonly conductorPersonaId: string;
 }
 
 export type ConductorSelectorPlan = WaitForUserBeforeSelectionPlan | RequestSelectorDecisionPlan;
@@ -105,8 +110,18 @@ export interface TriggerPersonaAfterSelectionPlan {
   readonly followUpEffects: readonly ConductorSelectionFollowUpEffect[];
 }
 
+export interface SuggestNextSpeakerAndWaitForUserPlan {
+  readonly _tag: 'SuggestNextSpeakerAndWaitForUser';
+  readonly suggestedPersonaId: string;
+  readonly reasoning: string;
+  readonly isIntervention: boolean;
+  readonly blackboardUpdate: Partial<ConductorBlackboard>;
+  readonly followUpEffects: readonly ConductorSelectionFollowUpEffect[];
+}
+
 export type ConductorTurnOutcomePlan =
   | WaitForUserAfterSelectionPlan
+  | SuggestNextSpeakerAndWaitForUserPlan
   | TriggerPersonaAfterSelectionPlan;
 
 export const noEligibleSpeakerReasoning =

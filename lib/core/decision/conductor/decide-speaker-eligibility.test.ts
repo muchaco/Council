@@ -5,13 +5,6 @@ import { decideSpeakerEligibility } from './decide-speaker-eligibility';
 describe('decide_speaker_eligibility_spec', () => {
   const personas = [
     {
-      id: 'conductor',
-      name: 'Conductor',
-      role: 'System',
-      geminiModel: 'gemini-1.5-flash',
-      hushTurnsRemaining: 0,
-    },
-    {
       id: 'speaker-a',
       name: 'Architect',
       role: 'Architecture',
@@ -64,7 +57,6 @@ describe('decide_speaker_eligibility_spec', () => {
         ...persona,
         hushTurnsRemaining: overrides[persona.id as keyof typeof overrides] ?? 0,
       })),
-      conductorPersonaId: 'conductor',
       lastSpeakerId,
     });
 

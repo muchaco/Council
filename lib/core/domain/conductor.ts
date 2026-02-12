@@ -5,10 +5,12 @@ export interface ConductorBlackboard {
   readonly facts: string;
 }
 
+export type ConductorControlMode = 'automatic' | 'manual';
+
 export interface ConductorSessionSnapshot {
   readonly sessionId: string;
   readonly conductorEnabled: boolean;
-  readonly conductorPersonaId: string | null;
+  readonly controlMode: ConductorControlMode;
   readonly autoReplyCount: number;
   readonly tokenCount: number;
   readonly problemDescription: string;
@@ -25,6 +27,7 @@ export interface ConductorPersonaSnapshot {
 }
 
 export interface ConductorMessageSnapshot {
+  readonly source: 'user' | 'persona' | 'conductor';
   readonly personaId: string | null;
   readonly content: string;
 }
@@ -87,7 +90,9 @@ export const emptyConductorBlackboard: ConductorBlackboard = {
 export const findLastSpeakerId = (
   messages: readonly ConductorMessageSnapshot[]
 ): string | null => {
-  const lastPersonaMessage = [...messages].reverse().find((message) => message.personaId !== null);
+  const lastPersonaMessage = [...messages]
+    .reverse()
+    .find((message) => message.source === 'persona' && message.personaId !== null);
   return lastPersonaMessage?.personaId ?? null;
 };
 
@@ -97,9 +102,23 @@ export const toSelectorConversationMessages = (
 ): readonly SelectorConversationMessage[] =>
   messages.map((message) => {
     const persona = personas.find((candidate) => candidate.id === message.personaId);
+
+    const isPersonaMessage = message.source === 'persona' && message.personaId !== null;
+    const personaName = (() => {
+      if (message.source === 'conductor') {
+        return 'Conductor';
+      }
+
+      if (!isPersonaMessage) {
+        return 'User';
+      }
+
+      return persona?.name ?? 'Unknown';
+    })();
+
     return {
-      role: message.personaId === null ? ('user' as const) : ('model' as const),
+      role: isPersonaMessage ? ('model' as const) : ('user' as const),
       content: message.content,
-      personaName: message.personaId === null ? 'User' : (persona?.name ?? 'Unknown'),
+      personaName,
     };
   });

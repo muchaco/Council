@@ -62,7 +62,6 @@ export interface ConductorTurnRepositoryService {
   readonly createInterventionMessage: (input: {
     readonly messageId: string;
     readonly sessionId: string;
-    readonly personaId: string;
     readonly content: string;
     readonly turnNumber: number;
     readonly selectorReasoning: string;
@@ -78,6 +77,7 @@ export interface ConductorSelectorGatewayService {
 
 export interface ConductorSettingsService {
   readonly getGeminiApiKey: Effect.Effect<string, ConductorInfrastructureError>;
+  readonly getSelectorModel: Effect.Effect<string, ConductorInfrastructureError>;
   readonly getSelectorGenerationPolicy: Effect.Effect<
     ConductorSelectorGenerationPolicy,
     ConductorInfrastructureError

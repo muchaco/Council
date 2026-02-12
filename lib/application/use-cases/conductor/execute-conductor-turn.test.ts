@@ -20,7 +20,7 @@ import {
 const baseSession: ConductorSessionSnapshot = {
   sessionId: 'session-1',
   conductorEnabled: true,
-  conductorPersonaId: 'conductor',
+  controlMode: 'automatic',
   autoReplyCount: 0,
   tokenCount: 0,
   problemDescription: 'Ship migration',
@@ -29,13 +29,6 @@ const baseSession: ConductorSessionSnapshot = {
 };
 
 const basePersonas: readonly ConductorPersonaSnapshot[] = [
-  {
-    id: 'conductor',
-    name: 'Conductor',
-    role: 'System',
-    geminiModel: 'gemini-1.5-flash',
-    hushTurnsRemaining: 0,
-  },
   {
     id: 'speaker-a',
     name: 'Architect',
@@ -66,7 +59,7 @@ const makeRepository = (options?: {
   },
   getLastMessages: () => {
     options?.onLoadLastMessages?.();
-    return Effect.succeed(options?.messages ?? [{ personaId: null, content: 'prompt' }]);
+    return Effect.succeed(options?.messages ?? [{ source: 'user', personaId: null, content: 'prompt' }]);
   },
   updateBlackboard: () => {
     options?.onUpdateBlackboard?.();
@@ -87,9 +80,10 @@ const makeSelectorGateway = (
 });
 
 const makeSettings = (
-  input?: Partial<{ apiKey: string; temperature: number; maxOutputTokens: number }>
+  input?: Partial<{ apiKey: string; selectorModel: string; temperature: number; maxOutputTokens: number }>
 ): ConductorSettingsService => ({
   getGeminiApiKey: Effect.succeed(input?.apiKey ?? 'test-api-key'),
+  getSelectorModel: Effect.succeed(input?.selectorModel ?? 'gemini-2.5-flash'),
   getSelectorGenerationPolicy: Effect.succeed({
     temperature: input?.temperature ?? 0.3,
     maxOutputTokens: input?.maxOutputTokens ?? 2048,
@@ -103,7 +97,7 @@ describe('execute_conductor_turn_use_case_spec', () => {
       session: { ...baseSession, tokenCount: 70_000 },
       onUpdateBlackboard: () => updates.push('blackboard'),
       onCreateIntervention: () => updates.push('intervention'),
-      messages: [{ personaId: null, content: 'Please propose next action' }],
+      messages: [{ source: 'user', personaId: null, content: 'Please propose next action' }],
     });
 
     const selectorGateway = makeSelectorGateway(() =>
@@ -164,10 +158,9 @@ describe('execute_conductor_turn_use_case_spec', () => {
   it('returns_wait_for_user_when_no_eligible_speakers_remain', async () => {
     const repository = makeRepository({
       personas: [
-        basePersonas[0],
-        { ...basePersonas[1], hushTurnsRemaining: 1 },
+        { ...basePersonas[0], hushTurnsRemaining: 1 },
       ],
-      messages: [{ personaId: 'speaker-a', content: 'last response' }],
+      messages: [{ source: 'persona', personaId: 'speaker-a', content: 'last response' }],
     });
 
     const selectorGateway = makeSelectorGateway(() =>
@@ -222,13 +215,19 @@ describe('execute_conductor_turn_use_case_spec', () => {
     expect(calls).toEqual(['personas']);
   });
 
-  it('returns_domain_error_when_conductor_persona_is_missing', async () => {
+  it('returns_wait_for_user_with_suggestion_when_control_mode_is_manual', async () => {
     const repository = makeRepository({
-      session: { ...baseSession, conductorPersonaId: 'missing-conductor' },
-      personas: [basePersonas[1]],
+      session: { ...baseSession, controlMode: 'manual' },
+      personas: [basePersonas[0]],
+      messages: [{ source: 'user', personaId: null, content: 'Need a recommendation' }],
     });
     const selectorGateway = makeSelectorGateway(() =>
-      Effect.die('selector should not run when conductor preconditions fail')
+      Effect.succeed({
+        selectedPersonaId: 'speaker-a',
+        reasoning: 'Architect should proceed next',
+        isIntervention: false,
+        updateBlackboard: { nextStep: 'Architect proposes rollout shape' },
+      })
     );
 
     const outcome = await Effect.runPromise(
@@ -236,18 +235,17 @@ describe('execute_conductor_turn_use_case_spec', () => {
         Effect.provideService(ConductorTurnRepository, repository),
         Effect.provideService(ConductorSelectorGateway, selectorGateway),
         Effect.provideService(ConductorSettings, makeSettings()),
-        Effect.provideService(IdGenerator, { generate: Effect.succeed('intervention-message-1') }),
-        Effect.either
+        Effect.provideService(IdGenerator, { generate: Effect.succeed('intervention-message-1') })
       )
     );
 
-    expect(Either.isLeft(outcome)).toBe(true);
-    if (Either.isLeft(outcome)) {
-      expect(outcome.left).toEqual({
-        _tag: 'ConductorPersonaMissingError',
-        message: 'Conductor persona not found',
-      });
-    }
+    expect(outcome).toEqual({
+      _tag: 'WaitForUser',
+      reasoning: 'Architect should proceed next',
+      blackboardUpdate: { nextStep: 'Architect proposes rollout shape' },
+      suggestedPersonaId: 'speaker-a',
+      isInterventionSuggestion: false,
+    });
   });
 
   it('returns_typed_domain_error_when_selector_picks_unknown_persona', async () => {

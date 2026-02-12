@@ -35,7 +35,6 @@ export const decideConductorTurnPreflight = (
   return Either.right({
     _tag: 'ContinueConductorTurn',
     session: sessionPreconditions.right.session,
-    conductorPersonaId: sessionPreconditions.right.conductorPersonaId,
     warning:
       circuitBreakerDecision._tag === 'ContinueWithBudgetWarning'
         ? circuitBreakerDecision.warning

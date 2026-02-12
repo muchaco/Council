@@ -3,7 +3,6 @@ import { Effect, Either } from 'effect';
 import { IdGenerator } from '../../runtime';
 import { type ConductorBlackboard, type AutoReplySafetyPolicy } from '../../../core/domain/conductor';
 import {
-  decideConductorParticipantPreconditions,
   decideConductorSelectorPlan,
   decideConductorTurnOutcomePlan,
   decideConductorTurnPreflight,
@@ -32,6 +31,8 @@ export interface ExecuteConductorTurnWaitForUser {
   readonly _tag: 'WaitForUser';
   readonly reasoning: string;
   readonly blackboardUpdate: Partial<ConductorBlackboard>;
+  readonly suggestedPersonaId?: string;
+  readonly isInterventionSuggestion?: boolean;
 }
 
 export interface ExecuteConductorTurnTriggerPersona {
@@ -79,23 +80,23 @@ export const executeConductorTurn = (
     }
 
     const precheckPersonas = yield* repository.getSessionPersonas(input.sessionId);
-    const participantPrecheckDecision = decideConductorParticipantPreconditions(
-      precheckPersonas,
-      preflightPlan.conductorPersonaId
-    );
-    if (Either.isLeft(participantPrecheckDecision)) {
-      return yield* Effect.fail(participantPrecheckDecision.left);
+    if (precheckPersonas.length === 0) {
+      return yield* Effect.fail({
+        _tag: 'ConductorNoPersonasError',
+        message: 'No personas in session',
+      } as const);
     }
 
     yield* repository.decrementAllHushTurns(input.sessionId);
     const personas = yield* repository.getSessionPersonas(input.sessionId);
     const messages = yield* repository.getLastMessages(input.sessionId, input.recentMessageLimit ?? 10);
+    const selectorModel = yield* settings.getSelectorModel;
 
     const selectorPlanDecision = decideConductorSelectorPlan({
       session: preflightPlan.session,
       personas,
       messages,
-      conductorPersonaId: preflightPlan.conductorPersonaId,
+      selectorModel,
     });
 
     if (Either.isLeft(selectorPlanDecision)) {
@@ -126,6 +127,7 @@ export const executeConductorTurn = (
       currentBlackboard: selectorPlan.currentBlackboard,
       selectorResult,
       knownPersonaIds: personas.map((persona) => persona.id),
+      controlMode: preflightPlan.session.controlMode,
     });
 
     if (Either.isLeft(outcomePlanDecision)) {
@@ -146,7 +148,6 @@ export const executeConductorTurn = (
           yield* repository.createInterventionMessage({
             messageId,
             sessionId: input.sessionId,
-            personaId: selectorPlan.conductorPersonaId,
             content: followUpEffect.messageContent,
             turnNumber,
             selectorReasoning: followUpEffect.selectorReasoning,
@@ -165,6 +166,16 @@ export const executeConductorTurn = (
         _tag: 'WaitForUser',
         reasoning: outcomePlan.reasoning,
         blackboardUpdate: outcomePlan.blackboardUpdate,
+      };
+    }
+
+    if (outcomePlan._tag === 'SuggestNextSpeakerAndWaitForUser') {
+      return {
+        _tag: 'WaitForUser',
+        reasoning: outcomePlan.reasoning,
+        blackboardUpdate: outcomePlan.blackboardUpdate,
+        suggestedPersonaId: outcomePlan.suggestedPersonaId,
+        isInterventionSuggestion: outcomePlan.isIntervention,
       };
     }
 

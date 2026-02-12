@@ -1,5 +1,6 @@
 import { Either } from 'effect';
 
+import type { ConductorControlMode } from '../../domain/conductor';
 import type { ConductorSelectedPersonaNotFoundError } from '../../errors/conductor-error';
 import type { NextActionPlan } from '../../plan/conductor-plan';
 
@@ -8,6 +9,7 @@ export interface DecideNextActionInput {
   readonly reasoning: string;
   readonly isIntervention: boolean;
   readonly knownPersonaIds: readonly string[];
+  readonly controlMode: ConductorControlMode;
 }
 
 export const decideNextAction = (
@@ -24,6 +26,15 @@ export const decideNextAction = (
     return Either.left({
       _tag: 'ConductorSelectedPersonaNotFoundError',
       message: `Selected persona ${input.selectedPersonaId} not found`,
+    });
+  }
+
+  if (input.controlMode === 'manual') {
+    return Either.right({
+      _tag: 'SuggestPersonaAndWaitForUser',
+      personaId: input.selectedPersonaId,
+      reasoning: input.reasoning,
+      isIntervention: input.isIntervention,
     });
   }
 

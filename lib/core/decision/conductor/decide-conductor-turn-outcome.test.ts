@@ -34,7 +34,20 @@ describe('decide_conductor_turn_outcome_plan_spec', () => {
         updateBlackboard: { nextStep: 'Define migration risk gates' },
       } satisfies ConductorSelectorDecision,
       knownPersonaIds: ['speaker-a'],
+      controlMode: 'automatic' as const,
       expectedTag: 'TriggerPersonaAfterSelection',
+    },
+    {
+      name: 'returns_suggestion_and_wait_outcome_in_manual_mode',
+      selectorResult: {
+        selectedPersonaId: 'speaker-a',
+        reasoning: 'Architect should define rollout boundaries.',
+        isIntervention: false,
+        updateBlackboard: { nextStep: 'Define rollout boundaries' },
+      } satisfies ConductorSelectorDecision,
+      knownPersonaIds: ['speaker-a'],
+      controlMode: 'manual' as const,
+      expectedTag: 'SuggestNextSpeakerAndWaitForUser',
     },
     {
       name: 'fails_when_selector_returns_unknown_persona',
@@ -45,16 +58,18 @@ describe('decide_conductor_turn_outcome_plan_spec', () => {
         updateBlackboard: {},
       } satisfies ConductorSelectorDecision,
       knownPersonaIds: ['speaker-a'],
+      controlMode: 'automatic' as const,
       expectedLeft: {
         _tag: 'ConductorSelectedPersonaNotFoundError',
         message: 'Selected persona unknown-speaker not found',
       },
     },
-  ])('$name', ({ selectorResult, knownPersonaIds, expectedTag, expectedLeft }) => {
+  ])('$name', ({ selectorResult, knownPersonaIds, controlMode = 'automatic', expectedTag, expectedLeft }) => {
     const outcome = decideConductorTurnOutcomePlan({
       currentBlackboard: baseBlackboard,
       selectorResult,
       knownPersonaIds,
+      controlMode,
     });
 
     if (expectedLeft) {
