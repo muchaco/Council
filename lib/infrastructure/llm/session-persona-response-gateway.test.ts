@@ -4,9 +4,11 @@ import { Effect, Either } from 'effect';
 import { makeSessionPersonaResponseGatewayFromElectronLLM } from './session-persona-response-gateway';
 
 const baseRequest = {
+  providerId: 'gemini',
+  modelId: 'gemini-2.0-flash',
+  apiKey: 'test-key',
   personaId: 'persona-1',
   sessionId: 'session-1',
-  model: 'gemini-2.0-flash',
   systemPrompt: 'Assist',
   hiddenAgenda: undefined,
   verbosity: undefined,

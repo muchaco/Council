@@ -14,6 +14,9 @@ export interface PersistedReusablePersonaRow {
   readonly verbosity: string | null | undefined;
   readonly createdAt: string;
   readonly updatedAt: string;
+  // NEW: Provider-agnostic model reference (optional for migration support)
+  readonly modelId?: string;
+  readonly providerId?: string;
 }
 
 export interface ReusablePersonaInfrastructureError {

@@ -7,6 +7,7 @@ import type {
   ConductorPersonaSnapshot,
   ConductorSessionSnapshot,
 } from '../../../core/domain/conductor';
+import { LlmSettings, type LlmSettingsService } from '../../../infrastructure/settings/llm-settings';
 import {
   ConductorSettings,
   ConductorSelectorGateway,
@@ -90,6 +91,24 @@ const makeSettings = (
   }),
 });
 
+const makeLlmSettings = (
+  input?: Partial<{ providerId: string; apiKey: string; modelId: string }>
+): LlmSettingsService => ({
+  getDefaultProvider: () => Effect.succeed(input?.providerId ?? 'gemini'),
+  getApiKey: (_providerId: string) => Effect.succeed(input?.apiKey ?? 'test-api-key'),
+  getDefaultModel: (_providerId: string) => Effect.succeed(input?.modelId ?? 'gemini-2.5-flash'),
+  getProviderConfig: (_providerId: string) =>
+    Effect.succeed({
+      providerId: input?.providerId ?? 'gemini',
+      apiKey: input?.apiKey ?? 'test-api-key',
+      defaultModel: input?.modelId ?? 'gemini-2.5-flash',
+      isEnabled: true,
+    }),
+  listConfiguredProviders: () => Effect.succeed([input?.providerId ?? 'gemini']),
+  setProviderConfig: (_config) => Effect.void,
+  setDefaultProvider: (_providerId) => Effect.void,
+});
+
 describe('execute_conductor_turn_use_case_spec', () => {
   it('interprets_plans_and_returns_trigger_persona_on_happy_path', async () => {
     const updates: string[] = [];
@@ -115,6 +134,7 @@ describe('execute_conductor_turn_use_case_spec', () => {
         Effect.provideService(ConductorTurnRepository, repository),
         Effect.provideService(ConductorSelectorGateway, selectorGateway),
         Effect.provideService(ConductorSettings, makeSettings()),
+        Effect.provideService(LlmSettings, makeLlmSettings()),
         Effect.provideService(IdGenerator, { generate: Effect.succeed('intervention-message-1') })
       )
     );
@@ -145,6 +165,7 @@ describe('execute_conductor_turn_use_case_spec', () => {
         Effect.provideService(ConductorTurnRepository, repository),
         Effect.provideService(ConductorSelectorGateway, selectorGateway),
         Effect.provideService(ConductorSettings, makeSettings()),
+        Effect.provideService(LlmSettings, makeLlmSettings()),
         Effect.provideService(IdGenerator, { generate: Effect.succeed('intervention-message-1') })
       )
     );
@@ -172,6 +193,7 @@ describe('execute_conductor_turn_use_case_spec', () => {
         Effect.provideService(ConductorTurnRepository, repository),
         Effect.provideService(ConductorSelectorGateway, selectorGateway),
         Effect.provideService(ConductorSettings, makeSettings()),
+        Effect.provideService(LlmSettings, makeLlmSettings()),
         Effect.provideService(IdGenerator, { generate: Effect.succeed('intervention-message-1') })
       )
     );
@@ -200,6 +222,7 @@ describe('execute_conductor_turn_use_case_spec', () => {
         Effect.provideService(ConductorTurnRepository, repository),
         Effect.provideService(ConductorSelectorGateway, selectorGateway),
         Effect.provideService(ConductorSettings, makeSettings()),
+        Effect.provideService(LlmSettings, makeLlmSettings()),
         Effect.provideService(IdGenerator, { generate: Effect.succeed('intervention-message-1') }),
         Effect.either
       )
@@ -235,6 +258,7 @@ describe('execute_conductor_turn_use_case_spec', () => {
         Effect.provideService(ConductorTurnRepository, repository),
         Effect.provideService(ConductorSelectorGateway, selectorGateway),
         Effect.provideService(ConductorSettings, makeSettings()),
+        Effect.provideService(LlmSettings, makeLlmSettings()),
         Effect.provideService(IdGenerator, { generate: Effect.succeed('intervention-message-1') })
       )
     );
@@ -264,6 +288,7 @@ describe('execute_conductor_turn_use_case_spec', () => {
         Effect.provideService(ConductorTurnRepository, repository),
         Effect.provideService(ConductorSelectorGateway, selectorGateway),
         Effect.provideService(ConductorSettings, makeSettings()),
+        Effect.provideService(LlmSettings, makeLlmSettings()),
         Effect.provideService(IdGenerator, { generate: Effect.succeed('intervention-message-1') }),
         Effect.either
       )
@@ -294,6 +319,7 @@ describe('execute_conductor_turn_use_case_spec', () => {
         Effect.provideService(ConductorTurnRepository, repository),
         Effect.provideService(ConductorSelectorGateway, selectorGateway),
         Effect.provideService(ConductorSettings, makeSettings()),
+        Effect.provideService(LlmSettings, makeLlmSettings()),
         Effect.provideService(IdGenerator, { generate: Effect.succeed('intervention-message-1') }),
         Effect.either
       )

@@ -1,5 +1,11 @@
 import type { BlackboardState } from '../../types';
 
+interface Tag {
+  readonly id: number;
+  readonly name: string;
+  readonly createdAt: string;
+}
+
 interface RendererBridge {
   readonly electronDB: {
     readonly hushPersona: (
@@ -18,7 +24,14 @@ interface RendererBridge {
       data: unknown
     ) => Promise<{ success: boolean; data?: unknown; error?: string }>;
     readonly tags: {
-      readonly getAll: () => Promise<{ success: boolean; data?: unknown; error?: string }>;
+      readonly create: (name: string) => Promise<{ success: boolean; data?: Tag; error?: string }>;
+      readonly getAll: () => Promise<{ success: boolean; data?: Tag[]; error?: string }>;
+      readonly getByName: (name: string) => Promise<{ success: boolean; data?: Tag | null; error?: string }>;
+      readonly cleanupOrphaned: () => Promise<{ success: boolean; error?: string }>;
+    };
+    readonly sessionTags: {
+      readonly add: (sessionId: string, tagId: number) => Promise<{ success: boolean; error?: string }>;
+      readonly remove: (sessionId: string, tagId: number) => Promise<{ success: boolean; error?: string }>;
     };
   };
   readonly electronConductor: {
@@ -75,6 +88,43 @@ interface RendererBridge {
     }>;
     readonly getDefaultModel: () => Promise<{ success: boolean; data?: unknown; error?: string }>;
     readonly getModelCatalog: () => Promise<{
+      success: boolean;
+      data?: {
+        configured: boolean;
+        models: Array<{
+          name: string;
+          displayName: string;
+          description: string;
+          supportedMethods: string[];
+        }>;
+        fetchedAtEpochMs: number | null;
+      };
+      error?: string;
+    }>;
+    // Provider abstraction methods
+    readonly setProviderConfig: (config: {
+      providerId: string;
+      apiKey: string;
+      defaultModel: string;
+      isEnabled: boolean;
+    }) => Promise<{ success: boolean; error?: string }>;
+    readonly setDefaultProvider: (providerId: string) => Promise<{ success: boolean; error?: string }>;
+    readonly getProviderConfig: (providerId: string) => Promise<{
+      success: boolean;
+      data?: {
+        providerId: string;
+        apiKey: string;
+        defaultModel: string;
+        isEnabled: boolean;
+      };
+      error?: string;
+    }>;
+    readonly getDefaultProvider: () => Promise<{
+      success: boolean;
+      data?: string;
+      error?: string;
+    }>;
+    readonly listAvailableModels: (providerId: string) => Promise<{
       success: boolean;
       data?: {
         configured: boolean;

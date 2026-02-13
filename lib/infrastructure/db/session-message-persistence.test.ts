@@ -47,6 +47,7 @@ describe('session_message_persistence_spec', () => {
         .createMessage({
           sessionId: 'session-1',
           personaId: null,
+          source: 'user',
           content: 'hello',
           turnNumber: 1,
           tokenCount: 0,
@@ -92,6 +93,7 @@ describe('session_message_persistence_spec', () => {
         .createMessage({
           sessionId: 'session-1',
           personaId: null,
+          source: 'user',
           content: 'hello',
           turnNumber: 1,
           tokenCount: 0,

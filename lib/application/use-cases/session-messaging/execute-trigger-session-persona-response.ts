@@ -23,6 +23,8 @@ export interface ExecuteTriggerSessionPersonaResponseInput {
     readonly role: string;
   }[];
   readonly blackboard: BlackboardState;
+  readonly providerId: string;
+  readonly apiKey: string;
 }
 
 export interface ExecuteTriggerSessionPersonaResponseResult {
@@ -44,7 +46,9 @@ export const executeTriggerSessionPersonaResponse = (
     const generatedResponse = yield* responseGateway.generatePersonaResponse({
       personaId: input.persona.id,
       sessionId: input.session.id,
-      model: input.persona.geminiModel,
+      providerId: input.providerId,
+      modelId: input.persona.geminiModel,
+      apiKey: input.apiKey,
       systemPrompt: input.persona.systemPrompt,
       hiddenAgenda: input.persona.hiddenAgenda,
       verbosity: input.persona.verbosity,

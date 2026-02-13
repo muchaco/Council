@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Effect, Either } from 'effect';
 
+import { LlmSettings, type LlmSettingsService } from '../../../infrastructure/settings/llm-settings';
 import type {
   CouncilChatGatewayService,
   CouncilChatRepositoryService,
@@ -52,6 +53,24 @@ const settings: CouncilChatSettingsService = {
   getGenerationPolicy: Effect.succeed({ maxOutputTokens: 1024, defaultHistoryLimit: 12 }),
 };
 
+const makeLlmSettings = (
+  input?: Partial<{ providerId: string; apiKey: string; modelId: string }>
+): LlmSettingsService => ({
+  getDefaultProvider: () => Effect.succeed(input?.providerId ?? 'gemini'),
+  getApiKey: (_providerId: string) => Effect.succeed(input?.apiKey ?? 'test-api-key'),
+  getDefaultModel: (_providerId: string) => Effect.succeed(input?.modelId ?? 'gemini-1.5-pro'),
+  getProviderConfig: (_providerId: string) =>
+    Effect.succeed({
+      providerId: input?.providerId ?? 'gemini',
+      apiKey: input?.apiKey ?? 'test-api-key',
+      defaultModel: input?.modelId ?? 'gemini-1.5-pro',
+      isEnabled: true,
+    }),
+  listConfiguredProviders: () => Effect.succeed([input?.providerId ?? 'gemini']),
+  setProviderConfig: (_config) => Effect.void,
+  setDefaultProvider: (_providerId) => Effect.void,
+});
+
 describe('execute_generate_council_persona_turn_use_case_spec', () => {
   it('generates_persona_turn_and_estimates_tokens', async () => {
     const observedGatewayCommands: Array<{ apiKey: string; maxOutputTokens: number }> = [];
@@ -80,7 +99,8 @@ describe('execute_generate_council_persona_turn_use_case_spec', () => {
       executeGenerateCouncilPersonaTurn(input).pipe(
         Effect.provideService(CouncilChatRepository, observedRepository),
         Effect.provideService(CouncilChatGateway, gateway),
-        Effect.provideService(CouncilChatSettings, settings)
+        Effect.provideService(CouncilChatSettings, settings),
+        Effect.provideService(LlmSettings, makeLlmSettings())
       )
     );
 
@@ -110,6 +130,7 @@ describe('execute_generate_council_persona_turn_use_case_spec', () => {
         Effect.provideService(CouncilChatRepository, missingPersonaRepository),
         Effect.provideService(CouncilChatGateway, gateway),
         Effect.provideService(CouncilChatSettings, settings),
+        Effect.provideService(LlmSettings, makeLlmSettings()),
         Effect.either
       )
     );
@@ -124,24 +145,39 @@ describe('execute_generate_council_persona_turn_use_case_spec', () => {
     expect(recentMessagesRequested).toBe(false);
   });
 
-  it('prioritizes_settings_error_before_repository_reads', async () => {
-    let personasRequested = false;
+  it('returns_llm_settings_error_when_provider_resolution_fails', async () => {
+    let recentMessagesRequested = false;
     const observedRepository: CouncilChatRepositoryService = {
       ...repository,
-      getSessionPersonas: () => {
-        personasRequested = true;
-        return Effect.succeed([]);
+      getRecentMessages: (_sessionId, _limit) => {
+        recentMessagesRequested = true;
+        return Effect.succeed([
+          { personaId: null, content: 'Need a safe migration path.' },
+          { personaId: 'persona-2', content: 'Start with query decomposition.' },
+        ]);
       },
     };
 
-    const failingSettings: CouncilChatSettingsService = {
-      getGeminiApiKey: Effect.fail({
-        _tag: 'CouncilChatInfrastructureError',
-        source: 'settings',
-        code: 'ApiKeyMissing',
-        message: 'API key not configured',
-      }),
-      getGenerationPolicy: Effect.succeed({ maxOutputTokens: 1024, defaultHistoryLimit: 12 }),
+    const failingLlmSettings: LlmSettingsService = {
+      getDefaultProvider: () => Effect.succeed('gemini'),
+      getApiKey: (_providerId: string) =>
+        Effect.fail({
+          _tag: 'CouncilChatInfrastructureError',
+          source: 'settings',
+          code: 'ApiKeyMissing',
+          message: 'API key not configured',
+        }) as any,
+      getDefaultModel: (_providerId: string) => Effect.succeed('gemini-1.5-pro'),
+      getProviderConfig: (_providerId: string) =>
+        Effect.fail({
+          _tag: 'CouncilChatInfrastructureError',
+          source: 'settings',
+          code: 'ApiKeyMissing',
+          message: 'API key not configured',
+        }) as any,
+      listConfiguredProviders: () => Effect.succeed(['gemini']),
+      setProviderConfig: (_config) => Effect.void,
+      setDefaultProvider: (_providerId) => Effect.void,
     };
 
     const gateway: CouncilChatGatewayService = {
@@ -152,7 +188,8 @@ describe('execute_generate_council_persona_turn_use_case_spec', () => {
       executeGenerateCouncilPersonaTurn(input).pipe(
         Effect.provideService(CouncilChatRepository, observedRepository),
         Effect.provideService(CouncilChatGateway, gateway),
-        Effect.provideService(CouncilChatSettings, failingSettings),
+        Effect.provideService(CouncilChatSettings, settings),
+        Effect.provideService(LlmSettings, failingLlmSettings),
         Effect.either
       )
     );
@@ -166,6 +203,7 @@ describe('execute_generate_council_persona_turn_use_case_spec', () => {
         message: 'API key not configured',
       });
     }
-    expect(personasRequested).toBe(false);
+    // Repository should be called for precheck and history before settings error
+    expect(recentMessagesRequested).toBe(true);
   });
 });

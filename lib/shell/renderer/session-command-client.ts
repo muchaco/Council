@@ -1,4 +1,4 @@
-import type { BlackboardState, SessionInput } from '../../types';
+import type { BlackboardState, ConductorProcessTurnResponse, SessionInput } from '../../types';
 import { getRendererBridge } from './renderer-bridge';
 
 export interface CreateSessionCommandInput {
@@ -62,11 +62,22 @@ export const resetConductorCircuitBreakerCommand = async (
 ): Promise<{ success: boolean; error?: string }> =>
   getRendererBridge().electronConductor.resetCircuitBreaker(sessionId);
 
-export const processConductorTurnCommand = async (sessionId: string) =>
-  getRendererBridge().electronConductor.processTurn(sessionId);
+export const processConductorTurnCommand = async (sessionId: string): Promise<ConductorProcessTurnResponse> =>
+  getRendererBridge().electronConductor.processTurn(sessionId) as Promise<ConductorProcessTurnResponse>;
 
-export const exportSessionToMarkdownCommand = async (sessionId: string) =>
-  getRendererBridge().electronExport.exportSessionToMarkdown(sessionId);
+export const exportSessionToMarkdownCommand = async (sessionId: string): Promise<{
+  success: boolean;
+  filePath?: string;
+  cancelled?: boolean;
+  messageCount?: number;
+  error?: string;
+}> => getRendererBridge().electronExport.exportSessionToMarkdown(sessionId) as Promise<{
+  success: boolean;
+  filePath?: string;
+  cancelled?: boolean;
+  messageCount?: number;
+  error?: string;
+}>;
 
 export const updateConductorBlackboardCommand = async (
   sessionId: string,

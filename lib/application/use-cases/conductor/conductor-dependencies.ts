@@ -33,8 +33,9 @@ export interface ConductorSelectorGenerationPolicy {
 }
 
 export interface SelectNextSpeakerRequest {
+  readonly providerId: string;
+  readonly modelId: string;
   readonly apiKey: string;
-  readonly selectorModel: string;
   readonly selectorPrompt: string;
   readonly temperature: number;
   readonly maxOutputTokens: number;

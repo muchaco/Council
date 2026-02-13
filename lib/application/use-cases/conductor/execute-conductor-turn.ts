@@ -9,6 +9,7 @@ import {
   prepareConductorSelectorPrompt,
 } from '../../../core/decision/conductor';
 import type { ConductorDomainError } from '../../../core/errors/conductor-error';
+import { LlmSettings } from '../../../infrastructure/settings/llm-settings';
 import {
   ConductorSettings,
   ConductorSelectorGateway,
@@ -57,12 +58,13 @@ export const executeConductorTurn = (
 ): Effect.Effect<
   ExecuteConductorTurnResult,
   ConductorTurnUseCaseError,
-  ConductorTurnRepository | ConductorSelectorGateway | ConductorSettings | IdGenerator
+  ConductorTurnRepository | ConductorSelectorGateway | ConductorSettings | LlmSettings | IdGenerator
 > =>
   Effect.gen(function* () {
     const repository = yield* ConductorTurnRepository;
     const selectorGateway = yield* ConductorSelectorGateway;
     const settings = yield* ConductorSettings;
+    const llmSettings = yield* LlmSettings;
     const idGenerator = yield* IdGenerator;
 
     const session = yield* repository.getSession(input.sessionId);
@@ -112,12 +114,17 @@ export const executeConductorTurn = (
       };
     }
 
-    const geminiApiKey = yield* settings.getGeminiApiKey;
     const selectorGenerationPolicy = yield* settings.getSelectorGenerationPolicy;
 
+    // Resolve provider from settings
+    const providerId = yield* llmSettings.getDefaultProvider();
+    const apiKey = yield* llmSettings.getApiKey(providerId);
+    const modelId = yield* llmSettings.getDefaultModel(providerId);
+
     const selectorResult = yield* selectorGateway.selectNextSpeaker({
-      apiKey: geminiApiKey,
-      selectorModel: selectorPlan.selectorModel,
+      providerId,
+      modelId,
+      apiKey,
       selectorPrompt: prepareConductorSelectorPrompt(selectorPlan.selectorPromptInput),
       temperature: selectorGenerationPolicy.temperature,
       maxOutputTokens: selectorGenerationPolicy.maxOutputTokens,

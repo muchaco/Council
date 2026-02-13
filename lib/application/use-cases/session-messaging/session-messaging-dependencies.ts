@@ -3,9 +3,11 @@ import { Context, Effect } from 'effect';
 import type { BlackboardState, Message, Session } from '../../../types';
 
 export interface TriggerSessionPersonaResponseRequest {
+  readonly providerId: string;
+  readonly modelId: string;
+  readonly apiKey: string;
   readonly personaId: string;
   readonly sessionId: string;
-  readonly model: string;
   readonly systemPrompt: string;
   readonly hiddenAgenda?: string;
   readonly verbosity?: string;

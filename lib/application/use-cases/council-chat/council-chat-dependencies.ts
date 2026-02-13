@@ -38,8 +38,9 @@ export interface CouncilChatGenerationPolicy {
 }
 
 export interface GenerateCouncilPersonaTurnCommand {
+  readonly providerId: string;
+  readonly modelId: string;
   readonly apiKey: string;
-  readonly model: string;
   readonly temperature: number;
   readonly maxOutputTokens: number;
   readonly enhancedSystemPrompt: string;

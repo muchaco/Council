@@ -3,3 +3,5 @@ export * from './council-chat-settings';
 export * from './conductor-settings';
 export * from './settings-model-catalog-gateway';
 export * from './council-settings-security';
+export * from './llm-settings';
+export * from './settings-migration';

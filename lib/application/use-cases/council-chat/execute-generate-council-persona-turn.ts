@@ -3,6 +3,7 @@ import { Effect, Either } from 'effect';
 import type { CouncilChatRequest } from '../../../core/domain/council-chat';
 import { prepareCouncilPersonaTurnPrompt } from '../../../core/decision/council-chat';
 import type { CouncilChatDomainError } from '../../../core/errors/council-chat-error';
+import { LlmSettings } from '../../../infrastructure/settings/llm-settings';
 import {
   CouncilChatGateway,
   CouncilChatRepository,
@@ -28,14 +29,14 @@ export const executeGenerateCouncilPersonaTurn = (
 ): Effect.Effect<
   ExecuteGenerateCouncilPersonaTurnResult,
   CouncilChatUseCaseError,
-  CouncilChatRepository | CouncilChatGateway | CouncilChatSettings
+  CouncilChatRepository | CouncilChatGateway | CouncilChatSettings | LlmSettings
 > =>
   Effect.gen(function* () {
     const repository = yield* CouncilChatRepository;
     const gateway = yield* CouncilChatGateway;
     const settings = yield* CouncilChatSettings;
+    const llmSettings = yield* LlmSettings;
 
-    const geminiApiKey = yield* settings.getGeminiApiKey;
     const generationPolicy = yield* settings.getGenerationPolicy;
 
     const sessionPersonas = yield* repository.getSessionPersonas(input.request.sessionId);
@@ -60,9 +61,15 @@ export const executeGenerateCouncilPersonaTurn = (
       return yield* Effect.fail(promptDecision.left);
     }
 
+    // Resolve provider from persona or settings fallback
+    const providerId = input.request.providerId ?? (yield* llmSettings.getDefaultProvider());
+    const apiKey = yield* llmSettings.getApiKey(providerId);
+    const modelId = input.request.modelId ?? (yield* llmSettings.getDefaultModel(providerId));
+
     const generatedContent = yield* gateway.generateCouncilPersonaTurn({
-      apiKey: geminiApiKey,
-      model: promptDecision.right.model,
+      providerId,
+      modelId,
+      apiKey,
       temperature: promptDecision.right.temperature,
       maxOutputTokens: generationPolicy.maxOutputTokens,
       enhancedSystemPrompt: promptDecision.right.enhancedSystemPrompt,

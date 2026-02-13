@@ -1,10 +1,14 @@
 import { create } from 'zustand';
+import { Effect } from 'effect';
 import { toast } from 'sonner';
 import type { ModelInfo } from '../lib/types';
+import type { LlmProviderConfig } from '../lib/core/domain/llm-provider';
 import {
   setDefaultGeminiModelCommand,
   setGeminiApiKeyCommand,
   testGeminiConnectionCommand,
+  configureProvider,
+  setDefaultProvider,
 } from '../lib/shell/renderer/settings-command-client';
 import {
   exportDiagnosticsBundleCommand,
@@ -14,6 +18,8 @@ import {
   loadApiKeyStatusQuery,
   loadDefaultModelQuery,
   loadAvailableModelsQuery,
+  loadProviderConfig,
+  loadDefaultProvider,
 } from '../lib/shell/renderer/settings-query-client';
 import {
   loadDiagnosticsStatusQuery,
@@ -33,6 +39,9 @@ interface SettingsState {
   diagnosticsLogDirectoryPath: string | null;
   diagnosticsLogFilePath: string | null;
   isDiagnosticsLoading: boolean;
+  // Provider abstraction state
+  providers: Record<string, LlmProviderConfig>;
+  defaultProvider: string;
 
   // Actions
   loadApiKeyStatus: () => Promise<void>;
@@ -46,6 +55,10 @@ interface SettingsState {
   openDiagnosticsLogsDirectory: () => Promise<void>;
   copyDiagnosticsSummary: () => Promise<void>;
   exportDiagnosticsBundle: () => Promise<void>;
+  // Provider abstraction actions
+  configureProvider: (config: LlmProviderConfig) => Promise<void>;
+  setDefaultProvider: (providerId: string) => Promise<void>;
+  loadProviderConfig: (providerId: string) => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -61,6 +74,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   diagnosticsLogDirectoryPath: null,
   diagnosticsLogFilePath: null,
   isDiagnosticsLoading: false,
+  // Provider abstraction initial state
+  providers: {},
+  defaultProvider: 'gemini',
 
   loadApiKeyStatus: async () => {
     try {
@@ -248,6 +264,42 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       toast.success('Diagnostics bundle exported');
     } catch (error) {
       toast.error('Unable to export diagnostics bundle');
+    }
+  },
+
+  // Provider abstraction actions
+  configureProvider: async (config) => {
+    try {
+      await Effect.runPromise(configureProvider(config));
+      set((state) => ({
+        providers: { ...state.providers, [config.providerId]: config },
+      }));
+      toast.success(`Provider ${config.providerId} configured successfully`);
+    } catch (error) {
+      console.error('Error configuring provider:', error);
+      toast.error('Failed to configure provider');
+    }
+  },
+
+  setDefaultProvider: async (providerId) => {
+    try {
+      await Effect.runPromise(setDefaultProvider(providerId));
+      set({ defaultProvider: providerId });
+      toast.success(`Default provider set to ${providerId}`);
+    } catch (error) {
+      console.error('Error setting default provider:', error);
+      toast.error('Failed to set default provider');
+    }
+  },
+
+  loadProviderConfig: async (providerId) => {
+    try {
+      const config = await Effect.runPromise(loadProviderConfig(providerId));
+      set((state) => ({
+        providers: { ...state.providers, [providerId]: config },
+      }));
+    } catch (error) {
+      console.error('Error loading provider config:', error);
     }
   },
 }));

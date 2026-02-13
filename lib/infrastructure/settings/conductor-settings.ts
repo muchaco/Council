@@ -6,6 +6,7 @@ import type {
   ConductorSelectorGenerationPolicy,
   ConductorSettingsService,
 } from '../../application/use-cases/conductor/conductor-dependencies';
+import { LlmSettings, type ProviderId } from './llm-settings';
 
 interface ConductorStoreSchema {
   apiKey?: string;
@@ -96,3 +97,10 @@ export const makeConductorSettingsService = (
   }),
   getSelectorGenerationPolicy: Effect.sync(() => resolveSelectorGenerationPolicy(options)),
 });
+
+// Provider-agnostic API functions using LlmSettings service
+export const getConductorApiKey = (providerId: ProviderId) =>
+  LlmSettings.pipe(Effect.flatMap((settings) => settings.getApiKey(providerId)));
+
+export const getSelectorModelForProvider = (providerId: ProviderId) =>
+  LlmSettings.pipe(Effect.flatMap((settings) => settings.getDefaultModel(providerId)));

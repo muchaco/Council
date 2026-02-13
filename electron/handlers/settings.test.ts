@@ -41,13 +41,13 @@ describe('settings_handler_network_security_spec', () => {
 
   it('maps_test_connection_failure_to_sanitized_public_error', () => {
     expect(mapSettingsNetworkFailureToPublicError('testConnection')).toBe(
-      'Unable to verify Gemini API key'
+      'Unable to verify API key'
     );
   });
 
   it('maps_model_listing_failure_to_sanitized_public_error', () => {
     expect(mapSettingsNetworkFailureToPublicError('listModels')).toBe(
-      'Unable to load Gemini models'
+      'Unable to load models'
     );
   });
 

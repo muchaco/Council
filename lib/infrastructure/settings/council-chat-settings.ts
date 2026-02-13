@@ -6,6 +6,7 @@ import type {
   CouncilChatInfrastructureError,
   CouncilChatSettingsService,
 } from '../../application/use-cases/council-chat/council-chat-dependencies';
+import { LlmSettings, type ProviderId } from './llm-settings';
 
 interface CouncilStoreSchema {
   apiKey: string;
@@ -80,3 +81,10 @@ export const makeCouncilChatSettingsService = (
   }),
   getGenerationPolicy: Effect.sync(() => resolveGenerationPolicy(options)),
 });
+
+// Provider-agnostic API functions using LlmSettings service
+export const getCouncilChatApiKey = (providerId: ProviderId) =>
+  LlmSettings.pipe(Effect.flatMap((settings) => settings.getApiKey(providerId)));
+
+export const getCouncilChatDefaultModel = (providerId: ProviderId) =>
+  LlmSettings.pipe(Effect.flatMap((settings) => settings.getDefaultModel(providerId)));

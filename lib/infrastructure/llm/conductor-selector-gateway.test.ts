@@ -4,8 +4,9 @@ import { Effect, Either } from 'effect';
 import { makeConductorSelectorGatewayFromExecutor } from './conductor-selector-gateway';
 
 const baseRequest = {
+  providerId: 'gemini',
+  modelId: 'gemini-1.5-pro',
   apiKey: 'test-key',
-  selectorModel: 'gemini-1.5-pro',
   selectorPrompt: 'select next speaker',
   temperature: 0.3,
   maxOutputTokens: 2048,

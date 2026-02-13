@@ -15,7 +15,6 @@ import {
   executeGetSessionBlackboard,
   executeConductorTurn,
   executeUpdateConductorSessionBlackboard,
-  type SelectNextSpeakerRequest,
 } from '../../lib/application/use-cases/conductor/index.js';
 import {
   executeResetSessionAutoReplyCount,
@@ -28,13 +27,19 @@ import {
   makeConductorTurnRepositoryFromSqlExecutor,
 } from '../../lib/infrastructure/db/index.js';
 import { LiveIdGeneratorLayer } from '../../lib/infrastructure/id/index.js';
-import { makeConductorSelectorGatewayFromExecutor } from '../../lib/infrastructure/llm/index.js';
+import {
+  createConductorSelectorGateway,
+  createProviderRegistry,
+  createGeminiGatewayAdapter,
+} from '../../lib/infrastructure/llm/index.js';
 import {
   createCouncilSettingsStore,
   makeConductorSettingsService,
+  LlmSettings,
+  type LlmProviderConfig,
+  type ProviderId,
 } from '../../lib/infrastructure/settings/index.js';
 import { mapConductorTurnOutcomeToProcessTurnResponse } from '../lib/shell/conductor-process-turn-response.js';
-import { executeConductorSelectorRequest } from '../lib/shell/conductor-selector-executor.js';
 import {
   mapBlackboardLookupResponse,
   mapErrorFailureResponse,
@@ -75,16 +80,81 @@ const updateBlackboardArgsSchema = z.tuple([
   }),
 ]);
 
+const DEFAULT_PROVIDER = 'gemini';
+
+// Create LlmSettings service from electron-store
+const makeLlmSettingsService = (
+  decryptFn: (encrypted: string) => string,
+  store: { get: (key: string) => unknown; set: (key: string, value: unknown) => void }
+): typeof LlmSettings.Service => ({
+  getApiKey: (providerId: ProviderId) => Effect.sync(() => {
+    const providers = store.get('providers') as Record<string, LlmProviderConfig> | undefined;
+    if (providers?.[providerId]?.apiKey) {
+      return providers[providerId].apiKey;
+    }
+    // Fallback to legacy apiKey for gemini
+    if (providerId === DEFAULT_PROVIDER) {
+      const encrypted = store.get('apiKey') as string | undefined;
+      if (encrypted) {
+        return decryptFn(encrypted);
+      }
+    }
+    return '';
+  }),
+  getDefaultProvider: () => Effect.sync(() => {
+    const defaultProvider = store.get('defaultProvider') as string | undefined;
+    return defaultProvider ?? DEFAULT_PROVIDER;
+  }),
+  getDefaultModel: (providerId: ProviderId) => Effect.sync(() => {
+    const providers = store.get('providers') as Record<string, LlmProviderConfig> | undefined;
+    if (providers?.[providerId]?.defaultModel) {
+      return providers[providerId].defaultModel;
+    }
+    // Fallback to legacy defaultModel
+    if (providerId === DEFAULT_PROVIDER) {
+      const defaultModel = store.get('defaultModel') as string | undefined;
+      return defaultModel ?? 'gemini-2.5-flash';
+    }
+    return 'gemini-2.5-flash';
+  }),
+  getProviderConfig: (providerId: ProviderId) => Effect.sync(() => {
+    const providers = store.get('providers') as Record<string, LlmProviderConfig> | undefined;
+    const config = providers?.[providerId];
+    return config ?? {
+      providerId,
+      apiKey: '',
+      defaultModel: 'gemini-2.5-flash',
+      isEnabled: false,
+    };
+  }),
+  listConfiguredProviders: () => Effect.sync(() => {
+    const providers = store.get('providers') as Record<string, LlmProviderConfig> | undefined;
+    return Object.keys(providers ?? {});
+  }),
+  setProviderConfig: (config: LlmProviderConfig) => Effect.sync(() => {
+    const existing = store.get('providers') as Record<string, LlmProviderConfig> | undefined;
+    const providers = { ...existing, [config.providerId]: config };
+    store.set('providers', providers);
+  }),
+  setDefaultProvider: (providerId: ProviderId) => Effect.sync(() => {
+    store.set('defaultProvider', providerId);
+  }),
+});
+
 export function setupConductorHandlers(): void {
   const sqlExecutor = makeElectronSqlQueryExecutor();
   const repository = makeConductorTurnRepositoryFromSqlExecutor(sqlExecutor);
   const sessionStateRepository = makeSessionStateRepositoryFromSqlExecutor(sqlExecutor);
   const queryLayerRepository = makeQueryLayerRepositoryFromSqlExecutor(sqlExecutor);
-  const selectorGateway = makeConductorSelectorGatewayFromExecutor((request: SelectNextSpeakerRequest) =>
-    executeConductorSelectorRequest(request)
-  );
-  const settingsStore = createCouncilSettingsStore<{ apiKey?: string }>(app.isPackaged);
+  
+  // Initialize provider registry with Gemini adapter
+  const registry = createProviderRegistry();
+  (registry as Record<string, unknown>)['gemini'] = createGeminiGatewayAdapter();
+  
+  const selectorGateway = createConductorSelectorGateway(registry);
+  const settingsStore = createCouncilSettingsStore<{ apiKey?: string; providers?: Record<string, unknown>; defaultProvider?: string }>(app.isPackaged);
   const settings = makeConductorSettingsService(decrypt, settingsStore);
+  const llmSettings = makeLlmSettingsService(decrypt, settingsStore as unknown as { get: (key: string) => unknown; set: (key: string, value: unknown) => void });
 
   // Enable conductor for a session
   ipcMain.handle('conductor:enable', async (_, { sessionId, mode }: { sessionId: string; mode: 'automatic' | 'manual' }) => {
@@ -145,6 +215,7 @@ export function setupConductorHandlers(): void {
           Effect.provideService(ConductorTurnRepository, repository),
           Effect.provideService(ConductorSelectorGateway, selectorGateway),
           Effect.provideService(ConductorSettings, settings),
+          Effect.provideService(LlmSettings, llmSettings),
           Effect.provide(LiveIdGeneratorLayer),
           Effect.either
         )

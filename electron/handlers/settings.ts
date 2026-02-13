@@ -1,13 +1,21 @@
 import { app, ipcMain as electronIpcMain } from 'electron';
 import crypto from 'crypto';
 import { z } from 'zod';
+import { Effect } from 'effect';
 import { registerPrivilegedIpcHandle } from '../lib/security/privileged-ipc.js';
 import { logDiagnosticsError, logDiagnosticsEvent } from '../lib/diagnostics/logger.js';
 import {
   createCouncilSettingsStore,
   resolveCouncilEncryptionKey,
 } from '../../lib/infrastructure/settings/council-settings-security.js';
-
+import {
+  createProviderRegistry,
+  getAdapter,
+} from '../../lib/infrastructure/llm/provider-registry.js';
+import {
+  createGeminiGatewayAdapter,
+} from '../../lib/infrastructure/llm/gemini-gateway-adapter.js';
+import type { LlmProviderConfig } from '../../lib/infrastructure/settings/llm-settings.js';
 import type { PrivilegedIpcHandleOptions } from '../lib/security/privileged-ipc.js';
 
 const ipcMain = {
@@ -23,13 +31,21 @@ const ipcMain = {
 const noArgsSchema = z.tuple([]);
 const apiKeyValueSchema = z.string().min(1);
 const defaultModelValueSchema = z.string().min(1);
+const providerIdSchema = z.string().min(1);
 
 interface StoreSchema {
   apiKey: string;
   defaultModel: string;
+  providers: Record<string, LlmProviderConfig>;
+  defaultProvider: string;
 }
 
 const store = createCouncilSettingsStore<StoreSchema>(app.isPackaged);
+
+// Initialize provider registry with Gemini adapter
+const providerRegistry = createProviderRegistry();
+// Register Gemini adapter
+(providerRegistry as Record<string, unknown>)['gemini'] = createGeminiGatewayAdapter();
 
 // Encryption utilities
 const ALGORITHM = 'aes-256-gcm';
@@ -102,12 +118,13 @@ let modelCache: ModelCache | null = null;
 const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 const GEMINI_MODELS_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 const GEMINI_API_KEY_HEADER = 'x-goog-api-key';
+const DEFAULT_PROVIDER = 'gemini';
 
 type SettingsNetworkOperation = 'testConnection' | 'listModels';
 
 const SETTINGS_NETWORK_PUBLIC_ERROR_MESSAGE: Record<SettingsNetworkOperation, string> = {
-  testConnection: 'Unable to verify Gemini API key',
-  listModels: 'Unable to load Gemini models',
+  testConnection: 'Unable to verify API key',
+  listModels: 'Unable to load models',
 };
 
 export const mapSettingsNetworkFailureToPublicError = (
@@ -296,10 +313,28 @@ export function setupSettingsHandlers(): void {
     argsSchema: z.tuple([defaultModelValueSchema]),
   });
 
-  ipcMain.handle('settings:getModelCatalog', async () => {
+  // Get model catalog for a specific provider
+  ipcMain.handle('settings:getModelCatalog', async (_event, providerId?: string) => {
     try {
-      const encrypted = (store as any).get('apiKey') as string | undefined;
-      if (!encrypted) {
+      const targetProvider = providerId ?? DEFAULT_PROVIDER;
+      
+      // Get provider config or fall back to legacy settings
+      const providers = (store as any).get('providers') as Record<string, LlmProviderConfig> | undefined;
+      const providerConfig = providers?.[targetProvider];
+      
+      let apiKey: string | undefined;
+      
+      if (providerConfig?.apiKey) {
+        apiKey = providerConfig.apiKey;
+      } else {
+        // Fallback to legacy apiKey for gemini
+        const encrypted = (store as any).get('apiKey') as string | undefined;
+        if (encrypted) {
+          apiKey = decrypt(encrypted);
+        }
+      }
+      
+      if (!apiKey) {
         modelCache = null;
         return {
           success: true,
@@ -311,15 +346,42 @@ export function setupSettingsHandlers(): void {
         };
       }
 
-      const apiKey = decrypt(encrypted);
-      const models = await fetchAvailableModels(apiKey);
+      // Use provider registry to fetch models
+      const adapter = getAdapter(providerRegistry, targetProvider);
+      const result = await Effect.runPromise(
+        adapter.listModels(apiKey).pipe(Effect.either)
+      );
+
+      if (result._tag === 'Left') {
+        logDiagnosticsEvent({
+          event_name: 'settings.model_catalog.fetch.completed',
+          level: 'error',
+          context: {
+            outcome: 'error',
+            provider: targetProvider,
+            error_tag: result.left._tag,
+          },
+        });
+        return {
+          success: false,
+          error: mapSettingsNetworkFailureToPublicError('listModels'),
+        };
+      }
+
+      // Map to legacy ModelInfo format
+      const models: ModelInfo[] = result.right.map(m => ({
+        name: m.id,
+        displayName: m.displayName,
+        description: m.description ?? '',
+        supportedMethods: m.supportsStreaming ? ['generateContent', 'streamGenerateContent'] : ['generateContent'],
+      }));
 
       return {
         success: true,
         data: {
           configured: true,
           models,
-          fetchedAtEpochMs: modelCache?.timestamp ?? null,
+          fetchedAtEpochMs: Date.now(),
         },
       };
     } catch (error) {
@@ -330,11 +392,109 @@ export function setupSettingsHandlers(): void {
       };
     }
   }, {
-    argsSchema: noArgsSchema,
+    argsSchema: z.union([z.tuple([]), z.tuple([providerIdSchema.optional()])]),
     rateLimit: {
       maxRequests: 30,
       windowMs: 60_000,
     },
+  });
+
+  // Get provider configuration
+  ipcMain.handle('settings:getProviderConfig', async (_event, providerId: string) => {
+    try {
+      const providers = (store as any).get('providers') as Record<string, LlmProviderConfig> | undefined;
+      const config = providers?.[providerId];
+      
+      // If no provider config found and it's gemini, migrate from legacy
+      if (!config && providerId === DEFAULT_PROVIDER) {
+        const encrypted = (store as any).get('apiKey') as string | undefined;
+        const defaultModel = (store as any).get('defaultModel') as string | undefined;
+        
+        if (encrypted) {
+          const legacyConfig: LlmProviderConfig = {
+            providerId: DEFAULT_PROVIDER,
+            apiKey: decrypt(encrypted),
+            defaultModel: defaultModel ?? 'gemini-2.5-flash',
+            isEnabled: true,
+          };
+          return { success: true, data: legacyConfig };
+        }
+      }
+      
+      if (!config) {
+        return { success: false, error: 'Provider not configured' };
+      }
+      
+      return { success: true, data: config };
+    } catch (error) {
+      logDiagnosticsError('settings.get_provider_config.failed', error, { provider_id: providerId });
+      return { success: false, error: 'Failed to load provider configuration' };
+    }
+  }, {
+    argsSchema: z.tuple([providerIdSchema]),
+  });
+
+  // Set provider configuration
+  ipcMain.handle('settings:setProviderConfig', async (_event, config: LlmProviderConfig) => {
+    try {
+      const providers = (store as any).get('providers') as Record<string, LlmProviderConfig> | undefined;
+      const updatedProviders = { ...providers, [config.providerId]: config };
+      (store as any).set('providers', updatedProviders);
+      
+      logDiagnosticsEvent({
+        event_name: 'settings.provider_config.set',
+        context: {
+          provider_id: config.providerId,
+          is_enabled: config.isEnabled,
+        },
+      });
+      
+      return { success: true };
+    } catch (error) {
+      logDiagnosticsError('settings.set_provider_config.failed', error, { provider_id: config.providerId });
+      return { success: false, error: 'Failed to save provider configuration' };
+    }
+  }, {
+    argsSchema: z.tuple([z.object({
+      providerId: z.string(),
+      apiKey: z.string(),
+      defaultModel: z.string(),
+      isEnabled: z.boolean(),
+    })]),
+  });
+
+  // Get default provider
+  ipcMain.handle('settings:getDefaultProvider', async () => {
+    try {
+      const defaultProvider = (store as any).get('defaultProvider') as string | undefined;
+      return { success: true, data: defaultProvider ?? DEFAULT_PROVIDER };
+    } catch (error) {
+      logDiagnosticsError('settings.get_default_provider.failed', error);
+      return { success: true, data: DEFAULT_PROVIDER };
+    }
+  }, {
+    argsSchema: noArgsSchema,
+  });
+
+  // Set default provider
+  ipcMain.handle('settings:setDefaultProvider', async (_event, providerId: string) => {
+    try {
+      (store as any).set('defaultProvider', providerId);
+      
+      logDiagnosticsEvent({
+        event_name: 'settings.default_provider.set',
+        context: {
+          provider_id: providerId,
+        },
+      });
+      
+      return { success: true };
+    } catch (error) {
+      logDiagnosticsError('settings.set_default_provider.failed', error, { provider_id: providerId });
+      return { success: false, error: 'Failed to set default provider' };
+    }
+  }, {
+    argsSchema: z.tuple([providerIdSchema]),
   });
 
 }
