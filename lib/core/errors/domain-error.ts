@@ -38,6 +38,11 @@ export interface SessionTagNotAssignedError {
   readonly message: string;
 }
 
+export interface SettingsError {
+  readonly _tag: 'SettingsError';
+  readonly message: string;
+}
+
 export type DomainError =
   | EmptyNameError
   | SessionNotFoundError
@@ -46,4 +51,5 @@ export type DomainError =
   | SessionTagAlreadyAssignedError
   | SessionTagLimitReachedError
   | SessionTagNotInCatalogError
-  | SessionTagNotAssignedError;
+  | SessionTagNotAssignedError
+  | SettingsError;

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Effect, Either } from 'effect';
 
+import { LlmSettings, type LlmSettingsService } from '../../../infrastructure/settings/llm-settings';
 import type {
   CouncilChatGatewayService,
   CouncilChatRepositoryService,
@@ -52,6 +53,24 @@ const settings: CouncilChatSettingsService = {
   getGenerationPolicy: Effect.succeed({ maxOutputTokens: 1024, defaultHistoryLimit: 12 }),
 };
 
+const makeLlmSettings = (
+  input?: Partial<{ providerId: string; apiKey: string; modelId: string }>
+): LlmSettingsService => ({
+  getDefaultProvider: () => Effect.succeed(input?.providerId ?? 'gemini'),
+  getApiKey: (_providerId: string) => Effect.succeed(input?.apiKey ?? 'test-api-key'),
+  getDefaultModel: (_providerId: string) => Effect.succeed(input?.modelId ?? 'gemini-1.5-pro'),
+  getProviderConfig: (_providerId: string) =>
+    Effect.succeed({
+      providerId: input?.providerId ?? 'gemini',
+      apiKey: input?.apiKey ?? 'test-api-key',
+      defaultModel: input?.modelId ?? 'gemini-1.5-pro',
+      isEnabled: true,
+    }),
+  listConfiguredProviders: () => Effect.succeed([input?.providerId ?? 'gemini']),
+  setProviderConfig: (_config) => Effect.void,
+  setDefaultProvider: (_providerId) => Effect.void,
+});
+
 describe('execute_generate_council_persona_turn_use_case_spec', () => {
   it('generates_persona_turn_and_estimates_tokens', async () => {
     const observedGatewayCommands: Array<{ apiKey: string; maxOutputTokens: number }> = [];
@@ -80,7 +99,8 @@ describe('execute_generate_council_persona_turn_use_case_spec', () => {
       executeGenerateCouncilPersonaTurn(input).pipe(
         Effect.provideService(CouncilChatRepository, observedRepository),
         Effect.provideService(CouncilChatGateway, gateway),
-        Effect.provideService(CouncilChatSettings, settings)
+        Effect.provideService(CouncilChatSettings, settings),
+        Effect.provideService(LlmSettings, makeLlmSettings())
       )
     );
 
@@ -110,6 +130,7 @@ describe('execute_generate_council_persona_turn_use_case_spec', () => {
         Effect.provideService(CouncilChatRepository, missingPersonaRepository),
         Effect.provideService(CouncilChatGateway, gateway),
         Effect.provideService(CouncilChatSettings, settings),
+        Effect.provideService(LlmSettings, makeLlmSettings()),
         Effect.either
       )
     );
@@ -153,6 +174,7 @@ describe('execute_generate_council_persona_turn_use_case_spec', () => {
         Effect.provideService(CouncilChatRepository, observedRepository),
         Effect.provideService(CouncilChatGateway, gateway),
         Effect.provideService(CouncilChatSettings, failingSettings),
+        Effect.provideService(LlmSettings, makeLlmSettings()),
         Effect.either
       )
     );
