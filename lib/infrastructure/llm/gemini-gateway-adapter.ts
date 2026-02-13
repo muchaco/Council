@@ -47,10 +47,16 @@ export const createGeminiGatewayAdapter = (): LlmGatewayAdapter => ({
         throw new Error(`HTTP ${response.status}: ${await response.text()}`);
       }
 
-      const data = await response.json();
+      const data = await response.json() as { models?: Array<{
+        name: string;
+        displayName?: string;
+        description?: string;
+        outputTokenLimit?: number;
+        supportedGenerationMethods?: string[];
+      }> };
 
-      return data.models
-        .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
+      return (data.models ?? [])
+        .filter((m) => m.supportedGenerationMethods?.includes('generateContent'))
         .map((m: any) => ({
           id: m.name.replace('models/', ''),
           displayName: m.displayName ?? m.name,
