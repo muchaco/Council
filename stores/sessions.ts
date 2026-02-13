@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { toast } from 'sonner';
 import { Effect, Either } from 'effect';
 import type { Session, SessionInput, Message, Persona, BlackboardState, Tag, ConductorFlowState } from '../lib/types';
+import { useSettingsStore } from './settings';
 import {
   executeAssignSessionTag,
   executeRemoveSessionTag,
@@ -466,11 +467,17 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         .filter(p => p.id !== personaId)
         .map(p => ({ id: p.id, name: p.name, role: p.role }));
       
+      // Get provider configuration from settings store
+      const { defaultProvider, providers } = useSettingsStore.getState();
+      const providerConfig = providers[defaultProvider] || { providerId: defaultProvider, apiKey: '', isEnabled: true };
+      
       const request = {
         session: currentSession,
         persona,
         blackboard,
         otherPersonas,
+        providerId: defaultProvider,
+        apiKey: providerConfig.apiKey,
       };
 
       const outcome = await Effect.runPromise(

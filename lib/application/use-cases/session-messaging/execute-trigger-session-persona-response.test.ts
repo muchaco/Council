@@ -95,6 +95,8 @@ describe('execute_trigger_session_persona_response_use_case_spec', () => {
           nextStep: '',
           facts: '',
         },
+        providerId: 'gemini',
+        apiKey: 'test-api-key',
       }).pipe(
         Effect.provideService(SessionPersonaResponseGateway, gateway),
         Effect.provideService(SessionMessagePersistence, persistence)
@@ -163,6 +165,8 @@ describe('execute_trigger_session_persona_response_use_case_spec', () => {
           nextStep: '',
           facts: '',
         },
+        providerId: 'gemini',
+        apiKey: 'test-api-key',
       }).pipe(
         Effect.provideService(SessionPersonaResponseGateway, gateway),
         Effect.provideService(SessionMessagePersistence, persistence),
@@ -227,6 +231,8 @@ describe('execute_trigger_session_persona_response_use_case_spec', () => {
           nextStep: '',
           facts: '',
         },
+        providerId: 'gemini',
+        apiKey: 'test-api-key',
       }).pipe(
         Effect.provideService(SessionPersonaResponseGateway, gateway),
         Effect.provideService(SessionMessagePersistence, persistence),
@@ -301,6 +307,8 @@ describe('execute_trigger_session_persona_response_use_case_spec', () => {
           nextStep: '',
           facts: '',
         },
+        providerId: 'gemini',
+        apiKey: 'test-api-key',
       }).pipe(
         Effect.provideService(SessionPersonaResponseGateway, gateway),
         Effect.provideService(SessionMessagePersistence, persistence),

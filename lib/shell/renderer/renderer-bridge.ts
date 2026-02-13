@@ -1,5 +1,11 @@
 import type { BlackboardState } from '../../types';
 
+interface Tag {
+  readonly id: number;
+  readonly name: string;
+  readonly createdAt: string;
+}
+
 interface RendererBridge {
   readonly electronDB: {
     readonly hushPersona: (
@@ -18,7 +24,14 @@ interface RendererBridge {
       data: unknown
     ) => Promise<{ success: boolean; data?: unknown; error?: string }>;
     readonly tags: {
-      readonly getAll: () => Promise<{ success: boolean; data?: unknown; error?: string }>;
+      readonly create: (name: string) => Promise<{ success: boolean; data?: Tag; error?: string }>;
+      readonly getAll: () => Promise<{ success: boolean; data?: Tag[]; error?: string }>;
+      readonly getByName: (name: string) => Promise<{ success: boolean; data?: Tag | null; error?: string }>;
+      readonly cleanupOrphaned: () => Promise<{ success: boolean; error?: string }>;
+    };
+    readonly sessionTags: {
+      readonly add: (sessionId: string, tagId: number) => Promise<{ success: boolean; error?: string }>;
+      readonly remove: (sessionId: string, tagId: number) => Promise<{ success: boolean; error?: string }>;
     };
   };
   readonly electronConductor: {

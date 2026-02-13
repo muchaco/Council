@@ -54,6 +54,43 @@ declare global {
         };
         error?: string;
       }>;
+      // Provider abstraction methods
+      setProviderConfig: (config: {
+        providerId: string;
+        apiKey: string;
+        defaultModel: string;
+        isEnabled: boolean;
+      }) => Promise<{ success: boolean; error?: string }>;
+      setDefaultProvider: (providerId: string) => Promise<{ success: boolean; error?: string }>;
+      getProviderConfig: (providerId: string) => Promise<{
+        success: boolean;
+        data?: {
+          providerId: string;
+          apiKey: string;
+          defaultModel: string;
+          isEnabled: boolean;
+        };
+        error?: string;
+      }>;
+      getDefaultProvider: () => Promise<{
+        success: boolean;
+        data?: string;
+        error?: string;
+      }>;
+      listAvailableModels: (providerId: string) => Promise<{
+        success: boolean;
+        data?: {
+          configured: boolean;
+          models: Array<{
+            name: string;
+            displayName: string;
+            description: string;
+            supportedMethods: string[];
+          }>;
+          fetchedAtEpochMs: number | null;
+        };
+        error?: string;
+      }>;
     };
     electronConductor: {
       enable: (sessionId: string, mode: 'automatic' | 'manual') => Promise<{ success: boolean; error?: string }>;

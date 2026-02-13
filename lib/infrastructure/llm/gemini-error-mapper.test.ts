@@ -9,7 +9,9 @@ describe('gemini_error_mapper_spec', () => {
 
       expect(result._tag).toBe('ProviderAuthenticationError');
       expect(result.providerId).toBe('gemini');
-      expect(result.message).toBe('Invalid API key');
+      if (result._tag === 'ProviderAuthenticationError') {
+        expect(result.message).toBe('Invalid API key');
+      }
     });
 
     it('maps_authentication_error_to_authentication_error', () => {
@@ -18,6 +20,9 @@ describe('gemini_error_mapper_spec', () => {
 
       expect(result._tag).toBe('ProviderAuthenticationError');
       expect(result.providerId).toBe('gemini');
+      if (result._tag === 'ProviderAuthenticationError') {
+        expect(result.message).toBe('Authentication failed');
+      }
     });
 
     it('maps_401_status_to_authentication_error', () => {
@@ -33,7 +38,9 @@ describe('gemini_error_mapper_spec', () => {
 
       expect(result._tag).toBe('ProviderRateLimitError');
       expect(result.providerId).toBe('gemini');
-      expect(result.message).toBe('HTTP 429: Rate limit exceeded');
+      if (result._tag === 'ProviderRateLimitError') {
+        expect(result.message).toBe('HTTP 429: Rate limit exceeded');
+      }
     });
 
     it('maps_rate_limit_message_to_rate_limit_error', () => {
@@ -56,7 +63,9 @@ describe('gemini_error_mapper_spec', () => {
 
       expect(result._tag).toBe('ProviderModelNotFoundError');
       expect(result.providerId).toBe('gemini');
-      expect(result.modelId).toBe('unknown');
+      if (result._tag === 'ProviderModelNotFoundError') {
+        expect(result.modelId).toBe('unknown');
+      }
     });
 
     it('maps_model_message_to_model_not_found_error', () => {
@@ -79,7 +88,9 @@ describe('gemini_error_mapper_spec', () => {
 
       expect(result._tag).toBe('ProviderGenericError');
       expect(result.providerId).toBe('gemini');
-      expect(result.cause).toBe(error);
+      if (result._tag === 'ProviderGenericError') {
+        expect(result.cause).toBe(error);
+      }
     });
 
     it('maps_non_error_to_generic_error', () => {
@@ -88,7 +99,9 @@ describe('gemini_error_mapper_spec', () => {
 
       expect(result._tag).toBe('ProviderGenericError');
       expect(result.providerId).toBe('gemini');
-      expect(result.cause).toBe(notError);
+      if (result._tag === 'ProviderGenericError') {
+        expect(result.cause).toBe(notError);
+      }
     });
 
     it('is_case_insensitive_for_keywords', () => {
