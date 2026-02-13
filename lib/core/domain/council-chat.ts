@@ -32,6 +32,10 @@ export interface CouncilChatRequest {
     readonly name: string;
     readonly role: string;
   }>;
+  
+  // NEW: Provider-agnostic model references
+  readonly modelId?: string;
+  readonly providerId?: string;
 }
 
 export interface CouncilGatewayHistoryMessage {
