@@ -15,7 +15,6 @@ import {
   executeGetSessionBlackboard,
   executeConductorTurn,
   executeUpdateConductorSessionBlackboard,
-  type SelectNextSpeakerRequest,
 } from '../../lib/application/use-cases/conductor/index.js';
 import {
   executeResetSessionAutoReplyCount,
@@ -28,13 +27,19 @@ import {
   makeConductorTurnRepositoryFromSqlExecutor,
 } from '../../lib/infrastructure/db/index.js';
 import { LiveIdGeneratorLayer } from '../../lib/infrastructure/id/index.js';
-import { makeConductorSelectorGatewayFromExecutor } from '../../lib/infrastructure/llm/index.js';
+import {
+  createConductorSelectorGateway,
+  createProviderRegistry,
+  createGeminiGatewayAdapter,
+} from '../../lib/infrastructure/llm/index.js';
 import {
   createCouncilSettingsStore,
   makeConductorSettingsService,
+  LlmSettings,
+  type LlmProviderConfig,
+  type ProviderId,
 } from '../../lib/infrastructure/settings/index.js';
 import { mapConductorTurnOutcomeToProcessTurnResponse } from '../lib/shell/conductor-process-turn-response.js';
-import { executeConductorSelectorRequest } from '../lib/shell/conductor-selector-executor.js';
 import {
   mapBlackboardLookupResponse,
   mapErrorFailureResponse,
