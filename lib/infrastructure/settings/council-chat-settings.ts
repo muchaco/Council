@@ -83,8 +83,8 @@ export const makeCouncilChatSettingsService = (
 });
 
 // Provider-agnostic API functions using LlmSettings service
-export const getApiKey = (providerId: ProviderId) =>
+export const getCouncilChatApiKey = (providerId: ProviderId) =>
   LlmSettings.pipe(Effect.flatMap((settings) => settings.getApiKey(providerId)));
 
-export const getDefaultModel = (providerId: ProviderId) =>
+export const getCouncilChatDefaultModel = (providerId: ProviderId) =>
   LlmSettings.pipe(Effect.flatMap((settings) => settings.getDefaultModel(providerId)));

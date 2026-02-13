@@ -99,7 +99,7 @@ export const makeConductorSettingsService = (
 });
 
 // Provider-agnostic API functions using LlmSettings service
-export const getApiKey = (providerId: ProviderId) =>
+export const getConductorApiKey = (providerId: ProviderId) =>
   LlmSettings.pipe(Effect.flatMap((settings) => settings.getApiKey(providerId)));
 
 export const getSelectorModelForProvider = (providerId: ProviderId) =>

@@ -1,12 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   migrateSettings,
   getProviderConfig,
   setProviderConfig,
   getDefaultProvider,
   setDefaultProvider,
-  type LlmProviderConfig,
 } from './settings-migration';
+import type { LlmProviderConfig } from './llm-settings';
 
 type MockStore = {
   data: Record<string, unknown>;
