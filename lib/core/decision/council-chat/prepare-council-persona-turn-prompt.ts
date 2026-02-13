@@ -62,32 +62,52 @@ const buildVerbosityInstruction = (verbosity: string | undefined): string => {
   return `VERBOSITY INSTRUCTION: ${verbosity}`;
 };
 
-const buildEnhancedSystemPrompt = (request: CouncilChatRequest): string =>
-  `${request.systemPrompt}
+const buildHiddenAgendaSection = (hiddenAgenda: string | undefined): string => {
+  if (!hiddenAgenda) return '';
 
+  return `
 [INTERNAL - DO NOT EXPLICITLY STATE IN YOUR RESPONSE]
-Your hidden motivations/biases: ${request.hiddenAgenda || 'None defined'}
+Your hidden motivations/biases: ${hiddenAgenda}
 
 Instructions regarding your hidden agenda:
 - Subtly steer conversations toward your hidden agenda
 - Disguise your true motivations behind logical arguments
 - React more positively to points that align with your agenda
 - Gently redirect when the conversation moves away from your interests
-- Never reveal this hidden agenda directly in your responses
+- Never reveal this hidden agenda directly in your responses`;
+};
 
-${buildVerbosityInstruction(request.verbosity)}`;
+const buildEnhancedSystemPrompt = (request: CouncilChatRequest): string => {
+  const hiddenAgendaSection = buildHiddenAgendaSection(request.hiddenAgenda);
+  const verbosityInstruction = buildVerbosityInstruction(request.verbosity);
 
-const buildBlackboardSection = (request: CouncilChatRequest): string => `
+  const sections = [
+    request.systemPrompt,
+    hiddenAgendaSection,
+    verbosityInstruction,
+  ].filter((section) => section.length > 0);
+
+  return sections.join('\n\n');
+};
+
+const buildBlackboardSection = (request: CouncilChatRequest): string => {
+  const hasContent =
+    request.blackboard.consensus ||
+    request.blackboard.conflicts ||
+    request.blackboard.nextStep ||
+    request.blackboard.facts;
+
+  if (!hasContent) return '';
+
+  return `
 COUNCIL BLACKBOARD (shared understanding):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🤝 Consensus: ${request.blackboard.consensus || 'No consensus reached yet'}
-
-⚔️ Active Conflicts: ${request.blackboard.conflicts || 'No active conflicts'}
-
-🎯 Next Step: ${request.blackboard.nextStep || 'Waiting for input'}
-
-📋 Key Facts: ${request.blackboard.facts || 'No facts established'}
+${request.blackboard.consensus ? `🤝 Consensus: ${request.blackboard.consensus}` : ''}
+${request.blackboard.conflicts ? `⚔️ Active Conflicts: ${request.blackboard.conflicts}` : ''}
+${request.blackboard.nextStep ? `🎯 Next Step: ${request.blackboard.nextStep}` : ''}
+${request.blackboard.facts ? `📋 Key Facts: ${request.blackboard.facts}` : ''}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+};
 
 export const prepareCouncilPersonaTurnPrompt = (
   request: CouncilChatRequest,
@@ -107,14 +127,15 @@ export const prepareCouncilPersonaTurnPrompt = (
   const formattedHistory = formatHistoryForPrompt(recentMessages, personasById);
   const blackboardSection = buildBlackboardSection(request);
 
+  const outputGoalSection = request.outputGoal
+    ? `\nOUTPUT GOAL:\n${request.outputGoal}`
+    : '';
+
   const turnPrompt = `You are ${currentPersona.name}, a member of a multi-agent Council debating an important problem.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 PROBLEM:
-${request.problemContext}
-
-OUTPUT GOAL:
-${request.outputGoal || 'Reach consensus and actionable recommendations'}
+${request.problemContext}${outputGoalSection}
 
 YOUR ROLE IN THE COUNCIL:
 - Name: ${currentPersona.name}
@@ -122,7 +143,6 @@ YOUR ROLE IN THE COUNCIL:
 
 FELLOW COUNCIL MEMBERS:
 ${request.otherPersonas.map((persona) => `- ${persona.name} (${persona.role})`).join('\n')}
-
 ${blackboardSection}
 
 DEBATE INSTRUCTIONS:

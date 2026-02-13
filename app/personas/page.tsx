@@ -390,11 +390,11 @@ export default function PersonasPage() {
               <Input
                 value={formData.verbosity || ''}
                 onChange={(e) => handleInputChange('verbosity', e.target.value)}
-                placeholder="e.g., '5' or 'Always answer in 2-3 sentences'"
+                placeholder="e.g., 'max 50 words', '2-3 sentences', 'under 200 chars'"
                 className="mt-1 bg-input border-border text-foreground"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Enter a number (1-10) or custom instruction to control response length
+                Specific constraints (words/sentences/chars) work better than 1-10 scales. Leave empty for no constraint.
               </p>
             </div>
           </div>

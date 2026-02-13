@@ -126,4 +126,19 @@ describe('conductor_process_turn_response_mapper_spec', () => {
       isInterventionSuggestion: true,
     });
   });
+
+  it('maps_selected_persona_not_found_error_to_persona_not_found_code', () => {
+    const response = mapConductorTurnOutcomeToProcessTurnResponse(
+      Either.left({
+        _tag: 'ConductorSelectedPersonaNotFoundError',
+        message: 'Selected persona xyz-123 not found',
+      })
+    );
+
+    expect(response).toEqual({
+      success: false,
+      error: 'Selected persona xyz-123 not found',
+      code: 'PERSONA_NOT_FOUND',
+    });
+  });
 });
