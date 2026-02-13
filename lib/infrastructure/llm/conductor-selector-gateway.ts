@@ -9,6 +9,8 @@ import type {
   ConductorSelectorGatewayService,
   SelectNextSpeakerRequest,
 } from '../../application/use-cases/conductor/conductor-dependencies';
+import type { ProviderRegistry } from './provider-registry.js';
+import { getAdapter } from './provider-registry.js';
 
 const selectorError = (
   code: ConductorInfrastructureError extends infer E
@@ -64,6 +66,7 @@ const parseSelectorDecision = (rawText: string): ConductorSelectorDecision => {
   };
 };
 
+// Legacy factory for backward compatibility with existing tests
 export const makeConductorSelectorGatewayFromExecutor = (
   execute: (request: SelectNextSpeakerRequest) => Promise<string>
 ): ConductorSelectorGatewayService => ({
@@ -89,4 +92,32 @@ export const makeConductorSelectorGatewayFromExecutor = (
         })
       )
     ),
+});
+
+// New factory using provider registry for provider abstraction
+export const createConductorSelectorGateway = (
+  registry: ProviderRegistry
+): ConductorSelectorGatewayService => ({
+  selectNextSpeaker: (request) => {
+    const adapter = getAdapter(registry, request.providerId);
+
+    return adapter.generateResponse({
+      modelId: request.modelId,
+      apiKey: request.apiKey,
+      systemPrompt: undefined,
+      messages: [
+        { role: 'user', content: request.selectorPrompt },
+      ],
+      temperature: request.temperature,
+      maxTokens: request.maxOutputTokens,
+    }).pipe(
+      Effect.map(response => parseSelectorDecision(response.content)),
+      Effect.mapError((error): ConductorInfrastructureError => ({
+        _tag: 'ConductorInfrastructureError',
+        source: 'selector',
+        code: 'ExecutionFailed',
+        message: `Selector agent failed: ${error._tag}`,
+      }))
+    );
+  },
 });

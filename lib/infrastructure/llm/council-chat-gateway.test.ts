@@ -4,8 +4,9 @@ import { Effect, Either } from 'effect';
 import { makeCouncilChatGatewayFromExecutor } from './council-chat-gateway';
 
 const baseCommand = {
+  providerId: 'gemini',
+  modelId: 'gemini-1.5-pro',
   apiKey: 'test-key',
-  model: 'gemini-1.5-pro',
   temperature: 0.5,
   maxOutputTokens: 1024,
   enhancedSystemPrompt: 'prompt',
