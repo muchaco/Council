@@ -116,8 +116,9 @@ export const executeConductorTurn = (
     const selectorGenerationPolicy = yield* settings.getSelectorGenerationPolicy;
 
     const selectorResult = yield* selectorGateway.selectNextSpeaker({
+      providerId: 'gemini', // TODO: Get from settings when provider selection is fully implemented
+      modelId: selectorPlan.selectorModel,
       apiKey: geminiApiKey,
-      selectorModel: selectorPlan.selectorModel,
       selectorPrompt: prepareConductorSelectorPrompt(selectorPlan.selectorPromptInput),
       temperature: selectorGenerationPolicy.temperature,
       maxOutputTokens: selectorGenerationPolicy.maxOutputTokens,

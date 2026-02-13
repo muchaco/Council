@@ -37,10 +37,8 @@ export const loadPersona = (
       role: row.role,
       systemPrompt: row.systemPrompt,
       color: row.color,
-      temperature: row.temperature,
+      // DEPRECATED: Keep for backward compatibility
       geminiModel: row.geminiModel,
-      hiddenAgenda: row.hiddenAgenda ?? undefined,
-      verbosity: row.verbosity ?? undefined,
       // Modern provider-agnostic fields (migrated from legacy if needed)
       modelId,
       providerId,

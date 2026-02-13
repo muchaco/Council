@@ -126,7 +126,7 @@ const generateCouncilPersonaTurnWithGemini = async (
   const genAI = new GoogleGenerativeAI(command.apiKey);
 
   const model = genAI.getGenerativeModel({
-    model: command.model,
+    model: command.modelId,
     systemInstruction: command.enhancedSystemPrompt,
   });
 

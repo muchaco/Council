@@ -95,8 +95,6 @@ describe('persona_migration_spec', () => {
       expect(result.name).toBe('Test Persona');
       expect(result.role).toBe('expert');
       expect(result.systemPrompt).toBe('You are an expert');
-      expect(result.hiddenAgenda).toBe('Some hidden agenda');
-      expect(result.verbosity).toBe('medium');
       expect(result.modelId).toBe('gemini-pro');
       expect(result.providerId).toBe('gemini');
     });
@@ -122,7 +120,6 @@ describe('persona_migration_spec', () => {
       expect(result.name).toBe('Preserved Persona');
       expect(result.role).toBe('consultant');
       expect(result.systemPrompt).toBe('You are a consultant');
-      expect(result.temperature).toBe(0.8);
       expect(result.color).toBe('#A133FF');
     });
 
