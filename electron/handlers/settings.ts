@@ -392,7 +392,7 @@ export function setupSettingsHandlers(): void {
       };
     }
   }, {
-    argsSchema: z.tuple([providerIdSchema.optional()]),
+    argsSchema: z.union([z.tuple([]), z.tuple([providerIdSchema.optional()])]),
     rateLimit: {
       maxRequests: 30,
       windowMs: 60_000,
