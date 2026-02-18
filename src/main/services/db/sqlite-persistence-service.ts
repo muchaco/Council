@@ -41,7 +41,29 @@ type PersistedCouncil = {
   memberColorsByAgentId: Readonly<Record<string, string>>;
   conductorModelRefOrNull: ModelRef | null;
   archivedAtUtc: string | null;
+  startedAtUtc: string | null;
+  autopilotPaused: boolean;
+  turnCount: number;
   createdAtUtc: string;
+  updatedAtUtc: string;
+};
+
+type PersistedCouncilMessage = {
+  id: string;
+  councilId: string;
+  sequenceNumber: number;
+  senderKind: "member" | "conductor";
+  senderAgentId: string | null;
+  senderName: string;
+  senderColor: string | null;
+  content: string;
+  createdAtUtc: string;
+};
+
+type PersistedCouncilRuntimeBriefing = {
+  councilId: string;
+  briefing: string;
+  goalReached: boolean;
   updatedAtUtc: string;
 };
 
@@ -66,6 +88,16 @@ type SqlitePersistenceService = {
   saveCouncil: (council: PersistedCouncil) => Result<void, DbError>;
   deleteCouncil: (councilId: string) => Result<void, DbError>;
   countCouncilsUsingAgent: (agentId: string) => Result<number, DbError>;
+  loadCouncilMessages: (
+    councilId: string,
+  ) => Result<ReadonlyArray<PersistedCouncilMessage>, DbError>;
+  appendCouncilMessage: (
+    message: Omit<PersistedCouncilMessage, "sequenceNumber">,
+  ) => Result<PersistedCouncilMessage, DbError>;
+  loadCouncilRuntimeBriefing: (
+    councilId: string,
+  ) => Result<PersistedCouncilRuntimeBriefing | null, DbError>;
+  saveCouncilRuntimeBriefing: (briefing: PersistedCouncilRuntimeBriefing) => Result<void, DbError>;
 };
 
 type SqlitePersistenceDependencies = {
@@ -103,6 +135,9 @@ type CouncilRow = {
   member_colors_json: string;
   conductor_model_ref_json: string | null;
   archived_at_utc: string | null;
+  started_at_utc: string | null;
+  autopilot_paused: number;
+  turn_count: number;
   created_at_utc: string;
   updated_at_utc: string;
 };
@@ -110,6 +145,25 @@ type CouncilRow = {
 type CouncilMemberRow = {
   council_id: string;
   agent_id: string;
+};
+
+type CouncilMessageRow = {
+  id: string;
+  council_id: string;
+  sequence_number: number;
+  sender_kind: "member" | "conductor";
+  sender_agent_id: string | null;
+  sender_name: string;
+  sender_color: string | null;
+  content: string;
+  created_at_utc: string;
+};
+
+type CouncilRuntimeBriefingRow = {
+  council_id: string;
+  briefing_text: string;
+  goal_reached: number;
+  updated_at_utc: string;
 };
 
 type SettingsRow = {
@@ -381,7 +435,7 @@ export const createSqlitePersistenceService = (
     try {
       const councilRows = db
         .prepare(
-          "SELECT id, title, topic, goal, mode, tags_json, member_colors_json, conductor_model_ref_json, archived_at_utc, created_at_utc, updated_at_utc FROM councils",
+          "SELECT id, title, topic, goal, mode, tags_json, member_colors_json, conductor_model_ref_json, archived_at_utc, started_at_utc, autopilot_paused, turn_count, created_at_utc, updated_at_utc FROM councils",
         )
         .all() as Array<CouncilRow>;
 
@@ -411,6 +465,9 @@ export const createSqlitePersistenceService = (
           ),
           conductorModelRefOrNull: parseJson<ModelRef | null>(row.conductor_model_ref_json, null),
           archivedAtUtc: row.archived_at_utc,
+          startedAtUtc: row.started_at_utc,
+          autopilotPaused: row.autopilot_paused === 1,
+          turnCount: row.turn_count,
           createdAtUtc: row.created_at_utc,
           updatedAtUtc: row.updated_at_utc,
         })),
@@ -429,8 +486,8 @@ export const createSqlitePersistenceService = (
     try {
       const save = db.transaction((next: PersistedCouncil) => {
         db.prepare(
-          `INSERT INTO councils(id, title, topic, goal, mode, tags_json, member_colors_json, conductor_model_ref_json, archived_at_utc, created_at_utc, updated_at_utc)
-           VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `INSERT INTO councils(id, title, topic, goal, mode, tags_json, member_colors_json, conductor_model_ref_json, archived_at_utc, started_at_utc, autopilot_paused, turn_count, created_at_utc, updated_at_utc)
+           VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET
              title = excluded.title,
              topic = excluded.topic,
@@ -440,6 +497,9 @@ export const createSqlitePersistenceService = (
              member_colors_json = excluded.member_colors_json,
              conductor_model_ref_json = excluded.conductor_model_ref_json,
              archived_at_utc = excluded.archived_at_utc,
+             started_at_utc = excluded.started_at_utc,
+             autopilot_paused = excluded.autopilot_paused,
+             turn_count = excluded.turn_count,
              updated_at_utc = excluded.updated_at_utc`,
         ).run(
           next.id,
@@ -453,6 +513,9 @@ export const createSqlitePersistenceService = (
             ? null
             : JSON.stringify(next.conductorModelRefOrNull),
           next.archivedAtUtc,
+          next.startedAtUtc,
+          next.autopilotPaused ? 1 : 0,
+          next.turnCount,
           next.createdAtUtc,
           next.updatedAtUtc,
         );
@@ -510,6 +573,140 @@ export const createSqlitePersistenceService = (
     }
   };
 
+  const loadCouncilMessages = (
+    councilId: string,
+  ): Result<ReadonlyArray<PersistedCouncilMessage>, DbError> => {
+    try {
+      const rows = db
+        .prepare(
+          "SELECT id, council_id, sequence_number, sender_kind, sender_agent_id, sender_name, sender_color, content, created_at_utc FROM council_messages WHERE council_id = ? ORDER BY sequence_number ASC, rowid ASC",
+        )
+        .all(councilId) as Array<CouncilMessageRow>;
+
+      return ok(
+        rows.map((row) => ({
+          id: row.id,
+          councilId: row.council_id,
+          sequenceNumber: row.sequence_number,
+          senderKind: row.sender_kind,
+          senderAgentId: row.sender_agent_id,
+          senderName: row.sender_name,
+          senderColor: row.sender_color,
+          content: row.content,
+          createdAtUtc: row.created_at_utc,
+        })),
+      );
+    } catch (error) {
+      return err(
+        toDbError(
+          "DbQueryError",
+          `Failed loading council messages: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
+    }
+  };
+
+  const appendCouncilMessage = (
+    message: Omit<PersistedCouncilMessage, "sequenceNumber">,
+  ): Result<PersistedCouncilMessage, DbError> => {
+    try {
+      const append = db.transaction((next: Omit<PersistedCouncilMessage, "sequenceNumber">) => {
+        const row = db
+          .prepare(
+            "SELECT COALESCE(MAX(sequence_number), 0) as max_sequence FROM council_messages WHERE council_id = ?",
+          )
+          .get(next.councilId) as { max_sequence: number };
+        const sequenceNumber = row.max_sequence + 1;
+
+        db.prepare(
+          "INSERT INTO council_messages(id, council_id, sequence_number, sender_kind, sender_agent_id, sender_name, sender_color, content, created_at_utc) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        ).run(
+          next.id,
+          next.councilId,
+          sequenceNumber,
+          next.senderKind,
+          next.senderAgentId,
+          next.senderName,
+          next.senderColor,
+          next.content,
+          next.createdAtUtc,
+        );
+
+        return {
+          ...next,
+          sequenceNumber,
+        } satisfies PersistedCouncilMessage;
+      });
+
+      return ok(append(message));
+    } catch (error) {
+      return err(
+        toDbError(
+          "DbQueryError",
+          `Failed appending council message: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
+    }
+  };
+
+  const loadCouncilRuntimeBriefing = (
+    councilId: string,
+  ): Result<PersistedCouncilRuntimeBriefing | null, DbError> => {
+    try {
+      const row = db
+        .prepare(
+          "SELECT council_id, briefing_text, goal_reached, updated_at_utc FROM council_runtime_briefings WHERE council_id = ?",
+        )
+        .get(councilId) as CouncilRuntimeBriefingRow | undefined;
+
+      if (row === undefined) {
+        return ok(null);
+      }
+
+      return ok({
+        councilId: row.council_id,
+        briefing: row.briefing_text,
+        goalReached: row.goal_reached === 1,
+        updatedAtUtc: row.updated_at_utc,
+      });
+    } catch (error) {
+      return err(
+        toDbError(
+          "DbQueryError",
+          `Failed loading council runtime briefing: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
+    }
+  };
+
+  const saveCouncilRuntimeBriefing = (
+    briefing: PersistedCouncilRuntimeBriefing,
+  ): Result<void, DbError> => {
+    try {
+      db.prepare(
+        `INSERT INTO council_runtime_briefings(council_id, briefing_text, goal_reached, updated_at_utc)
+         VALUES(?, ?, ?, ?)
+         ON CONFLICT(council_id) DO UPDATE SET
+           briefing_text = excluded.briefing_text,
+           goal_reached = excluded.goal_reached,
+           updated_at_utc = excluded.updated_at_utc`,
+      ).run(
+        briefing.councilId,
+        briefing.briefing,
+        briefing.goalReached ? 1 : 0,
+        briefing.updatedAtUtc,
+      );
+      return ok(undefined);
+    } catch (error) {
+      return err(
+        toDbError(
+          "DbQueryError",
+          `Failed saving council runtime briefing: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
+    }
+  };
+
   return {
     initialize,
     loadSettingsState,
@@ -522,6 +719,10 @@ export const createSqlitePersistenceService = (
     saveCouncil,
     deleteCouncil,
     countCouncilsUsingAgent,
+    loadCouncilMessages,
+    appendCouncilMessage,
+    loadCouncilRuntimeBriefing,
+    saveCouncilRuntimeBriefing,
   };
 };
 
@@ -529,6 +730,8 @@ export type {
   DbError,
   PersistedAgent,
   PersistedCouncil,
+  PersistedCouncilMessage,
+  PersistedCouncilRuntimeBriefing,
   PersistedProviderConfig,
   SqlitePersistenceService,
 };

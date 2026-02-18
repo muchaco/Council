@@ -9,6 +9,7 @@ import type {
   CouncilSortField,
   GetAgentEditorViewResponse,
   GetCouncilEditorViewResponse,
+  GetCouncilViewResponse,
   GetSettingsViewResponse,
   ProviderConfigDto,
   ProviderDraftDto,
@@ -27,6 +28,10 @@ type ScreenState =
   | {
       kind: "councilEditor";
       councilId: string | null;
+    }
+  | {
+      kind: "councilView";
+      councilId: string;
     };
 
 type ProviderDraftState = {
@@ -100,6 +105,24 @@ type CouncilEditorDraft = {
   conductorModelSelection: string;
   selectedMemberIds: ReadonlyArray<string>;
 };
+
+type CouncilViewState =
+  | { status: "loading" }
+  | {
+      status: "ready";
+      source: GetCouncilViewResponse;
+      isStarting: boolean;
+      isPausing: boolean;
+      isResuming: boolean;
+      isGeneratingManualTurn: boolean;
+      isInjectingConductor: boolean;
+      isAdvancingAutopilot: boolean;
+      isCancellingGeneration: boolean;
+      selectedManualSpeakerId: string | null;
+      conductorDraft: string;
+      message: string;
+    }
+  | { status: "error"; message: string };
 
 type ToastLevel = "info" | "warning" | "error";
 
@@ -309,6 +332,7 @@ export const App = (): JSX.Element => {
   const [councilEditorState, setCouncilEditorState] = useState<CouncilEditorState>({
     status: "loading",
   });
+  const [councilViewState, setCouncilViewState] = useState<CouncilViewState>({ status: "loading" });
 
   const [toasts, setToasts] = useState<ReadonlyArray<ToastState>>([]);
   const toastTimers = useRef(new Map<string, number>());
@@ -957,6 +981,318 @@ export const App = (): JSX.Element => {
     });
   };
 
+  const loadCouncilView = useCallback(
+    async (councilId: string): Promise<void> => {
+      setCouncilViewState({ status: "loading" });
+      const result = await window.api.councils.getCouncilView({
+        viewKind: "councilView",
+        councilId,
+      });
+
+      if (!result.ok) {
+        setCouncilViewState({ status: "error", message: result.error.userMessage });
+        pushToast("error", result.error.userMessage);
+        return;
+      }
+
+      setCouncilViewState({
+        status: "ready",
+        source: result.value,
+        isStarting: false,
+        isPausing: false,
+        isResuming: false,
+        isGeneratingManualTurn: false,
+        isInjectingConductor: false,
+        isAdvancingAutopilot: false,
+        isCancellingGeneration: false,
+        selectedManualSpeakerId: result.value.council.memberAgentIds[0] ?? null,
+        conductorDraft: "",
+        message: "",
+      });
+    },
+    [pushToast],
+  );
+
+  const openCouncilView = async (councilId: string): Promise<void> => {
+    setScreen({ kind: "councilView", councilId });
+    await loadCouncilView(councilId);
+  };
+
+  const closeCouncilView = (): void => {
+    setScreen({ kind: "home" });
+    setHomeTab("councils");
+    void loadCouncils({ page: 1, append: false });
+  };
+
+  const startCouncilRuntime = async (): Promise<void> => {
+    if (screen.kind !== "councilView" || councilViewState.status !== "ready") {
+      return;
+    }
+
+    setCouncilViewState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            isStarting: true,
+            message: "",
+          },
+    );
+
+    const result = await window.api.councils.start({
+      viewKind: "councilView",
+      id: screen.councilId,
+    });
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      setCouncilViewState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              isStarting: false,
+              message: result.error.userMessage,
+            },
+      );
+      return;
+    }
+
+    pushToast("info", "Council started.");
+    await loadCouncilView(screen.councilId);
+  };
+
+  const pauseCouncilRuntime = async (): Promise<void> => {
+    if (screen.kind !== "councilView" || councilViewState.status !== "ready") {
+      return;
+    }
+
+    setCouncilViewState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            isPausing: true,
+            message: "",
+          },
+    );
+
+    const result = await window.api.councils.pauseAutopilot({
+      id: screen.councilId,
+    });
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      setCouncilViewState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              isPausing: false,
+              message: result.error.userMessage,
+            },
+      );
+      return;
+    }
+
+    pushToast("info", "Autopilot paused.");
+    await loadCouncilView(screen.councilId);
+  };
+
+  const resumeCouncilRuntime = async (): Promise<void> => {
+    if (screen.kind !== "councilView" || councilViewState.status !== "ready") {
+      return;
+    }
+
+    setCouncilViewState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            isResuming: true,
+            message: "",
+          },
+    );
+
+    const result = await window.api.councils.resumeAutopilot({
+      viewKind: "councilView",
+      id: screen.councilId,
+    });
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      setCouncilViewState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              isResuming: false,
+              message: result.error.userMessage,
+            },
+      );
+      return;
+    }
+
+    pushToast("info", "Autopilot resumed.");
+    await loadCouncilView(screen.councilId);
+  };
+
+  const generateManualTurn = async (): Promise<void> => {
+    if (screen.kind !== "councilView" || councilViewState.status !== "ready") {
+      return;
+    }
+    if (councilViewState.selectedManualSpeakerId === null) {
+      pushToast("warning", "Select a member first.");
+      return;
+    }
+
+    setCouncilViewState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            isGeneratingManualTurn: true,
+            message: "",
+          },
+    );
+
+    const result = await window.api.councils.generateManualTurn({
+      viewKind: "councilView",
+      id: screen.councilId,
+      memberAgentId: councilViewState.selectedManualSpeakerId,
+    });
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      setCouncilViewState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              isGeneratingManualTurn: false,
+              message: result.error.userMessage,
+            },
+      );
+      return;
+    }
+
+    pushToast("info", "Manual turn generated.");
+    await loadCouncilView(screen.councilId);
+  };
+
+  const injectConductorMessage = async (): Promise<void> => {
+    if (screen.kind !== "councilView" || councilViewState.status !== "ready") {
+      return;
+    }
+
+    const content = councilViewState.conductorDraft.trim();
+    if (content.length === 0) {
+      pushToast("warning", "Conductor message cannot be empty.");
+      return;
+    }
+
+    setCouncilViewState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            isInjectingConductor: true,
+            message: "",
+          },
+    );
+
+    const result = await window.api.councils.injectConductorMessage({
+      viewKind: "councilView",
+      id: screen.councilId,
+      content,
+    });
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      setCouncilViewState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              isInjectingConductor: false,
+              message: result.error.userMessage,
+            },
+      );
+      return;
+    }
+
+    pushToast("info", "Conductor message added.");
+    await loadCouncilView(screen.councilId);
+  };
+
+  const advanceAutopilotTurn = async (): Promise<void> => {
+    if (screen.kind !== "councilView" || councilViewState.status !== "ready") {
+      return;
+    }
+
+    setCouncilViewState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            isAdvancingAutopilot: true,
+            message: "",
+          },
+    );
+
+    const result = await window.api.councils.advanceAutopilotTurn({
+      viewKind: "councilView",
+      id: screen.councilId,
+    });
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      setCouncilViewState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              isAdvancingAutopilot: false,
+              message: result.error.userMessage,
+            },
+      );
+      return;
+    }
+
+    pushToast("info", "Autopilot turn advanced.");
+    await loadCouncilView(screen.councilId);
+  };
+
+  const cancelCouncilGeneration = async (): Promise<void> => {
+    if (screen.kind !== "councilView" || councilViewState.status !== "ready") {
+      return;
+    }
+
+    setCouncilViewState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            isCancellingGeneration: true,
+          },
+    );
+
+    const result = await window.api.councils.cancelGeneration({ id: screen.councilId });
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      setCouncilViewState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              isCancellingGeneration: false,
+              message: result.error.userMessage,
+            },
+      );
+      return;
+    }
+
+    pushToast(
+      "info",
+      result.value.cancelled ? "Generation cancelled." : "No generation in progress.",
+    );
+    await loadCouncilView(screen.councilId);
+  };
+
   const closeCouncilEditor = (force = false): void => {
     if (!force && hasUnsavedCouncilDraft) {
       const confirmed = window.confirm("Discard unsaved council changes?");
@@ -1210,6 +1546,259 @@ export const App = (): JSX.Element => {
     pushToast("info", "Council model options refreshed.");
   };
 
+  if (screen.kind === "councilView") {
+    if (councilViewState.status === "loading") {
+      return (
+        <main className="shell">
+          <header className="section-header">
+            <button className="secondary" onClick={() => closeCouncilView()} type="button">
+              Back
+            </button>
+            <h1>Council View</h1>
+          </header>
+          <p className="status">Loading council view...</p>
+        </main>
+      );
+    }
+
+    if (councilViewState.status === "error") {
+      return (
+        <main className="shell">
+          <header className="section-header">
+            <button className="secondary" onClick={() => closeCouncilView()} type="button">
+              Back
+            </button>
+            <h1>Council View</h1>
+          </header>
+          <p className="status">Error: {councilViewState.message}</p>
+        </main>
+      );
+    }
+
+    const council = councilViewState.source.council;
+    const memberNameById = new Map(
+      councilViewState.source.availableAgents.map((agent) => [agent.id, agent.name]),
+    );
+    const canStart = !council.started && !council.archived;
+    const canPause = council.mode === "autopilot" && council.started && !council.paused;
+    const canResume = council.mode === "autopilot" && council.started && council.paused;
+    const generationRunning = councilViewState.source.generation.status === "running";
+    const canManualGenerate = council.mode === "manual" && council.started && !council.archived;
+    const canAdvanceAutopilot = council.mode === "autopilot" && council.started && !council.paused;
+
+    return (
+      <main className="shell">
+        <header className="section-header">
+          <div className="button-row">
+            <button className="secondary" onClick={() => closeCouncilView()} type="button">
+              Back
+            </button>
+            <button
+              className="secondary"
+              onClick={() => void openCouncilEditor(council.id)}
+              type="button"
+            >
+              Edit config
+            </button>
+            {canStart ? (
+              <button
+                className="cta"
+                disabled={councilViewState.isStarting}
+                onClick={() => void startCouncilRuntime()}
+                type="button"
+              >
+                {councilViewState.isStarting ? "Starting..." : "Start"}
+              </button>
+            ) : null}
+            {canPause ? (
+              <button
+                className="secondary"
+                disabled={councilViewState.isPausing}
+                onClick={() => void pauseCouncilRuntime()}
+                type="button"
+              >
+                {councilViewState.isPausing ? "Pausing..." : "Pause"}
+              </button>
+            ) : null}
+            {canResume ? (
+              <button
+                className="cta"
+                disabled={councilViewState.isResuming}
+                onClick={() => void resumeCouncilRuntime()}
+                type="button"
+              >
+                {councilViewState.isResuming ? "Resuming..." : "Resume"}
+              </button>
+            ) : null}
+            {canAdvanceAutopilot ? (
+              <button
+                className="secondary"
+                disabled={councilViewState.isAdvancingAutopilot || generationRunning}
+                onClick={() => void advanceAutopilotTurn()}
+                type="button"
+              >
+                {councilViewState.isAdvancingAutopilot ? "Generating..." : "Next turn"}
+              </button>
+            ) : null}
+            {generationRunning ? (
+              <button
+                className="secondary"
+                disabled={councilViewState.isCancellingGeneration}
+                onClick={() => void cancelCouncilGeneration()}
+                type="button"
+              >
+                {councilViewState.isCancellingGeneration ? "Cancelling..." : "Cancel generation"}
+              </button>
+            ) : null}
+          </div>
+          <h1>{council.title}</h1>
+          <p>
+            Mode: {council.mode} | Started: {council.started ? "yes" : "no"} | Paused:{" "}
+            {council.paused ? "yes" : "no"} | Turn count: {council.turnCount}
+          </p>
+        </header>
+
+        <section className="settings-section">
+          <p className="meta">Topic: {council.topic}</p>
+          <p className="meta">Goal: {council.goal ?? "None"}</p>
+          <p className="meta">
+            Conductor: {councilModelLabel(council, councilViewState.source.globalDefaultModelRef)}
+          </p>
+          <p className="meta">Tags: {council.tags.length > 0 ? council.tags.join(", ") : "None"}</p>
+          {council.archived ? (
+            <p className="status-line">Archived councils are read-only.</p>
+          ) : null}
+          {council.invalidConfig ? (
+            <p className="status-line">
+              Invalid config: start/resume is blocked until model config is fixed.
+            </p>
+          ) : null}
+        </section>
+
+        <section className="settings-section">
+          <h2>Members</h2>
+          <div className="list-grid">
+            {council.memberAgentIds.map((memberAgentId) => (
+              <article className="list-row" key={memberAgentId}>
+                <div>
+                  <h3>{memberNameById.get(memberAgentId) ?? memberAgentId}</h3>
+                  <p className="meta">Agent id: {memberAgentId}</p>
+                </div>
+                {canManualGenerate ? (
+                  <button
+                    className="secondary"
+                    disabled={generationRunning || councilViewState.isGeneratingManualTurn}
+                    onClick={() =>
+                      setCouncilViewState((current) =>
+                        current.status !== "ready"
+                          ? current
+                          : {
+                              ...current,
+                              selectedManualSpeakerId: memberAgentId,
+                            },
+                      )
+                    }
+                    type="button"
+                  >
+                    {councilViewState.selectedManualSpeakerId === memberAgentId
+                      ? "Selected"
+                      : "Select speaker"}
+                  </button>
+                ) : null}
+              </article>
+            ))}
+          </div>
+          {canManualGenerate ? (
+            <div className="button-row">
+              <button
+                className="cta"
+                disabled={generationRunning || councilViewState.isGeneratingManualTurn}
+                onClick={() => void generateManualTurn()}
+                type="button"
+              >
+                {councilViewState.isGeneratingManualTurn
+                  ? "Generating..."
+                  : "Generate selected member"}
+              </button>
+              <span className="meta">
+                Selected: {councilViewState.selectedManualSpeakerId ?? "None"}
+              </span>
+            </div>
+          ) : null}
+          {councilViewState.message.length > 0 ? (
+            <p className="status-line">{councilViewState.message}</p>
+          ) : null}
+        </section>
+
+        <section className="settings-section">
+          <h2>Conductor message</h2>
+          <textarea
+            onChange={(event) =>
+              setCouncilViewState((current) =>
+                current.status !== "ready"
+                  ? current
+                  : {
+                      ...current,
+                      conductorDraft: event.target.value,
+                    },
+              )
+            }
+            rows={4}
+            value={councilViewState.conductorDraft}
+          />
+          <div className="button-row">
+            <button
+              className="secondary"
+              disabled={
+                councilViewState.isInjectingConductor || generationRunning || council.archived
+              }
+              onClick={() => void injectConductorMessage()}
+              type="button"
+            >
+              {councilViewState.isInjectingConductor ? "Sending..." : "Send as Conductor"}
+            </button>
+          </div>
+          {councilViewState.source.briefing !== null ? (
+            <p className="meta">Briefing: {councilViewState.source.briefing.briefing}</p>
+          ) : (
+            <p className="meta">Briefing: not generated yet.</p>
+          )}
+        </section>
+
+        <section className="settings-section">
+          <h2>Transcript</h2>
+          {councilViewState.source.messages.length === 0 ? (
+            <p className="status">No messages yet.</p>
+          ) : (
+            <div className="list-grid">
+              {councilViewState.source.messages.map((message) => (
+                <article className="list-row" key={message.id}>
+                  <div>
+                    <h3>
+                      {message.senderName} {message.senderKind === "conductor" ? "(Conductor)" : ""}
+                    </h3>
+                    <p className="meta">
+                      #{message.sequenceNumber} at {message.createdAtUtc}
+                    </p>
+                    <p className="meta">{message.content}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <div aria-live="polite" className="toast-stack">
+          {toasts.map((toast) => (
+            <div className={`toast toast-${toast.level}`} key={toast.id}>
+              {toast.message}
+            </div>
+          ))}
+        </div>
+      </main>
+    );
+  }
+
   if (screen.kind === "councilEditor") {
     if (councilEditorState.status === "loading") {
       return (
@@ -1264,7 +1853,12 @@ export const App = (): JSX.Element => {
               <>
                 <button
                   className="secondary"
-                  disabled={councilEditorState.isArchiving}
+                  disabled={
+                    councilEditorState.isArchiving ||
+                    (councilEditorState.source.council?.mode === "autopilot" &&
+                      councilEditorState.source.council.started &&
+                      !councilEditorState.source.council.paused)
+                  }
                   onClick={() =>
                     void setCouncilArchived(councilEditorState.source.council?.archived !== true)
                   }
@@ -1406,6 +2000,11 @@ export const App = (): JSX.Element => {
 
           {councilEditorState.message.length > 0 ? (
             <p className="status-line">{councilEditorState.message}</p>
+          ) : null}
+          {councilEditorState.source.council?.mode === "autopilot" &&
+          councilEditorState.source.council.started &&
+          !councilEditorState.source.council.paused ? (
+            <p className="status-line">Pause Autopilot in Council View before archiving.</p>
           ) : null}
         </section>
 
@@ -1659,8 +2258,13 @@ export const App = (): JSX.Element => {
                   <p className="meta">Topic: {council.topic}</p>
                   <p className="meta">Mode: {council.mode}</p>
                   <p className="meta">
+                    Runtime:{" "}
+                    {council.started ? (council.paused ? "Paused" : "Running") : "Not started"}
+                  </p>
+                  <p className="meta">
                     Conductor: {councilModelLabel(council, councilsGlobalDefaultModel)}
                   </p>
+                  <p className="meta">Turn count: {council.turnCount}</p>
                   <p className="meta">Members: {council.memberAgentIds.length}</p>
                   <p className="meta">
                     Tags: {council.tags.length > 0 ? council.tags.join(", ") : "None"}
@@ -1677,6 +2281,13 @@ export const App = (): JSX.Element => {
                       Invalid config
                     </span>
                   ) : null}
+                  <button
+                    className="cta"
+                    onClick={() => void openCouncilView(council.id)}
+                    type="button"
+                  >
+                    Open
+                  </button>
                   <button
                     className="secondary"
                     onClick={() => void openCouncilEditor(council.id)}

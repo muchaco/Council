@@ -203,6 +203,9 @@ export type CouncilDto = {
   conductorModelRefOrNull: ModelRef | null;
   invalidConfig: boolean;
   archived: boolean;
+  started: boolean;
+  paused: boolean;
+  turnCount: number;
   createdAtUtc: string;
   updatedAtUtc: string;
 };
@@ -240,6 +243,46 @@ export type GetCouncilEditorViewResponse = {
   canRefreshModels: boolean;
 };
 
+export type GetCouncilViewRequest = {
+  viewKind: "councilView";
+  councilId: string;
+};
+
+export type GetCouncilViewResponse = {
+  council: CouncilDto;
+  availableAgents: ReadonlyArray<CouncilAgentOptionDto>;
+  messages: ReadonlyArray<CouncilMessageDto>;
+  briefing: CouncilRuntimeBriefingDto | null;
+  generation: CouncilGenerationStateDto;
+  modelCatalog: ModelCatalogSnapshotDto;
+  globalDefaultModelRef: ModelRef | null;
+  canRefreshModels: boolean;
+};
+
+export type CouncilMessageDto = {
+  id: string;
+  councilId: string;
+  sequenceNumber: number;
+  senderKind: "member" | "conductor";
+  senderAgentId: string | null;
+  senderName: string;
+  senderColor: string | null;
+  content: string;
+  createdAtUtc: string;
+};
+
+export type CouncilRuntimeBriefingDto = {
+  briefing: string;
+  goalReached: boolean;
+  updatedAtUtc: string;
+};
+
+export type CouncilGenerationStateDto = {
+  status: "idle" | "running";
+  kind: "manualMemberTurn" | "autopilotStep" | "conductorBriefing" | null;
+  activeMemberAgentId: string | null;
+};
+
 export type SaveCouncilRequest = {
   viewKind: "councilCreate";
   id: string | null;
@@ -272,4 +315,71 @@ export type SetCouncilArchivedRequest = {
 
 export type SetCouncilArchivedResponse = {
   council: CouncilDto;
+};
+
+export type StartCouncilRequest = {
+  viewKind: "councilView";
+  id: string;
+};
+
+export type StartCouncilResponse = {
+  council: CouncilDto;
+};
+
+export type PauseCouncilAutopilotRequest = {
+  id: string;
+};
+
+export type PauseCouncilAutopilotResponse = {
+  council: CouncilDto;
+};
+
+export type ResumeCouncilAutopilotRequest = {
+  viewKind: "councilView";
+  id: string;
+};
+
+export type ResumeCouncilAutopilotResponse = {
+  council: CouncilDto;
+};
+
+export type GenerateManualCouncilTurnRequest = {
+  viewKind: "councilView";
+  id: string;
+  memberAgentId: string;
+};
+
+export type GenerateManualCouncilTurnResponse = {
+  council: CouncilDto;
+  message: CouncilMessageDto;
+};
+
+export type InjectConductorMessageRequest = {
+  viewKind: "councilView";
+  id: string;
+  content: string;
+};
+
+export type InjectConductorMessageResponse = {
+  council: CouncilDto;
+  message: CouncilMessageDto;
+};
+
+export type AdvanceAutopilotTurnRequest = {
+  viewKind: "councilView";
+  id: string;
+};
+
+export type AdvanceAutopilotTurnResponse = {
+  council: CouncilDto;
+  message: CouncilMessageDto;
+  selectedMemberAgentId: string;
+};
+
+export type CancelCouncilGenerationRequest = {
+  id: string;
+};
+
+export type CancelCouncilGenerationResponse = {
+  cancelled: boolean;
 };

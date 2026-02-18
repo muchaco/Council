@@ -27,9 +27,20 @@ const windowApi: WindowApi = {
   councils: {
     list: async (request) => ipcRenderer.invoke("councils:list", request),
     getEditorView: async (request) => ipcRenderer.invoke("councils:get-editor-view", request),
+    getCouncilView: async (request) => ipcRenderer.invoke("councils:get-view", request),
     save: async (request) => ipcRenderer.invoke("councils:save", request),
     delete: async (request) => ipcRenderer.invoke("councils:delete", request),
     setArchived: async (request) => ipcRenderer.invoke("councils:set-archived", request),
+    start: async (request) => ipcRenderer.invoke("councils:start", request),
+    pauseAutopilot: async (request) => ipcRenderer.invoke("councils:pause-autopilot", request),
+    resumeAutopilot: async (request) => ipcRenderer.invoke("councils:resume-autopilot", request),
+    generateManualTurn: async (request) =>
+      ipcRenderer.invoke("councils:generate-manual-turn", request),
+    injectConductorMessage: async (request) =>
+      ipcRenderer.invoke("councils:inject-conductor-message", request),
+    advanceAutopilotTurn: async (request) =>
+      ipcRenderer.invoke("councils:advance-autopilot-turn", request),
+    cancelGeneration: async (request) => ipcRenderer.invoke("councils:cancel-generation", request),
     refreshModelCatalog: async (request) =>
       ipcRenderer.invoke("councils:refresh-model-catalog", request),
   },

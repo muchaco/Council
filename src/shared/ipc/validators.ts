@@ -99,6 +99,11 @@ export const GET_COUNCIL_EDITOR_VIEW_REQUEST_SCHEMA = z.object({
   councilId: z.string().uuid().nullable(),
 });
 
+export const GET_COUNCIL_VIEW_REQUEST_SCHEMA = z.object({
+  viewKind: z.literal("councilView"),
+  councilId: z.string().uuid(),
+});
+
 export const SAVE_COUNCIL_REQUEST_SCHEMA = z.object({
   viewKind: z.literal("councilCreate"),
   id: z.string().uuid().nullable(),
@@ -119,4 +124,39 @@ export const DELETE_COUNCIL_REQUEST_SCHEMA = z.object({
 export const SET_COUNCIL_ARCHIVED_REQUEST_SCHEMA = z.object({
   id: z.string().uuid(),
   archived: z.boolean(),
+});
+
+export const START_COUNCIL_REQUEST_SCHEMA = z.object({
+  viewKind: z.literal("councilView"),
+  id: z.string().uuid(),
+});
+
+export const PAUSE_COUNCIL_AUTOPILOT_REQUEST_SCHEMA = z.object({
+  id: z.string().uuid(),
+});
+
+export const RESUME_COUNCIL_AUTOPILOT_REQUEST_SCHEMA = z.object({
+  viewKind: z.literal("councilView"),
+  id: z.string().uuid(),
+});
+
+export const GENERATE_MANUAL_COUNCIL_TURN_REQUEST_SCHEMA = z.object({
+  viewKind: z.literal("councilView"),
+  id: z.string().uuid(),
+  memberAgentId: z.string().uuid(),
+});
+
+export const INJECT_CONDUCTOR_MESSAGE_REQUEST_SCHEMA = z.object({
+  viewKind: z.literal("councilView"),
+  id: z.string().uuid(),
+  content: z.string().trim().min(1).max(20_000),
+});
+
+export const ADVANCE_AUTOPILOT_TURN_REQUEST_SCHEMA = z.object({
+  viewKind: z.literal("councilView"),
+  id: z.string().uuid(),
+});
+
+export const CANCEL_COUNCIL_GENERATION_REQUEST_SCHEMA = z.object({
+  id: z.string().uuid(),
 });

@@ -1,21 +1,37 @@
 import type { ResultAsync } from "neverthrow";
 import { type DomainError, domainError } from "../../../shared/domain/errors.js";
 import type {
+  AdvanceAutopilotTurnResponse,
+  CancelCouncilGenerationResponse,
   DeleteCouncilResponse,
+  GenerateManualCouncilTurnResponse,
   GetCouncilEditorViewResponse,
+  GetCouncilViewResponse,
+  InjectConductorMessageResponse,
   IpcResult,
   ListCouncilsResponse,
+  PauseCouncilAutopilotResponse,
   RefreshModelCatalogResponse,
+  ResumeCouncilAutopilotResponse,
   SaveCouncilResponse,
   SetCouncilArchivedResponse,
+  StartCouncilResponse,
 } from "../../../shared/ipc/dto.js";
 import {
+  ADVANCE_AUTOPILOT_TURN_REQUEST_SCHEMA,
+  CANCEL_COUNCIL_GENERATION_REQUEST_SCHEMA,
   DELETE_COUNCIL_REQUEST_SCHEMA,
+  GENERATE_MANUAL_COUNCIL_TURN_REQUEST_SCHEMA,
   GET_COUNCIL_EDITOR_VIEW_REQUEST_SCHEMA,
+  GET_COUNCIL_VIEW_REQUEST_SCHEMA,
+  INJECT_CONDUCTOR_MESSAGE_REQUEST_SCHEMA,
   LIST_COUNCILS_REQUEST_SCHEMA,
+  PAUSE_COUNCIL_AUTOPILOT_REQUEST_SCHEMA,
   REFRESH_MODEL_CATALOG_REQUEST_SCHEMA,
+  RESUME_COUNCIL_AUTOPILOT_REQUEST_SCHEMA,
   SAVE_COUNCIL_REQUEST_SCHEMA,
   SET_COUNCIL_ARCHIVED_REQUEST_SCHEMA,
+  START_COUNCIL_REQUEST_SCHEMA,
 } from "../../../shared/ipc/validators.js";
 import type { CouncilsSlice } from "./slice.js";
 
@@ -83,6 +99,23 @@ export const createCouncilsIpcHandlers = (slice: CouncilsSlice) => ({
     );
   },
 
+  getCouncilView: async (
+    payload: unknown,
+    webContentsId: number,
+  ): Promise<IpcResult<GetCouncilViewResponse>> => {
+    const parsed = GET_COUNCIL_VIEW_REQUEST_SCHEMA.safeParse(payload);
+    if (!parsed.success) {
+      return toValidationFailure("Invalid getCouncilView payload.");
+    }
+
+    return toIpcResult(
+      slice.getCouncilView({
+        webContentsId,
+        councilId: parsed.data.councilId,
+      }),
+    );
+  },
+
   saveCouncil: async (
     payload: unknown,
     webContentsId: number,
@@ -123,6 +156,125 @@ export const createCouncilsIpcHandlers = (slice: CouncilsSlice) => ({
         webContentsId,
         id: parsed.data.id,
         archived: parsed.data.archived,
+      }),
+    );
+  },
+
+  startCouncil: async (
+    payload: unknown,
+    webContentsId: number,
+  ): Promise<IpcResult<StartCouncilResponse>> => {
+    const parsed = START_COUNCIL_REQUEST_SCHEMA.safeParse(payload);
+    if (!parsed.success) {
+      return toValidationFailure("Invalid startCouncil payload.");
+    }
+
+    return toIpcResult(
+      slice.startCouncil({
+        webContentsId,
+        id: parsed.data.id,
+      }),
+    );
+  },
+
+  pauseCouncilAutopilot: async (
+    payload: unknown,
+    webContentsId: number,
+  ): Promise<IpcResult<PauseCouncilAutopilotResponse>> => {
+    const parsed = PAUSE_COUNCIL_AUTOPILOT_REQUEST_SCHEMA.safeParse(payload);
+    if (!parsed.success) {
+      return toValidationFailure("Invalid pauseCouncilAutopilot payload.");
+    }
+
+    return toIpcResult(
+      slice.pauseCouncilAutopilot({
+        webContentsId,
+        id: parsed.data.id,
+      }),
+    );
+  },
+
+  resumeCouncilAutopilot: async (
+    payload: unknown,
+    webContentsId: number,
+  ): Promise<IpcResult<ResumeCouncilAutopilotResponse>> => {
+    const parsed = RESUME_COUNCIL_AUTOPILOT_REQUEST_SCHEMA.safeParse(payload);
+    if (!parsed.success) {
+      return toValidationFailure("Invalid resumeCouncilAutopilot payload.");
+    }
+
+    return toIpcResult(
+      slice.resumeCouncilAutopilot({
+        webContentsId,
+        id: parsed.data.id,
+      }),
+    );
+  },
+
+  generateManualTurn: async (
+    payload: unknown,
+    webContentsId: number,
+  ): Promise<IpcResult<GenerateManualCouncilTurnResponse>> => {
+    const parsed = GENERATE_MANUAL_COUNCIL_TURN_REQUEST_SCHEMA.safeParse(payload);
+    if (!parsed.success) {
+      return toValidationFailure("Invalid generateManualTurn payload.");
+    }
+
+    return toIpcResult(
+      slice.generateManualTurn({
+        webContentsId,
+        id: parsed.data.id,
+        memberAgentId: parsed.data.memberAgentId,
+      }),
+    );
+  },
+
+  injectConductorMessage: async (
+    payload: unknown,
+    webContentsId: number,
+  ): Promise<IpcResult<InjectConductorMessageResponse>> => {
+    const parsed = INJECT_CONDUCTOR_MESSAGE_REQUEST_SCHEMA.safeParse(payload);
+    if (!parsed.success) {
+      return toValidationFailure("Invalid injectConductorMessage payload.");
+    }
+
+    return toIpcResult(
+      slice.injectConductorMessage({
+        webContentsId,
+        id: parsed.data.id,
+        content: parsed.data.content,
+      }),
+    );
+  },
+
+  advanceAutopilotTurn: async (
+    payload: unknown,
+    webContentsId: number,
+  ): Promise<IpcResult<AdvanceAutopilotTurnResponse>> => {
+    const parsed = ADVANCE_AUTOPILOT_TURN_REQUEST_SCHEMA.safeParse(payload);
+    if (!parsed.success) {
+      return toValidationFailure("Invalid advanceAutopilotTurn payload.");
+    }
+
+    return toIpcResult(
+      slice.advanceAutopilotTurn({
+        webContentsId,
+        id: parsed.data.id,
+      }),
+    );
+  },
+
+  cancelGeneration: async (
+    payload: unknown,
+  ): Promise<IpcResult<CancelCouncilGenerationResponse>> => {
+    const parsed = CANCEL_COUNCIL_GENERATION_REQUEST_SCHEMA.safeParse(payload);
+    if (!parsed.success) {
+      return toValidationFailure("Invalid cancelGeneration payload.");
+    }
+
+    return toIpcResult(
+      slice.cancelGeneration({
+        id: parsed.data.id,
       }),
     );
   },

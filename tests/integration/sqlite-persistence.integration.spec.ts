@@ -144,6 +144,9 @@ describe("sqlite persistence service", () => {
           },
           conductorModelRefOrNull: null,
           archivedAtUtc: null,
+          startedAtUtc: "2026-02-18T10:02:00.000Z",
+          autopilotPaused: false,
+          turnCount: 3,
           createdAtUtc: "2026-02-18T10:00:01.000Z",
           updatedAtUtc: "2026-02-18T10:00:01.000Z",
         })
@@ -160,11 +163,115 @@ describe("sqlite persistence service", () => {
     expect(loaded.value).toHaveLength(1);
     expect(loaded.value[0]?.title).toBe("Ops Council");
     expect(loaded.value[0]?.memberAgentIds).toEqual(["00000000-0000-4000-8000-000000000101"]);
+    expect(loaded.value[0]?.startedAtUtc).toBe("2026-02-18T10:02:00.000Z");
+    expect(loaded.value[0]?.autopilotPaused).toBe(false);
+    expect(loaded.value[0]?.turnCount).toBe(3);
 
     const count = persistence.countCouncilsUsingAgent("00000000-0000-4000-8000-000000000101");
     expect(count.isOk()).toBe(true);
     if (count.isOk()) {
       expect(count.value).toBe(1);
+    }
+
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it("persists council transcript messages and runtime briefing", () => {
+    const { tempDir, persistence } = createTempPersistence();
+    expect(persistence.initialize().isOk()).toBe(true);
+
+    expect(
+      persistence
+        .saveAgent({
+          id: "00000000-0000-4000-8000-000000000151",
+          name: "Analyst",
+          systemPrompt: "Analyze",
+          verbosity: null,
+          temperature: null,
+          tags: [],
+          modelRefOrNull: null,
+          createdAtUtc: "2026-02-18T10:00:00.000Z",
+          updatedAtUtc: "2026-02-18T10:00:00.000Z",
+        })
+        .isOk(),
+    ).toBe(true);
+
+    expect(
+      persistence
+        .saveCouncil({
+          id: "00000000-0000-4000-8000-000000009151",
+          title: "Transcript Council",
+          topic: "Message persistence",
+          goal: null,
+          mode: "manual",
+          tags: [],
+          memberAgentIds: ["00000000-0000-4000-8000-000000000151"],
+          memberColorsByAgentId: {},
+          conductorModelRefOrNull: null,
+          archivedAtUtc: null,
+          startedAtUtc: "2026-02-18T10:05:00.000Z",
+          autopilotPaused: true,
+          turnCount: 0,
+          createdAtUtc: "2026-02-18T10:00:01.000Z",
+          updatedAtUtc: "2026-02-18T10:00:01.000Z",
+        })
+        .isOk(),
+    ).toBe(true);
+
+    const first = persistence.appendCouncilMessage({
+      id: "00000000-0000-4000-8000-000000001001",
+      councilId: "00000000-0000-4000-8000-000000009151",
+      senderKind: "conductor",
+      senderAgentId: null,
+      senderName: "Conductor",
+      senderColor: null,
+      content: "Kickoff",
+      createdAtUtc: "2026-02-18T10:05:10.000Z",
+    });
+    expect(first.isOk()).toBe(true);
+    if (first.isOk()) {
+      expect(first.value.sequenceNumber).toBe(1);
+    }
+
+    const second = persistence.appendCouncilMessage({
+      id: "00000000-0000-4000-8000-000000001002",
+      councilId: "00000000-0000-4000-8000-000000009151",
+      senderKind: "member",
+      senderAgentId: "00000000-0000-4000-8000-000000000151",
+      senderName: "Analyst",
+      senderColor: "#8899aa",
+      content: "Reply",
+      createdAtUtc: "2026-02-18T10:05:20.000Z",
+    });
+    expect(second.isOk()).toBe(true);
+    if (second.isOk()) {
+      expect(second.value.sequenceNumber).toBe(2);
+    }
+
+    expect(
+      persistence
+        .saveCouncilRuntimeBriefing({
+          councilId: "00000000-0000-4000-8000-000000009151",
+          briefing: "Concise latest briefing",
+          goalReached: false,
+          updatedAtUtc: "2026-02-18T10:05:25.000Z",
+        })
+        .isOk(),
+    ).toBe(true);
+
+    const loadedMessages = persistence.loadCouncilMessages("00000000-0000-4000-8000-000000009151");
+    expect(loadedMessages.isOk()).toBe(true);
+    if (loadedMessages.isOk()) {
+      expect(loadedMessages.value).toHaveLength(2);
+      expect(loadedMessages.value.map((message) => message.sequenceNumber)).toEqual([1, 2]);
+    }
+
+    const loadedBriefing = persistence.loadCouncilRuntimeBriefing(
+      "00000000-0000-4000-8000-000000009151",
+    );
+    expect(loadedBriefing.isOk()).toBe(true);
+    if (loadedBriefing.isOk()) {
+      expect(loadedBriefing.value?.briefing).toBe("Concise latest briefing");
     }
 
     rmSync(tempDir, { recursive: true, force: true });

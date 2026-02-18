@@ -1,4 +1,4 @@
-import { okAsync } from "neverthrow";
+import { ResultAsync, okAsync } from "neverthrow";
 import { describe, expect, it } from "vitest";
 import { createCouncilsIpcHandlers } from "../../src/main/features/councils/ipc-handlers";
 import { createCouncilsSlice } from "../../src/main/features/councils/slice";
@@ -6,6 +6,10 @@ import { asCouncilId } from "../../src/shared/domain/ids";
 
 const createHandlers = () => {
   let sequence = 0;
+  let messageId = 0;
+  let generationId = 0;
+  const messagesByCouncilId = new Map<string, Array<unknown>>();
+  const briefingsByCouncilId = new Map<string, unknown>();
   const slice = createCouncilsSlice({
     nowUtc: () => "2026-02-18T10:00:00.000Z",
     createCouncilId: () =>
@@ -42,6 +46,29 @@ const createHandlers = () => {
           invalidConfig: false,
         },
       ]),
+    loadCouncilMessages: (councilId) =>
+      okAsync((messagesByCouncilId.get(councilId) ?? []) as never),
+    appendCouncilMessage: (message) => {
+      const current = messagesByCouncilId.get(message.councilId) ?? [];
+      const next = {
+        ...message,
+        sequenceNumber: current.length + 1,
+      };
+      messagesByCouncilId.set(message.councilId, [...current, next]);
+      return okAsync(next as never);
+    },
+    loadCouncilRuntimeBriefing: (councilId) =>
+      okAsync((briefingsByCouncilId.get(councilId) ?? null) as never),
+    persistCouncilRuntimeBriefing: (briefing) => {
+      briefingsByCouncilId.set(briefing.councilId, briefing);
+      return okAsync(undefined);
+    },
+    aiService: {
+      generateText: () =>
+        ResultAsync.fromPromise(Promise.resolve({ text: "generated" }), () => "ProviderError"),
+    },
+    createMessageId: () => `message-${++messageId}`,
+    createGenerationRequestId: () => `generation-${++generationId}`,
   });
 
   return createCouncilsIpcHandlers(slice);
@@ -106,5 +133,70 @@ describe("councils ipc contract", () => {
 
     expect(editor.value.council?.title).toBe("Roadmap Council");
     expect(editor.value.modelCatalog.snapshotId).toContain("councilCreate");
+
+    const view = await handlers.getCouncilView(
+      {
+        viewKind: "councilView",
+        councilId: save.value.council.id,
+      },
+      31,
+    );
+    expect(view.ok).toBe(true);
+    if (!view.ok) {
+      return;
+    }
+    expect(view.value.council.id).toBe(save.value.council.id);
+
+    const started = await handlers.startCouncil(
+      {
+        viewKind: "councilView",
+        id: save.value.council.id,
+      },
+      31,
+    );
+    expect(started.ok).toBe(true);
+    if (!started.ok) {
+      return;
+    }
+    expect(started.value.council.started).toBe(true);
+  });
+
+  it("validates runtime command payloads", async () => {
+    const handlers = createHandlers();
+
+    const invalidView = await handlers.getCouncilView(
+      {
+        viewKind: "councilView",
+        councilId: "invalid",
+      },
+      44,
+    );
+    expect(invalidView.ok).toBe(false);
+
+    const invalidPause = await handlers.pauseCouncilAutopilot({ id: "bad" }, 44);
+    expect(invalidPause.ok).toBe(false);
+    if (!invalidPause.ok) {
+      expect(invalidPause.error.kind).toBe("ValidationError");
+    }
+
+    const invalidManual = await handlers.generateManualTurn(
+      {
+        viewKind: "councilView",
+        id: "bad",
+        memberAgentId: "also-bad",
+      },
+      44,
+    );
+    expect(invalidManual.ok).toBe(false);
+
+    const invalidInject = await handlers.injectConductorMessage(
+      {
+        viewKind: "councilView",
+        id: "00000000-0000-4000-8000-000000000112",
+        content: "",
+      },
+      44,
+    );
+    expect(invalidInject.ok).toBe(false);
   });
 });

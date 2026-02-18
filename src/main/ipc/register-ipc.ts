@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { app, ipcMain } from "electron";
-import { errAsync, okAsync } from "neverthrow";
+import { ResultAsync, errAsync, okAsync } from "neverthrow";
 import { domainError } from "../../shared/domain/errors.js";
 import { asAgentId, asCouncilId } from "../../shared/domain/ids.js";
 import { buildAvailableModelKeys, isModelConfigInvalid } from "../../shared/domain/model-ref.js";
@@ -15,6 +15,7 @@ import { createCouncilsSlice } from "../features/councils/slice.js";
 import { createSettingsIpcHandlers } from "../features/settings/ipc-handlers.js";
 import { createSettingsSlice } from "../features/settings/slice.js";
 import { createSqlitePersistenceService } from "../services/db/sqlite-persistence-service.js";
+import type { AiService } from "../services/interfaces.js";
 import { createKeytarKeychainService } from "../services/keychain/keytar-keychain-service.js";
 
 const toValidationFailure = (devMessage: string): IpcResult<never> => ({
@@ -40,6 +41,31 @@ export const registerIpcHandlers = (): {
     domainError("InternalError", message, "Database operation failed.");
 
   const keychain = createKeytarKeychainService();
+  const fakeAiService: AiService = {
+    generateText: (_request, abortSignal) =>
+      ResultAsync.fromPromise(
+        new Promise<{ text: string }>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            if (abortSignal.aborted) {
+              reject(new Error("aborted"));
+              return;
+            }
+            resolve({ text: `Generated at ${new Date().toISOString()}` });
+          }, 50);
+
+          abortSignal.addEventListener(
+            "abort",
+            () => {
+              clearTimeout(timer);
+              reject(new Error("aborted"));
+            },
+            { once: true },
+          );
+        }),
+        () => "ProviderError",
+      ),
+  };
+
   const settingsSlice = createSettingsSlice({
     saveSecret: keychain.saveSecret,
     loadPersistedState: () => {
@@ -127,6 +153,9 @@ export const registerIpcHandlers = (): {
           memberColorsByAgentId: council.memberColorsByAgentId,
           conductorModelRefOrNull: council.conductorModelRefOrNull,
           archivedAtUtc: council.archivedAtUtc,
+          startedAtUtc: council.startedAtUtc,
+          autopilotPaused: council.autopilotPaused,
+          turnCount: council.turnCount,
           createdAtUtc: council.createdAtUtc,
           updatedAtUtc: council.updatedAtUtc,
         })),
@@ -144,6 +173,9 @@ export const registerIpcHandlers = (): {
         memberColorsByAgentId: council.memberColorsByAgentId,
         conductorModelRefOrNull: council.conductorModelRefOrNull,
         archivedAtUtc: council.archivedAtUtc,
+        startedAtUtc: council.startedAtUtc,
+        autopilotPaused: council.autopilotPaused,
+        turnCount: council.turnCount,
         createdAtUtc: council.createdAtUtc,
         updatedAtUtc: council.updatedAtUtc,
       });
@@ -159,6 +191,86 @@ export const registerIpcHandlers = (): {
       }
       return okAsync(undefined);
     },
+    loadCouncilMessages: (councilId) => {
+      const result = persistence.loadCouncilMessages(councilId);
+      if (result.isErr()) {
+        return errAsync(toDomainPersistenceError(result.error.message));
+      }
+
+      return okAsync(
+        result.value.map((message) => ({
+          id: message.id,
+          councilId: asCouncilId(message.councilId),
+          sequenceNumber: message.sequenceNumber,
+          senderKind: message.senderKind,
+          senderAgentId: message.senderAgentId === null ? null : asAgentId(message.senderAgentId),
+          senderName: message.senderName,
+          senderColor: message.senderColor,
+          content: message.content,
+          createdAtUtc: message.createdAtUtc,
+        })),
+      );
+    },
+    appendCouncilMessage: (message) => {
+      const result = persistence.appendCouncilMessage({
+        id: message.id,
+        councilId: message.councilId,
+        senderKind: message.senderKind,
+        senderAgentId: message.senderAgentId,
+        senderName: message.senderName,
+        senderColor: message.senderColor,
+        content: message.content,
+        createdAtUtc: message.createdAtUtc,
+      });
+
+      if (result.isErr()) {
+        return errAsync(toDomainPersistenceError(result.error.message));
+      }
+
+      return okAsync({
+        id: result.value.id,
+        councilId: asCouncilId(result.value.councilId),
+        sequenceNumber: result.value.sequenceNumber,
+        senderKind: result.value.senderKind,
+        senderAgentId:
+          result.value.senderAgentId === null ? null : asAgentId(result.value.senderAgentId),
+        senderName: result.value.senderName,
+        senderColor: result.value.senderColor,
+        content: result.value.content,
+        createdAtUtc: result.value.createdAtUtc,
+      });
+    },
+    loadCouncilRuntimeBriefing: (councilId) => {
+      const result = persistence.loadCouncilRuntimeBriefing(councilId);
+      if (result.isErr()) {
+        return errAsync(toDomainPersistenceError(result.error.message));
+      }
+      if (result.value === null) {
+        return okAsync(null);
+      }
+
+      return okAsync({
+        councilId: asCouncilId(result.value.councilId),
+        briefing: result.value.briefing,
+        goalReached: result.value.goalReached,
+        updatedAtUtc: result.value.updatedAtUtc,
+      });
+    },
+    persistCouncilRuntimeBriefing: (briefing) => {
+      const result = persistence.saveCouncilRuntimeBriefing({
+        councilId: briefing.councilId,
+        briefing: briefing.briefing,
+        goalReached: briefing.goalReached,
+        updatedAtUtc: briefing.updatedAtUtc,
+      });
+      if (result.isErr()) {
+        return errAsync(toDomainPersistenceError(result.error.message));
+      }
+      return okAsync(undefined);
+    },
+    aiService: fakeAiService,
+    createMessageId: () => randomUUID(),
+    createGenerationRequestId: () => randomUUID(),
   });
   const agentsSlice = createAgentsSlice({
     nowUtc: () => new Date().toISOString(),
@@ -283,6 +395,9 @@ export const registerIpcHandlers = (): {
   ipcMain.handle("councils:get-editor-view", async (event, payload) =>
     councilsHandlers.getEditorView(payload, event.sender.id),
   );
+  ipcMain.handle("councils:get-view", async (event, payload) =>
+    councilsHandlers.getCouncilView(payload, event.sender.id),
+  );
   ipcMain.handle("councils:save", async (event, payload) =>
     councilsHandlers.saveCouncil(payload, event.sender.id),
   );
@@ -291,6 +406,27 @@ export const registerIpcHandlers = (): {
   );
   ipcMain.handle("councils:set-archived", async (event, payload) =>
     councilsHandlers.setArchived(payload, event.sender.id),
+  );
+  ipcMain.handle("councils:start", async (event, payload) =>
+    councilsHandlers.startCouncil(payload, event.sender.id),
+  );
+  ipcMain.handle("councils:pause-autopilot", async (event, payload) =>
+    councilsHandlers.pauseCouncilAutopilot(payload, event.sender.id),
+  );
+  ipcMain.handle("councils:resume-autopilot", async (event, payload) =>
+    councilsHandlers.resumeCouncilAutopilot(payload, event.sender.id),
+  );
+  ipcMain.handle("councils:generate-manual-turn", async (event, payload) =>
+    councilsHandlers.generateManualTurn(payload, event.sender.id),
+  );
+  ipcMain.handle("councils:inject-conductor-message", async (event, payload) =>
+    councilsHandlers.injectConductorMessage(payload, event.sender.id),
+  );
+  ipcMain.handle("councils:advance-autopilot-turn", async (event, payload) =>
+    councilsHandlers.advanceAutopilotTurn(payload, event.sender.id),
+  );
+  ipcMain.handle("councils:cancel-generation", async (_event, payload) =>
+    councilsHandlers.cancelGeneration(payload),
   );
   ipcMain.handle("councils:refresh-model-catalog", async (event, payload) =>
     councilsHandlers.refreshModelCatalog(payload, event.sender.id),

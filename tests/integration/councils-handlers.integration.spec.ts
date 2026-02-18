@@ -1,4 +1,4 @@
-import { okAsync } from "neverthrow";
+import { ResultAsync, okAsync } from "neverthrow";
 import { describe, expect, it } from "vitest";
 import { createCouncilsSlice } from "../../src/main/features/councils/slice";
 import { asCouncilId } from "../../src/shared/domain/ids";
@@ -18,8 +18,33 @@ const AVAILABLE_AGENTS = [
 const PRIMARY_AGENT_ID = "00000000-0000-4000-8000-000000000101";
 const SECONDARY_AGENT_ID = "00000000-0000-4000-8000-000000000102";
 
-const createSlice = () => {
+type TestMessage = {
+  id: string;
+  councilId: string;
+  sequenceNumber: number;
+  senderKind: "member" | "conductor";
+  senderAgentId: string | null;
+  senderName: string;
+  senderColor: string | null;
+  content: string;
+  createdAtUtc: string;
+};
+
+type TestBriefing = {
+  councilId: string;
+  briefing: string;
+  goalReached: boolean;
+  updatedAtUtc: string;
+};
+
+const createSlice = (options?: { generationDelayMs?: number }) => {
   let sequence = 0;
+  let messageId = 0;
+  let generationId = 0;
+  const messagesByCouncilId = new Map<string, Array<TestMessage>>();
+  const briefingsByCouncilId = new Map<string, TestBriefing>();
+
+  const generationDelayMs = options?.generationDelayMs ?? 0;
 
   return createCouncilsSlice({
     nowUtc: () => `2026-02-18T10:00:${String(sequence).padStart(2, "0")}.000Z`,
@@ -50,6 +75,48 @@ const createSlice = () => {
         },
       }),
     listAvailableAgents: () => okAsync(AVAILABLE_AGENTS),
+    loadCouncilMessages: (councilId) =>
+      okAsync((messagesByCouncilId.get(councilId) ?? []) as never),
+    appendCouncilMessage: (message) => {
+      const current = messagesByCouncilId.get(message.councilId) ?? [];
+      const next = {
+        ...message,
+        sequenceNumber: current.length + 1,
+      };
+      messagesByCouncilId.set(message.councilId, [...current, next]);
+      return okAsync(next);
+    },
+    loadCouncilRuntimeBriefing: (councilId) =>
+      okAsync((briefingsByCouncilId.get(councilId) ?? null) as never),
+    persistCouncilRuntimeBriefing: (briefing) => {
+      briefingsByCouncilId.set(briefing.councilId, briefing);
+      return okAsync(undefined);
+    },
+    aiService: {
+      generateText: (_request, abortSignal) =>
+        ResultAsync.fromPromise(
+          new Promise<{ text: string }>((resolve, reject) => {
+            const timer = setTimeout(() => {
+              if (abortSignal.aborted) {
+                reject(new Error("aborted"));
+                return;
+              }
+              resolve({ text: `Generated turn ${++sequence}` });
+            }, generationDelayMs);
+            abortSignal.addEventListener(
+              "abort",
+              () => {
+                clearTimeout(timer);
+                reject(new Error("aborted"));
+              },
+              { once: true },
+            );
+          }),
+          () => "ProviderError",
+        ),
+    },
+    createMessageId: () => `message-${++messageId}`,
+    createGenerationRequestId: () => `generation-${++generationId}`,
   });
 };
 
@@ -194,5 +261,182 @@ describe("councils handlers", () => {
 
     expect(changed.isErr()).toBe(true);
     expect(changed._unsafeUnwrapErr().kind).toBe("StateViolationError");
+  });
+
+  it("supports start, pause, resume, and archive guard for autopilot councils", async () => {
+    const slice = createSlice();
+    const saved = await slice.saveCouncil({
+      webContentsId: 23,
+      draft: {
+        viewKind: "councilCreate",
+        id: null,
+        title: "Runtime Council",
+        topic: "Execution",
+        goal: null,
+        mode: "autopilot",
+        tags: [],
+        memberAgentIds: [PRIMARY_AGENT_ID],
+        memberColorsByAgentId: {},
+        conductorModelRefOrNull: null,
+      },
+    });
+    expect(saved.isOk()).toBe(true);
+    if (saved.isErr()) {
+      return;
+    }
+
+    const started = await slice.startCouncil({
+      webContentsId: 23,
+      id: saved.value.council.id,
+    });
+    expect(started.isOk()).toBe(true);
+    if (started.isErr()) {
+      return;
+    }
+    expect(started.value.council.started).toBe(true);
+    expect(started.value.council.paused).toBe(false);
+
+    const archiveWhileRunning = await slice.setArchived({
+      webContentsId: 23,
+      id: saved.value.council.id,
+      archived: true,
+    });
+    expect(archiveWhileRunning.isErr()).toBe(true);
+    if (archiveWhileRunning.isErr()) {
+      expect(archiveWhileRunning.error.kind).toBe("StateViolationError");
+    }
+
+    const paused = await slice.pauseCouncilAutopilot({
+      webContentsId: 23,
+      id: saved.value.council.id,
+    });
+    expect(paused.isOk()).toBe(true);
+    if (paused.isErr()) {
+      return;
+    }
+    expect(paused.value.council.paused).toBe(true);
+
+    const resumed = await slice.resumeCouncilAutopilot({
+      webContentsId: 23,
+      id: saved.value.council.id,
+    });
+    expect(resumed.isOk()).toBe(true);
+    if (resumed.isErr()) {
+      return;
+    }
+    expect(resumed.value.council.paused).toBe(false);
+  });
+
+  it("appends transcript messages in order for conductor + manual generation", async () => {
+    const slice = createSlice();
+    const saved = await slice.saveCouncil({
+      webContentsId: 24,
+      draft: {
+        viewKind: "councilCreate",
+        id: null,
+        title: "Manual Council",
+        topic: "Manual flow",
+        goal: null,
+        mode: "manual",
+        tags: [],
+        memberAgentIds: [PRIMARY_AGENT_ID, SECONDARY_AGENT_ID],
+        memberColorsByAgentId: {},
+        conductorModelRefOrNull: null,
+      },
+    });
+    expect(saved.isOk()).toBe(true);
+    if (saved.isErr()) {
+      return;
+    }
+
+    expect(
+      (
+        await slice.startCouncil({
+          webContentsId: 24,
+          id: saved.value.council.id,
+        })
+      ).isOk(),
+    ).toBe(true);
+
+    const injected = await slice.injectConductorMessage({
+      webContentsId: 24,
+      id: saved.value.council.id,
+      content: "Conductor kickoff",
+    });
+    expect(injected.isOk()).toBe(true);
+
+    const generated = await slice.generateManualTurn({
+      webContentsId: 24,
+      id: saved.value.council.id,
+      memberAgentId: PRIMARY_AGENT_ID,
+    });
+    expect(generated.isOk()).toBe(true);
+
+    const view = await slice.getCouncilView({
+      webContentsId: 24,
+      councilId: saved.value.council.id,
+    });
+    expect(view.isOk()).toBe(true);
+    if (view.isErr()) {
+      return;
+    }
+
+    expect(view.value.messages.map((message) => message.sequenceNumber)).toEqual([1, 2]);
+    expect(view.value.messages[0]?.senderKind).toBe("conductor");
+    expect(view.value.messages[1]?.senderKind).toBe("member");
+    expect(view.value.council.turnCount).toBe(1);
+  });
+
+  it("discards cancelled generation output", async () => {
+    const slice = createSlice({ generationDelayMs: 120 });
+    const saved = await slice.saveCouncil({
+      webContentsId: 25,
+      draft: {
+        viewKind: "councilCreate",
+        id: null,
+        title: "Cancel Council",
+        topic: "Cancellation",
+        goal: null,
+        mode: "manual",
+        tags: [],
+        memberAgentIds: [PRIMARY_AGENT_ID],
+        memberColorsByAgentId: {},
+        conductorModelRefOrNull: null,
+      },
+    });
+    expect(saved.isOk()).toBe(true);
+    if (saved.isErr()) {
+      return;
+    }
+
+    await slice.startCouncil({
+      webContentsId: 25,
+      id: saved.value.council.id,
+    });
+
+    const generationPromise = slice.generateManualTurn({
+      webContentsId: 25,
+      id: saved.value.council.id,
+      memberAgentId: PRIMARY_AGENT_ID,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const cancelled = await slice.cancelGeneration({ id: saved.value.council.id });
+    expect(cancelled.isOk()).toBe(true);
+    if (cancelled.isOk()) {
+      expect(cancelled.value.cancelled).toBe(true);
+    }
+
+    const generationResult = await generationPromise;
+    expect(generationResult.isErr()).toBe(true);
+
+    const view = await slice.getCouncilView({
+      webContentsId: 25,
+      councilId: saved.value.council.id,
+    });
+    expect(view.isOk()).toBe(true);
+    if (view.isOk()) {
+      expect(view.value.messages).toHaveLength(0);
+      expect(view.value.generation.status).toBe("idle");
+    }
   });
 });

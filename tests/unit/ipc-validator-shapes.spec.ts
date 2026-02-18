@@ -1,17 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
+  ADVANCE_AUTOPILOT_TURN_REQUEST_SCHEMA,
+  CANCEL_COUNCIL_GENERATION_REQUEST_SCHEMA,
   DELETE_AGENT_REQUEST_SCHEMA,
   DELETE_COUNCIL_REQUEST_SCHEMA,
+  GENERATE_MANUAL_COUNCIL_TURN_REQUEST_SCHEMA,
   GET_AGENT_EDITOR_VIEW_REQUEST_SCHEMA,
   GET_COUNCIL_EDITOR_VIEW_REQUEST_SCHEMA,
+  GET_COUNCIL_VIEW_REQUEST_SCHEMA,
   HEALTH_PING_REQUEST_SCHEMA,
+  INJECT_CONDUCTOR_MESSAGE_REQUEST_SCHEMA,
   LIST_AGENTS_REQUEST_SCHEMA,
   LIST_COUNCILS_REQUEST_SCHEMA,
+  PAUSE_COUNCIL_AUTOPILOT_REQUEST_SCHEMA,
+  RESUME_COUNCIL_AUTOPILOT_REQUEST_SCHEMA,
   SAVE_AGENT_REQUEST_SCHEMA,
   SAVE_COUNCIL_REQUEST_SCHEMA,
   SAVE_PROVIDER_CONFIG_REQUEST_SCHEMA,
   SET_COUNCIL_ARCHIVED_REQUEST_SCHEMA,
   SET_GLOBAL_DEFAULT_MODEL_REQUEST_SCHEMA,
+  START_COUNCIL_REQUEST_SCHEMA,
   TEST_PROVIDER_CONNECTION_REQUEST_SCHEMA,
 } from "../../src/shared/ipc/validators";
 
@@ -158,5 +166,58 @@ describe("ipc validators", () => {
   it("rejects invalid delete council payload", () => {
     const parsed = DELETE_COUNCIL_REQUEST_SCHEMA.safeParse({ id: "council-1" });
     expect(parsed.success).toBe(false);
+  });
+
+  it("accepts valid council view payload", () => {
+    const parsed = GET_COUNCIL_VIEW_REQUEST_SCHEMA.safeParse({
+      viewKind: "councilView",
+      councilId: "00000000-0000-4000-8000-000000000111",
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("rejects pause autopilot payload with invalid id", () => {
+    const parsed = PAUSE_COUNCIL_AUTOPILOT_REQUEST_SCHEMA.safeParse({
+      id: "invalid",
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  it("accepts valid start and resume council payloads", () => {
+    const startParsed = START_COUNCIL_REQUEST_SCHEMA.safeParse({
+      viewKind: "councilView",
+      id: "00000000-0000-4000-8000-000000000112",
+    });
+    const resumeParsed = RESUME_COUNCIL_AUTOPILOT_REQUEST_SCHEMA.safeParse({
+      viewKind: "councilView",
+      id: "00000000-0000-4000-8000-000000000112",
+    });
+    expect(startParsed.success).toBe(true);
+    expect(resumeParsed.success).toBe(true);
+  });
+
+  it("accepts manual generation and autopilot advance payloads", () => {
+    const manualParsed = GENERATE_MANUAL_COUNCIL_TURN_REQUEST_SCHEMA.safeParse({
+      viewKind: "councilView",
+      id: "00000000-0000-4000-8000-000000000113",
+      memberAgentId: "00000000-0000-4000-8000-000000000101",
+    });
+    const advanceParsed = ADVANCE_AUTOPILOT_TURN_REQUEST_SCHEMA.safeParse({
+      viewKind: "councilView",
+      id: "00000000-0000-4000-8000-000000000113",
+    });
+    expect(manualParsed.success).toBe(true);
+    expect(advanceParsed.success).toBe(true);
+  });
+
+  it("rejects empty conductor injection content and invalid cancel id", () => {
+    const injectParsed = INJECT_CONDUCTOR_MESSAGE_REQUEST_SCHEMA.safeParse({
+      viewKind: "councilView",
+      id: "00000000-0000-4000-8000-000000000114",
+      content: "   ",
+    });
+    const cancelParsed = CANCEL_COUNCIL_GENERATION_REQUEST_SCHEMA.safeParse({ id: "bad-id" });
+    expect(injectParsed.success).toBe(false);
+    expect(cancelParsed.success).toBe(false);
   });
 });

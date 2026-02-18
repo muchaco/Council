@@ -1,0 +1,3 @@
+ALTER TABLE councils ADD COLUMN started_at_utc TEXT;
+ALTER TABLE councils ADD COLUMN autopilot_paused INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE councils ADD COLUMN turn_count INTEGER NOT NULL DEFAULT 0;
