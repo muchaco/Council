@@ -1,0 +1,28 @@
+{
+  "name": "agents-smoke",
+  "steps": [
+    { "action": "waitForText", "text": "Council" },
+    { "action": "click", "selector": "button:has-text('Settings')" },
+    { "action": "waitForText", "text": "Providers" },
+    { "action": "fill", "selector": "#gemini-key", "value": "diag-gemini-key" },
+    { "action": "click", "selector": "button:has-text('Test connection')" },
+    { "action": "waitForText", "text": "Connection test successful" },
+    { "action": "click", "selector": ".provider-card:first-child button.secondary" },
+    { "action": "waitForText", "text": "provider saved" },
+    {
+      "action": "evaluate",
+      "saveAs": "seedAgent",
+      "expression": "async () => window.api.agents.save({ viewKind: 'agentEdit', id: null, name: `Smoke Agent ${Date.now()}`, systemPrompt: 'You are a helpful planner.', verbosity: null, temperature: null, tags: ['smoke'], modelRefOrNull: { providerId: 'gemini', modelId: 'gemini-1.5-flash' } })"
+    },
+    { "action": "assertSaved", "key": "seedAgent", "hasPath": "value.agent.id" },
+    { "action": "click", "selector": "button:has-text('Agents')" },
+    { "action": "waitForText", "text": "New Agent" },
+    {
+      "action": "evaluate",
+      "saveAs": "agentsList",
+      "expression": "async () => window.api.agents.list({ viewKind: 'agentsList', searchText: '', tagFilter: '', sortBy: 'updatedAt', sortDirection: 'desc', page: 1 })"
+    },
+    { "action": "assertSaved", "key": "agentsList", "hasPath": "value.items" },
+    { "action": "screenshot", "file": "agents-smoke.png", "fullPage": true }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "name": "settings-smoke",
+  "steps": [
+    { "action": "waitForText", "text": "Council" },
+    { "action": "click", "selector": "button:has-text('Settings')" },
+    { "action": "waitForText", "text": "Providers" },
+    {
+      "action": "evaluate",
+      "saveAs": "bridge",
+      "expression": "() => ({ apiType: typeof window.api, hasSettingsGetView: typeof window.api?.settings?.getView === 'function' })"
+    },
+    {
+      "action": "assertSaved",
+      "key": "bridge",
+      "equals": { "apiType": "object", "hasSettingsGetView": true }
+    },
+    {
+      "action": "evaluate",
+      "saveAs": "settingsView",
+      "expression": "async () => window.api.settings.getView({ viewKind: 'settings' })"
+    },
+    {
+      "action": "assertSaved",
+      "key": "settingsView",
+      "hasPath": "value.providers"
+    },
+    {
+      "action": "screenshot",
+      "file": "settings-smoke.png",
+      "fullPage": true
+    }
+  ]
+}

@@ -1,0 +1,304 @@
+import { randomUUID } from "node:crypto";
+import path from "node:path";
+import { app, ipcMain } from "electron";
+import { errAsync, okAsync } from "neverthrow";
+import { domainError } from "../../shared/domain/errors.js";
+import { asAgentId, asCouncilId } from "../../shared/domain/ids.js";
+import { buildAvailableModelKeys, isModelConfigInvalid } from "../../shared/domain/model-ref.js";
+import { createTag } from "../../shared/domain/tag.js";
+import type { HealthPingResponse, IpcResult } from "../../shared/ipc/dto.js";
+import { HEALTH_PING_REQUEST_SCHEMA } from "../../shared/ipc/validators.js";
+import { createAgentsIpcHandlers } from "../features/agents/ipc-handlers.js";
+import { createAgentsSlice } from "../features/agents/slice.js";
+import { createCouncilsIpcHandlers } from "../features/councils/ipc-handlers.js";
+import { createCouncilsSlice } from "../features/councils/slice.js";
+import { createSettingsIpcHandlers } from "../features/settings/ipc-handlers.js";
+import { createSettingsSlice } from "../features/settings/slice.js";
+import { createSqlitePersistenceService } from "../services/db/sqlite-persistence-service.js";
+import { createKeytarKeychainService } from "../services/keychain/keytar-keychain-service.js";
+
+const toValidationFailure = (devMessage: string): IpcResult<never> => ({
+  ok: false,
+  error: domainError("ValidationError", devMessage, "Invalid request."),
+});
+
+export const registerIpcHandlers = (): {
+  releaseWebContentsResources: (webContentsId: number) => void;
+} => {
+  const dbFilePath = path.join(app.getPath("userData"), "council3.sqlite3");
+  const migrationsDirPath = path.join(process.cwd(), "src", "main", "services", "db", "migrations");
+  const persistence = createSqlitePersistenceService({
+    dbFilePath,
+    migrationsDirPath,
+  });
+  const initResult = persistence.initialize();
+  if (initResult.isErr()) {
+    throw new Error(`Database initialization failed: ${initResult.error.message}`);
+  }
+
+  const toDomainPersistenceError = (message: string) =>
+    domainError("InternalError", message, "Database operation failed.");
+
+  const keychain = createKeytarKeychainService();
+  const settingsSlice = createSettingsSlice({
+    saveSecret: keychain.saveSecret,
+    loadPersistedState: () => {
+      const result = persistence.loadSettingsState();
+      if (result.isErr()) {
+        return errAsync(toDomainPersistenceError(result.error.message));
+      }
+      return okAsync(result.value);
+    },
+    persistProviderConfig: (params) => {
+      const result = persistence.saveProviderConfig(params);
+      if (result.isErr()) {
+        return errAsync(toDomainPersistenceError(result.error.message));
+      }
+      return okAsync(undefined);
+    },
+    persistGlobalDefaultModel: ({ modelRefOrNull, updatedAtUtc }) => {
+      const result = persistence.saveGlobalDefaultModel(modelRefOrNull, updatedAtUtc);
+      if (result.isErr()) {
+        return errAsync(toDomainPersistenceError(result.error.message));
+      }
+      return okAsync(undefined);
+    },
+  });
+  const councilsSlice = createCouncilsSlice({
+    nowUtc: () => new Date().toISOString(),
+    createCouncilId: () => asCouncilId(randomUUID()),
+    pageSize: 10,
+    getModelContext: ({ webContentsId, viewKind }) =>
+      settingsSlice
+        .getSettingsView({
+          webContentsId,
+          viewKind,
+        })
+        .map((view) => ({
+          modelCatalog: view.modelCatalog,
+          globalDefaultModelRef: view.globalDefaultModelRef,
+          canRefreshModels: view.canRefreshModels,
+        })),
+    refreshModelCatalog: ({ webContentsId, viewKind }) =>
+      settingsSlice.refreshModelCatalog({
+        webContentsId,
+        viewKind,
+      }),
+    listAvailableAgents: ({ webContentsId, viewKind }) =>
+      settingsSlice.getSettingsView({ webContentsId, viewKind }).andThen((view) => {
+        const loadAgentsResult = persistence.loadAgents();
+        if (loadAgentsResult.isErr()) {
+          return errAsync(toDomainPersistenceError(loadAgentsResult.error.message));
+        }
+
+        const availableModelKeys = buildAvailableModelKeys(view.modelCatalog.modelsByProvider);
+        return okAsync(
+          loadAgentsResult.value
+            .map((agent) => ({
+              id: agent.id,
+              name: agent.name,
+              invalidConfig: isModelConfigInvalid({
+                modelRefOrNull: agent.modelRefOrNull,
+                globalDefaultModelRef: view.globalDefaultModelRef,
+                availableModelKeys,
+              }),
+            }))
+            .sort((left, right) => left.name.localeCompare(right.name)),
+        );
+      }),
+    loadPersistedCouncils: () => {
+      const result = persistence.loadCouncils();
+      if (result.isErr()) {
+        return errAsync(toDomainPersistenceError(result.error.message));
+      }
+
+      return okAsync(
+        result.value.map((council) => ({
+          id: asCouncilId(council.id),
+          title: council.title,
+          topic: council.topic,
+          goal: council.goal,
+          mode: council.mode,
+          tags: council.tags.flatMap((tag) => {
+            const parsed = createTag(tag);
+            return parsed.isOk() ? [parsed.value] : [];
+          }),
+          memberAgentIds: council.memberAgentIds.map((id) => asAgentId(id)),
+          memberColorsByAgentId: council.memberColorsByAgentId,
+          conductorModelRefOrNull: council.conductorModelRefOrNull,
+          archivedAtUtc: council.archivedAtUtc,
+          createdAtUtc: council.createdAtUtc,
+          updatedAtUtc: council.updatedAtUtc,
+        })),
+      );
+    },
+    persistCouncil: (council) => {
+      const result = persistence.saveCouncil({
+        id: council.id,
+        title: council.title,
+        topic: council.topic,
+        goal: council.goal,
+        mode: council.mode,
+        tags: council.tags,
+        memberAgentIds: council.memberAgentIds,
+        memberColorsByAgentId: council.memberColorsByAgentId,
+        conductorModelRefOrNull: council.conductorModelRefOrNull,
+        archivedAtUtc: council.archivedAtUtc,
+        createdAtUtc: council.createdAtUtc,
+        updatedAtUtc: council.updatedAtUtc,
+      });
+      if (result.isErr()) {
+        return errAsync(toDomainPersistenceError(result.error.message));
+      }
+      return okAsync(undefined);
+    },
+    persistCouncilDeletion: (councilId) => {
+      const result = persistence.deleteCouncil(councilId);
+      if (result.isErr()) {
+        return errAsync(toDomainPersistenceError(result.error.message));
+      }
+      return okAsync(undefined);
+    },
+  });
+  const agentsSlice = createAgentsSlice({
+    nowUtc: () => new Date().toISOString(),
+    createAgentId: () => asAgentId(randomUUID()),
+    pageSize: 10,
+    getModelContext: ({ webContentsId, viewKind }) =>
+      settingsSlice
+        .getSettingsView({
+          webContentsId,
+          viewKind,
+        })
+        .map((view) => ({
+          modelCatalog: view.modelCatalog,
+          globalDefaultModelRef: view.globalDefaultModelRef,
+          canRefreshModels: view.canRefreshModels,
+        })),
+    refreshModelCatalog: ({ webContentsId, viewKind }) =>
+      settingsSlice.refreshModelCatalog({
+        webContentsId,
+        viewKind,
+      }),
+    loadPersistedAgents: () => {
+      const result = persistence.loadAgents();
+      if (result.isErr()) {
+        return errAsync(toDomainPersistenceError(result.error.message));
+      }
+
+      return okAsync(
+        result.value.map((agent) => ({
+          id: asAgentId(agent.id),
+          name: agent.name,
+          systemPrompt: agent.systemPrompt,
+          verbosity: agent.verbosity,
+          temperature: agent.temperature,
+          tags: agent.tags.flatMap((tag) => {
+            const parsed = createTag(tag);
+            return parsed.isOk() ? [parsed.value] : [];
+          }),
+          modelRefOrNull: agent.modelRefOrNull,
+          createdAtUtc: agent.createdAtUtc,
+          updatedAtUtc: agent.updatedAtUtc,
+        })),
+      );
+    },
+    persistAgent: (agent) => {
+      const result = persistence.saveAgent({
+        id: agent.id,
+        name: agent.name,
+        systemPrompt: agent.systemPrompt,
+        verbosity: agent.verbosity,
+        temperature: agent.temperature,
+        tags: agent.tags,
+        modelRefOrNull: agent.modelRefOrNull,
+        createdAtUtc: agent.createdAtUtc,
+        updatedAtUtc: agent.updatedAtUtc,
+      });
+      if (result.isErr()) {
+        return errAsync(toDomainPersistenceError(result.error.message));
+      }
+      return okAsync(undefined);
+    },
+    persistAgentDeletion: (agentId) => {
+      const result = persistence.deleteAgent(agentId);
+      if (result.isErr()) {
+        return errAsync(toDomainPersistenceError(result.error.message));
+      }
+      return okAsync(undefined);
+    },
+    canDeleteAgent: (agentId) =>
+      councilsSlice.countCouncilsUsingAgent(agentId).map((count) => count === 0),
+  });
+  const settingsHandlers = createSettingsIpcHandlers(settingsSlice);
+  const agentsHandlers = createAgentsIpcHandlers(agentsSlice);
+  const councilsHandlers = createCouncilsIpcHandlers(councilsSlice);
+
+  ipcMain.handle("health:ping", async (_event, payload): Promise<IpcResult<HealthPingResponse>> => {
+    const parsed = HEALTH_PING_REQUEST_SCHEMA.safeParse(payload);
+    if (!parsed.success) {
+      return toValidationFailure(parsed.error.message);
+    }
+
+    return {
+      ok: true,
+      value: {
+        pong: `pong:${parsed.data.message}`,
+        timestampUtc: new Date().toISOString(),
+      },
+    };
+  });
+
+  ipcMain.handle("settings:get-view", async (event, payload) =>
+    settingsHandlers.getSettingsView(payload, event.sender.id),
+  );
+  ipcMain.handle("providers:test-connection", async (_event, payload) =>
+    settingsHandlers.testProviderConnection(payload),
+  );
+  ipcMain.handle("providers:save-config", async (event, payload) =>
+    settingsHandlers.saveProviderConfig(payload, event.sender.id),
+  );
+  ipcMain.handle("providers:refresh-model-catalog", async (event, payload) =>
+    settingsHandlers.refreshModelCatalog(payload, event.sender.id),
+  );
+  ipcMain.handle("settings:set-global-default-model", async (event, payload) =>
+    settingsHandlers.setGlobalDefaultModel(payload, event.sender.id),
+  );
+  ipcMain.handle("agents:list", async (event, payload) =>
+    agentsHandlers.listAgents(payload, event.sender.id),
+  );
+  ipcMain.handle("agents:get-editor-view", async (event, payload) =>
+    agentsHandlers.getEditorView(payload, event.sender.id),
+  );
+  ipcMain.handle("agents:save", async (event, payload) =>
+    agentsHandlers.saveAgent(payload, event.sender.id),
+  );
+  ipcMain.handle("agents:delete", async (_event, payload) => agentsHandlers.deleteAgent(payload));
+  ipcMain.handle("agents:refresh-model-catalog", async (event, payload) =>
+    agentsHandlers.refreshModelCatalog(payload, event.sender.id),
+  );
+  ipcMain.handle("councils:list", async (event, payload) =>
+    councilsHandlers.listCouncils(payload, event.sender.id),
+  );
+  ipcMain.handle("councils:get-editor-view", async (event, payload) =>
+    councilsHandlers.getEditorView(payload, event.sender.id),
+  );
+  ipcMain.handle("councils:save", async (event, payload) =>
+    councilsHandlers.saveCouncil(payload, event.sender.id),
+  );
+  ipcMain.handle("councils:delete", async (_event, payload) =>
+    councilsHandlers.deleteCouncil(payload),
+  );
+  ipcMain.handle("councils:set-archived", async (event, payload) =>
+    councilsHandlers.setArchived(payload, event.sender.id),
+  );
+  ipcMain.handle("councils:refresh-model-catalog", async (event, payload) =>
+    councilsHandlers.refreshModelCatalog(payload, event.sender.id),
+  );
+
+  return {
+    releaseWebContentsResources: (webContentsId: number): void => {
+      settingsSlice.releaseViewSnapshots(webContentsId);
+    },
+  };
+};

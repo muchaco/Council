@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["node", "vitest"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "composite": true,
+    "tsBuildInfoFile": "./dist/.tsbuildinfo.scripts",
+    "noEmit": true
+  },
+  "include": [
+    "scripts/**/*.ts",
+    "tests/**/*.ts",
+    "src/main/**/*.ts",
+    "src/shared/**/*.ts",
+    "vite.config.ts",
+    "vitest.*.config.ts"
+  ]
+}

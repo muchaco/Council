@@ -1,0 +1,46 @@
+{
+  "name": "councils-ui",
+  "steps": [
+    { "action": "waitForText", "text": "Council" },
+    { "action": "click", "selector": "button:has-text('Settings')" },
+    { "action": "waitForText", "text": "Providers" },
+    { "action": "fill", "selector": "#gemini-key", "value": "diag-gemini-key" },
+    { "action": "click", "selector": "button:has-text('Test connection')" },
+    { "action": "waitForText", "text": "Connection test successful" },
+    { "action": "click", "selector": ".provider-card:first-child button.secondary" },
+    { "action": "waitForText", "text": "provider saved" },
+
+    {
+      "action": "evaluate",
+      "saveAs": "seedAgent",
+      "expression": "async () => window.api.agents.save({ viewKind: 'agentEdit', id: null, name: `Council Member ${Date.now()}`, systemPrompt: 'You are a focused contributor.', verbosity: null, temperature: null, tags: ['diag'], modelRefOrNull: { providerId: 'gemini', modelId: 'gemini-1.5-flash' } })"
+    },
+    { "action": "assertSaved", "key": "seedAgent", "hasPath": "value.agent.id" },
+
+    { "action": "click", "selector": "button:has-text('Councils')" },
+    { "action": "waitForText", "text": "New Council" },
+    { "action": "click", "selector": "button:has-text('New Council')" },
+    {
+      "action": "waitForText",
+      "text": "Title, Topic, and at least one Member are required before save."
+    },
+    { "action": "fill", "selector": "#council-title", "value": "Delivery Council" },
+    {
+      "action": "fill",
+      "selector": "#council-topic",
+      "value": "How do we reduce cycle time this sprint?"
+    },
+    { "action": "fill", "selector": "#council-tags", "value": "delivery" },
+    { "action": "click", "selector": "input[type='checkbox']" },
+    { "action": "click", "selector": "button:has-text('Save')" },
+    { "action": "waitForText", "text": "Delivery Council" },
+
+    { "action": "click", "selector": "button:has-text('Edit')" },
+    { "action": "waitForText", "text": "Mode is locked after creation." },
+    { "action": "click", "selector": "button:has-text('Archive')" },
+    { "action": "waitForText", "text": "Council archived." },
+    { "action": "click", "selector": "button:has-text('Back')" },
+    { "action": "expectVisible", "selector": ".warning-badge:has-text('Archived')" },
+    { "action": "screenshot", "file": "councils-ui.png", "fullPage": true }
+  ]
+}

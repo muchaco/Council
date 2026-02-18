@@ -1,0 +1,74 @@
+flowchart TB
+  %% =========================
+  %% Council App - Architecture
+  %% =========================
+
+  subgraph Renderer["Renderer Process (React/Vite + shadcn/ui)"]
+    UI["UI Views\n(Agents, Councils, Council View,\nProviders/Settings, Export)"]
+    UIState["UI State + Form Drafts\n(Explicit Save, Unsaved Guard)"]
+    VM["View Models (DTOs)\nNo domain logic, no secrets"]
+    UI --> UIState --> VM
+  end
+
+  subgraph Preload["Preload (Typed IPC Bridge)"]
+    API["window.api.*\nNarrow typed methods"]
+  end
+
+  subgraph Main["Main Process"]
+    IPC["IPC Handlers\n(validate inputs, length limits)\n(map DTO <-> domain)"]
+
+    subgraph App["Application Layer (Orchestrators)"]
+      CmdQ["Commands/Queries per Vertical Slice\n(ReaderTaskEither Env)"]
+      Effects["Effect Interpreter\n(abortable AI, DB, keychain, FS)"]
+    end
+
+    subgraph Domain["Functional Core (Pure Domain)"]
+      Deciders["Deciders / State Transitions\n(validate invariants, rules)"]
+      PromptBuild["Prompt Builder (pure)\n(briefing + last N messages)"]
+      ModelResolve["Model Resolution (pure)\n(null -> global default)\nInvalidConfig checks"]
+      Errors["DomainError Union\n(kind + dev/user messages)"]
+    end
+
+    subgraph Services["Imperative Services (IO)"]
+      Db["DbService\n(SQLite + migrations)\nbetter-sqlite3"]
+      Keychain["KeychainService\n(keytar)\nAPI keys only"]
+      Ai["AiService\n(Vercel AI SDK)\nno streaming, abortable"]
+      Catalog["ModelCatalogService\n(per-view cached snapshot)\nrefresh on demand/failure"]
+      Fs["ExportService\n(Markdown file write)"]
+      Clock["Clock + UUID + Logger"]
+    end
+
+    IPC --> CmdQ
+    CmdQ --> Deciders
+    CmdQ --> PromptBuild
+    CmdQ --> ModelResolve
+    Deciders --> Errors
+
+    CmdQ --> Effects
+    Effects --> Db
+    Effects --> Keychain
+    Effects --> Ai
+    Effects --> Catalog
+    Effects --> Fs
+    Effects --> Clock
+  end
+
+  UI --> API --> IPC
+  Db --> DbFile["SQLite DB file\n(app.getPath('userData'))"]
+  Keychain --> OSKeychain["OS Keychain\n(no fallback storage)"]
+
+  Catalog --> Snapshots["Catalog Snapshots\nkeyed by view/webContents\nused for availability checks"]
+
+  Ai --> Providers["Providers\nGemini | Ollama | OpenRouter\n(credentials retrieved in main only)"]
+
+  subgraph Runtime["Council Runtime (No Background Execution)"]
+    Lease["Council View Lease\n(open/close hooks)"]
+    InFlight["In-flight Registry\nAbortController per council\n(single generation at a time)"]
+    Loop["Autopilot Loop\nruns only while view open\nand not paused"]
+  end
+
+  CmdQ --> Runtime
+  Lease --> Loop
+  InFlight --> Loop
+  Loop --> Ai
+  Loop --> Db

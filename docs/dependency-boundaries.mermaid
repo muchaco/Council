@@ -1,0 +1,76 @@
+flowchart LR
+  %% =====================================
+  %% Dependency Boundaries / Allowed Arrows
+  %% =====================================
+
+  subgraph R["Renderer (React + shadcn/ui)"]
+    R1["Views + State\nNo secrets\nNo provider calls"]
+  end
+
+  subgraph P["Preload Bridge"]
+    P1["Typed IPC API\nwindow.api.*"]
+  end
+
+  subgraph I["Main: IPC Boundary"]
+    I1["IPC Handlers\nValidate DTOs\nNo raw paths/secrets"]
+  end
+
+  subgraph A["Main: Application Layer"]
+    A1["Command/Query Handlers\nReaderTaskEither<Env,Err,A>\nVertical slices"]
+  end
+
+  subgraph D["Main: Domain (Pure)"]
+    D1["Domain Types + Invariants\nDeciders + Effects\nPrompt building (pure)\nModel resolution (pure)"]
+  end
+
+  subgraph S["Main: Services (IO)"]
+    S1["DbService (SQLite)"]
+    S2["AiService (Vercel AI SDK)"]
+    S3["KeychainService (keytar)"]
+    S4["ModelCatalogService (cached per view)"]
+    S5["Export/FS + OS integration"]
+    S6["Clock/UUID/Logger"]
+  end
+
+  %% Allowed dependencies
+  R1 --> P1
+  P1 --> I1
+  I1 --> A1
+  A1 --> D1
+  A1 --> S1
+  A1 --> S2
+  A1 --> S3
+  A1 --> S4
+  A1 --> S5
+  A1 --> S6
+
+  %% Domain must be pure
+  D1 -. no IO .- S1
+  D1 -. no IO .- S2
+  D1 -. no IO .- S3
+  D1 -. no IO .- S4
+  D1 -. no IO .- S5
+  D1 -. no IO .- S6
+
+  %% Renderer never reaches services directly
+  R1 -. forbidden .- S1
+  R1 -. forbidden .- S2
+  R1 -. forbidden .- S3
+  R1 -. forbidden .- S4
+  R1 -. forbidden .- S5
+
+  %% Services do not depend on Domain (keep them dumb)
+  S1 -. avoid domain logic .- D1
+  S2 -. avoid domain logic .- D1
+  S3 -. avoid domain logic .- D1
+  S4 -. avoid domain logic .- D1
+  S5 -. avoid domain logic .- D1
+
+  %% Notes (as boundary labels)
+  Secrets["Secrets Boundary:\nAPI keys live only in KeychainService\nnever cross IPC"]
+  Catalog["Model availability:\nper-view snapshots\nrefresh on demand/failure"]
+  Cancellation["Cancellation:\nAbortSignal required\ndiscard partial output"]
+
+  S3 --> Secrets
+  S4 --> Catalog
+  S2 --> Cancellation
