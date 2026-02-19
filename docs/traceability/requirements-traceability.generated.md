@@ -1,14 +1,14 @@
 # Test-to-Requirement Index (Generated)
 
-Generated at: 2026-02-19T12:42:51.799Z
+Generated at: 2026-02-19T20:18:59.240Z
 
 ## Summary
 
-- Spec files tracked: 27
-- Test cases tracked: 128
-- Annotated test cases: 128
+- Spec files tracked: 30
+- Test cases tracked: 147
+- Annotated test cases: 147
 - Unmapped test cases: 0
-- Unique mapped requirement IDs: 127
+- Unique mapped requirement IDs: 147
 
 ## Index
 
@@ -24,30 +24,34 @@ Generated at: 2026-02-19T12:42:51.799Z
 - `tests/integration/boundary-check-script.integration.spec.ts`
   - [itReq] `passes for baseline source tree` -> A3, IMPL-005
 - `tests/integration/councils-handlers.integration.spec.ts`
-  - [itReq] `creates councils and paginates list results` -> F1, R2.1, R2.11, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U3.8, U3.9
-  - [itReq] `archives and restores council` -> F1, R2.1, R2.11, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U3.8, U3.9
-  - [itReq] `does not allow changing mode after create` -> F1, R2.1, R2.11, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U3.8, U3.9
-  - [itReq] `supports start, pause, resume, and archive guard for autopilot councils` -> F1, R2.1, R2.11, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U3.8, U3.9
-  - [itReq] `runs autopilot opening on start and persists first planned speaker` -> F1, R2.1, R2.11, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U3.8, U3.9
-  - [itReq] `pauses autopilot when configured max turns are reached` -> F1, R2.1, R2.11, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U3.8, U3.9
-  - [itReq] `appends transcript messages in order for conductor + manual generation` -> F1, R2.1, R2.11, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U3.8, U3.9
-  - [itReq] `uses briefing plus last N messages for runtime prompts` -> F1, R2.1, R2.11, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U3.8, U3.9
-  - [itReq] `pauses autopilot when provider error occurs during conductor briefing` -> F1, R2.1, R2.11, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U3.8, U3.9
-  - [itReq] `does not repeat the same autopilot speaker consecutively` -> F1, R2.1, R2.11, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U3.8, U3.9
-  - [itReq] `discards cancelled generation output` -> F1, R2.1, R2.11, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U3.8, U3.9
-  - [itReq] `exposes active autopilot speaker while generation is running` -> F1, R2.1, R2.11, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U3.8, U3.9
-  - [itReq] `refreshes model catalog and retries generation after provider error` -> F1, R2.1, R2.11, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U3.8, U3.9
-  - [itReq] `returns provider error when retry still fails` -> F1, R2.1, R2.11, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U3.8, U3.9
-  - [itReq] `exports transcript markdown with header and UI-visible message fields` -> F1, R2.1, R2.11, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U3.8, U3.9
+  - [itReq] `creates councils and paginates list results` -> F1, R2.1, R2.11, R2.17, R2.18, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
+  - [itReq] `archives and restores council` -> F1, R2.1, R2.11, R2.17, R2.18, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
+  - [itReq] `does not allow changing mode after create` -> F1, R2.1, R2.11, R2.17, R2.18, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
+  - [itReq] `blocks adding members from council view while autopilot is actively running` -> F1, R2.1, R2.11, R2.17, R2.18, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
+  - [itReq] `allows adding members in manual mode and blocks removing members with message history` -> F1, R2.1, R2.11, R2.17, R2.18, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
+  - [itReq] `supports start, pause, resume, and archive guard for autopilot councils` -> F1, R2.1, R2.11, R2.17, R2.18, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
+  - [itReq] `runs autopilot opening on start and persists first planned speaker` -> F1, R2.1, R2.11, R2.17, R2.18, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
+  - [itReq] `pauses autopilot when configured max turns are reached` -> F1, R2.1, R2.11, R2.17, R2.18, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
+  - [itReq] `appends transcript messages in order for conductor + manual generation` -> F1, R2.1, R2.11, R2.17, R2.18, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
+  - [itReq] `uses briefing plus last N messages for runtime prompts` -> F1, R2.1, R2.11, R2.17, R2.18, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
+  - [itReq] `pauses autopilot when provider error occurs during conductor briefing` -> F1, R2.1, R2.11, R2.17, R2.18, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
+  - [itReq] `does not repeat the same autopilot speaker consecutively` -> F1, R2.1, R2.11, R2.17, R2.18, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
+  - [itReq] `discards cancelled generation output` -> F1, R2.1, R2.11, R2.17, R2.18, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
+  - [itReq] `exposes active autopilot speaker while generation is running` -> F1, R2.1, R2.11, R2.17, R2.18, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
+  - [itReq] `refreshes model catalog and retries generation after provider error` -> F1, R2.1, R2.11, R2.17, R2.18, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
+  - [itReq] `returns provider error when retry still fails` -> F1, R2.1, R2.11, R2.17, R2.18, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
+  - [itReq] `exports transcript markdown with header and UI-visible message fields` -> F1, R2.1, R2.11, R2.17, R2.18, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.3, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
 - `tests/integration/councils-ipc.contract.integration.spec.ts`
-  - [itReq] `validates list payload` -> A3, R2.1, R2.3, R3.1, R3.23, R3.25, R3.26, R3.32, R3.7, U11.6, U12.2, U3.8
-  - [itReq] `creates and fetches council editor view` -> A3, R2.1, R2.3, R3.1, R3.23, R3.25, R3.26, R3.32, R3.7, U11.6, U12.2, U3.8
-  - [itReq] `validates runtime command payloads` -> A3, R2.1, R2.3, R3.1, R3.23, R3.25, R3.26, R3.32, R3.7, U11.6, U12.2, U3.8
-  - [itReq] `exports transcript through typed IPC handler` -> A3, R2.1, R2.3, R3.1, R3.23, R3.25, R3.26, R3.32, R3.7, U11.6, U12.2, U3.8
+  - [itReq] `validates list payload` -> A3, R2.1, R2.3, R3.1, R3.23, R3.25, R3.26, R3.32, R3.7, U10.1, U10.9, U11.6, U12.2, U3.8
+  - [itReq] `creates and fetches council editor view` -> A3, R2.1, R2.3, R3.1, R3.23, R3.25, R3.26, R3.32, R3.7, U10.1, U10.9, U11.6, U12.2, U3.8
+  - [itReq] `validates runtime command payloads` -> A3, R2.1, R2.3, R3.1, R3.23, R3.25, R3.26, R3.32, R3.7, U10.1, U10.9, U11.6, U12.2, U3.8
+  - [itReq] `exports transcript through typed IPC handler` -> A3, R2.1, R2.3, R3.1, R3.23, R3.25, R3.26, R3.32, R3.7, U10.1, U10.9, U11.6, U12.2, U3.8
 - `tests/integration/coverage-guardrails.integration.spec.ts`
   - [itReq] `keeps architecture-aligned coverage include scopes` -> H3, IMPL-006
 - `tests/integration/migration-verification.integration.spec.ts`
   - [itReq] `passes with bootstrap migration set` -> B3, H3
+- `tests/integration/packaging-pipeline.integration.spec.ts`
+  - [itReq] `enforces Linux AppImage packaging and native rebuild automation` -> G1, G3, H2, H3, IMPL-001
 - `tests/integration/providers-handlers.integration.spec.ts`
   - [itReq] `requires successful test before save` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.7, R4.8, R4.9, U5.11, U5.4, U5.5, U5.6, U5.9
   - [itReq] `saves ollama without API key` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.7, R4.8, R4.9, U5.11, U5.4, U5.5, U5.6, U5.9
@@ -75,6 +79,18 @@ Generated at: 2026-02-19T12:42:51.799Z
   - [itReq] `persists agents across re-open and supports delete` -> B1, B2, B3, R2.1, R3.23, R3.3, R3.7, R3.8, R7.1
   - [itReq] `persists councils and member references` -> B1, B2, B3, R2.1, R3.23, R3.3, R3.7, R3.8, R7.1
   - [itReq] `persists council transcript messages and runtime briefing` -> B1, B2, B3, R2.1, R3.23, R3.3, R3.7, R3.8, R7.1
+- `tests/unit/app-ui-helpers.spec.ts`
+  - [itReq] `round-trips model selection values` -> U5.3
+  - [itReq] `returns null for invalid model selection values` -> U5.3
+  - [itReq] `checks whether selected model exists in catalog` -> U5.3
+  - [itReq] `validates autopilot turn limits` -> U10.8
+  - [itReq] `deduplicates and bounds toast queue entries` -> U2.6
+  - [itReq] `normalizes council config tags from draft text` -> U10.11
+  - [itReq] `appends council config tags with ui-friendly validation` -> U10.11
+  - [itReq] `normalizes renderer tag drafts with shared tag rules` -> R5.3, R5.6
+  - [itReq] `maps confirmation-dialog keyboard actions` -> U11.2, U15.2
+  - [itReq] `maps list disclosure keyboard close action` -> U15.2
+  - [itReq] `builds descriptive accessibility labels for badges and tooltip controls` -> U15.3
 - `tests/unit/council-runtime-conductor.spec.ts`
   - [itReq] `builds a prompt with strict JSON contract` -> E1, E2, F1, R3.13, R3.14, R3.18, R3.20
   - [itReq] `parses valid manual-mode conductor decision` -> E1, E2, F1, R3.13, R3.14, R3.18, R3.20
@@ -90,15 +106,21 @@ Generated at: 2026-02-19T12:42:51.799Z
   - [itReq] `moves focus down and up within transcript bounds` -> U15.2
   - [itReq] `supports Home and End keyboard navigation` -> U15.2
   - [itReq] `returns null for unsupported keys` -> U15.2
+  - [itReq] `maps inline config edit keyboard shortcuts` -> U10.7, U15.2
   - [itReq] `builds descriptive aria labels with identity and message details` -> U15.3, U15.4
 - `tests/unit/council-view-autopilot-recovery.spec.ts`
   - [itReq] `returns notice when autopilot is paused with runtime error` -> U12.6
   - [itReq] `returns null when message is empty` -> U12.6
   - [itReq] `returns null when council is not paused autopilot` -> U12.6
 - `tests/unit/council-view-runtime-guards.spec.ts`
+  - [itReq] `uses council view leave confirmation copy` -> U11.2
   - [itReq] `requires confirmation and pause when autopilot is running` -> R3.12
   - [itReq] `requires confirmation and cancellation when generation is running` -> R3.12
   - [itReq] `does not require confirmation when autopilot is already paused and idle` -> R3.12
+- `tests/unit/council-view-transcript.spec.ts`
+  - [itReq] `renders member and conductor messages on opposite sides` -> U13.3, U8.4
+  - [itReq] `uses sender color accents with stable fallbacks` -> U8.4
+  - [itReq] `builds avatar initials from sender names` -> U8.4
 - `tests/unit/domain-errors-shape.spec.ts`
   - [itReq] `exposes stable error kinds` -> E2, E3
   - [itReq] `builds typed error objects` -> E2, E3
@@ -112,30 +134,30 @@ Generated at: 2026-02-19T12:42:51.799Z
 - `tests/unit/in-memory-keychain-service.spec.ts`
   - [itReq] `saves credentials through keychain boundary` -> C1
 - `tests/unit/ipc-validator-shapes.spec.ts`
-  - [itReq] `accepts valid payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
-  - [itReq] `rejects empty payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
-  - [itReq] `accepts provider test payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
-  - [itReq] `rejects save payload without test token` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
-  - [itReq] `rejects provider payload with unknown fields` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
-  - [itReq] `accepts nullable global default model payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
-  - [itReq] `accepts valid context last N payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
-  - [itReq] `accepts valid list agents payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
-  - [itReq] `rejects invalid list agents page` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
-  - [itReq] `accepts save agent payload with nullable model` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
-  - [itReq] `accepts nullable get editor payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
-  - [itReq] `rejects delete payload with non-uuid id` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
-  - [itReq] `accepts valid list councils payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
-  - [itReq] `accepts valid save council payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
-  - [itReq] `accepts nullable get council editor payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
-  - [itReq] `rejects invalid set archived payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
-  - [itReq] `rejects invalid delete council payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
-  - [itReq] `accepts valid council view payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
-  - [itReq] `rejects pause autopilot payload with invalid id` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
-  - [itReq] `accepts valid start and resume council payloads` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
-  - [itReq] `rejects invalid max turn payloads` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
-  - [itReq] `accepts manual generation and autopilot advance payloads` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
-  - [itReq] `rejects empty conductor injection content and invalid cancel id` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
-  - [itReq] `validates council transcript export payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U11.6, U12.2
+  - [itReq] `accepts valid payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `rejects empty payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts provider test payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `rejects save payload without test token` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `rejects provider payload with unknown fields` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts nullable global default model payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts valid context last N payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts valid list agents payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `rejects invalid list agents page` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts save agent payload with nullable model` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts nullable get editor payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `rejects delete payload with non-uuid id` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts valid list councils payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts valid save council payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts nullable get council editor payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `rejects invalid set archived payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `rejects invalid delete council payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts valid council view payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `rejects pause autopilot payload with invalid id` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts valid start and resume council payloads` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `rejects invalid max turn payloads` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts manual generation and autopilot advance payloads` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `rejects empty conductor injection content and invalid cancel id` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `validates council transcript export payload` -> A3, C1, F1, R1.1, R1.2, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
 - `tests/unit/keytar-keychain-service.spec.ts`
   - [itReq] `writes credentials via keytar adapter` -> C1, C2, H2
   - [itReq] `maps keychain transport failures to unavailable errors` -> C1, C2, H2

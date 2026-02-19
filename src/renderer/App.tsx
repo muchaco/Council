@@ -1,7 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
+import {
+  AUTOPILOT_MAX_TURNS_MAX,
+  AUTOPILOT_MAX_TURNS_MIN,
+  type AutopilotLimitModalAction,
+  type AutopilotLimitModalState,
+  COUNCIL_CONFIG_MAX_TAGS,
+  appendCouncilConfigTag,
+  buildInvalidConfigBadgeAriaLabel,
+  buildProviderConfiguredBadgeAriaLabel,
+  buildProviderConnectionTestButtonAriaLabel,
+  councilModelLabel,
+  createAutopilotLimitModalState,
+  isAgentDraftInvalidConfig,
+  isCouncilDraftInvalidConfig,
+  isModelSelectionInCatalog,
+  modelLabel,
+  normalizeTagsDraft,
+  parseCouncilConfigTags,
+  resolveAutopilotMaxTurns,
+  resolveDisclosureKeyboardAction,
+  toModelRef,
+  toModelSelectionValue,
+} from "../shared/app-ui-helpers.js";
 import {
   buildTranscriptMessageAriaLabel,
+  resolveInlineConfigEditKeyboardAction,
   resolveTranscriptFocusIndex,
 } from "../shared/council-view-accessibility.js";
 import { buildAutopilotRecoveryNotice } from "../shared/council-view-autopilot-recovery";
@@ -9,6 +33,11 @@ import {
   COUNCIL_VIEW_EXIT_CONFIRMATION_MESSAGE,
   buildCouncilViewExitPlan,
 } from "../shared/council-view-runtime-guards";
+import {
+  resolveTranscriptAccentColor,
+  resolveTranscriptAvatarInitials,
+  resolveTranscriptMessageAlignment,
+} from "../shared/council-view-transcript.js";
 import type { ModelRef } from "../shared/domain/model-ref";
 import { resolveHomeTabFocusIndex } from "../shared/home-keyboard-accessibility.js";
 import type {
@@ -32,8 +61,18 @@ import {
   isProviderConfigured,
   isProviderDraftChanged,
 } from "../shared/provider-settings-ui.js";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { ToastStack } from "./ToastStack";
+import { useToastQueue } from "./use-toast-queue";
 
 type HomeTab = "councils" | "agents" | "settings";
+type CouncilViewTab = "discussion" | "config";
+type CouncilConfigField = "topic" | "goal" | "tags" | "conductorModel";
+
+type CouncilConfigEditState = {
+  field: CouncilConfigField;
+  draftValue: string;
+};
 
 const HOME_TAB_ORDER: ReadonlyArray<HomeTab> = ["councils", "agents", "settings"];
 
@@ -78,6 +117,8 @@ type AgentEditorState =
       isSaving: boolean;
       isDeleting: boolean;
       isRefreshingModels: boolean;
+      showDiscardDialog: boolean;
+      showDeleteDialog: boolean;
       message: string;
     }
   | {
@@ -106,6 +147,10 @@ type CouncilEditorState =
       isDeleting: boolean;
       isArchiving: boolean;
       isRefreshingModels: boolean;
+      showDiscardDialog: boolean;
+      showDeleteDialog: boolean;
+      showRemoveMemberDialog: boolean;
+      pendingMemberRemovalId: string | null;
       message: string;
     }
   | {
@@ -138,39 +183,40 @@ type CouncilViewState =
       isCancellingGeneration: boolean;
       isExportingTranscript: boolean;
       isLeavingView: boolean;
-      selectedManualSpeakerId: string | null;
+      showLeaveDialog: boolean;
+      activeTab: CouncilViewTab;
+      configEdit: CouncilConfigEditState | null;
+      configTagInput: string;
+      showConfigDiscardDialog: boolean;
+      showConfigDeleteDialog: boolean;
+      isSavingConfigField: boolean;
+      isRefreshingConfigModels: boolean;
+      isSavingMembers: boolean;
+      showAddMemberPanel: boolean;
+      addMemberSearchText: string;
+      showMemberRemoveDialog: boolean;
+      pendingMemberRemovalId: string | null;
       conductorDraft: string;
       message: string;
     }
   | { status: "error"; message: string };
-
-type ToastLevel = "info" | "warning" | "error";
-
-type ToastState = {
-  id: string;
-  level: ToastLevel;
-  message: string;
-};
-
-type AutopilotLimitModalAction = "start" | "resume";
-
-type AutopilotLimitModalState = {
-  action: AutopilotLimitModalAction;
-  limitTurns: boolean;
-  maxTurnsInput: string;
-  validationMessage: string;
-};
-
-const TOAST_TIMEOUT_MS = 4200;
-const AUTOPILOT_MAX_TURNS_MIN = 1;
-const AUTOPILOT_MAX_TURNS_MAX = 200;
-const AUTOPILOT_DEFAULT_MAX_TURNS = "12";
 
 const PROVIDER_LABELS: Record<ProviderId, string> = {
   gemini: "Gemini",
   ollama: "Ollama",
   openrouter: "OpenRouter",
 };
+
+const MEMBER_COLOR_PALETTE: ReadonlyArray<string> = [
+  "#0a5c66",
+  "#2563eb",
+  "#b45309",
+  "#7c3aed",
+  "#be123c",
+  "#0f766e",
+  "#166534",
+  "#7c2d12",
+];
 
 const toInitialDraftState = (provider: ProviderConfigDto): ProviderDraftState => ({
   providerId: provider.providerId,
@@ -207,6 +253,52 @@ const isConnectionTestAllowed = (params: {
   });
 };
 
+const resolveMemberRemoveDisabledReason = (params: {
+  archived: boolean;
+  canEditMembers: boolean;
+  memberHasMessages: boolean;
+  memberCount: number;
+  isSavingMembers: boolean;
+  started: boolean;
+  paused: boolean;
+  mode: CouncilMode;
+}): string | null => {
+  const {
+    archived,
+    canEditMembers,
+    memberHasMessages,
+    memberCount,
+    isSavingMembers,
+    started,
+    paused,
+    mode,
+  } = params;
+
+  if (memberHasMessages) {
+    return "Cannot remove members who already sent messages in this council.";
+  }
+
+  if (memberCount <= 1) {
+    return "At least one member is required.";
+  }
+
+  if (isSavingMembers) {
+    return "Saving member changes...";
+  }
+
+  if (!canEditMembers) {
+    if (archived) {
+      return "Archived councils are read-only.";
+    }
+    if (mode === "autopilot" && started && !paused) {
+      return "Pause Autopilot before editing members.";
+    }
+    return "Member changes are currently unavailable.";
+  }
+
+  return null;
+};
+
 const sortProviderIds = (providerIds: ReadonlyArray<string>): ReadonlyArray<string> =>
   [...providerIds].sort((a, b) => a.localeCompare(b));
 
@@ -222,74 +314,6 @@ const buildSavedFingerprints = (
   ollama: fingerprintProviderDraft(drafts.ollama),
   openrouter: fingerprintProviderDraft(drafts.openrouter),
 });
-
-const toModelSelectionValue = (modelRefOrNull: ModelRef | null): string =>
-  modelRefOrNull === null ? "" : `${modelRefOrNull.providerId}:${modelRefOrNull.modelId}`;
-
-const toModelRef = (selection: string): ModelRef | null => {
-  if (selection.length === 0) {
-    return null;
-  }
-
-  const [providerId, ...modelIdParts] = selection.split(":");
-  const modelId = modelIdParts.join(":");
-  if (!providerId || modelId.length === 0) {
-    return null;
-  }
-
-  return {
-    providerId,
-    modelId,
-  };
-};
-
-const createAutopilotLimitModalState = (
-  action: AutopilotLimitModalAction,
-): AutopilotLimitModalState => ({
-  action,
-  limitTurns: false,
-  maxTurnsInput: AUTOPILOT_DEFAULT_MAX_TURNS,
-  validationMessage: "",
-});
-
-const resolveAutopilotMaxTurns = (
-  modalState: AutopilotLimitModalState,
-):
-  | {
-      ok: true;
-      maxTurns: number | null;
-    }
-  | {
-      ok: false;
-      validationMessage: string;
-    } => {
-  if (!modalState.limitTurns) {
-    return {
-      ok: true,
-      maxTurns: null,
-    };
-  }
-
-  const parsed = Number.parseInt(modalState.maxTurnsInput.trim(), 10);
-  if (!Number.isInteger(parsed)) {
-    return {
-      ok: false,
-      validationMessage: "Enter a whole number between 1 and 200.",
-    };
-  }
-
-  if (parsed < AUTOPILOT_MAX_TURNS_MIN || parsed > AUTOPILOT_MAX_TURNS_MAX) {
-    return {
-      ok: false,
-      validationMessage: "Turn limit must be between 1 and 200.",
-    };
-  }
-
-  return {
-    ok: true,
-    maxTurns: parsed,
-  };
-};
 
 const toAgentEditorDraft = (agent: AgentDto | null): AgentEditorDraft => ({
   id: agent?.id ?? null,
@@ -315,71 +339,20 @@ const toCouncilEditorDraft = (council: CouncilDto | null): CouncilEditorDraft =>
   selectedMemberIds: council?.memberAgentIds ?? [],
 });
 
-const modelLabel = (agent: AgentDto, globalDefaultModelRef: ModelRef | null): string => {
-  if (agent.modelRefOrNull !== null) {
-    return `${agent.modelRefOrNull.providerId}:${agent.modelRefOrNull.modelId}`;
+const toCouncilConfigFieldDisplayValue = (params: {
+  council: CouncilDto;
+  field: CouncilConfigField;
+}): string => {
+  if (params.field === "topic") {
+    return params.council.topic;
   }
-
-  if (globalDefaultModelRef !== null) {
-    return `Global default (${globalDefaultModelRef.providerId}:${globalDefaultModelRef.modelId})`;
+  if (params.field === "goal") {
+    return params.council.goal ?? "";
   }
-
-  return "Global default (unselected)";
-};
-
-const councilModelLabel = (council: CouncilDto, globalDefaultModelRef: ModelRef | null): string => {
-  if (council.conductorModelRefOrNull !== null) {
-    return `${council.conductorModelRefOrNull.providerId}:${council.conductorModelRefOrNull.modelId}`;
+  if (params.field === "tags") {
+    return params.council.tags.join(", ");
   }
-
-  if (globalDefaultModelRef !== null) {
-    return `Global default (${globalDefaultModelRef.providerId}:${globalDefaultModelRef.modelId})`;
-  }
-
-  return "Global default (unselected)";
-};
-
-const isAgentDraftInvalidConfig = (params: {
-  modelSelection: string;
-  modelCatalog: GetAgentEditorViewResponse["modelCatalog"];
-  globalDefaultModelRef: ModelRef | null;
-}): boolean => {
-  const selected = toModelRef(params.modelSelection);
-  const resolved = selected ?? params.globalDefaultModelRef;
-  if (resolved === null) {
-    return true;
-  }
-
-  const models = params.modelCatalog.modelsByProvider[resolved.providerId] ?? [];
-  return !models.includes(resolved.modelId);
-};
-
-const isCouncilDraftInvalidConfig = (params: {
-  conductorModelSelection: string;
-  modelCatalog: GetCouncilEditorViewResponse["modelCatalog"];
-  globalDefaultModelRef: ModelRef | null;
-}): boolean => {
-  const selected = toModelRef(params.conductorModelSelection);
-  const resolved = selected ?? params.globalDefaultModelRef;
-  if (resolved === null) {
-    return true;
-  }
-
-  const models = params.modelCatalog.modelsByProvider[resolved.providerId] ?? [];
-  return !models.includes(resolved.modelId);
-};
-
-const isModelSelectionInCatalog = (params: {
-  modelSelection: string;
-  modelCatalog: { modelsByProvider: Record<string, ReadonlyArray<string>> };
-}): boolean => {
-  const selected = toModelRef(params.modelSelection);
-  if (selected === null) {
-    return true;
-  }
-
-  const models = params.modelCatalog.modelsByProvider[selected.providerId] ?? [];
-  return models.includes(selected.modelId);
+  return toModelSelectionValue(params.council.conductorModelRefOrNull);
 };
 
 export const App = (): JSX.Element => {
@@ -433,6 +406,7 @@ export const App = (): JSX.Element => {
     null,
   );
   const [exportingCouncilId, setExportingCouncilId] = useState<string | null>(null);
+  const [pendingCouncilListDelete, setPendingCouncilListDelete] = useState<CouncilDto | null>(null);
   const [councilEditorState, setCouncilEditorState] = useState<CouncilEditorState>({
     status: "loading",
   });
@@ -441,8 +415,7 @@ export const App = (): JSX.Element => {
     null,
   );
 
-  const [toasts, setToasts] = useState<ReadonlyArray<ToastState>>([]);
-  const toastTimers = useRef(new Map<string, number>());
+  const { toasts, pushToast } = useToastQueue();
   const draftsRef = useRef<Record<ProviderId, ProviderDraftState> | null>(null);
   const autopilotModalDialogRef = useRef<HTMLDialogElement | null>(null);
   const transcriptRowRefs = useRef<Array<HTMLElement | null>>([]);
@@ -451,30 +424,12 @@ export const App = (): JSX.Element => {
     agents: null,
     settings: null,
   });
-
-  const pushToast = useCallback((level: ToastLevel, message: string): void => {
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    setToasts((current) => [...current, { id, level, message }]);
-
-    const timer = window.setTimeout(() => {
-      setToasts((current) => current.filter((toast) => toast.id !== id));
-      toastTimers.current.delete(id);
-    }, TOAST_TIMEOUT_MS);
-    toastTimers.current.set(id, timer);
-  }, []);
+  const councilConfigEditContainerRef = useRef<HTMLDivElement | null>(null);
+  const councilConfigEditInputRef = useRef<HTMLTextAreaElement | HTMLSelectElement | null>(null);
 
   useEffect(() => {
     draftsRef.current = drafts;
   }, [drafts]);
-
-  useEffect(() => {
-    return () => {
-      for (const timer of toastTimers.current.values()) {
-        window.clearTimeout(timer);
-      }
-      toastTimers.current.clear();
-    };
-  }, []);
 
   useEffect(() => {
     if (autopilotLimitModal === null) {
@@ -491,6 +446,43 @@ export const App = (): JSX.Element => {
     );
     focusTarget?.focus();
   }, [autopilotLimitModal]);
+
+  useEffect(() => {
+    if (councilViewState.status !== "ready" || councilViewState.configEdit === null) {
+      return;
+    }
+
+    councilConfigEditInputRef.current?.focus();
+  }, [councilViewState]);
+
+  useEffect(() => {
+    if (
+      councilViewState.status !== "ready" ||
+      councilViewState.activeTab !== "config" ||
+      councilViewState.configEdit === null ||
+      councilViewState.showConfigDiscardDialog
+    ) {
+      return;
+    }
+
+    const onPointerDown = (event: MouseEvent): void => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      if (councilConfigEditContainerRef.current?.contains(target) === true) {
+        return;
+      }
+
+      closeCouncilConfigEdit(false);
+    };
+
+    window.addEventListener("mousedown", onPointerDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+    };
+  }, [councilViewState]);
 
   const loadSettingsView = useCallback(async (): Promise<void> => {
     setSettingsViewState({ status: "loading" });
@@ -950,16 +942,23 @@ export const App = (): JSX.Element => {
       isSaving: false,
       isDeleting: false,
       isRefreshingModels: false,
+      showDiscardDialog: false,
+      showDeleteDialog: false,
       message: "",
     });
   };
 
   const closeAgentEditor = (force = false): void => {
     if (!force && hasUnsavedAgentDraft) {
-      const confirmed = window.confirm("Discard unsaved agent changes?");
-      if (!confirmed) {
-        return;
-      }
+      setAgentEditorState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              showDiscardDialog: true,
+            },
+      );
+      return;
     }
 
     setScreen({ kind: "home" });
@@ -988,10 +987,22 @@ export const App = (): JSX.Element => {
       return;
     }
 
-    const normalizedTags = agentEditorState.draft.tagsInput
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter((tag) => tag.length > 0);
+    const normalizedTagsResult = normalizeTagsDraft({
+      tagsInput: agentEditorState.draft.tagsInput,
+      maxTags: COUNCIL_CONFIG_MAX_TAGS,
+    });
+    if (!normalizedTagsResult.ok) {
+      pushToast("warning", normalizedTagsResult.message);
+      setAgentEditorState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              message: normalizedTagsResult.message,
+            },
+      );
+      return;
+    }
 
     const parsedTemperature =
       agentEditorState.draft.temperature.trim().length === 0
@@ -1023,7 +1034,7 @@ export const App = (): JSX.Element => {
           ? null
           : agentEditorState.draft.verbosity,
       temperature: parsedTemperature,
-      tags: normalizedTags,
+      tags: normalizedTagsResult.tags,
       modelRefOrNull: toModelRef(agentEditorState.draft.modelSelection),
     });
 
@@ -1050,16 +1061,12 @@ export const App = (): JSX.Element => {
       return;
     }
 
-    const confirmed = window.confirm("Delete this agent permanently?");
-    if (!confirmed) {
-      return;
-    }
-
     setAgentEditorState((current) =>
       current.status !== "ready"
         ? current
         : {
             ...current,
+            showDeleteDialog: false,
             isDeleting: true,
             message: "",
           },
@@ -1163,6 +1170,10 @@ export const App = (): JSX.Element => {
       isDeleting: false,
       isArchiving: false,
       isRefreshingModels: false,
+      showDiscardDialog: false,
+      showDeleteDialog: false,
+      showRemoveMemberDialog: false,
+      pendingMemberRemovalId: null,
       message: "",
     });
   };
@@ -1193,7 +1204,19 @@ export const App = (): JSX.Element => {
         isCancellingGeneration: false,
         isExportingTranscript: false,
         isLeavingView: false,
-        selectedManualSpeakerId: result.value.council.memberAgentIds[0] ?? null,
+        showLeaveDialog: false,
+        activeTab: "discussion",
+        configEdit: null,
+        configTagInput: "",
+        showConfigDiscardDialog: false,
+        showConfigDeleteDialog: false,
+        isSavingConfigField: false,
+        isRefreshingConfigModels: false,
+        isSavingMembers: false,
+        showAddMemberPanel: false,
+        addMemberSearchText: "",
+        showMemberRemoveDialog: false,
+        pendingMemberRemovalId: null,
         conductorDraft: "",
         message: "",
       });
@@ -1206,33 +1229,18 @@ export const App = (): JSX.Element => {
     await loadCouncilView(councilId);
   };
 
-  const leaveCouncilViewSafely = async (onExit: () => void | Promise<void>): Promise<void> => {
-    if (screen.kind !== "councilView") {
-      await onExit();
-      return;
-    }
+  const completeCouncilViewClose = async (): Promise<void> => {
+    setAutopilotLimitModal(null);
+    setScreen({ kind: "home" });
+    setHomeTab("councils");
+    await loadCouncils({ page: 1, append: false });
+  };
 
-    if (councilViewState.status !== "ready") {
-      await onExit();
-      return;
-    }
-
-    if (councilViewState.isLeavingView) {
-      return;
-    }
-
-    const exitPlan = buildCouncilViewExitPlan(
-      councilViewState.source.council,
-      councilViewState.source.generation,
-    );
-
-    if (!exitPlan.requiresConfirmation) {
-      await onExit();
-      return;
-    }
-
-    const confirmed = window.confirm(COUNCIL_VIEW_EXIT_CONFIRMATION_MESSAGE);
-    if (!confirmed) {
+  const executeCouncilViewLeave = async (params: {
+    exitPlan: ReturnType<typeof buildCouncilViewExitPlan>;
+  }): Promise<void> => {
+    if (screen.kind !== "councilView" || councilViewState.status !== "ready") {
+      await completeCouncilViewClose();
       return;
     }
 
@@ -1242,11 +1250,12 @@ export const App = (): JSX.Element => {
         : {
             ...current,
             isLeavingView: true,
+            showLeaveDialog: false,
             message: "",
           },
     );
 
-    if (exitPlan.shouldPauseAutopilot) {
+    if (params.exitPlan.shouldPauseAutopilot) {
       const pauseResult = await window.api.councils.pauseAutopilot({
         id: screen.councilId,
       });
@@ -1266,31 +1275,75 @@ export const App = (): JSX.Element => {
       }
     }
 
-    const cancelResult = await window.api.councils.cancelGeneration({ id: screen.councilId });
-    if (!cancelResult.ok) {
-      pushToast("error", cancelResult.error.userMessage);
-      setCouncilViewState((current) =>
-        current.status !== "ready"
-          ? current
-          : {
-              ...current,
-              isLeavingView: false,
-              message: cancelResult.error.userMessage,
-            },
-      );
+    if (params.exitPlan.shouldCancelGeneration) {
+      const cancelResult = await window.api.councils.cancelGeneration({ id: screen.councilId });
+      if (!cancelResult.ok) {
+        pushToast("error", cancelResult.error.userMessage);
+        setCouncilViewState((current) =>
+          current.status !== "ready"
+            ? current
+            : {
+                ...current,
+                isLeavingView: false,
+                message: cancelResult.error.userMessage,
+              },
+        );
+        return;
+      }
+    }
+
+    await completeCouncilViewClose();
+  };
+
+  const leaveCouncilViewSafely = async (): Promise<void> => {
+    if (screen.kind !== "councilView") {
+      await completeCouncilViewClose();
       return;
     }
 
-    await onExit();
+    if (councilViewState.status !== "ready") {
+      await completeCouncilViewClose();
+      return;
+    }
+
+    if (councilViewState.isLeavingView) {
+      return;
+    }
+
+    const exitPlan = buildCouncilViewExitPlan(
+      councilViewState.source.council,
+      councilViewState.source.generation,
+    );
+
+    if (!exitPlan.requiresConfirmation) {
+      await executeCouncilViewLeave({ exitPlan });
+      return;
+    }
+
+    setCouncilViewState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            showLeaveDialog: true,
+          },
+    );
   };
 
   const closeCouncilView = async (): Promise<void> => {
-    await leaveCouncilViewSafely(async () => {
-      setAutopilotLimitModal(null);
-      setScreen({ kind: "home" });
-      setHomeTab("councils");
-      await loadCouncils({ page: 1, append: false });
-    });
+    await leaveCouncilViewSafely();
+  };
+
+  const confirmLeaveCouncilView = async (): Promise<void> => {
+    if (screen.kind !== "councilView" || councilViewState.status !== "ready") {
+      return;
+    }
+
+    const exitPlan = buildCouncilViewExitPlan(
+      councilViewState.source.council,
+      councilViewState.source.generation,
+    );
+    await executeCouncilViewLeave({ exitPlan });
   };
 
   const openAutopilotLimitModal = (action: AutopilotLimitModalAction): void => {
@@ -1524,12 +1577,479 @@ export const App = (): JSX.Element => {
     homeTabButtonRefs.current[nextTab]?.focus();
   };
 
-  const generateManualTurn = async (): Promise<void> => {
+  const handleCouncilRowMenuKeyDown = (event: ReactKeyboardEvent<HTMLDetailsElement>): void => {
+    const action = resolveDisclosureKeyboardAction(event.key);
+    if (action !== "close" || !event.currentTarget.open) {
+      return;
+    }
+
+    event.preventDefault();
+    event.currentTarget.open = false;
+    const summary = event.currentTarget.querySelector("summary");
+    if (summary instanceof HTMLElement) {
+      summary.focus();
+    }
+  };
+
+  const focusCouncilRowMenuAction = (
+    detailsElement: HTMLDetailsElement,
+    position: "first" | "last",
+  ): void => {
+    const actionButtons = Array.from(
+      detailsElement.querySelectorAll<HTMLButtonElement>(".row-menu-items button:not(:disabled)"),
+    );
+    if (actionButtons.length === 0) {
+      return;
+    }
+
+    const target =
+      position === "first" ? actionButtons[0] : actionButtons[actionButtons.length - 1];
+    target?.focus();
+  };
+
+  const handleCouncilRowMenuSummaryKeyDown = (event: ReactKeyboardEvent<HTMLElement>): void => {
+    const action = resolveDisclosureKeyboardAction(event.key);
+    if (action === "none") {
+      return;
+    }
+
+    const detailsElement = event.currentTarget.closest("details");
+    if (!(detailsElement instanceof HTMLDetailsElement)) {
+      return;
+    }
+
+    if (action === "close") {
+      if (!detailsElement.open) {
+        return;
+      }
+      event.preventDefault();
+      detailsElement.open = false;
+      event.currentTarget.focus();
+      return;
+    }
+
+    event.preventDefault();
+    detailsElement.open = true;
+    focusCouncilRowMenuAction(detailsElement, action === "openFirstItem" ? "first" : "last");
+  };
+
+  const openCouncilConfigEdit = (field: CouncilConfigField): void => {
+    setCouncilViewState((current) => {
+      if (current.status !== "ready") {
+        return current;
+      }
+
+      return {
+        ...current,
+        configEdit: {
+          field,
+          draftValue: toCouncilConfigFieldDisplayValue({
+            council: current.source.council,
+            field,
+          }),
+        },
+        configTagInput: "",
+        showConfigDiscardDialog: false,
+      };
+    });
+  };
+
+  const hasConfigEditChanges = (
+    current: Extract<CouncilViewState, { status: "ready" }>,
+  ): boolean => {
+    if (current.configEdit === null) {
+      return false;
+    }
+
+    return (
+      current.configEdit.draftValue !==
+      toCouncilConfigFieldDisplayValue({
+        council: current.source.council,
+        field: current.configEdit.field,
+      })
+    );
+  };
+
+  const closeCouncilConfigEdit = (forceDiscard: boolean): void => {
+    setCouncilViewState((current) => {
+      if (current.status !== "ready" || current.configEdit === null) {
+        return current;
+      }
+
+      if (!forceDiscard && hasConfigEditChanges(current)) {
+        return {
+          ...current,
+          showConfigDiscardDialog: true,
+        };
+      }
+
+      return {
+        ...current,
+        configEdit: null,
+        configTagInput: "",
+        showConfigDiscardDialog: false,
+      };
+    });
+  };
+
+  const saveCouncilConfigEdit = async (): Promise<void> => {
     if (screen.kind !== "councilView" || councilViewState.status !== "ready") {
       return;
     }
-    if (councilViewState.selectedManualSpeakerId === null) {
-      pushToast("warning", "Select a member first.");
+    if (councilViewState.configEdit === null || councilViewState.isSavingConfigField) {
+      return;
+    }
+
+    const currentCouncil = councilViewState.source.council;
+    const configEdit = councilViewState.configEdit;
+    const nextTopic = configEdit.field === "topic" ? configEdit.draftValue : currentCouncil.topic;
+    const nextGoal =
+      configEdit.field === "goal" ? configEdit.draftValue : (currentCouncil.goal ?? "");
+    const nextTagsInput =
+      configEdit.field === "tags" ? configEdit.draftValue : currentCouncil.tags.join(", ");
+    const nextModelSelection =
+      configEdit.field === "conductorModel"
+        ? configEdit.draftValue
+        : toModelSelectionValue(currentCouncil.conductorModelRefOrNull);
+
+    const normalizedTagsResult = normalizeTagsDraft({
+      tagsInput: nextTagsInput,
+      maxTags: COUNCIL_CONFIG_MAX_TAGS,
+    });
+    if (!normalizedTagsResult.ok) {
+      pushToast("warning", normalizedTagsResult.message);
+      setCouncilViewState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              message: normalizedTagsResult.message,
+            },
+      );
+      return;
+    }
+
+    setCouncilViewState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            isSavingConfigField: true,
+            message: "",
+          },
+    );
+
+    const result = await window.api.councils.save({
+      viewKind: "councilView",
+      id: currentCouncil.id,
+      title: currentCouncil.title,
+      topic: nextTopic,
+      goal: nextGoal.trim().length === 0 ? null : nextGoal,
+      mode: currentCouncil.mode,
+      tags: normalizedTagsResult.tags,
+      memberAgentIds: currentCouncil.memberAgentIds,
+      memberColorsByAgentId: currentCouncil.memberColorsByAgentId,
+      conductorModelRefOrNull: toModelRef(nextModelSelection),
+    });
+
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      setCouncilViewState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              isSavingConfigField: false,
+              message: result.error.userMessage,
+            },
+      );
+      return;
+    }
+
+    pushToast("info", "Council config saved.");
+    await loadCouncilView(screen.councilId);
+    setCouncilViewState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            activeTab: "config",
+            configEdit: null,
+            configTagInput: "",
+            showConfigDiscardDialog: false,
+            isSavingConfigField: false,
+          },
+    );
+  };
+
+  const addTagToCouncilConfigEdit = (): void => {
+    if (councilViewState.status !== "ready" || councilViewState.configEdit?.field !== "tags") {
+      return;
+    }
+
+    const currentTags = parseCouncilConfigTags(councilViewState.configEdit.draftValue);
+    const result = appendCouncilConfigTag({
+      currentTags,
+      tagInput: councilViewState.configTagInput,
+      maxTags: COUNCIL_CONFIG_MAX_TAGS,
+    });
+
+    if (!result.ok) {
+      pushToast("warning", result.message);
+      return;
+    }
+
+    setCouncilViewState((current) =>
+      current.status !== "ready" || current.configEdit?.field !== "tags"
+        ? current
+        : {
+            ...current,
+            configEdit: {
+              ...current.configEdit,
+              draftValue: result.tags.join(", "),
+            },
+            configTagInput: "",
+          },
+    );
+  };
+
+  const removeTagFromCouncilConfigEdit = (tagToRemove: string): void => {
+    setCouncilViewState((current) => {
+      if (current.status !== "ready" || current.configEdit?.field !== "tags") {
+        return current;
+      }
+
+      const nextTags = parseCouncilConfigTags(current.configEdit.draftValue).filter(
+        (tag) => tag.toLowerCase() !== tagToRemove.toLowerCase(),
+      );
+
+      return {
+        ...current,
+        configEdit: {
+          ...current.configEdit,
+          draftValue: nextTags.join(", "),
+        },
+      };
+    });
+  };
+
+  const refreshCouncilViewConfigModels = async (): Promise<void> => {
+    if (screen.kind !== "councilView" || councilViewState.status !== "ready") {
+      return;
+    }
+
+    setCouncilViewState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            isRefreshingConfigModels: true,
+            message: "",
+          },
+    );
+
+    const result = await window.api.councils.refreshModelCatalog({ viewKind: "councilView" });
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      setCouncilViewState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              isRefreshingConfigModels: false,
+              message: result.error.userMessage,
+            },
+      );
+      return;
+    }
+
+    pushToast("info", "Council model options refreshed.");
+    await loadCouncilView(screen.councilId);
+    setCouncilViewState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            activeTab: "config",
+            isRefreshingConfigModels: false,
+          },
+    );
+  };
+
+  const saveCouncilViewMembers = async (params: {
+    memberAgentIds: ReadonlyArray<string>;
+    memberColorsByAgentId: Readonly<Record<string, string>>;
+    successMessage: string;
+    keepAddPanelOpen?: boolean;
+  }): Promise<void> => {
+    if (screen.kind !== "councilView" || councilViewState.status !== "ready") {
+      return;
+    }
+
+    const currentCouncil = councilViewState.source.council;
+    setCouncilViewState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            isSavingMembers: true,
+            message: "",
+          },
+    );
+
+    const result = await window.api.councils.save({
+      viewKind: "councilView",
+      id: currentCouncil.id,
+      title: currentCouncil.title,
+      topic: currentCouncil.topic,
+      goal: currentCouncil.goal,
+      mode: currentCouncil.mode,
+      tags: currentCouncil.tags,
+      memberAgentIds: params.memberAgentIds,
+      memberColorsByAgentId: params.memberColorsByAgentId,
+      conductorModelRefOrNull: currentCouncil.conductorModelRefOrNull,
+    });
+
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      setCouncilViewState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              isSavingMembers: false,
+              message: result.error.userMessage,
+            },
+      );
+      return;
+    }
+
+    pushToast("info", params.successMessage);
+    await loadCouncilView(screen.councilId);
+    setCouncilViewState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            activeTab: "discussion",
+            isSavingMembers: false,
+            showAddMemberPanel: params.keepAddPanelOpen ?? false,
+            showMemberRemoveDialog: false,
+            pendingMemberRemovalId: null,
+          },
+    );
+  };
+
+  const setCouncilViewMemberColor = async (params: {
+    memberAgentId: string;
+    color: string;
+  }): Promise<void> => {
+    if (councilViewState.status !== "ready") {
+      return;
+    }
+
+    const nextColors = {
+      ...councilViewState.source.council.memberColorsByAgentId,
+      [params.memberAgentId]: params.color,
+    };
+    await saveCouncilViewMembers({
+      memberAgentIds: councilViewState.source.council.memberAgentIds,
+      memberColorsByAgentId: nextColors,
+      successMessage: "Member color updated.",
+      keepAddPanelOpen: councilViewState.showAddMemberPanel,
+    });
+  };
+
+  const addCouncilViewMember = async (memberAgentId: string): Promise<void> => {
+    if (councilViewState.status !== "ready") {
+      return;
+    }
+
+    const currentCouncil = councilViewState.source.council;
+    const currentMembers = currentCouncil.memberAgentIds;
+    if (currentMembers.includes(memberAgentId)) {
+      return;
+    }
+
+    const usedColors = new Set(Object.values(currentCouncil.memberColorsByAgentId));
+    const defaultColor = MEMBER_COLOR_PALETTE.find((color) => !usedColors.has(color)) ?? "#0a5c66";
+
+    await saveCouncilViewMembers({
+      memberAgentIds: [...currentMembers, memberAgentId],
+      memberColorsByAgentId: {
+        ...currentCouncil.memberColorsByAgentId,
+        [memberAgentId]: defaultColor,
+      },
+      successMessage: "Member added.",
+      keepAddPanelOpen: true,
+    });
+  };
+
+  const requestCouncilViewMemberRemoval = (memberAgentId: string): void => {
+    setCouncilViewState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            pendingMemberRemovalId: memberAgentId,
+            showMemberRemoveDialog: true,
+          },
+    );
+  };
+
+  const cancelCouncilViewMemberRemoval = (): void => {
+    setCouncilViewState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            pendingMemberRemovalId: null,
+            showMemberRemoveDialog: false,
+          },
+    );
+  };
+
+  const confirmCouncilViewMemberRemoval = async (): Promise<void> => {
+    if (councilViewState.status !== "ready" || councilViewState.pendingMemberRemovalId === null) {
+      return;
+    }
+
+    const memberId = councilViewState.pendingMemberRemovalId;
+    const nextMemberIds = councilViewState.source.council.memberAgentIds.filter(
+      (id) => id !== memberId,
+    );
+    const nextColors = { ...councilViewState.source.council.memberColorsByAgentId };
+    delete nextColors[memberId];
+
+    await saveCouncilViewMembers({
+      memberAgentIds: nextMemberIds,
+      memberColorsByAgentId: nextColors,
+      successMessage: "Member removed.",
+    });
+  };
+
+  const handleCouncilConfigEditorKeyDown = (
+    event: ReactKeyboardEvent<HTMLTextAreaElement | HTMLSelectElement>,
+  ): void => {
+    const action = resolveInlineConfigEditKeyboardAction({
+      key: event.key,
+      shiftKey: event.shiftKey,
+    });
+    if (action === "none") {
+      return;
+    }
+
+    event.preventDefault();
+    if (action === "save") {
+      void saveCouncilConfigEdit();
+      return;
+    }
+
+    closeCouncilConfigEdit(false);
+  };
+
+  const generateManualTurn = async (memberAgentId: string): Promise<void> => {
+    if (screen.kind !== "councilView" || councilViewState.status !== "ready") {
       return;
     }
 
@@ -1546,7 +2066,7 @@ export const App = (): JSX.Element => {
     const result = await window.api.councils.generateManualTurn({
       viewKind: "councilView",
       id: screen.councilId,
-      memberAgentId: councilViewState.selectedManualSpeakerId,
+      memberAgentId,
     });
     if (!result.ok) {
       pushToast("error", result.error.userMessage);
@@ -1764,12 +2284,16 @@ export const App = (): JSX.Element => {
   };
 
   const deleteCouncilFromList = async (council: CouncilDto): Promise<void> => {
-    const confirmed = window.confirm(`Delete council \"${council.title}\" permanently?`);
-    if (!confirmed) {
+    setPendingCouncilListDelete(council);
+  };
+
+  const confirmDeleteCouncilFromList = async (): Promise<void> => {
+    if (pendingCouncilListDelete === null) {
       return;
     }
 
-    const result = await window.api.councils.delete({ id: council.id });
+    const result = await window.api.councils.delete({ id: pendingCouncilListDelete.id });
+    setPendingCouncilListDelete(null);
     if (!result.ok) {
       pushToast("error", result.error.userMessage);
       return;
@@ -1779,12 +2303,83 @@ export const App = (): JSX.Element => {
     await loadCouncils({ page: 1, append: false });
   };
 
+  const setCouncilArchivedFromView = async (
+    council: CouncilDto,
+    archived: boolean,
+  ): Promise<void> => {
+    const result = await window.api.councils.setArchived({
+      id: council.id,
+      archived,
+    });
+
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      setCouncilViewState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              message: result.error.userMessage,
+            },
+      );
+      return;
+    }
+
+    pushToast("info", archived ? "Council archived." : "Council restored.");
+    if (screen.kind === "councilView") {
+      await loadCouncilView(screen.councilId);
+      setCouncilViewState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              activeTab: "config",
+            },
+      );
+    }
+  };
+
+  const deleteCouncilFromView = async (council: CouncilDto): Promise<void> => {
+    setCouncilViewState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            showConfigDeleteDialog: false,
+          },
+    );
+
+    const result = await window.api.councils.delete({ id: council.id });
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      setCouncilViewState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              message: result.error.userMessage,
+            },
+      );
+      return;
+    }
+
+    pushToast("info", "Council deleted.");
+    setScreen({ kind: "home" });
+    setHomeTab("councils");
+    await loadCouncils({ page: 1, append: false });
+  };
+
   const closeCouncilEditor = (force = false): void => {
     if (!force && hasUnsavedCouncilDraft) {
-      const confirmed = window.confirm("Discard unsaved council changes?");
-      if (!confirmed) {
-        return;
-      }
+      setCouncilEditorState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              showDiscardDialog: true,
+            },
+      );
+      return;
     }
 
     setScreen({ kind: "home" });
@@ -1814,18 +2409,55 @@ export const App = (): JSX.Element => {
         return current;
       }
 
-      const selected = current.draft.selectedMemberIds.includes(memberAgentId)
-        ? current.draft.selectedMemberIds.filter((id) => id !== memberAgentId)
-        : [...current.draft.selectedMemberIds, memberAgentId];
+      const isSelected = current.draft.selectedMemberIds.includes(memberAgentId);
+      if (isSelected) {
+        return {
+          ...current,
+          pendingMemberRemovalId: memberAgentId,
+          showRemoveMemberDialog: true,
+        };
+      }
 
       return {
         ...current,
         draft: {
           ...current.draft,
-          selectedMemberIds: selected,
+          selectedMemberIds: [...current.draft.selectedMemberIds, memberAgentId],
         },
       };
     });
+  };
+
+  const confirmCouncilMemberRemoval = (): void => {
+    setCouncilEditorState((current) => {
+      if (current.status !== "ready" || current.pendingMemberRemovalId === null) {
+        return current;
+      }
+
+      return {
+        ...current,
+        draft: {
+          ...current.draft,
+          selectedMemberIds: current.draft.selectedMemberIds.filter(
+            (id) => id !== current.pendingMemberRemovalId,
+          ),
+        },
+        pendingMemberRemovalId: null,
+        showRemoveMemberDialog: false,
+      };
+    });
+  };
+
+  const cancelCouncilMemberRemoval = (): void => {
+    setCouncilEditorState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            pendingMemberRemovalId: null,
+            showRemoveMemberDialog: false,
+          },
+    );
   };
 
   const saveCouncil = async (): Promise<void> => {
@@ -1833,10 +2465,22 @@ export const App = (): JSX.Element => {
       return;
     }
 
-    const normalizedTags = councilEditorState.draft.tagsInput
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter((tag) => tag.length > 0);
+    const normalizedTagsResult = normalizeTagsDraft({
+      tagsInput: councilEditorState.draft.tagsInput,
+      maxTags: COUNCIL_CONFIG_MAX_TAGS,
+    });
+    if (!normalizedTagsResult.ok) {
+      pushToast("warning", normalizedTagsResult.message);
+      setCouncilEditorState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              message: normalizedTagsResult.message,
+            },
+      );
+      return;
+    }
 
     setCouncilEditorState((current) =>
       current.status !== "ready"
@@ -1856,7 +2500,7 @@ export const App = (): JSX.Element => {
       goal:
         councilEditorState.draft.goal.trim().length === 0 ? null : councilEditorState.draft.goal,
       mode: councilEditorState.draft.mode,
-      tags: normalizedTags,
+      tags: normalizedTagsResult.tags,
       memberAgentIds: councilEditorState.draft.selectedMemberIds,
       memberColorsByAgentId: {},
       conductorModelRefOrNull: toModelRef(councilEditorState.draft.conductorModelSelection),
@@ -1885,16 +2529,12 @@ export const App = (): JSX.Element => {
       return;
     }
 
-    const confirmed = window.confirm("Delete this council permanently?");
-    if (!confirmed) {
-      return;
-    }
-
     setCouncilEditorState((current) =>
       current.status !== "ready"
         ? current
         : {
             ...current,
+            showDeleteDialog: false,
             isDeleting: true,
             message: "",
           },
@@ -2086,6 +2726,12 @@ export const App = (): JSX.Element => {
       thinkingSpeakerId === null
         ? null
         : (memberNameById.get(thinkingSpeakerId) ?? thinkingSpeakerId);
+    const thinkingSpeakerColor =
+      thinkingSpeakerId === null
+        ? null
+        : (council.memberColorsByAgentId[thinkingSpeakerId] ??
+          MEMBER_COLOR_PALETTE[0] ??
+          "#0a5c66");
     const autopilotRecoveryNotice = buildAutopilotRecoveryNotice({
       council: {
         mode: council.mode,
@@ -2107,6 +2753,38 @@ export const App = (): JSX.Element => {
       autopilotLimitModal?.action === "start" ? "Start Autopilot" : "Resume Autopilot";
     const transcriptRowCount =
       councilViewState.source.messages.length + (thinkingSpeakerName === null ? 0 : 1);
+    const configEditField = councilViewState.configEdit?.field ?? null;
+    const configEditDraftValue = councilViewState.configEdit?.draftValue ?? "";
+    const configEditTags =
+      configEditField === "tags" ? parseCouncilConfigTags(configEditDraftValue) : [];
+    const hasUnavailableConductorSelectionInView = !isModelSelectionInCatalog({
+      modelSelection:
+        configEditField === "conductorModel"
+          ? configEditDraftValue
+          : toModelSelectionValue(council.conductorModelRefOrNull),
+      modelCatalog: councilViewState.source.modelCatalog,
+    });
+    const runtimeBriefing = councilViewState.source.briefing;
+    const canEditMembers =
+      !council.archived && (!council.started || council.paused || council.mode === "manual");
+    const memberIdsWithMessages = new Set(
+      councilViewState.source.messages
+        .filter((message) => message.senderKind === "member" && message.senderAgentId !== null)
+        .map((message) => message.senderAgentId as string),
+    );
+    const addMemberSearch = councilViewState.addMemberSearchText.trim().toLowerCase();
+    const addableAgents = councilViewState.source.availableAgents.filter((agent) => {
+      if (council.memberAgentIds.includes(agent.id)) {
+        return false;
+      }
+      if (addMemberSearch.length === 0) {
+        return true;
+      }
+      return (
+        agent.name.toLowerCase().includes(addMemberSearch) ||
+        agent.id.toLowerCase().includes(addMemberSearch)
+      );
+    });
 
     return (
       <main className="shell">
@@ -2120,35 +2798,15 @@ export const App = (): JSX.Element => {
             >
               {councilViewState.isLeavingView ? "Leaving..." : "Back"}
             </button>
-            <button
-              className="secondary"
-              disabled={councilViewState.isLeavingView}
-              onClick={() =>
-                void leaveCouncilViewSafely(async () => {
-                  await openCouncilEditor(council.id);
-                })
-              }
-              type="button"
-            >
-              Edit config
-            </button>
-            <button
-              className="secondary"
-              disabled={councilViewState.isExportingTranscript}
-              onClick={() =>
-                void exportCouncilTranscript({
-                  viewKind: "councilView",
-                  councilId: council.id,
-                })
-              }
-              type="button"
-            >
-              {councilViewState.isExportingTranscript ? "Exporting..." : "Export"}
-            </button>
             {canStart ? (
               <button
                 className="cta"
-                disabled={councilViewState.isStarting || isAutopilotModalOpen}
+                disabled={
+                  councilViewState.isStarting ||
+                  council.invalidConfig ||
+                  isAutopilotModalOpen ||
+                  councilViewState.configEdit !== null
+                }
                 onClick={() => void startCouncilRuntime()}
                 title={
                   council.invalidConfig
@@ -2163,7 +2821,7 @@ export const App = (): JSX.Element => {
             {canPause ? (
               <button
                 className="secondary"
-                disabled={councilViewState.isPausing}
+                disabled={councilViewState.isPausing || councilViewState.configEdit !== null}
                 onClick={() => void pauseCouncilRuntime()}
                 type="button"
               >
@@ -2173,7 +2831,12 @@ export const App = (): JSX.Element => {
             {canResume ? (
               <button
                 className="cta"
-                disabled={councilViewState.isResuming || isAutopilotModalOpen}
+                disabled={
+                  councilViewState.isResuming ||
+                  council.invalidConfig ||
+                  isAutopilotModalOpen ||
+                  councilViewState.configEdit !== null
+                }
                 onClick={() => void resumeCouncilRuntime()}
                 title={
                   council.invalidConfig
@@ -2188,17 +2851,32 @@ export const App = (): JSX.Element => {
             {canAdvanceAutopilot ? (
               <button
                 className="secondary"
-                disabled={councilViewState.isAdvancingAutopilot || generationRunning}
+                disabled={
+                  councilViewState.isAdvancingAutopilot ||
+                  generationRunning ||
+                  councilViewState.configEdit !== null
+                }
                 onClick={() => void advanceAutopilotTurn()}
                 type="button"
               >
                 {councilViewState.isAdvancingAutopilot ? "Generating..." : "Next turn"}
               </button>
             ) : null}
+            {(canStart || canResume) && council.invalidConfig ? (
+              <span
+                aria-label="Invalid configuration"
+                className="warning-badge"
+                title="Resolved conductor model is unavailable in this view's model catalog snapshot."
+              >
+                Invalid config
+              </span>
+            ) : null}
             {generationRunning ? (
               <button
                 className="secondary"
-                disabled={councilViewState.isCancellingGeneration}
+                disabled={
+                  councilViewState.isCancellingGeneration || councilViewState.configEdit !== null
+                }
                 onClick={() => void cancelCouncilGeneration()}
                 type="button"
               >
@@ -2217,175 +2895,839 @@ export const App = (): JSX.Element => {
           {pausedNextSpeakerName !== null ? (
             <p className="meta">Paused next speaker: {pausedNextSpeakerName}</p>
           ) : null}
+          <div aria-label="Council view tabs" className="tabs" role="tablist">
+            <button
+              aria-controls="council-view-panel-discussion"
+              aria-selected={councilViewState.activeTab === "discussion"}
+              className={councilViewState.activeTab === "discussion" ? "tab tab-active" : "tab"}
+              disabled={
+                councilViewState.configEdit !== null && councilViewState.activeTab !== "discussion"
+              }
+              id="council-view-tab-discussion"
+              onClick={() =>
+                setCouncilViewState((current) =>
+                  current.status !== "ready"
+                    ? current
+                    : {
+                        ...current,
+                        activeTab: "discussion",
+                      },
+                )
+              }
+              role="tab"
+              type="button"
+            >
+              Discussion
+            </button>
+            <button
+              aria-controls="council-view-panel-config"
+              aria-selected={councilViewState.activeTab === "config"}
+              className={councilViewState.activeTab === "config" ? "tab tab-active" : "tab"}
+              disabled={
+                councilViewState.configEdit !== null && councilViewState.activeTab !== "config"
+              }
+              id="council-view-tab-config"
+              onClick={() =>
+                setCouncilViewState((current) =>
+                  current.status !== "ready"
+                    ? current
+                    : {
+                        ...current,
+                        activeTab: "config",
+                      },
+                )
+              }
+              role="tab"
+              type="button"
+            >
+              Config
+            </button>
+          </div>
         </header>
 
-        <section className="settings-section">
-          <p className="meta">Topic: {council.topic}</p>
-          <p className="meta">Goal: {council.goal ?? "None"}</p>
-          <p className="meta">
-            Conductor: {councilModelLabel(council, councilViewState.source.globalDefaultModelRef)}
+        {council.archived ? <p className="status-line">Archived councils are read-only.</p> : null}
+        {council.invalidConfig ? (
+          <p className="status-line">
+            Invalid config: start/resume is blocked until you select an available Conductor model or
+            refresh models in Config.
           </p>
-          <p className="meta">Tags: {council.tags.length > 0 ? council.tags.join(", ") : "None"}</p>
-          {council.archived ? (
-            <p className="status-line">Archived councils are read-only.</p>
-          ) : null}
-          {council.invalidConfig ? (
-            <p className="status-line">
-              Invalid config: start/resume is blocked until model config is fixed.
-            </p>
-          ) : null}
-        </section>
+        ) : null}
+        {councilViewState.message.length > 0 && autopilotRecoveryNotice === null ? (
+          <p className="status-line">{councilViewState.message}</p>
+        ) : null}
 
-        <section className="settings-section">
-          <h2>Members</h2>
-          <div className="list-grid">
-            {council.memberAgentIds.map((memberAgentId) => (
-              <article className="list-row" key={memberAgentId}>
-                <div>
-                  <h3>{memberNameById.get(memberAgentId) ?? memberAgentId}</h3>
-                  <p className="meta">Agent id: {memberAgentId}</p>
-                </div>
-                {canManualGenerate ? (
+        {councilViewState.activeTab === "discussion" ? (
+          <section
+            aria-labelledby="council-view-tab-discussion"
+            className="council-view-grid"
+            id="council-view-panel-discussion"
+            role="tabpanel"
+          >
+            <div className="council-view-left-column">
+              <section className="settings-section council-view-section">
+                <h2>Transcript</h2>
+                {autopilotRecoveryNotice !== null ? (
+                  <p className="status status-error">{autopilotRecoveryNotice}</p>
+                ) : null}
+                {councilViewState.source.messages.length === 0 && thinkingSpeakerName === null ? (
+                  <p className="status">
+                    {council.mode === "manual"
+                      ? "No messages yet. Choose the next speaker from Members."
+                      : "No messages yet."}
+                  </p>
+                ) : (
+                  <div className="list-grid transcript-scroll-panel">
+                    {councilViewState.source.messages.map((message, index) => (
+                      <button
+                        aria-label={buildTranscriptMessageAriaLabel(message)}
+                        className={`transcript-row ${
+                          resolveTranscriptMessageAlignment(message) === "right"
+                            ? "transcript-row-conductor"
+                            : "transcript-row-member"
+                        }`}
+                        data-transcript-row-index={index}
+                        key={message.id}
+                        onKeyDown={(event) =>
+                          handleTranscriptRowKeyDown(event, index, transcriptRowCount)
+                        }
+                        ref={(element) => {
+                          transcriptRowRefs.current[index] = element;
+                        }}
+                        type="button"
+                      >
+                        <div
+                          className="transcript-message"
+                          style={
+                            {
+                              "--transcript-accent": resolveTranscriptAccentColor(message),
+                            } as CSSProperties
+                          }
+                        >
+                          <span aria-hidden="true" className="transcript-avatar">
+                            {resolveTranscriptAvatarInitials(message.senderName)}
+                          </span>
+                          <div className="transcript-bubble">
+                            <p className="meta transcript-sender-name">
+                              {message.senderName}
+                              {message.senderKind === "conductor" ? " (Conductor)" : ""}
+                            </p>
+                            <p className="transcript-content">{message.content}</p>
+                            <p className="meta transcript-timestamp" title={message.createdAtUtc}>
+                              #{message.sequenceNumber} at {message.createdAtUtc}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                    {thinkingSpeakerName !== null ? (
+                      <button
+                        aria-label={`${thinkingSpeakerName}, member, thinking placeholder.`}
+                        className="thinking-row transcript-row transcript-row-member"
+                        data-transcript-row-index={councilViewState.source.messages.length}
+                        onKeyDown={(event) =>
+                          handleTranscriptRowKeyDown(
+                            event,
+                            councilViewState.source.messages.length,
+                            transcriptRowCount,
+                          )
+                        }
+                        ref={(element) => {
+                          transcriptRowRefs.current[councilViewState.source.messages.length] =
+                            element;
+                        }}
+                        type="button"
+                      >
+                        <div
+                          className="transcript-message"
+                          style={
+                            {
+                              "--transcript-accent": thinkingSpeakerColor ?? "#0a5c66",
+                            } as CSSProperties
+                          }
+                        >
+                          <span aria-hidden="true" className="transcript-avatar">
+                            {resolveTranscriptAvatarInitials(thinkingSpeakerName)}
+                          </span>
+                          <div className="transcript-bubble">
+                            <p className="meta transcript-sender-name">{thinkingSpeakerName}</p>
+                            <p className="transcript-content">...</p>
+                            <p className="meta transcript-timestamp">Thinking...</p>
+                          </div>
+                        </div>
+                      </button>
+                    ) : null}
+                  </div>
+                )}
+              </section>
+
+              <section className="settings-section council-view-section">
+                <h2>Conductor message</h2>
+                <textarea
+                  onChange={(event) =>
+                    setCouncilViewState((current) =>
+                      current.status !== "ready"
+                        ? current
+                        : {
+                            ...current,
+                            conductorDraft: event.target.value,
+                          },
+                    )
+                  }
+                  rows={4}
+                  value={councilViewState.conductorDraft}
+                />
+                <div className="button-row">
                   <button
                     className="secondary"
-                    disabled={generationRunning || councilViewState.isGeneratingManualTurn}
+                    disabled={
+                      councilViewState.isInjectingConductor || generationRunning || council.archived
+                    }
+                    onClick={() => void injectConductorMessage()}
+                    type="button"
+                  >
+                    {councilViewState.isInjectingConductor ? "Sending..." : "Send as Conductor"}
+                  </button>
+                </div>
+              </section>
+            </div>
+
+            <aside className="council-view-right-column">
+              <section className="settings-section council-view-section">
+                <h2>Briefing</h2>
+                {runtimeBriefing === null ? (
+                  <p className="meta">Briefing not generated yet.</p>
+                ) : (
+                  <>
+                    <p className="meta">TLDR</p>
+                    <p className="status-line">{runtimeBriefing.briefing}</p>
+                    <p className="meta">
+                      Goal status: {runtimeBriefing.goalReached ? "Reached" : "In progress"}
+                    </p>
+                    {runtimeBriefing.goalReached ? (
+                      <div className="briefing-goal-callout">
+                        <p className="briefing-goal-callout-title">Goal reached</p>
+                        <p className="briefing-goal-callout-body">
+                          The latest briefing reports this council has reached its stated goal.
+                        </p>
+                      </div>
+                    ) : null}
+                    <p className="meta">Last updated: {runtimeBriefing.updatedAtUtc}</p>
+                  </>
+                )}
+              </section>
+
+              <section className="settings-section council-view-section">
+                <div className="button-row">
+                  <h2>Members</h2>
+                  <button
+                    className="secondary"
+                    disabled={!canEditMembers || councilViewState.isSavingMembers}
                     onClick={() =>
                       setCouncilViewState((current) =>
                         current.status !== "ready"
                           ? current
                           : {
                               ...current,
-                              selectedManualSpeakerId: memberAgentId,
+                              showAddMemberPanel: !current.showAddMemberPanel,
                             },
                       )
                     }
                     type="button"
                   >
-                    {councilViewState.selectedManualSpeakerId === memberAgentId
-                      ? "Selected"
-                      : "Select speaker"}
+                    {councilViewState.showAddMemberPanel ? "Close add" : "Add member"}
                   </button>
+                </div>
+                {councilViewState.showAddMemberPanel ? (
+                  <div className="status">
+                    <label className="field" htmlFor="council-view-add-member-search">
+                      Search agents
+                    </label>
+                    <input
+                      id="council-view-add-member-search"
+                      onChange={(event) =>
+                        setCouncilViewState((current) =>
+                          current.status !== "ready"
+                            ? current
+                            : {
+                                ...current,
+                                addMemberSearchText: event.target.value,
+                              },
+                        )
+                      }
+                      placeholder="Search by name"
+                      value={councilViewState.addMemberSearchText}
+                    />
+                    <div className="list-grid">
+                      {addableAgents.map((agent) => (
+                        <article className="list-row" key={agent.id}>
+                          <div>
+                            <h3>{agent.name}</h3>
+                            <p className="meta">{agent.id}</p>
+                          </div>
+                          <button
+                            className="secondary"
+                            disabled={!canEditMembers || councilViewState.isSavingMembers}
+                            onClick={() => void addCouncilViewMember(agent.id)}
+                            type="button"
+                          >
+                            Add
+                          </button>
+                        </article>
+                      ))}
+                      {addableAgents.length === 0 ? (
+                        <p className="meta">No matching agents available.</p>
+                      ) : null}
+                    </div>
+                  </div>
                 ) : null}
-              </article>
-            ))}
-          </div>
-          {canManualGenerate ? (
+                <div className="list-grid">
+                  {council.memberAgentIds.map((memberAgentId) => {
+                    const memberName = memberNameById.get(memberAgentId) ?? memberAgentId;
+                    const memberHasMessages = memberIdsWithMessages.has(memberAgentId);
+                    const memberColor =
+                      council.memberColorsByAgentId[memberAgentId] ??
+                      MEMBER_COLOR_PALETTE[0] ??
+                      "#0a5c66";
+                    const removeDisabledReason = resolveMemberRemoveDisabledReason({
+                      archived: council.archived,
+                      canEditMembers,
+                      memberHasMessages,
+                      memberCount: council.memberAgentIds.length,
+                      isSavingMembers: councilViewState.isSavingMembers,
+                      started: council.started,
+                      paused: council.paused,
+                      mode: council.mode,
+                    });
+                    const removeReasonId = `member-remove-reason-${memberAgentId}`;
+                    return (
+                      <article className="list-row member-row" key={memberAgentId}>
+                        <div>
+                          <h3>{memberName}</h3>
+                          <p className="meta">Agent id: {memberAgentId}</p>
+                        </div>
+                        <div className="member-row-actions">
+                          <span aria-hidden="true" className="member-avatar">
+                            {memberName.slice(0, 2).toUpperCase()}
+                          </span>
+                          <label className="meta" htmlFor={`member-color-${memberAgentId}`}>
+                            Color
+                          </label>
+                          <select
+                            id={`member-color-${memberAgentId}`}
+                            onChange={(event) =>
+                              void setCouncilViewMemberColor({
+                                memberAgentId,
+                                color: event.target.value,
+                              })
+                            }
+                            value={memberColor}
+                            disabled={!canEditMembers || councilViewState.isSavingMembers}
+                          >
+                            {MEMBER_COLOR_PALETTE.map((color) => (
+                              <option key={color} value={color}>
+                                {color}
+                              </option>
+                            ))}
+                          </select>
+                          {canManualGenerate ? (
+                            <button
+                              className="secondary"
+                              disabled={
+                                generationRunning || councilViewState.isGeneratingManualTurn
+                              }
+                              onClick={() => void generateManualTurn(memberAgentId)}
+                              type="button"
+                            >
+                              {councilViewState.isGeneratingManualTurn
+                                ? "Generating..."
+                                : "Select to speak"}
+                            </button>
+                          ) : null}
+                          <button
+                            aria-describedby={
+                              removeDisabledReason === null ? undefined : removeReasonId
+                            }
+                            className="danger member-remove-button"
+                            disabled={removeDisabledReason !== null}
+                            onClick={() => requestCouncilViewMemberRemoval(memberAgentId)}
+                            title={removeDisabledReason ?? undefined}
+                            type="button"
+                          >
+                            Remove
+                          </button>
+                          {removeDisabledReason === null ? null : (
+                            <p className="meta member-remove-reason" id={removeReasonId}>
+                              {removeDisabledReason}
+                            </p>
+                          )}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </section>
+            </aside>
+          </section>
+        ) : (
+          <section
+            aria-labelledby="council-view-tab-config"
+            className="settings-section"
+            id="council-view-panel-config"
+            role="tabpanel"
+          >
+            <h2>Config</h2>
+            <div className="config-grid">
+              <div className="config-row">
+                <p className="field">Topic</p>
+                {configEditField === "topic" ? (
+                  <div className="config-editor" ref={councilConfigEditContainerRef}>
+                    <textarea
+                      onChange={(event) =>
+                        setCouncilViewState((current) =>
+                          current.status !== "ready" || current.configEdit === null
+                            ? current
+                            : {
+                                ...current,
+                                configEdit: {
+                                  ...current.configEdit,
+                                  draftValue: event.target.value,
+                                },
+                              },
+                        )
+                      }
+                      onKeyDown={handleCouncilConfigEditorKeyDown}
+                      ref={(element) => {
+                        councilConfigEditInputRef.current = element;
+                      }}
+                      rows={4}
+                      value={configEditDraftValue}
+                    />
+                    <div className="button-row">
+                      <button
+                        className="cta"
+                        onClick={() => void saveCouncilConfigEdit()}
+                        type="button"
+                      >
+                        {councilViewState.isSavingConfigField ? "Saving..." : "Save"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="config-value-row">
+                    <p className="meta config-value">{council.topic}</p>
+                    <button
+                      aria-label="Edit topic"
+                      className="icon-button"
+                      disabled={councilViewState.configEdit !== null || council.archived}
+                      onClick={() => openCouncilConfigEdit("topic")}
+                      type="button"
+                    >
+                      ✎
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="config-row">
+                <p className="field">Goal</p>
+                {configEditField === "goal" ? (
+                  <div className="config-editor" ref={councilConfigEditContainerRef}>
+                    <textarea
+                      onChange={(event) =>
+                        setCouncilViewState((current) =>
+                          current.status !== "ready" || current.configEdit === null
+                            ? current
+                            : {
+                                ...current,
+                                configEdit: {
+                                  ...current.configEdit,
+                                  draftValue: event.target.value,
+                                },
+                              },
+                        )
+                      }
+                      onKeyDown={handleCouncilConfigEditorKeyDown}
+                      ref={(element) => {
+                        councilConfigEditInputRef.current = element;
+                      }}
+                      rows={3}
+                      value={configEditDraftValue}
+                    />
+                    <div className="button-row">
+                      <button
+                        className="cta"
+                        onClick={() => void saveCouncilConfigEdit()}
+                        type="button"
+                      >
+                        {councilViewState.isSavingConfigField ? "Saving..." : "Save"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="config-value-row">
+                    <p className="meta config-value">{council.goal ?? "None"}</p>
+                    <button
+                      aria-label="Edit goal"
+                      className="icon-button"
+                      disabled={councilViewState.configEdit !== null || council.archived}
+                      onClick={() => openCouncilConfigEdit("goal")}
+                      type="button"
+                    >
+                      ✎
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="config-row">
+                <p className="field">Tags</p>
+                {configEditField === "tags" ? (
+                  <div className="config-editor" ref={councilConfigEditContainerRef}>
+                    {configEditTags.length > 0 ? (
+                      <ul className="config-tag-list">
+                        {configEditTags.map((tag) => (
+                          <li className="config-tag-chip" key={tag}>
+                            <span>{tag}</span>
+                            <button
+                              aria-label={`Remove tag ${tag}`}
+                              className="icon-button chip-remove-button"
+                              onClick={() => removeTagFromCouncilConfigEdit(tag)}
+                              type="button"
+                            >
+                              ×
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="meta">No tags yet.</p>
+                    )}
+                    <div className="button-row config-tag-editor-row">
+                      <input
+                        onChange={(event) =>
+                          setCouncilViewState((current) =>
+                            current.status !== "ready"
+                              ? current
+                              : {
+                                  ...current,
+                                  configTagInput: event.target.value,
+                                },
+                          )
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            addTagToCouncilConfigEdit();
+                            return;
+                          }
+                          if (event.key === "Escape") {
+                            event.preventDefault();
+                            closeCouncilConfigEdit(false);
+                          }
+                        }}
+                        placeholder="Add tag"
+                        type="text"
+                        value={councilViewState.configTagInput}
+                      />
+                      <button
+                        className="secondary"
+                        onClick={addTagToCouncilConfigEdit}
+                        type="button"
+                      >
+                        Add tag
+                      </button>
+                    </div>
+                    <textarea
+                      onChange={(event) =>
+                        setCouncilViewState((current) =>
+                          current.status !== "ready" || current.configEdit === null
+                            ? current
+                            : {
+                                ...current,
+                                configEdit: {
+                                  ...current.configEdit,
+                                  draftValue: event.target.value,
+                                },
+                              },
+                        )
+                      }
+                      onKeyDown={handleCouncilConfigEditorKeyDown}
+                      ref={(element) => {
+                        councilConfigEditInputRef.current = element;
+                      }}
+                      aria-label="Tags draft"
+                      rows={3}
+                      value={configEditDraftValue}
+                    />
+                    <p className="meta">Use chips to add/remove tags. Max 3 tags.</p>
+                    <div className="button-row">
+                      <button
+                        className="cta"
+                        onClick={() => void saveCouncilConfigEdit()}
+                        type="button"
+                      >
+                        {councilViewState.isSavingConfigField ? "Saving..." : "Save"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="config-value-row">
+                    <p className="meta config-value">
+                      {council.tags.length > 0 ? council.tags.join(", ") : "None"}
+                    </p>
+                    <button
+                      aria-label="Edit tags"
+                      className="icon-button"
+                      disabled={councilViewState.configEdit !== null || council.archived}
+                      onClick={() => openCouncilConfigEdit("tags")}
+                      type="button"
+                    >
+                      ✎
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="config-row">
+                <p className="field">Conductor model</p>
+                {configEditField === "conductorModel" ? (
+                  <div className="config-editor" ref={councilConfigEditContainerRef}>
+                    <div className="button-row">
+                      <select
+                        onChange={(event) =>
+                          setCouncilViewState((current) =>
+                            current.status !== "ready" || current.configEdit === null
+                              ? current
+                              : {
+                                  ...current,
+                                  configEdit: {
+                                    ...current.configEdit,
+                                    draftValue: event.target.value,
+                                  },
+                                },
+                          )
+                        }
+                        onKeyDown={handleCouncilConfigEditorKeyDown}
+                        ref={(element) => {
+                          councilConfigEditInputRef.current = element;
+                        }}
+                        value={configEditDraftValue}
+                      >
+                        {hasUnavailableConductorSelectionInView ? (
+                          <option value={configEditDraftValue}>
+                            Unavailable ({configEditDraftValue})
+                          </option>
+                        ) : null}
+                        <option value="">Global default</option>
+                        {Object.entries(councilViewState.source.modelCatalog.modelsByProvider).map(
+                          ([providerId, modelIds]) => (
+                            <optgroup key={providerId} label={providerId}>
+                              {modelIds.map((modelId) => (
+                                <option
+                                  key={`${providerId}:${modelId}`}
+                                  value={`${providerId}:${modelId}`}
+                                >
+                                  {modelId}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ),
+                        )}
+                      </select>
+                      <button
+                        className="secondary"
+                        disabled={
+                          councilViewState.isRefreshingConfigModels ||
+                          !councilViewState.source.canRefreshModels
+                        }
+                        onClick={() => void refreshCouncilViewConfigModels()}
+                        type="button"
+                      >
+                        {councilViewState.isRefreshingConfigModels
+                          ? "Refreshing..."
+                          : "Refresh models"}
+                      </button>
+                    </div>
+                    <div className="button-row">
+                      <button
+                        className="cta"
+                        onClick={() => void saveCouncilConfigEdit()}
+                        type="button"
+                      >
+                        {councilViewState.isSavingConfigField ? "Saving..." : "Save"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="config-value-row">
+                    <p className="meta config-value">
+                      {councilModelLabel(council, councilViewState.source.globalDefaultModelRef)}
+                    </p>
+                    {council.invalidConfig ? (
+                      <span
+                        aria-label="Invalid configuration"
+                        className="warning-badge"
+                        title="Resolved conductor model is unavailable in this view's model catalog snapshot."
+                      >
+                        Invalid config
+                      </span>
+                    ) : null}
+                    <button
+                      aria-label="Edit conductor model"
+                      className="icon-button"
+                      disabled={councilViewState.configEdit !== null || council.archived}
+                      onClick={() => openCouncilConfigEdit("conductorModel")}
+                      type="button"
+                    >
+                      ✎
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="button-row">
               <button
-                className="cta"
-                disabled={generationRunning || councilViewState.isGeneratingManualTurn}
-                onClick={() => void generateManualTurn()}
+                className="secondary"
+                disabled={
+                  councilViewState.configEdit !== null || councilViewState.isExportingTranscript
+                }
+                onClick={() =>
+                  void exportCouncilTranscript({
+                    viewKind: "councilView",
+                    councilId: council.id,
+                  })
+                }
                 type="button"
               >
-                {councilViewState.isGeneratingManualTurn
-                  ? "Generating..."
-                  : "Generate selected member"}
+                {councilViewState.isExportingTranscript ? "Exporting..." : "Export"}
               </button>
-              <span className="meta">
-                Selected: {councilViewState.selectedManualSpeakerId ?? "None"}
-              </span>
+              <button
+                className="secondary"
+                disabled={
+                  councilViewState.configEdit !== null ||
+                  (!council.archived &&
+                    council.mode === "autopilot" &&
+                    council.started &&
+                    !council.paused)
+                }
+                onClick={() => void setCouncilArchivedFromView(council, !council.archived)}
+                title={
+                  !council.archived &&
+                  council.mode === "autopilot" &&
+                  council.started &&
+                  !council.paused
+                    ? "Pause Autopilot before archiving this council."
+                    : undefined
+                }
+                type="button"
+              >
+                {council.archived ? "Restore" : "Archive"}
+              </button>
+              <button
+                className="danger"
+                disabled={councilViewState.configEdit !== null}
+                onClick={() =>
+                  setCouncilViewState((current) =>
+                    current.status !== "ready"
+                      ? current
+                      : {
+                          ...current,
+                          showConfigDeleteDialog: true,
+                        },
+                  )
+                }
+                type="button"
+              >
+                Delete
+              </button>
             </div>
-          ) : null}
-          {councilViewState.message.length > 0 && autopilotRecoveryNotice === null ? (
-            <p className="status-line">{councilViewState.message}</p>
-          ) : null}
-        </section>
+          </section>
+        )}
 
-        <section className="settings-section">
-          <h2>Conductor message</h2>
-          <textarea
-            onChange={(event) =>
-              setCouncilViewState((current) =>
-                current.status !== "ready"
-                  ? current
-                  : {
-                      ...current,
-                      conductorDraft: event.target.value,
-                    },
-              )
-            }
-            rows={4}
-            value={councilViewState.conductorDraft}
-          />
-          <div className="button-row">
-            <button
-              className="secondary"
-              disabled={
-                councilViewState.isInjectingConductor || generationRunning || council.archived
-              }
-              onClick={() => void injectConductorMessage()}
-              type="button"
-            >
-              {councilViewState.isInjectingConductor ? "Sending..." : "Send as Conductor"}
-            </button>
-          </div>
-          {councilViewState.source.briefing !== null ? (
-            <p className="meta">Briefing: {councilViewState.source.briefing.briefing}</p>
-          ) : (
-            <p className="meta">Briefing: not generated yet.</p>
-          )}
-        </section>
+        <ConfirmDialog
+          cancelLabel="Stay"
+          confirmLabel="Leave"
+          confirmTone="danger"
+          message={COUNCIL_VIEW_EXIT_CONFIRMATION_MESSAGE}
+          onCancel={() =>
+            setCouncilViewState((current) =>
+              current.status !== "ready"
+                ? current
+                : {
+                    ...current,
+                    showLeaveDialog: false,
+                  },
+            )
+          }
+          onConfirm={() => {
+            void confirmLeaveCouncilView();
+          }}
+          open={councilViewState.showLeaveDialog}
+          title="Leave Council View?"
+        />
 
-        <section className="settings-section">
-          <h2>Transcript</h2>
-          {autopilotRecoveryNotice !== null ? (
-            <p className="status status-error">{autopilotRecoveryNotice}</p>
-          ) : null}
-          {councilViewState.source.messages.length === 0 && thinkingSpeakerName === null ? (
-            <p className="status">No messages yet.</p>
-          ) : (
-            <div className="list-grid">
-              {councilViewState.source.messages.map((message, index) => (
-                <button
-                  aria-label={buildTranscriptMessageAriaLabel(message)}
-                  className="list-row transcript-row"
-                  data-transcript-row-index={index}
-                  key={message.id}
-                  onKeyDown={(event) =>
-                    handleTranscriptRowKeyDown(event, index, transcriptRowCount)
-                  }
-                  ref={(element) => {
-                    transcriptRowRefs.current[index] = element;
-                  }}
-                  type="button"
-                >
-                  <div>
-                    <h3>
-                      {message.senderName} {message.senderKind === "conductor" ? "(Conductor)" : ""}
-                    </h3>
-                    <p className="meta">
-                      #{message.sequenceNumber} at {message.createdAtUtc}
-                    </p>
-                    <p className="meta">{message.content}</p>
-                  </div>
-                </button>
-              ))}
-              {thinkingSpeakerName !== null ? (
-                <button
-                  aria-label={`${thinkingSpeakerName}, member, thinking placeholder.`}
-                  className="list-row thinking-row transcript-row"
-                  data-transcript-row-index={councilViewState.source.messages.length}
-                  onKeyDown={(event) =>
-                    handleTranscriptRowKeyDown(
-                      event,
-                      councilViewState.source.messages.length,
-                      transcriptRowCount,
-                    )
-                  }
-                  ref={(element) => {
-                    transcriptRowRefs.current[councilViewState.source.messages.length] = element;
-                  }}
-                  type="button"
-                >
-                  <div>
-                    <h3>{thinkingSpeakerName}</h3>
-                    <p className="meta">Thinking...</p>
-                  </div>
-                </button>
-              ) : null}
-            </div>
-          )}
-        </section>
+        <ConfirmDialog
+          cancelLabel="Keep editing"
+          confirmLabel="Discard"
+          confirmTone="danger"
+          message="Your changes will be lost."
+          onCancel={() => {
+            setCouncilViewState((current) =>
+              current.status !== "ready"
+                ? current
+                : {
+                    ...current,
+                    showConfigDiscardDialog: false,
+                  },
+            );
+            window.setTimeout(() => {
+              councilConfigEditInputRef.current?.focus();
+            }, 0);
+          }}
+          onConfirm={() => {
+            closeCouncilConfigEdit(true);
+          }}
+          open={councilViewState.showConfigDiscardDialog}
+          title="Discard changes?"
+        />
+
+        <ConfirmDialog
+          confirmLabel="Remove"
+          confirmTone="danger"
+          message={
+            councilViewState.pendingMemberRemovalId === null
+              ? ""
+              : `Remove ${memberNameById.get(councilViewState.pendingMemberRemovalId) ?? "this member"}? You can add them again later.`
+          }
+          onCancel={cancelCouncilViewMemberRemoval}
+          onConfirm={() => {
+            void confirmCouncilViewMemberRemoval();
+          }}
+          open={councilViewState.showMemberRemoveDialog}
+          title="Remove member?"
+        />
+
+        <ConfirmDialog
+          confirmLabel="Delete"
+          confirmTone="danger"
+          message={`Delete council "${council.title}" permanently?`}
+          onCancel={() =>
+            setCouncilViewState((current) =>
+              current.status !== "ready"
+                ? current
+                : {
+                    ...current,
+                    showConfigDeleteDialog: false,
+                  },
+            )
+          }
+          onConfirm={() => {
+            void deleteCouncilFromView(council);
+          }}
+          open={councilViewState.showConfigDeleteDialog}
+          title="Delete council?"
+        />
 
         {autopilotLimitModal !== null ? (
           <div className="modal-backdrop" role="presentation">
@@ -2459,13 +3801,7 @@ export const App = (): JSX.Element => {
           </div>
         ) : null}
 
-        <div aria-live="polite" className="toast-stack">
-          {toasts.map((toast) => (
-            <div className={`toast toast-${toast.level}`} key={toast.id}>
-              {toast.message}
-            </div>
-          ))}
-        </div>
+        <ToastStack toasts={toasts} />
       </main>
     );
   }
@@ -2544,7 +3880,16 @@ export const App = (): JSX.Element => {
                 <button
                   className="danger"
                   disabled={councilEditorState.isDeleting}
-                  onClick={() => void deleteCouncil()}
+                  onClick={() =>
+                    setCouncilEditorState((current) =>
+                      current.status !== "ready"
+                        ? current
+                        : {
+                            ...current,
+                            showDeleteDialog: true,
+                          },
+                    )
+                  }
                   type="button"
                 >
                   {councilEditorState.isDeleting ? "Deleting..." : "Delete"}
@@ -2625,6 +3970,7 @@ export const App = (): JSX.Element => {
                 </div>
                 <input
                   checked={councilEditorState.draft.selectedMemberIds.includes(agent.id)}
+                  disabled={councilEditorState.showRemoveMemberDialog}
                   onChange={() => toggleCouncilMember(agent.id)}
                   type="checkbox"
                 />
@@ -2673,7 +4019,7 @@ export const App = (): JSX.Element => {
             </button>
             {invalidConfig ? (
               <span
-                aria-label="Invalid configuration"
+                aria-label={buildInvalidConfigBadgeAriaLabel("Council editor conductor model")}
                 className="warning-badge"
                 title="Invalid config"
               >
@@ -2683,7 +4029,9 @@ export const App = (): JSX.Element => {
           </div>
 
           {councilEditorState.message.length > 0 ? (
-            <p className="status-line">{councilEditorState.message}</p>
+            <p aria-live="polite" className="status-line">
+              {councilEditorState.message}
+            </p>
           ) : null}
           {councilEditorState.source.council?.mode === "autopilot" &&
           councilEditorState.source.council.started &&
@@ -2692,13 +4040,62 @@ export const App = (): JSX.Element => {
           ) : null}
         </section>
 
-        <div aria-live="polite" className="toast-stack">
-          {toasts.map((toast) => (
-            <div className={`toast toast-${toast.level}`} key={toast.id}>
-              {toast.message}
-            </div>
-          ))}
-        </div>
+        <ConfirmDialog
+          cancelLabel="Keep editing"
+          confirmLabel="Discard"
+          confirmTone="danger"
+          message="Your changes will be lost."
+          onCancel={() =>
+            setCouncilEditorState((current) =>
+              current.status !== "ready"
+                ? current
+                : {
+                    ...current,
+                    showDiscardDialog: false,
+                  },
+            )
+          }
+          onConfirm={() => closeCouncilEditor(true)}
+          open={councilEditorState.showDiscardDialog}
+          title="Discard council changes?"
+        />
+
+        <ConfirmDialog
+          confirmLabel="Delete"
+          confirmTone="danger"
+          message={`Delete council "${councilEditorState.draft.title.trim() || "Untitled council"}" permanently?`}
+          onCancel={() =>
+            setCouncilEditorState((current) =>
+              current.status !== "ready"
+                ? current
+                : {
+                    ...current,
+                    showDeleteDialog: false,
+                  },
+            )
+          }
+          onConfirm={() => {
+            void deleteCouncil();
+          }}
+          open={councilEditorState.showDeleteDialog}
+          title="Delete council?"
+        />
+
+        <ConfirmDialog
+          confirmLabel="Remove"
+          confirmTone="danger"
+          message={
+            councilEditorState.pendingMemberRemovalId === null
+              ? ""
+              : `Remove ${councilEditorState.source.availableAgents.find((agent) => agent.id === councilEditorState.pendingMemberRemovalId)?.name ?? "this member"}? You can add them again later.`
+          }
+          onCancel={cancelCouncilMemberRemoval}
+          onConfirm={confirmCouncilMemberRemoval}
+          open={councilEditorState.showRemoveMemberDialog}
+          title="Remove member?"
+        />
+
+        <ToastStack toasts={toasts} />
       </main>
     );
   }
@@ -2761,7 +4158,16 @@ export const App = (): JSX.Element => {
               <button
                 className="danger"
                 disabled={agentEditorState.isDeleting}
-                onClick={() => void deleteAgent()}
+                onClick={() =>
+                  setAgentEditorState((current) =>
+                    current.status !== "ready"
+                      ? current
+                      : {
+                          ...current,
+                          showDeleteDialog: true,
+                        },
+                  )
+                }
                 type="button"
               >
                 {agentEditorState.isDeleting ? "Deleting..." : "Delete"}
@@ -2863,7 +4269,7 @@ export const App = (): JSX.Element => {
             </button>
             {invalidConfig ? (
               <span
-                aria-label="Invalid configuration"
+                aria-label={buildInvalidConfigBadgeAriaLabel("Agent editor model")}
                 className="warning-badge"
                 title="Invalid config"
               >
@@ -2873,17 +4279,54 @@ export const App = (): JSX.Element => {
           </div>
 
           {agentEditorState.message.length > 0 ? (
-            <p className="status-line">{agentEditorState.message}</p>
+            <p aria-live="polite" className="status-line">
+              {agentEditorState.message}
+            </p>
           ) : null}
         </section>
 
-        <div aria-live="polite" className="toast-stack">
-          {toasts.map((toast) => (
-            <div className={`toast toast-${toast.level}`} key={toast.id}>
-              {toast.message}
-            </div>
-          ))}
-        </div>
+        <ConfirmDialog
+          cancelLabel="Keep editing"
+          confirmLabel="Discard"
+          confirmTone="danger"
+          message="Your changes will be lost."
+          onCancel={() =>
+            setAgentEditorState((current) =>
+              current.status !== "ready"
+                ? current
+                : {
+                    ...current,
+                    showDiscardDialog: false,
+                  },
+            )
+          }
+          onConfirm={() => closeAgentEditor(true)}
+          open={agentEditorState.showDiscardDialog}
+          title="Discard agent changes?"
+        />
+
+        <ConfirmDialog
+          confirmLabel="Delete"
+          confirmTone="danger"
+          message="Delete this agent permanently?"
+          onCancel={() =>
+            setAgentEditorState((current) =>
+              current.status !== "ready"
+                ? current
+                : {
+                    ...current,
+                    showDeleteDialog: false,
+                  },
+            )
+          }
+          onConfirm={() => {
+            void deleteAgent();
+          }}
+          open={agentEditorState.showDeleteDialog}
+          title="Delete agent?"
+        />
+
+        <ToastStack toasts={toasts} />
       </main>
     );
   }
@@ -2999,9 +4442,22 @@ export const App = (): JSX.Element => {
                   >
                     Open
                   </button>
-                  <details className="row-menu">
-                    <summary className="secondary">...</summary>
-                    <div className="row-menu-items">
+                  <details
+                    aria-label={`Actions menu for council ${council.title}`}
+                    className="row-menu"
+                    onKeyDown={handleCouncilRowMenuKeyDown}
+                  >
+                    <summary
+                      aria-label={`Toggle actions for council ${council.title}`}
+                      className="secondary"
+                      onKeyDown={handleCouncilRowMenuSummaryKeyDown}
+                    >
+                      Actions
+                    </summary>
+                    <div
+                      aria-label={`Council actions for ${council.title}`}
+                      className="row-menu-items"
+                    >
                       <button
                         className="secondary"
                         disabled={exportingCouncilId === council.id}
@@ -3229,12 +4685,17 @@ export const App = (): JSX.Element => {
               const providerConfigured =
                 savedProvider !== undefined && isProviderConfigured(savedProvider);
               const showOllamaNote = providerId === "ollama";
+              const providerLabel = PROVIDER_LABELS[providerId];
 
               return (
                 <article className="provider-card" key={providerId}>
-                  <h3>{PROVIDER_LABELS[providerId]}</h3>
+                  <h3>{providerLabel}</h3>
                   <p className="meta">
                     <span
+                      aria-label={buildProviderConfiguredBadgeAriaLabel({
+                        providerLabel,
+                        configured: providerConfigured,
+                      })}
                       className={`status-badge ${providerConfigured ? "status-badge-ok" : "status-badge-muted"}`}
                     >
                       {providerConfigured ? "Configured" : "Not configured"}
@@ -3284,6 +4745,10 @@ export const App = (): JSX.Element => {
 
                   <div className="button-row">
                     <button
+                      aria-label={buildProviderConnectionTestButtonAriaLabel({
+                        providerLabel,
+                        connectionTestAllowed,
+                      })}
                       className="cta"
                       disabled={!connectionTestAllowed}
                       onClick={() => void runConnectionTest(providerId)}
@@ -3306,9 +4771,13 @@ export const App = (): JSX.Element => {
                     </button>
                   </div>
 
-                  <p className="status-line">Status: {provider.testStatusText}</p>
+                  <p aria-live="polite" className="status-line">
+                    Status: {provider.testStatusText}
+                  </p>
                   {provider.message.length > 0 ? (
-                    <p className="status-line">{provider.message}</p>
+                    <p aria-live="polite" className="status-line">
+                      {provider.message}
+                    </p>
                   ) : null}
                 </article>
               );
@@ -3345,7 +4814,7 @@ export const App = (): JSX.Element => {
             </button>
             {settingsViewState.data.globalDefaultModelInvalidConfig ? (
               <span
-                aria-label="Invalid configuration"
+                aria-label={buildInvalidConfigBadgeAriaLabel("Global default model")}
                 className="warning-badge"
                 title="Invalid config"
               >
@@ -3452,13 +4921,23 @@ export const App = (): JSX.Element => {
 
       {renderHomeContent()}
 
-      <div aria-live="polite" className="toast-stack">
-        {toasts.map((toast) => (
-          <div className={`toast toast-${toast.level}`} key={toast.id}>
-            {toast.message}
-          </div>
-        ))}
-      </div>
+      <ConfirmDialog
+        confirmLabel="Delete"
+        confirmTone="danger"
+        message={
+          pendingCouncilListDelete === null
+            ? ""
+            : `Delete council "${pendingCouncilListDelete.title}" permanently?`
+        }
+        onCancel={() => setPendingCouncilListDelete(null)}
+        onConfirm={() => {
+          void confirmDeleteCouncilFromList();
+        }}
+        open={pendingCouncilListDelete !== null}
+        title="Delete council?"
+      />
+
+      <ToastStack toasts={toasts} />
     </main>
   );
 };

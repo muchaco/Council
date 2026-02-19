@@ -14,6 +14,8 @@ const FILE_REQUIREMENT_IDS = [
   "R2.8",
   "R2.9",
   "R2.11",
+  "R2.17",
+  "R2.18",
   "R2.20",
   "R2.21",
   "R2.22",
@@ -60,6 +62,12 @@ const FILE_REQUIREMENT_IDS = [
   "U12.5",
   "U12.6",
   "U13.1",
+  "U13.2",
+  "U13.4",
+  "U9.3",
+  "U9.6",
+  "U9.7",
+  "U9.8",
 ] as const;
 
 const AVAILABLE_AGENTS = [
@@ -426,6 +434,140 @@ describe("councils handlers", () => {
     expect(changed.isErr()).toBe(true);
     expect(changed._unsafeUnwrapErr().kind).toBe("StateViolationError");
   });
+
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "blocks adding members from council view while autopilot is actively running",
+    async () => {
+      const slice = createSlice();
+      const saved = await slice.saveCouncil({
+        webContentsId: 223,
+        draft: {
+          viewKind: "councilCreate",
+          id: null,
+          title: "Running Autopilot Council",
+          topic: "Release triage",
+          goal: null,
+          mode: "autopilot",
+          tags: [],
+          memberAgentIds: [PRIMARY_AGENT_ID],
+          memberColorsByAgentId: {},
+          conductorModelRefOrNull: null,
+        },
+      });
+      expect(saved.isOk()).toBe(true);
+      if (saved.isErr()) {
+        return;
+      }
+
+      const started = await slice.startCouncil({
+        webContentsId: 223,
+        id: saved.value.council.id,
+        maxTurns: null,
+      });
+      expect(started.isOk()).toBe(true);
+
+      const addMemberWhileRunning = await slice.saveCouncil({
+        webContentsId: 223,
+        draft: {
+          viewKind: "councilView",
+          id: saved.value.council.id,
+          title: saved.value.council.title,
+          topic: saved.value.council.topic,
+          goal: saved.value.council.goal,
+          mode: saved.value.council.mode,
+          tags: saved.value.council.tags,
+          memberAgentIds: [PRIMARY_AGENT_ID, SECONDARY_AGENT_ID],
+          memberColorsByAgentId: {},
+          conductorModelRefOrNull: saved.value.council.conductorModelRefOrNull,
+        },
+      });
+
+      expect(addMemberWhileRunning.isErr()).toBe(true);
+      if (addMemberWhileRunning.isErr()) {
+        expect(addMemberWhileRunning.error.kind).toBe("StateViolationError");
+      }
+    },
+  );
+
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "allows adding members in manual mode and blocks removing members with message history",
+    async () => {
+      const slice = createSlice();
+      const saved = await slice.saveCouncil({
+        webContentsId: 224,
+        draft: {
+          viewKind: "councilCreate",
+          id: null,
+          title: "Manual Members Council",
+          topic: "Plan next steps",
+          goal: null,
+          mode: "manual",
+          tags: [],
+          memberAgentIds: [PRIMARY_AGENT_ID],
+          memberColorsByAgentId: {},
+          conductorModelRefOrNull: null,
+        },
+      });
+      expect(saved.isOk()).toBe(true);
+      if (saved.isErr()) {
+        return;
+      }
+
+      const started = await slice.startCouncil({
+        webContentsId: 224,
+        id: saved.value.council.id,
+        maxTurns: null,
+      });
+      expect(started.isOk()).toBe(true);
+
+      const addMemberInManual = await slice.saveCouncil({
+        webContentsId: 224,
+        draft: {
+          viewKind: "councilView",
+          id: saved.value.council.id,
+          title: saved.value.council.title,
+          topic: saved.value.council.topic,
+          goal: saved.value.council.goal,
+          mode: saved.value.council.mode,
+          tags: saved.value.council.tags,
+          memberAgentIds: [PRIMARY_AGENT_ID, SECONDARY_AGENT_ID],
+          memberColorsByAgentId: {},
+          conductorModelRefOrNull: saved.value.council.conductorModelRefOrNull,
+        },
+      });
+      expect(addMemberInManual.isOk()).toBe(true);
+
+      const generated = await slice.generateManualTurn({
+        webContentsId: 224,
+        id: saved.value.council.id,
+        memberAgentId: PRIMARY_AGENT_ID,
+      });
+      expect(generated.isOk()).toBe(true);
+
+      const removeSpeakingMember = await slice.saveCouncil({
+        webContentsId: 224,
+        draft: {
+          viewKind: "councilView",
+          id: saved.value.council.id,
+          title: saved.value.council.title,
+          topic: saved.value.council.topic,
+          goal: saved.value.council.goal,
+          mode: saved.value.council.mode,
+          tags: saved.value.council.tags,
+          memberAgentIds: [SECONDARY_AGENT_ID],
+          memberColorsByAgentId: {},
+          conductorModelRefOrNull: saved.value.council.conductorModelRefOrNull,
+        },
+      });
+
+      expect(removeSpeakingMember.isErr()).toBe(true);
+      if (removeSpeakingMember.isErr()) {
+        expect(removeSpeakingMember.error.kind).toBe("ValidationError");
+      }
+    },
+  );
 
   itReq(
     FILE_REQUIREMENT_IDS,

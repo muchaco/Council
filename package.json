@@ -24,6 +24,7 @@
     "build:main": "bunx tsc --pretty false -p tsconfig.main.json",
     "build:preload": "bunx tsc --pretty false -p tsconfig.preload.json",
     "build:renderer": "vite build",
+    "package:linux": "bun run build && bun run rebuild:native && bunx electron-builder --linux AppImage --publish never",
     "test": "bun run test:unit && bun run test:integration",
     "test:unit": "vitest run --config vitest.unit.config.ts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
@@ -32,6 +33,7 @@
     "test:coverage:integration": "vitest run --config vitest.integration.config.ts --coverage",
     "check:coverage-guardrails": "bun run scripts/verify-coverage-guardrails.ts",
     "check:boundaries": "bun run scripts/check-boundaries.ts",
+    "check:packaging-pipeline": "bun run scripts/verify-packaging-pipeline.ts",
     "trace:generate": "bun run scripts/generate-requirement-traceability.ts",
     "check:traceability": "bun run scripts/check-requirement-traceability.ts",
     "db:migrate:verify": "bun run scripts/verify-migrations.ts",
@@ -54,10 +56,25 @@
     "@vitejs/plugin-react": "^4.3.4",
     "@vitest/coverage-v8": "^3.2.4",
     "electron": "^32.2.0",
+    "electron-builder": "^25.1.8",
     "electron-rebuild": "^3.2.9",
     "playwright": "^1.52.0",
     "typescript": "^5.8.2",
     "vite": "^6.1.1",
     "vitest": "^3.0.8"
+  },
+  "build": {
+    "appId": "com.council3.app",
+    "productName": "Council3",
+    "directories": {
+      "output": "dist/release"
+    },
+    "files": ["dist/main/**/*", "dist/preload/**/*", "dist/renderer/**/*", "package.json"],
+    "asarUnpack": ["node_modules/better-sqlite3/**/*", "node_modules/keytar/**/*"],
+    "linux": {
+      "target": ["AppImage"],
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "category": "Utility"
+    }
   }
 }

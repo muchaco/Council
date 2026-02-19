@@ -297,7 +297,7 @@ export type CouncilGenerationStateDto = {
 };
 
 export type SaveCouncilRequest = {
-  viewKind: "councilCreate";
+  viewKind: "councilCreate" | "councilView";
   id: string | null;
   title: string;
   topic: string;

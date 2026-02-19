@@ -116,7 +116,7 @@ export const GET_COUNCIL_VIEW_REQUEST_SCHEMA = z.object({
 });
 
 export const SAVE_COUNCIL_REQUEST_SCHEMA = z.object({
-  viewKind: z.literal("councilCreate"),
+  viewKind: z.union([z.literal("councilCreate"), z.literal("councilView")]),
   id: z.string().uuid().nullable(),
   title: z.string().trim().min(1).max(200),
   topic: z.string().trim().min(1).max(10_000),

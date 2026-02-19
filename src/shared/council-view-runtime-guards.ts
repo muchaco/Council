@@ -1,5 +1,5 @@
 export const COUNCIL_VIEW_EXIT_CONFIRMATION_MESSAGE =
-  "Leaving will pause this council and cancel in-flight generation. Continue?";
+  "Leaving will pause the Council and cancel generation. Continue?";
 
 export type CouncilViewExitPlan = {
   requiresConfirmation: boolean;

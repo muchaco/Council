@@ -309,9 +309,13 @@ export const createCouncilsIpcHandlers = (slice: CouncilsSlice) => ({
       return toValidationFailure("Invalid refreshModelCatalog payload.");
     }
 
-    if (parsed.data.viewKind !== "councilsList" && parsed.data.viewKind !== "councilCreate") {
+    if (
+      parsed.data.viewKind !== "councilsList" &&
+      parsed.data.viewKind !== "councilCreate" &&
+      parsed.data.viewKind !== "councilView"
+    ) {
       return toValidationFailure(
-        "Councils refreshModelCatalog only supports councilsList or councilCreate views.",
+        "Councils refreshModelCatalog only supports councilsList, councilCreate, or councilView.",
       );
     }
 

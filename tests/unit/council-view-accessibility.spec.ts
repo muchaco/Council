@@ -1,6 +1,7 @@
 import { describe, expect } from "vitest";
 import {
   buildTranscriptMessageAriaLabel,
+  resolveInlineConfigEditKeyboardAction,
   resolveTranscriptFocusIndex,
 } from "../../src/shared/council-view-accessibility.js";
 import { itReq } from "../helpers/requirement-trace";
@@ -26,6 +27,14 @@ describe("council view accessibility helpers", () => {
     expect(
       resolveTranscriptFocusIndex({ currentIndex: 0, key: "Enter", totalItems: 2 }),
     ).toBeNull();
+  });
+
+  itReq(["U10.7", "U15.2"], "maps inline config edit keyboard shortcuts", () => {
+    expect(resolveInlineConfigEditKeyboardAction({ key: "Enter", shiftKey: false })).toBe("save");
+    expect(resolveInlineConfigEditKeyboardAction({ key: "Enter", shiftKey: true })).toBe("none");
+    expect(resolveInlineConfigEditKeyboardAction({ key: "Escape", shiftKey: false })).toBe(
+      "cancel",
+    );
   });
 
   itReq(

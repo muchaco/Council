@@ -1,0 +1,51 @@
+{
+  "name": "council-view-right-panel",
+  "steps": [
+    { "action": "waitForText", "text": "Councils" },
+    {
+      "action": "evaluate",
+      "saveAs": "seedCouncilOk",
+      "expression": "async () => { const getEditor = async () => window.api.councils.getEditorView({ viewKind: 'councilCreate', councilId: null }); const settings = await window.api.settings.getView({ viewKind: 'settings' }); const modelEntry = settings.ok ? Object.entries(settings.value.modelCatalog.modelsByProvider).find(([, models]) => Array.isArray(models) && models.length > 0) : undefined; const modelRefOrNull = modelEntry === undefined ? null : { providerId: modelEntry[0], modelId: modelEntry[1][0] }; let editor = await getEditor(); if (!editor.ok) { return false; } let attempts = 0; while (editor.value.availableAgents.length < 3 && attempts < 4) { attempts += 1; const agentSave = await window.api.agents.save({ viewKind: 'agentEdit', id: null, name: `Scenario Member ${Date.now()}-${attempts}`, systemPrompt: 'Scenario helper agent.', verbosity: null, temperature: null, tags: ['scenario'], modelRefOrNull }); if (!agentSave.ok) { break; } editor = await getEditor(); if (!editor.ok) { return false; } } if (editor.value.availableAgents.length < 3) { return false; } const selectedMembers = editor.value.availableAgents.slice(0, 2); const title = `Right Panel Scenario ${Date.now()}`; const saveResult = await window.api.councils.save({ viewKind: 'councilCreate', id: null, title, topic: 'Validate right-panel interactions', goal: 'Exercise add remove color and manual actions', mode: 'manual', tags: ['scenario'], memberAgentIds: selectedMembers.map((agent) => agent.id), memberColorsByAgentId: { [selectedMembers[0].id]: '#0a5c66', [selectedMembers[1].id]: '#2563eb' }, conductorModelRefOrNull: null }); return saveResult.ok; }"
+    },
+    { "action": "assertSaved", "key": "seedCouncilOk", "equals": true },
+    { "action": "click", "selector": "button:has-text('Settings')" },
+    { "action": "waitForText", "text": "Providers" },
+    { "action": "click", "selector": "button:has-text('Councils')" },
+    { "action": "waitForText", "text": "Right Panel Scenario" },
+    {
+      "action": "click",
+      "selector": "button.home-list-row:has-text('Right Panel Scenario')"
+    },
+    { "action": "waitForText", "text": "Briefing" },
+    { "action": "waitForText", "text": "Members" },
+    { "action": "waitForText", "text": "Conductor message" },
+    { "action": "click", "selector": "button:has-text('Start')" },
+    { "action": "waitForText", "text": "Select to speak" },
+    {
+      "action": "evaluate",
+      "saveAs": "openedRemoveDialog",
+      "expression": "() => { const button = Array.from(document.querySelectorAll('.member-remove-button')).find((node) => node instanceof HTMLButtonElement && !node.disabled); if (!(button instanceof HTMLButtonElement)) { return false; } button.click(); return true; }"
+    },
+    { "action": "assertSaved", "key": "openedRemoveDialog", "equals": true },
+    { "action": "waitForText", "text": "Remove member?" },
+    { "action": "click", "selector": ".modal-panel button:has-text('Remove')" },
+    { "action": "waitForText", "text": "At least one member is required." },
+    { "action": "click", "selector": "button:has-text('Add member')" },
+    { "action": "waitForText", "text": "Search agents" },
+    { "action": "click", "selector": "article.list-row button:has-text('Add')" },
+    {
+      "action": "evaluate",
+      "saveAs": "memberCountAfterAdd",
+      "expression": "() => document.querySelectorAll('article.member-row').length"
+    },
+    { "action": "assertSaved", "key": "memberCountAfterAdd", "equals": 2 },
+    { "action": "waitForSelector", "selector": ".member-row-actions select" },
+    {
+      "action": "selectOption",
+      "selector": ".member-row-actions select",
+      "value": "#be123c"
+    },
+    { "action": "waitForText", "text": "Member color updated." },
+    { "action": "screenshot", "file": "council-view-right-panel.png", "fullPage": true }
+  ]
+}

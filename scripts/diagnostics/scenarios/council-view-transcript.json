@@ -1,0 +1,42 @@
+{
+  "name": "council-view-transcript",
+  "steps": [
+    { "action": "waitForText", "text": "Councils" },
+    {
+      "action": "evaluate",
+      "saveAs": "seedCouncilOk",
+      "expression": "async () => { const getEditor = async () => window.api.councils.getEditorView({ viewKind: 'councilCreate', councilId: null }); const settings = await window.api.settings.getView({ viewKind: 'settings' }); const modelEntry = settings.ok ? Object.entries(settings.value.modelCatalog.modelsByProvider).find(([, models]) => Array.isArray(models) && models.length > 0) : undefined; const modelRefOrNull = modelEntry === undefined ? null : { providerId: modelEntry[0], modelId: modelEntry[1][0] }; let editor = await getEditor(); if (!editor.ok) { return false; } let attempts = 0; while (editor.value.availableAgents.length < 2 && attempts < 4) { attempts += 1; const agentSave = await window.api.agents.save({ viewKind: 'agentEdit', id: null, name: `Transcript Member ${Date.now()}-${attempts}`, systemPrompt: 'Scenario helper agent.', verbosity: null, temperature: null, tags: ['scenario'], modelRefOrNull }); if (!agentSave.ok) { break; } editor = await getEditor(); if (!editor.ok) { return false; } } if (editor.value.availableAgents.length < 2) { return false; } const selectedMembers = editor.value.availableAgents.slice(0, 2); const saveResult = await window.api.councils.save({ viewKind: 'councilCreate', id: null, title: `Transcript Scenario ${Date.now()}`, topic: 'Validate transcript shell behavior', goal: 'Validate transcript empty-state and affordances', mode: 'manual', tags: ['scenario', 'transcript'], memberAgentIds: selectedMembers.map((agent) => agent.id), memberColorsByAgentId: { [selectedMembers[0].id]: '#0f766e', [selectedMembers[1].id]: '#be123c' }, conductorModelRefOrNull: null }); return saveResult.ok; }"
+    },
+    { "action": "assertSaved", "key": "seedCouncilOk", "equals": true },
+    { "action": "click", "selector": "button:has-text('Settings')" },
+    { "action": "waitForText", "text": "Providers" },
+    { "action": "click", "selector": "button:has-text('Councils')" },
+    { "action": "waitForText", "text": "Transcript Scenario" },
+    {
+      "action": "click",
+      "selector": "button.home-list-row:has-text('Transcript Scenario')"
+    },
+    { "action": "waitForText", "text": "Transcript" },
+    {
+      "action": "waitForText",
+      "text": "No messages yet. Choose the next speaker from Members."
+    },
+    {
+      "action": "evaluate",
+      "saveAs": "noTranscriptRowsInitially",
+      "expression": "() => document.querySelectorAll('.transcript-row').length === 0"
+    },
+    { "action": "assertSaved", "key": "noTranscriptRowsInitially", "equals": true },
+    {
+      "action": "evaluate",
+      "saveAs": "transcriptActionAffordancesHidden",
+      "expression": "() => document.querySelector('.transcript-row .icon-button, .transcript-row .danger') === null"
+    },
+    {
+      "action": "assertSaved",
+      "key": "transcriptActionAffordancesHidden",
+      "equals": true
+    },
+    { "action": "screenshot", "file": "council-view-transcript.png", "fullPage": true }
+  ]
+}

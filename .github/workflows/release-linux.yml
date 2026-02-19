@@ -1,0 +1,38 @@
+name: Release Linux
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  package-appimage:
+    name: Package AppImage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install native module build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build and rebuild native modules
+        run: bun run rebuild:native
+
+      - name: Package Linux AppImage
+        run: bun run package:linux
+
+      - name: Upload AppImage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: council3-appimage
+          path: dist/release/*.AppImage*

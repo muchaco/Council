@@ -1,0 +1,78 @@
+{
+  "name": "council-config-inline-edit",
+  "steps": [
+    { "action": "waitForText", "text": "Council" },
+    { "action": "click", "selector": "button:has-text('Councils')" },
+    { "action": "waitForText", "text": "New Council" },
+    {
+      "action": "evaluate",
+      "saveAs": "seededCouncilId",
+      "expression": "async () => { let memberAgentId = null; const listAgents = await window.api.agents.list({ viewKind: 'agentsList', searchText: '', tagFilter: '', sortBy: 'updatedAt', sortDirection: 'desc', page: 1 }); if (listAgents.ok && listAgents.value.items.length > 0) { memberAgentId = listAgents.value.items[0]?.id ?? null; } if (memberAgentId === null) { const settingsView = await window.api.settings.getView({ viewKind: 'settings' }); if (!settingsView.ok) { throw new Error(settingsView.error.userMessage); } const modelEntry = Object.entries(settingsView.value.modelCatalog.modelsByProvider).find(([, models]) => Array.isArray(models) && models.length > 0); if (modelEntry === undefined) { throw new Error('No existing agent and no available model in catalog for scenario seeding.'); } const [providerId, models] = modelEntry; const modelId = models[0]; if (typeof modelId !== 'string' || modelId.length === 0) { throw new Error('Unable to determine model id for scenario agent seeding.'); } const saveAgent = await window.api.agents.save({ viewKind: 'agentEdit', id: null, name: 'Scenario Config Agent', systemPrompt: 'You are a concise scenario helper.', verbosity: null, temperature: null, tags: ['scenario'], modelRefOrNull: { providerId, modelId } }); if (!saveAgent.ok) { throw new Error(saveAgent.error.userMessage); } memberAgentId = saveAgent.value.agent.id; } const result = await window.api.councils.save({ viewKind: 'councilCreate', id: null, title: 'Config Inline Council', topic: 'Original topic text', goal: 'Original goal text', mode: 'manual', tags: ['alpha'], memberAgentIds: [memberAgentId], memberColorsByAgentId: {}, conductorModelRefOrNull: null }); if (!result.ok) { throw new Error(result.error.userMessage); } return result.value.council.id; }"
+    },
+    { "action": "click", "selector": "button:has-text('Agents')" },
+    { "action": "waitForText", "text": "New Agent" },
+    { "action": "click", "selector": "button:has-text('Councils')" },
+    { "action": "waitForText", "text": "Config Inline Council" },
+    {
+      "action": "click",
+      "selector": "article.list-row:has-text('Config Inline Council') button:has-text('Open')"
+    },
+    { "action": "waitForText", "text": "Discussion" },
+    { "action": "click", "selector": "#council-view-tab-config" },
+    { "action": "waitForText", "text": "Config" },
+
+    {
+      "action": "evaluate",
+      "expression": "() => { const button = document.querySelector(\"button[aria-label='Edit topic']\"); if (!(button instanceof HTMLButtonElement)) { throw new Error('Edit topic button not found'); } button.click(); }"
+    },
+    { "action": "fill", "selector": ".config-editor textarea", "value": "Updated topic draft" },
+    { "action": "click", "selector": "h2:has-text('Config')" },
+    { "action": "waitForText", "text": "Discard changes?" },
+    { "action": "click", "selector": "button:has-text('Cancel')" },
+    { "action": "expectVisible", "selector": ".config-editor textarea" },
+    { "action": "click", "selector": "h2:has-text('Config')" },
+    { "action": "waitForText", "text": "Discard changes?" },
+    { "action": "click", "selector": "button:has-text('Discard')" },
+    {
+      "action": "expectText",
+      "selector": ".config-row:has-text('Topic') .config-value",
+      "text": "Original topic text"
+    },
+
+    {
+      "action": "evaluate",
+      "expression": "() => { const button = document.querySelector(\"button[aria-label='Edit topic']\"); if (!(button instanceof HTMLButtonElement)) { throw new Error('Edit topic button not found'); } button.click(); }"
+    },
+    { "action": "fill", "selector": ".config-editor textarea", "value": "Updated topic final" },
+    { "action": "press", "key": "Enter" },
+    { "action": "waitForText", "text": "Council config saved." },
+    {
+      "action": "expectText",
+      "selector": ".config-row:has-text('Topic') .config-value",
+      "text": "Updated topic final"
+    },
+
+    {
+      "action": "evaluate",
+      "expression": "() => { const button = document.querySelector(\"button[aria-label='Edit goal']\"); if (!(button instanceof HTMLButtonElement)) { throw new Error('Edit goal button not found'); } button.click(); }"
+    },
+    {
+      "action": "evaluate",
+      "saveAs": "tagsDisabledWhileEditingGoal",
+      "expression": "() => { const tagsButton = document.querySelector(\"button[aria-label='Edit tags']\"); return tagsButton instanceof HTMLButtonElement ? tagsButton.disabled : null; }"
+    },
+    { "action": "assertSaved", "key": "tagsDisabledWhileEditingGoal", "equals": true },
+    { "action": "fill", "selector": ".config-editor textarea", "value": "Updated goal draft" },
+    { "action": "press", "key": "Escape" },
+    { "action": "waitForText", "text": "Discard changes?" },
+    { "action": "click", "selector": "button:has-text('Discard')" },
+
+    {
+      "action": "evaluate",
+      "expression": "() => { const button = document.querySelector(\"button[aria-label='Edit conductor model']\"); if (!(button instanceof HTMLButtonElement)) { throw new Error('Edit conductor model button not found'); } button.click(); }"
+    },
+    { "action": "expectVisible", "selector": ".config-editor select" },
+    { "action": "click", "selector": "h2:has-text('Config')" },
+    { "action": "screenshot", "file": "council-config-inline-edit.png", "fullPage": true }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "name": "refactor-conservative-smoke",
+  "steps": [
+    { "action": "waitForText", "text": "Council" },
+    { "action": "waitForSelector", "selector": ".toast-stack", "state": "attached" },
+    {
+      "action": "evaluate",
+      "saveAs": "homeToastStackCount",
+      "expression": "() => document.querySelectorAll('.toast-stack').length"
+    },
+    { "action": "assertSaved", "key": "homeToastStackCount", "equals": 1 },
+    {
+      "action": "evaluate",
+      "saveAs": "activeTabAfterArrowRight",
+      "expression": "async () => { const active = document.querySelector('button.tab-active'); if (!(active instanceof HTMLButtonElement)) { return null; } active.focus(); active.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })); await new Promise((resolve) => window.setTimeout(resolve, 0)); const next = document.querySelector('button.tab-active'); return next instanceof HTMLButtonElement ? (next.textContent?.trim() ?? null) : null; }"
+    },
+    { "action": "assertSaved", "key": "activeTabAfterArrowRight", "equals": "Agents" },
+    {
+      "action": "evaluate",
+      "saveAs": "activeTabAfterArrowLeft",
+      "expression": "async () => { const active = document.querySelector('button.tab-active'); if (!(active instanceof HTMLButtonElement)) { return null; } active.focus(); active.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true })); await new Promise((resolve) => window.setTimeout(resolve, 0)); const next = document.querySelector('button.tab-active'); return next instanceof HTMLButtonElement ? (next.textContent?.trim() ?? null) : null; }"
+    },
+    { "action": "assertSaved", "key": "activeTabAfterArrowLeft", "equals": "Councils" },
+    { "action": "click", "selector": "button:has-text('Agents')" },
+    { "action": "waitForText", "text": "New Agent" },
+    { "action": "click", "selector": "button:has-text('New Agent')" },
+    {
+      "action": "waitForText",
+      "text": "Fields marked required must be completed before save."
+    },
+    { "action": "waitForSelector", "selector": ".toast-stack", "state": "attached" },
+    {
+      "action": "evaluate",
+      "saveAs": "agentEditorToastStackCount",
+      "expression": "() => document.querySelectorAll('.toast-stack').length"
+    },
+    { "action": "assertSaved", "key": "agentEditorToastStackCount", "equals": 1 },
+    { "action": "click", "selector": "button:has-text('Back')" },
+    { "action": "waitForText", "text": "New Agent" },
+    { "action": "click", "selector": "button:has-text('Councils')" },
+    { "action": "waitForText", "text": "New Council" },
+    { "action": "click", "selector": "button:has-text('New Council')" },
+    {
+      "action": "waitForText",
+      "text": "Title, Topic, and at least one Member are required before save."
+    },
+    { "action": "waitForSelector", "selector": ".toast-stack", "state": "attached" },
+    {
+      "action": "evaluate",
+      "saveAs": "councilEditorToastStackCount",
+      "expression": "() => document.querySelectorAll('.toast-stack').length"
+    },
+    { "action": "assertSaved", "key": "councilEditorToastStackCount", "equals": 1 },
+    { "action": "click", "selector": "button:has-text('Back')" },
+    { "action": "waitForText", "text": "New Council" },
+    { "action": "click", "selector": "button:has-text('Settings')" },
+    { "action": "waitForText", "text": "Providers" },
+    { "action": "waitForSelector", "selector": ".toast-stack", "state": "attached" },
+    {
+      "action": "evaluate",
+      "saveAs": "settingsToastStackCount",
+      "expression": "() => document.querySelectorAll('.toast-stack').length"
+    },
+    { "action": "assertSaved", "key": "settingsToastStackCount", "equals": 1 },
+    { "action": "screenshot", "file": "refactor-conservative-smoke.png", "fullPage": true }
+  ]
+}

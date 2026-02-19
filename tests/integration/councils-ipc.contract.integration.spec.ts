@@ -16,6 +16,8 @@ const FILE_REQUIREMENT_IDS = [
   "R3.26",
   "R3.32",
   "U3.8",
+  "U10.1",
+  "U10.9",
   "U11.6",
   "U12.2",
 ] as const;
@@ -184,6 +186,26 @@ describe("councils ipc contract", () => {
       return;
     }
     expect(started.value.council.started).toBe(true);
+
+    const savedFromView = await handlers.saveCouncil(
+      {
+        viewKind: "councilView",
+        id: save.value.council.id,
+        title: "Roadmap Council",
+        topic: "Q3 planning",
+        goal: null,
+        mode: "manual",
+        tags: ["planning"],
+        memberAgentIds: ["00000000-0000-4000-8000-000000000101"],
+        memberColorsByAgentId: {},
+        conductorModelRefOrNull: null,
+      },
+      31,
+    );
+    expect(savedFromView.ok).toBe(true);
+    if (savedFromView.ok) {
+      expect(savedFromView.value.council.topic).toBe("Q3 planning");
+    }
   });
 
   itReq(FILE_REQUIREMENT_IDS, "validates runtime command payloads", async () => {
@@ -252,6 +274,14 @@ describe("councils ipc contract", () => {
       44,
     );
     expect(invalidExport.ok).toBe(false);
+
+    const refreshForCouncilView = await handlers.refreshModelCatalog(
+      {
+        viewKind: "councilView",
+      },
+      44,
+    );
+    expect(refreshForCouncilView.ok).toBe(true);
   });
 
   itReq(FILE_REQUIREMENT_IDS, "exports transcript through typed IPC handler", async () => {

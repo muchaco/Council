@@ -46,6 +46,7 @@ const FILE_REQUIREMENT_IDS = [
   "U11.6",
   "U12.2",
   "R6.1",
+  "U10.1",
 ] as const;
 
 describe("ipc validators", () => {
@@ -191,6 +192,22 @@ describe("ipc validators", () => {
       conductorModelRefOrNull: null,
     });
     expect(parsed.success).toBe(true);
+
+    const parsedFromView = SAVE_COUNCIL_REQUEST_SCHEMA.safeParse({
+      viewKind: "councilView",
+      id: "00000000-0000-4000-8000-000000000101",
+      title: "Ops Council",
+      topic: "Incident reduction",
+      goal: "Agree next steps",
+      mode: "manual",
+      tags: ["ops"],
+      memberAgentIds: ["00000000-0000-4000-8000-000000000101"],
+      memberColorsByAgentId: {
+        "00000000-0000-4000-8000-000000000101": "#2d6cdf",
+      },
+      conductorModelRefOrNull: null,
+    });
+    expect(parsedFromView.success).toBe(true);
   });
 
   itReq(FILE_REQUIREMENT_IDS, "accepts nullable get council editor payload", () => {

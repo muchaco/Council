@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-gates:
+    name: Quality Gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Lint
+        run: bun run lint
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Build
+        run: bun run build
+
+      - name: Unit and integration tests
+        run: bun run test
+
+      - name: Architecture boundaries
+        run: bun run check:boundaries
+
+      - name: Packaging pipeline contract
+        run: bun run check:packaging-pipeline
+
+      - name: Required scripts contract
+        run: bun run check:required-scripts
+
+      - name: Migration verification
+        run: bun run db:migrate:verify
+
+      - name: Requirement traceability verification
+        run: bun run check:traceability
+
+  coverage-gates:
+    name: Coverage Gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Coverage validation
+        run: bun run test:coverage
+
+      - name: Coverage scope guardrails
+        run: bun run check:coverage-guardrails

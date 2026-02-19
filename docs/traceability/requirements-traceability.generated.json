@@ -1,11 +1,11 @@
 {
-  "generatedAtUtc": "2026-02-19T12:42:51.799Z",
+  "generatedAtUtc": "2026-02-19T20:18:59.240Z",
   "summary": {
-    "specFilesTracked": 27,
-    "testCasesTracked": 128,
-    "annotatedTestCases": 128,
+    "specFilesTracked": 30,
+    "testCasesTracked": 147,
+    "annotatedTestCases": 147,
     "unmappedTestCases": 0,
-    "mappedRequirementIds": 127
+    "mappedRequirementIds": 147
   },
   "entries": [
     {
@@ -227,6 +227,8 @@
             "F1",
             "R2.1",
             "R2.11",
+            "R2.17",
+            "R2.18",
             "R2.2",
             "R2.20",
             "R2.21",
@@ -277,8 +279,14 @@
             "U12.5",
             "U12.6",
             "U13.1",
+            "U13.2",
+            "U13.4",
             "U3.8",
-            "U3.9"
+            "U3.9",
+            "U9.3",
+            "U9.6",
+            "U9.7",
+            "U9.8"
           ],
           "source": "itReq"
         },
@@ -288,6 +296,8 @@
             "F1",
             "R2.1",
             "R2.11",
+            "R2.17",
+            "R2.18",
             "R2.2",
             "R2.20",
             "R2.21",
@@ -338,8 +348,14 @@
             "U12.5",
             "U12.6",
             "U13.1",
+            "U13.2",
+            "U13.4",
             "U3.8",
-            "U3.9"
+            "U3.9",
+            "U9.3",
+            "U9.6",
+            "U9.7",
+            "U9.8"
           ],
           "source": "itReq"
         },
@@ -349,6 +365,8 @@
             "F1",
             "R2.1",
             "R2.11",
+            "R2.17",
+            "R2.18",
             "R2.2",
             "R2.20",
             "R2.21",
@@ -399,8 +417,152 @@
             "U12.5",
             "U12.6",
             "U13.1",
+            "U13.2",
+            "U13.4",
             "U3.8",
-            "U3.9"
+            "U3.9",
+            "U9.3",
+            "U9.6",
+            "U9.7",
+            "U9.8"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "blocks adding members from council view while autopilot is actively running",
+          "requirementIds": [
+            "F1",
+            "R2.1",
+            "R2.11",
+            "R2.17",
+            "R2.18",
+            "R2.2",
+            "R2.20",
+            "R2.21",
+            "R2.22",
+            "R2.23",
+            "R2.24",
+            "R2.3",
+            "R2.4",
+            "R2.6",
+            "R2.7",
+            "R2.8",
+            "R2.9",
+            "R3.10",
+            "R3.11",
+            "R3.13",
+            "R3.14",
+            "R3.15",
+            "R3.18",
+            "R3.19",
+            "R3.20",
+            "R3.21",
+            "R3.22",
+            "R3.23",
+            "R3.24",
+            "R3.25",
+            "R3.26",
+            "R3.27",
+            "R3.3",
+            "R3.32",
+            "R3.33",
+            "R3.34",
+            "R3.7",
+            "R3.8",
+            "R3.9",
+            "R4.16",
+            "R6.1",
+            "R6.2",
+            "R6.3",
+            "R6.4",
+            "R6.6",
+            "R8.2",
+            "R8.3",
+            "U11.7",
+            "U12.1",
+            "U12.2",
+            "U12.3",
+            "U12.4",
+            "U12.5",
+            "U12.6",
+            "U13.1",
+            "U13.2",
+            "U13.4",
+            "U3.8",
+            "U3.9",
+            "U9.3",
+            "U9.6",
+            "U9.7",
+            "U9.8"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "allows adding members in manual mode and blocks removing members with message history",
+          "requirementIds": [
+            "F1",
+            "R2.1",
+            "R2.11",
+            "R2.17",
+            "R2.18",
+            "R2.2",
+            "R2.20",
+            "R2.21",
+            "R2.22",
+            "R2.23",
+            "R2.24",
+            "R2.3",
+            "R2.4",
+            "R2.6",
+            "R2.7",
+            "R2.8",
+            "R2.9",
+            "R3.10",
+            "R3.11",
+            "R3.13",
+            "R3.14",
+            "R3.15",
+            "R3.18",
+            "R3.19",
+            "R3.20",
+            "R3.21",
+            "R3.22",
+            "R3.23",
+            "R3.24",
+            "R3.25",
+            "R3.26",
+            "R3.27",
+            "R3.3",
+            "R3.32",
+            "R3.33",
+            "R3.34",
+            "R3.7",
+            "R3.8",
+            "R3.9",
+            "R4.16",
+            "R6.1",
+            "R6.2",
+            "R6.3",
+            "R6.4",
+            "R6.6",
+            "R8.2",
+            "R8.3",
+            "U11.7",
+            "U12.1",
+            "U12.2",
+            "U12.3",
+            "U12.4",
+            "U12.5",
+            "U12.6",
+            "U13.1",
+            "U13.2",
+            "U13.4",
+            "U3.8",
+            "U3.9",
+            "U9.3",
+            "U9.6",
+            "U9.7",
+            "U9.8"
           ],
           "source": "itReq"
         },
@@ -410,6 +572,8 @@
             "F1",
             "R2.1",
             "R2.11",
+            "R2.17",
+            "R2.18",
             "R2.2",
             "R2.20",
             "R2.21",
@@ -460,8 +624,14 @@
             "U12.5",
             "U12.6",
             "U13.1",
+            "U13.2",
+            "U13.4",
             "U3.8",
-            "U3.9"
+            "U3.9",
+            "U9.3",
+            "U9.6",
+            "U9.7",
+            "U9.8"
           ],
           "source": "itReq"
         },
@@ -471,6 +641,8 @@
             "F1",
             "R2.1",
             "R2.11",
+            "R2.17",
+            "R2.18",
             "R2.2",
             "R2.20",
             "R2.21",
@@ -521,8 +693,14 @@
             "U12.5",
             "U12.6",
             "U13.1",
+            "U13.2",
+            "U13.4",
             "U3.8",
-            "U3.9"
+            "U3.9",
+            "U9.3",
+            "U9.6",
+            "U9.7",
+            "U9.8"
           ],
           "source": "itReq"
         },
@@ -532,6 +710,8 @@
             "F1",
             "R2.1",
             "R2.11",
+            "R2.17",
+            "R2.18",
             "R2.2",
             "R2.20",
             "R2.21",
@@ -582,8 +762,14 @@
             "U12.5",
             "U12.6",
             "U13.1",
+            "U13.2",
+            "U13.4",
             "U3.8",
-            "U3.9"
+            "U3.9",
+            "U9.3",
+            "U9.6",
+            "U9.7",
+            "U9.8"
           ],
           "source": "itReq"
         },
@@ -593,6 +779,8 @@
             "F1",
             "R2.1",
             "R2.11",
+            "R2.17",
+            "R2.18",
             "R2.2",
             "R2.20",
             "R2.21",
@@ -643,8 +831,14 @@
             "U12.5",
             "U12.6",
             "U13.1",
+            "U13.2",
+            "U13.4",
             "U3.8",
-            "U3.9"
+            "U3.9",
+            "U9.3",
+            "U9.6",
+            "U9.7",
+            "U9.8"
           ],
           "source": "itReq"
         },
@@ -654,6 +848,8 @@
             "F1",
             "R2.1",
             "R2.11",
+            "R2.17",
+            "R2.18",
             "R2.2",
             "R2.20",
             "R2.21",
@@ -704,8 +900,14 @@
             "U12.5",
             "U12.6",
             "U13.1",
+            "U13.2",
+            "U13.4",
             "U3.8",
-            "U3.9"
+            "U3.9",
+            "U9.3",
+            "U9.6",
+            "U9.7",
+            "U9.8"
           ],
           "source": "itReq"
         },
@@ -715,6 +917,8 @@
             "F1",
             "R2.1",
             "R2.11",
+            "R2.17",
+            "R2.18",
             "R2.2",
             "R2.20",
             "R2.21",
@@ -765,8 +969,14 @@
             "U12.5",
             "U12.6",
             "U13.1",
+            "U13.2",
+            "U13.4",
             "U3.8",
-            "U3.9"
+            "U3.9",
+            "U9.3",
+            "U9.6",
+            "U9.7",
+            "U9.8"
           ],
           "source": "itReq"
         },
@@ -776,6 +986,8 @@
             "F1",
             "R2.1",
             "R2.11",
+            "R2.17",
+            "R2.18",
             "R2.2",
             "R2.20",
             "R2.21",
@@ -826,8 +1038,14 @@
             "U12.5",
             "U12.6",
             "U13.1",
+            "U13.2",
+            "U13.4",
             "U3.8",
-            "U3.9"
+            "U3.9",
+            "U9.3",
+            "U9.6",
+            "U9.7",
+            "U9.8"
           ],
           "source": "itReq"
         },
@@ -837,6 +1055,8 @@
             "F1",
             "R2.1",
             "R2.11",
+            "R2.17",
+            "R2.18",
             "R2.2",
             "R2.20",
             "R2.21",
@@ -887,8 +1107,14 @@
             "U12.5",
             "U12.6",
             "U13.1",
+            "U13.2",
+            "U13.4",
             "U3.8",
-            "U3.9"
+            "U3.9",
+            "U9.3",
+            "U9.6",
+            "U9.7",
+            "U9.8"
           ],
           "source": "itReq"
         },
@@ -898,6 +1124,8 @@
             "F1",
             "R2.1",
             "R2.11",
+            "R2.17",
+            "R2.18",
             "R2.2",
             "R2.20",
             "R2.21",
@@ -948,8 +1176,14 @@
             "U12.5",
             "U12.6",
             "U13.1",
+            "U13.2",
+            "U13.4",
             "U3.8",
-            "U3.9"
+            "U3.9",
+            "U9.3",
+            "U9.6",
+            "U9.7",
+            "U9.8"
           ],
           "source": "itReq"
         },
@@ -959,6 +1193,8 @@
             "F1",
             "R2.1",
             "R2.11",
+            "R2.17",
+            "R2.18",
             "R2.2",
             "R2.20",
             "R2.21",
@@ -1009,8 +1245,14 @@
             "U12.5",
             "U12.6",
             "U13.1",
+            "U13.2",
+            "U13.4",
             "U3.8",
-            "U3.9"
+            "U3.9",
+            "U9.3",
+            "U9.6",
+            "U9.7",
+            "U9.8"
           ],
           "source": "itReq"
         },
@@ -1020,6 +1262,8 @@
             "F1",
             "R2.1",
             "R2.11",
+            "R2.17",
+            "R2.18",
             "R2.2",
             "R2.20",
             "R2.21",
@@ -1070,8 +1314,14 @@
             "U12.5",
             "U12.6",
             "U13.1",
+            "U13.2",
+            "U13.4",
             "U3.8",
-            "U3.9"
+            "U3.9",
+            "U9.3",
+            "U9.6",
+            "U9.7",
+            "U9.8"
           ],
           "source": "itReq"
         },
@@ -1081,6 +1331,8 @@
             "F1",
             "R2.1",
             "R2.11",
+            "R2.17",
+            "R2.18",
             "R2.2",
             "R2.20",
             "R2.21",
@@ -1131,15 +1383,21 @@
             "U12.5",
             "U12.6",
             "U13.1",
+            "U13.2",
+            "U13.4",
             "U3.8",
-            "U3.9"
+            "U3.9",
+            "U9.3",
+            "U9.6",
+            "U9.7",
+            "U9.8"
           ],
           "source": "itReq"
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 15,
-      "totalTestCount": 15
+      "itReqInvocationCount": 17,
+      "totalTestCount": 17
     },
     {
       "filePath": "tests/integration/councils-ipc.contract.integration.spec.ts",
@@ -1156,6 +1414,8 @@
             "R3.26",
             "R3.32",
             "R3.7",
+            "U10.1",
+            "U10.9",
             "U11.6",
             "U12.2",
             "U3.8"
@@ -1174,6 +1434,8 @@
             "R3.26",
             "R3.32",
             "R3.7",
+            "U10.1",
+            "U10.9",
             "U11.6",
             "U12.2",
             "U3.8"
@@ -1192,6 +1454,8 @@
             "R3.26",
             "R3.32",
             "R3.7",
+            "U10.1",
+            "U10.9",
             "U11.6",
             "U12.2",
             "U3.8"
@@ -1210,6 +1474,8 @@
             "R3.26",
             "R3.32",
             "R3.7",
+            "U10.1",
+            "U10.9",
             "U11.6",
             "U12.2",
             "U3.8"
@@ -1245,6 +1511,25 @@
           "requirementIds": [
             "B3",
             "H3"
+          ],
+          "source": "itReq"
+        }
+      ],
+      "plainItCount": 0,
+      "itReqInvocationCount": 1,
+      "totalTestCount": 1
+    },
+    {
+      "filePath": "tests/integration/packaging-pipeline.integration.spec.ts",
+      "cases": [
+        {
+          "name": "enforces Linux AppImage packaging and native rebuild automation",
+          "requirementIds": [
+            "G1",
+            "G3",
+            "H2",
+            "H3",
+            "IMPL-001"
           ],
           "source": "itReq"
         }
@@ -1688,6 +1973,93 @@
       "totalTestCount": 4
     },
     {
+      "filePath": "tests/unit/app-ui-helpers.spec.ts",
+      "cases": [
+        {
+          "name": "round-trips model selection values",
+          "requirementIds": [
+            "U5.3"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "returns null for invalid model selection values",
+          "requirementIds": [
+            "U5.3"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "checks whether selected model exists in catalog",
+          "requirementIds": [
+            "U5.3"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "validates autopilot turn limits",
+          "requirementIds": [
+            "U10.8"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "deduplicates and bounds toast queue entries",
+          "requirementIds": [
+            "U2.6"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "normalizes council config tags from draft text",
+          "requirementIds": [
+            "U10.11"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "appends council config tags with ui-friendly validation",
+          "requirementIds": [
+            "U10.11"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "normalizes renderer tag drafts with shared tag rules",
+          "requirementIds": [
+            "R5.3",
+            "R5.6"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "maps confirmation-dialog keyboard actions",
+          "requirementIds": [
+            "U11.2",
+            "U15.2"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "maps list disclosure keyboard close action",
+          "requirementIds": [
+            "U15.2"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "builds descriptive accessibility labels for badges and tooltip controls",
+          "requirementIds": [
+            "U15.3"
+          ],
+          "source": "itReq"
+        }
+      ],
+      "plainItCount": 0,
+      "itReqInvocationCount": 11,
+      "totalTestCount": 11
+    },
+    {
       "filePath": "tests/unit/council-runtime-conductor.spec.ts",
       "cases": [
         {
@@ -1835,6 +2207,14 @@
           "source": "itReq"
         },
         {
+          "name": "maps inline config edit keyboard shortcuts",
+          "requirementIds": [
+            "U10.7",
+            "U15.2"
+          ],
+          "source": "itReq"
+        },
+        {
           "name": "builds descriptive aria labels with identity and message details",
           "requirementIds": [
             "U15.3",
@@ -1844,8 +2224,8 @@
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 4,
-      "totalTestCount": 4
+      "itReqInvocationCount": 5,
+      "totalTestCount": 5
     },
     {
       "filePath": "tests/unit/council-view-autopilot-recovery.spec.ts",
@@ -1880,6 +2260,13 @@
       "filePath": "tests/unit/council-view-runtime-guards.spec.ts",
       "cases": [
         {
+          "name": "uses council view leave confirmation copy",
+          "requirementIds": [
+            "U11.2"
+          ],
+          "source": "itReq"
+        },
+        {
           "name": "requires confirmation and pause when autopilot is running",
           "requirementIds": [
             "R3.12"
@@ -1897,6 +2284,36 @@
           "name": "does not require confirmation when autopilot is already paused and idle",
           "requirementIds": [
             "R3.12"
+          ],
+          "source": "itReq"
+        }
+      ],
+      "plainItCount": 0,
+      "itReqInvocationCount": 4,
+      "totalTestCount": 4
+    },
+    {
+      "filePath": "tests/unit/council-view-transcript.spec.ts",
+      "cases": [
+        {
+          "name": "renders member and conductor messages on opposite sides",
+          "requirementIds": [
+            "U13.3",
+            "U8.4"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "uses sender color accents with stable fallbacks",
+          "requirementIds": [
+            "U8.4"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "builds avatar initials from sender names",
+          "requirementIds": [
+            "U8.4"
           ],
           "source": "itReq"
         }
@@ -2018,6 +2435,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],
@@ -2043,6 +2461,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],
@@ -2068,6 +2487,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],
@@ -2093,6 +2513,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],
@@ -2118,6 +2539,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],
@@ -2143,6 +2565,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],
@@ -2168,6 +2591,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],
@@ -2193,6 +2617,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],
@@ -2218,6 +2643,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],
@@ -2243,6 +2669,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],
@@ -2268,6 +2695,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],
@@ -2293,6 +2721,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],
@@ -2318,6 +2747,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],
@@ -2343,6 +2773,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],
@@ -2368,6 +2799,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],
@@ -2393,6 +2825,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],
@@ -2418,6 +2851,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],
@@ -2443,6 +2877,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],
@@ -2468,6 +2903,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],
@@ -2493,6 +2929,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],
@@ -2518,6 +2955,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],
@@ -2543,6 +2981,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],
@@ -2568,6 +3007,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],
@@ -2593,6 +3033,7 @@
             "R4.6",
             "R4.8",
             "R6.1",
+            "U10.1",
             "U11.6",
             "U12.2"
           ],

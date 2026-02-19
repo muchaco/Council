@@ -120,7 +120,7 @@ type CouncilsSliceDependencies = {
   }) => ResultAsync<RefreshModelCatalogResponse, DomainError>;
   listAvailableAgents: (params: {
     webContentsId: number;
-    viewKind: "councilCreate";
+    viewKind: "councilCreate" | "councilView";
   }) => ResultAsync<ReadonlyArray<CouncilAgentOptionDto>, DomainError>;
   loadPersistedCouncils?: () => ResultAsync<ReadonlyArray<CouncilRecord>, DomainError>;
   persistCouncil?: (council: CouncilRecord) => ResultAsync<void, DomainError>;
@@ -957,6 +957,64 @@ export const createCouncilsSlice = (
         ),
     );
 
+  const validateCouncilMemberMutations = (params: {
+    existing: CouncilRecord;
+    viewKind: "councilCreate" | "councilView";
+    normalizedMemberAgentIds: ReadonlyArray<AgentId>;
+  }): ResultAsync<void, DomainError> => {
+    if (params.viewKind !== "councilView") {
+      return okAsync(undefined);
+    }
+
+    const previousMemberIds = new Set(params.existing.memberAgentIds);
+    const nextMemberIds = new Set(params.normalizedMemberAgentIds);
+    const addedMembers = params.normalizedMemberAgentIds.filter(
+      (memberId) => !previousMemberIds.has(memberId),
+    );
+    const removedMembers = params.existing.memberAgentIds.filter(
+      (memberId) => !nextMemberIds.has(memberId),
+    );
+
+    if (addedMembers.length > 0) {
+      const canAddMembers =
+        params.existing.startedAtUtc === null ||
+        params.existing.autopilotPaused ||
+        params.existing.mode === "manual";
+      if (!canAddMembers) {
+        return errAsync(
+          stateError(
+            `Council ${params.existing.id} cannot add members in current runtime state`,
+            "Members can be added only before start, while paused, or in Manual mode.",
+          ),
+        );
+      }
+    }
+
+    if (removedMembers.length === 0) {
+      return okAsync(undefined);
+    }
+
+    const removedMemberIds = new Set(removedMembers);
+    return getCouncilMessages(params.existing.id).andThen((messages) => {
+      const removingMemberWithHistory = messages.some(
+        (message) =>
+          message.senderKind === "member" &&
+          message.senderAgentId !== null &&
+          removedMemberIds.has(message.senderAgentId),
+      );
+      if (!removingMemberWithHistory) {
+        return okAsync(undefined);
+      }
+
+      return errAsync(
+        validationError(
+          `Council ${params.existing.id} attempted to remove member with message history`,
+          "Members who already sent messages cannot be removed.",
+        ),
+      );
+    });
+  };
+
   const saveCouncil: CouncilsSlice["saveCouncil"] = ({ webContentsId, draft }) => {
     const normalizedTitle = draft.title.trim();
     const normalizedTopic = draft.topic.trim();
@@ -987,7 +1045,7 @@ export const createCouncilsSlice = (
         dependencies
           .listAvailableAgents({
             webContentsId,
-            viewKind: "councilCreate",
+            viewKind: draft.viewKind,
           })
           .map((availableAgents) => ({
             tags,
@@ -1032,59 +1090,70 @@ export const createCouncilsSlice = (
           );
         }
 
-        return dependencies
-          .getModelContext({
-            webContentsId,
-            viewKind: "councilCreate",
-          })
-          .andThen((modelContext) => {
-            const availableModelKeys = buildAvailableModelKeys(
-              modelContext.modelCatalog.modelsByProvider,
-            );
-            const now = dependencies.nowUtc();
-            const id = existingId ?? dependencies.createCouncilId();
-            const memberColorsByAgentId = normalizedMemberAgentIds.reduce<Record<string, string>>(
-              (acc, agentId) => {
-                const color = draft.memberColorsByAgentId[agentId];
-                if (typeof color === "string" && color.trim().length > 0) {
-                  acc[agentId] = color.trim();
-                }
-                return acc;
-              },
-              {},
-            );
+        const validateMemberMutationsResult =
+          existing === undefined
+            ? okAsync(undefined)
+            : validateCouncilMemberMutations({
+                existing,
+                viewKind: draft.viewKind,
+                normalizedMemberAgentIds,
+              });
 
-            const record: CouncilRecord = {
-              id,
-              title: normalizedTitle,
-              topic: normalizedTopic,
-              goal: normalizedGoal,
-              mode: draft.mode,
-              tags,
-              memberAgentIds: normalizedMemberAgentIds,
-              memberColorsByAgentId,
-              conductorModelRefOrNull: draft.conductorModelRefOrNull,
-              archivedAtUtc: existing?.archivedAtUtc ?? null,
-              startedAtUtc: existing?.startedAtUtc ?? null,
-              autopilotPaused: existing?.autopilotPaused ?? true,
-              autopilotMaxTurns: existing?.autopilotMaxTurns ?? null,
-              autopilotTurnsCompleted: existing?.autopilotTurnsCompleted ?? 0,
-              turnCount: existing?.turnCount ?? 0,
-              createdAtUtc: existing?.createdAtUtc ?? now,
-              updatedAtUtc: now,
-            };
+        return validateMemberMutationsResult.andThen(() => {
+          return dependencies
+            .getModelContext({
+              webContentsId,
+              viewKind: draft.viewKind,
+            })
+            .andThen((modelContext) => {
+              const availableModelKeys = buildAvailableModelKeys(
+                modelContext.modelCatalog.modelsByProvider,
+              );
+              const now = dependencies.nowUtc();
+              const id = existingId ?? dependencies.createCouncilId();
+              const memberColorsByAgentId = normalizedMemberAgentIds.reduce<Record<string, string>>(
+                (acc, agentId) => {
+                  const color = draft.memberColorsByAgentId[agentId];
+                  if (typeof color === "string" && color.trim().length > 0) {
+                    acc[agentId] = color.trim();
+                  }
+                  return acc;
+                },
+                {},
+              );
 
-            return persistCouncil(record).andThen(() => {
-              records.set(id, record);
-              return okAsync({
-                council: toCouncilDto({
-                  record,
-                  availableModelKeys,
-                  globalDefaultModelRef: modelContext.globalDefaultModelRef,
-                }),
-              } satisfies SaveCouncilResponse);
+              const record: CouncilRecord = {
+                id,
+                title: normalizedTitle,
+                topic: normalizedTopic,
+                goal: normalizedGoal,
+                mode: draft.mode,
+                tags,
+                memberAgentIds: normalizedMemberAgentIds,
+                memberColorsByAgentId,
+                conductorModelRefOrNull: draft.conductorModelRefOrNull,
+                archivedAtUtc: existing?.archivedAtUtc ?? null,
+                startedAtUtc: existing?.startedAtUtc ?? null,
+                autopilotPaused: existing?.autopilotPaused ?? true,
+                autopilotMaxTurns: existing?.autopilotMaxTurns ?? null,
+                autopilotTurnsCompleted: existing?.autopilotTurnsCompleted ?? 0,
+                turnCount: existing?.turnCount ?? 0,
+                createdAtUtc: existing?.createdAtUtc ?? now,
+                updatedAtUtc: now,
+              };
+
+              return persistCouncil(record).andThen(() => {
+                records.set(id, record);
+                return okAsync({
+                  council: toCouncilDto({
+                    record,
+                    availableModelKeys,
+                    globalDefaultModelRef: modelContext.globalDefaultModelRef,
+                  }),
+                } satisfies SaveCouncilResponse);
+              });
             });
-          });
+        });
       });
   };
 

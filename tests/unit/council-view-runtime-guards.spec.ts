@@ -1,5 +1,8 @@
 import { describe, expect } from "vitest";
-import { buildCouncilViewExitPlan } from "../../src/shared/council-view-runtime-guards";
+import {
+  COUNCIL_VIEW_EXIT_CONFIRMATION_MESSAGE,
+  buildCouncilViewExitPlan,
+} from "../../src/shared/council-view-runtime-guards";
 import { itReq } from "../helpers/requirement-trace";
 
 const FILE_REQUIREMENT_IDS = ["R3.12"] as const;
@@ -69,4 +72,10 @@ describe("council view runtime guards", () => {
       });
     },
   );
+
+  itReq(["U11.2"], "uses council view leave confirmation copy", () => {
+    expect(COUNCIL_VIEW_EXIT_CONFIRMATION_MESSAGE).toBe(
+      "Leaving will pause the Council and cancel generation. Continue?",
+    );
+  });
 });

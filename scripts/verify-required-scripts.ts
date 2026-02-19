@@ -7,11 +7,13 @@ const REQUIRED_SCRIPTS = [
   "lint",
   "typecheck",
   "build",
+  "package:linux",
   "test:unit",
   "test:integration",
   "test:coverage",
   "check:coverage-guardrails",
   "check:boundaries",
+  "check:packaging-pipeline",
   "check:traceability",
   "db:migrate:verify",
 ] as const;
