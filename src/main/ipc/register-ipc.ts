@@ -6,6 +6,7 @@ import { domainError } from "../../shared/domain/errors.js";
 import { asAgentId, asCouncilId } from "../../shared/domain/ids.js";
 import { buildAvailableModelKeys, isModelConfigInvalid } from "../../shared/domain/model-ref.js";
 import { createTag } from "../../shared/domain/tag.js";
+import type { ProviderId } from "../../shared/ipc/dto.js";
 import type { HealthPingResponse, IpcResult } from "../../shared/ipc/dto.js";
 import { HEALTH_PING_REQUEST_SCHEMA } from "../../shared/ipc/validators.js";
 import { createAgentsIpcHandlers } from "../features/agents/ipc-handlers.js";
@@ -14,8 +15,8 @@ import { createCouncilsIpcHandlers } from "../features/councils/ipc-handlers.js"
 import { createCouncilsSlice } from "../features/councils/slice.js";
 import { createSettingsIpcHandlers } from "../features/settings/ipc-handlers.js";
 import { createSettingsSlice } from "../features/settings/slice.js";
+import { createProviderAiService } from "../services/ai/provider-ai-service.js";
 import { createSqlitePersistenceService } from "../services/db/sqlite-persistence-service.js";
-import type { AiService } from "../services/interfaces.js";
 import { createKeytarKeychainService } from "../services/keychain/keytar-keychain-service.js";
 
 const toValidationFailure = (devMessage: string): IpcResult<never> => ({
@@ -41,30 +42,29 @@ export const registerIpcHandlers = (): {
     domainError("InternalError", message, "Database operation failed.");
 
   const keychain = createKeytarKeychainService();
-  const fakeAiService: AiService = {
-    generateText: (_request, abortSignal) =>
-      ResultAsync.fromPromise(
-        new Promise<{ text: string }>((resolve, reject) => {
-          const timer = setTimeout(() => {
-            if (abortSignal.aborted) {
-              reject(new Error("aborted"));
-              return;
-            }
-            resolve({ text: `Generated at ${new Date().toISOString()}` });
-          }, 50);
+  const aiService = createProviderAiService({
+    loadProviderConfig: (providerId) => {
+      const stateResult = persistence.loadSettingsState();
+      if (stateResult.isErr()) {
+        return errAsync("ProviderError");
+      }
 
-          abortSignal.addEventListener(
-            "abort",
-            () => {
-              clearTimeout(timer);
-              reject(new Error("aborted"));
+      const providerConfig = stateResult.value.providerConfigs.find(
+        (config) => config.providerId === (providerId as ProviderId),
+      );
+
+      return okAsync(
+        providerConfig === undefined
+          ? null
+          : {
+              endpointUrl: providerConfig.endpointUrl,
+              credentialRef: providerConfig.credentialRef,
             },
-            { once: true },
-          );
-        }),
-        () => "ProviderError",
-      ),
-  };
+      );
+    },
+    loadSecret: (account) =>
+      keychain.loadSecret({ account }).mapErr(() => "ProviderError" as const),
+  });
 
   const settingsSlice = createSettingsSlice({
     saveSecret: keychain.saveSecret,
@@ -268,7 +268,7 @@ export const registerIpcHandlers = (): {
       }
       return okAsync(undefined);
     },
-    aiService: fakeAiService,
+    aiService,
     createMessageId: () => randomUUID(),
     createGenerationRequestId: () => randomUUID(),
   });

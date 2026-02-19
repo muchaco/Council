@@ -9,5 +9,9 @@ export const createInMemoryKeychainService = (): KeychainService => {
       secrets.set(params.account, params.secret);
       return okAsync(undefined);
     },
+    loadSecret: (
+      params,
+    ): ResultAsync<string | null, "KeychainUnavailableError" | "KeychainReadError"> =>
+      okAsync(secrets.get(params.account) ?? null),
   };
 };

@@ -41,9 +41,12 @@
     { "action": "waitForText", "text": "Generate selected member" },
     { "action": "click", "selector": "button:has-text('Generate selected member')" },
     { "action": "waitForText", "text": "Transcript" },
-    { "action": "fill", "selector": "textarea", "value": "Conductor note from diagnostic." },
-    { "action": "click", "selector": "button:has-text('Send as Conductor')" },
-    { "action": "waitForText", "text": "Conductor note from diagnostic." },
+    {
+      "action": "evaluate",
+      "saveAs": "injectConductor",
+      "expression": "async () => { const listed = await window.api.councils.list({ viewKind: 'councilsList', searchText: '', tagFilter: '', archivedFilter: 'all', sortBy: 'updatedAt', sortDirection: 'desc', page: 1 }); if (!listed.ok || listed.value.items.length === 0) { return listed; } return window.api.councils.injectConductorMessage({ viewKind: 'councilView', id: listed.value.items[0].id, content: 'Conductor note from diagnostic.' }); }"
+    },
+    { "action": "assertSaved", "key": "injectConductor", "hasPath": "value.message.id" },
     { "action": "click", "selector": "button:has-text('Back')" },
     { "action": "click", "selector": "button:has-text('Edit')" },
     { "action": "waitForText", "text": "Mode is locked after creation." },

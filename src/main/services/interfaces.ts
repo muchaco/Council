@@ -9,6 +9,9 @@ export type KeychainService = {
     account: string;
     secret: string;
   }) => ResultAsync<void, "KeychainUnavailableError" | "KeychainWriteError">;
+  loadSecret: (params: {
+    account: string;
+  }) => ResultAsync<string | null, "KeychainUnavailableError" | "KeychainReadError">;
 };
 
 export type AiServiceGenerateTextRequest = {

@@ -1,4 +1,10 @@
 import { type ResultAsync, errAsync, okAsync } from "neverthrow";
+import {
+  type ConductorDecision,
+  type RuntimeConversationMessage,
+  buildConductorDecisionPrompt,
+  parseConductorDecision,
+} from "../../../shared/council-runtime-conductor.js";
 import { type DomainError, domainError } from "../../../shared/domain/errors.js";
 import {
   type AgentId,
@@ -285,6 +291,14 @@ const toCouncilRuntimeBriefingDto = (
   };
 };
 
+const toRuntimeConversationMessage = (
+  message: CouncilMessageRecord,
+): RuntimeConversationMessage => ({
+  senderName: message.senderName,
+  senderKind: message.senderKind,
+  content: message.content,
+});
+
 export const createCouncilsSlice = (
   dependencies: CouncilsSliceDependencies,
   initialCouncils: ReadonlyArray<CouncilRecord> = [],
@@ -311,6 +325,7 @@ export const createCouncilsSlice = (
   const messageCacheByCouncilId = new Map<CouncilId, ReadonlyArray<CouncilMessageRecord>>();
   const briefingCacheByCouncilId = new Map<CouncilId, CouncilRuntimeBriefingRecord | null>();
   const inFlightGenerationByCouncilId = new Map<CouncilId, InFlightGenerationRecord>();
+  const plannedNextSpeakerByCouncilId = new Map<CouncilId, AgentId>();
 
   const mapProviderError = (message: string): DomainError =>
     domainError("ProviderError", message, "Message generation failed.");
@@ -535,6 +550,110 @@ export const createCouncilsSlice = (
 
         return okAsync(text);
       });
+  };
+
+  const generateTextWithRefreshRetry = (params: {
+    webContentsId: number;
+    council: CouncilRecord;
+    modelContext: CouncilModelContext;
+    kind: InFlightGenerationRecord["kind"];
+    memberAgentId: AgentId | null;
+    promptRole: "member" | "conductor";
+    promptContent: string;
+  }): ResultAsync<string, DomainError> =>
+    generateTextForCouncil(params).orElse((firstError) => {
+      if (firstError.kind !== "ProviderError") {
+        return errAsync(firstError);
+      }
+
+      return dependencies
+        .refreshModelCatalog({
+          webContentsId: params.webContentsId,
+          viewKind: "councilView",
+        })
+        .map((refreshResult) => ({
+          ...params.modelContext,
+          modelCatalog: refreshResult.modelCatalog,
+          canRefreshModels: true,
+        }))
+        .orElse(() => okAsync(params.modelContext))
+        .andThen((nextModelContext) =>
+          generateTextForCouncil({
+            ...params,
+            modelContext: nextModelContext,
+          }),
+        );
+    });
+
+  const pauseAutopilotAfterError = (params: {
+    council: CouncilRecord;
+    error: DomainError;
+  }): ResultAsync<DomainError, DomainError> => {
+    if (params.council.mode !== "autopilot" || params.council.startedAtUtc === null) {
+      return okAsync(params.error);
+    }
+
+    if (params.council.autopilotPaused) {
+      return okAsync(params.error);
+    }
+
+    const now = dependencies.nowUtc();
+    const pausedCouncil: CouncilRecord = {
+      ...params.council,
+      autopilotPaused: true,
+      updatedAtUtc: now,
+    };
+
+    return persistCouncil(pausedCouncil)
+      .map(() => {
+        records.set(pausedCouncil.id, pausedCouncil);
+        return params.error;
+      })
+      .orElse(() => okAsync(params.error));
+  };
+
+  const runConductorBriefingDecision = (params: {
+    webContentsId: number;
+    council: CouncilRecord;
+    modelContext: CouncilModelContext;
+    previousBriefing: CouncilRuntimeBriefingRecord | null;
+    messages: ReadonlyArray<CouncilMessageRecord>;
+    mode: CouncilMode;
+    eligibleMemberAgentIds: ReadonlyArray<AgentId>;
+  }): ResultAsync<ConductorDecision, DomainError> => {
+    const prompt = buildConductorDecisionPrompt({
+      mode: params.mode,
+      topic: params.council.topic,
+      goal: params.council.goal,
+      previousBriefing: params.previousBriefing?.briefing ?? null,
+      messages: params.messages.map(toRuntimeConversationMessage),
+      eligibleMemberAgentIds: params.eligibleMemberAgentIds,
+    });
+
+    return generateTextWithRefreshRetry({
+      webContentsId: params.webContentsId,
+      council: params.council,
+      modelContext: params.modelContext,
+      kind: "conductorBriefing",
+      memberAgentId: null,
+      promptRole: "conductor",
+      promptContent: prompt,
+    }).andThen((text) => {
+      const parsed = parseConductorDecision({
+        text,
+        mode: params.mode,
+        eligibleMemberAgentIds: params.eligibleMemberAgentIds,
+      });
+      if (parsed.isErr()) {
+        return errAsync(
+          mapProviderError(
+            `Conductor decision parse failed for council ${params.council.id}: ${parsed.error}`,
+          ),
+        );
+      }
+
+      return okAsync(parsed.value);
+    });
   };
 
   const listCouncils: CouncilsSlice["listCouncils"] = ({
@@ -846,6 +965,7 @@ export const createCouncilsSlice = (
         cancelInFlightGeneration(councilId);
         messageCacheByCouncilId.delete(councilId);
         briefingCacheByCouncilId.delete(councilId);
+        plannedNextSpeakerByCouncilId.delete(councilId);
         records.delete(councilId);
         return okAsync({ deletedId: id } satisfies DeleteCouncilResponse);
       });
@@ -882,6 +1002,7 @@ export const createCouncilsSlice = (
 
       if (archived) {
         cancelInFlightGeneration(councilId);
+        plannedNextSpeakerByCouncilId.delete(councilId);
       }
 
       return dependencies
@@ -947,6 +1068,7 @@ export const createCouncilsSlice = (
 
       return persistCouncil(next).andThen(() => {
         records.set(next.id, next);
+        plannedNextSpeakerByCouncilId.delete(next.id);
         return okAsync({
           council: toCouncilDto({
             record: next,
@@ -989,6 +1111,7 @@ export const createCouncilsSlice = (
 
       return persistCouncil(next).andThen(() => {
         records.set(next.id, next);
+        plannedNextSpeakerByCouncilId.delete(next.id);
         return okAsync({
           council: toCouncilDto({
             record: next,
@@ -1112,19 +1235,22 @@ export const createCouncilsSlice = (
           for (const agent of availableAgents) {
             availableAgentById.set(agent.id, agent);
           }
-          return ensureNoActiveGeneration(council.id);
+          return ensureNoActiveGeneration(council.id).andThen(() =>
+            getRuntimeBriefing(council.id).map((previousBriefing) => ({ previousBriefing })),
+          );
         })
-        .andThen(() =>
-          generateTextForCouncil({
+        .andThen(({ previousBriefing }) =>
+          generateTextWithRefreshRetry({
+            webContentsId,
             council,
             modelContext,
             kind: "manualMemberTurn",
             memberAgentId: selectedMemberId,
             promptRole: "member",
             promptContent: `Council:${council.title}\nTopic:${council.topic}\nSpeaker:${memberAgentId}`,
-          }),
+          }).andThen((generatedText) => okAsync({ generatedText, previousBriefing })),
         )
-        .andThen((generatedText) => {
+        .andThen(({ generatedText, previousBriefing }) => {
           const now = dependencies.nowUtc();
           const nextCouncil: CouncilRecord = {
             ...council,
@@ -1144,24 +1270,45 @@ export const createCouncilsSlice = (
               content: generatedText,
               createdAtUtc: now,
             }).andThen((message) =>
-              persistBriefing({
-                councilId: council.id,
-                briefing: `Latest update: ${message.content}`,
-                goalReached: false,
-                updatedAtUtc: now,
-              }).map(
-                () =>
-                  ({
-                    council: toCouncilDto({
-                      record: nextCouncil,
-                      availableModelKeys,
-                      globalDefaultModelRef: modelContext.globalDefaultModelRef,
-                    }),
-                    message: toCouncilMessageDto(message),
-                  }) satisfies GenerateManualCouncilTurnResponse,
+              getCouncilMessages(council.id).andThen((allMessages) =>
+                runConductorBriefingDecision({
+                  webContentsId,
+                  council: nextCouncil,
+                  modelContext,
+                  previousBriefing,
+                  messages: allMessages,
+                  mode: "manual",
+                  eligibleMemberAgentIds: [],
+                }).andThen((decision) =>
+                  persistBriefing({
+                    councilId: council.id,
+                    briefing: decision.briefing,
+                    goalReached: decision.goalReached,
+                    updatedAtUtc: now,
+                  }).map(
+                    () =>
+                      ({
+                        council: toCouncilDto({
+                          record: nextCouncil,
+                          availableModelKeys,
+                          globalDefaultModelRef: modelContext.globalDefaultModelRef,
+                        }),
+                        message: toCouncilMessageDto(message),
+                      }) satisfies GenerateManualCouncilTurnResponse,
+                  ),
+                ),
               ),
             );
           });
+        })
+        .orElse((error) => {
+          if (error.kind !== "ProviderError") {
+            return errAsync(error);
+          }
+
+          return pauseAutopilotAfterError({ council, error }).andThen((pausedError) =>
+            errAsync(pausedError),
+          );
         });
     });
 
@@ -1194,31 +1341,45 @@ export const createCouncilsSlice = (
       }
 
       const now = dependencies.nowUtc();
-      return appendMessage({
-        id: dependencies.createMessageId(),
-        councilId: council.id,
-        senderKind: "conductor",
-        senderAgentId: null,
-        senderName: "Conductor",
-        senderColor: null,
-        content: normalizedContent,
-        createdAtUtc: now,
-      }).andThen((message) =>
-        persistBriefing({
+      return getRuntimeBriefing(council.id).andThen((previousBriefing) =>
+        appendMessage({
+          id: dependencies.createMessageId(),
           councilId: council.id,
-          briefing: `Latest update: ${message.content}`,
-          goalReached: false,
-          updatedAtUtc: now,
-        }).map(
-          () =>
-            ({
-              council: toCouncilDto({
-                record: council,
-                availableModelKeys,
-                globalDefaultModelRef: modelContext.globalDefaultModelRef,
-              }),
-              message: toCouncilMessageDto(message),
-            }) satisfies InjectConductorMessageResponse,
+          senderKind: "conductor",
+          senderAgentId: null,
+          senderName: "Conductor",
+          senderColor: null,
+          content: normalizedContent,
+          createdAtUtc: now,
+        }).andThen((message) =>
+          getCouncilMessages(council.id).andThen((allMessages) =>
+            runConductorBriefingDecision({
+              webContentsId,
+              council,
+              modelContext,
+              previousBriefing,
+              messages: allMessages,
+              mode: "manual",
+              eligibleMemberAgentIds: [],
+            }).andThen((decision) =>
+              persistBriefing({
+                councilId: council.id,
+                briefing: decision.briefing,
+                goalReached: decision.goalReached,
+                updatedAtUtc: now,
+              }).map(
+                () =>
+                  ({
+                    council: toCouncilDto({
+                      record: council,
+                      availableModelKeys,
+                      globalDefaultModelRef: modelContext.globalDefaultModelRef,
+                    }),
+                    message: toCouncilMessageDto(message),
+                  }) satisfies InjectConductorMessageResponse,
+              ),
+            ),
+          ),
         ),
       );
     });
@@ -1254,55 +1415,53 @@ export const createCouncilsSlice = (
       }
 
       return ensureNoActiveGeneration(council.id)
-        .andThen(() => getCouncilMessages(council.id))
-        .andThen((messages) => {
-          const lastMemberMessage = [...messages]
-            .reverse()
-            .find((message) => message.senderKind === "member");
-          const eligibleMembers =
-            lastMemberMessage === undefined
-              ? council.memberAgentIds
-              : council.memberAgentIds.filter(
-                  (memberId) => memberId !== lastMemberMessage.senderAgentId,
-                );
-          const selectedMemberId = eligibleMembers[0] ?? council.memberAgentIds[0];
-          if (selectedMemberId === undefined) {
-            return errAsync(
-              validationError(
-                `Council ${id} has no members`,
-                "Council has no members to generate turns.",
-              ),
-            );
-          }
+        .andThen(() => getRuntimeBriefing(council.id))
+        .andThen((previousBriefing) =>
+          getCouncilMessages(council.id).andThen((messages) => {
+            const lastMemberMessage = [...messages]
+              .reverse()
+              .find((message) => message.senderKind === "member");
+            const eligibleMembers =
+              lastMemberMessage === undefined
+                ? council.memberAgentIds
+                : council.memberAgentIds.filter(
+                    (memberId) => memberId !== lastMemberMessage.senderAgentId,
+                  );
+            const plannedSpeaker = plannedNextSpeakerByCouncilId.get(council.id);
+            const selectedMember =
+              plannedSpeaker !== undefined && eligibleMembers.includes(plannedSpeaker)
+                ? plannedSpeaker
+                : (eligibleMembers[0] ?? council.memberAgentIds[0]);
+            if (selectedMember === undefined) {
+              return errAsync(
+                validationError(
+                  `Council ${id} has no members`,
+                  "Council has no members to generate turns.",
+                ),
+              );
+            }
 
-          const selectedMember = selectedMemberId;
-          return dependencies
-            .listAvailableAgents({
-              webContentsId,
-              viewKind: "councilCreate",
-            })
-            .andThen((availableAgents) => {
-              const memberName =
-                availableAgents.find((agent) => agent.id === selectedMember)?.name ??
-                selectedMember;
+            return dependencies
+              .listAvailableAgents({
+                webContentsId,
+                viewKind: "councilCreate",
+              })
+              .andThen((availableAgents) => {
+                const memberName =
+                  availableAgents.find((agent) => agent.id === selectedMember)?.name ??
+                  selectedMember;
 
-              return generateTextForCouncil({
-                council,
-                modelContext,
-                kind: "autopilotStep",
-                memberAgentId: selectedMember,
-                promptRole: "member",
-                promptContent: `Autopilot turn for ${memberName} in council ${council.title}`,
-              }).andThen((generatedText) => {
-                const now = dependencies.nowUtc();
-                const nextCouncil: CouncilRecord = {
-                  ...council,
-                  turnCount: council.turnCount + 1,
-                  updatedAtUtc: now,
-                };
+                return generateTextWithRefreshRetry({
+                  webContentsId,
+                  council,
+                  modelContext,
+                  kind: "autopilotStep",
+                  memberAgentId: selectedMember,
+                  promptRole: "member",
+                  promptContent: `Autopilot turn for ${memberName} in council ${council.title}`,
+                }).andThen((generatedText) => {
+                  const now = dependencies.nowUtc();
 
-                return persistCouncil(nextCouncil).andThen(() => {
-                  records.set(nextCouncil.id, nextCouncil);
                   return appendMessage({
                     id: dependencies.createMessageId(),
                     councilId: council.id,
@@ -1313,28 +1472,78 @@ export const createCouncilsSlice = (
                     content: generatedText,
                     createdAtUtc: now,
                   }).andThen((message) =>
-                    persistBriefing({
-                      councilId: council.id,
-                      briefing: `Latest update: ${message.content}`,
-                      goalReached: false,
-                      updatedAtUtc: now,
-                    }).map(
-                      () =>
-                        ({
-                          council: toCouncilDto({
-                            record: nextCouncil,
-                            availableModelKeys,
-                            globalDefaultModelRef: modelContext.globalDefaultModelRef,
+                    getCouncilMessages(council.id).andThen((allMessages) => {
+                      const nextEligibleMembers = council.memberAgentIds.filter(
+                        (memberId) => memberId !== selectedMember,
+                      );
+                      const normalizedEligibleMembers =
+                        nextEligibleMembers.length > 0 ? nextEligibleMembers : [selectedMember];
+
+                      return runConductorBriefingDecision({
+                        webContentsId,
+                        council,
+                        modelContext,
+                        previousBriefing,
+                        messages: allMessages,
+                        mode: "autopilot",
+                        eligibleMemberAgentIds: normalizedEligibleMembers,
+                      }).andThen((decision) => {
+                        const plannedNextSpeaker =
+                          normalizedEligibleMembers.length === 1
+                            ? normalizedEligibleMembers[0]
+                            : decision.nextSpeakerAgentId;
+                        if (plannedNextSpeaker === null || plannedNextSpeaker === undefined) {
+                          return errAsync(
+                            stateError(
+                              `Conductor returned null next speaker for autopilot council ${id}`,
+                              "Autopilot could not select the next speaker.",
+                            ),
+                          );
+                        }
+
+                        plannedNextSpeakerByCouncilId.set(
+                          council.id,
+                          asAgentId(plannedNextSpeaker),
+                        );
+
+                        const nextCouncil: CouncilRecord = {
+                          ...council,
+                          turnCount: council.turnCount + 1,
+                          autopilotPaused: decision.goalReached ? true : council.autopilotPaused,
+                          updatedAtUtc: now,
+                        };
+
+                        return persistBriefing({
+                          councilId: council.id,
+                          briefing: decision.briefing,
+                          goalReached: decision.goalReached,
+                          updatedAtUtc: now,
+                        }).andThen(() =>
+                          persistCouncil(nextCouncil).map(() => {
+                            records.set(nextCouncil.id, nextCouncil);
+                            return {
+                              council: toCouncilDto({
+                                record: nextCouncil,
+                                availableModelKeys,
+                                globalDefaultModelRef: modelContext.globalDefaultModelRef,
+                              }),
+                              message: toCouncilMessageDto(message),
+                              selectedMemberAgentId: selectedMember,
+                            } satisfies AdvanceAutopilotTurnResponse;
                           }),
-                          message: toCouncilMessageDto(message),
-                          selectedMemberAgentId: selectedMember,
-                        }) satisfies AdvanceAutopilotTurnResponse,
-                    ),
+                        );
+                      });
+                    }),
                   );
                 });
               });
-            });
-        });
+          }),
+        )
+        .orElse((error) =>
+          pauseAutopilotAfterError({ council, error }).andThen((pausedError) =>
+            errAsync(pausedError),
+          ),
+        );
     });
 
   const cancelGeneration: CouncilsSlice["cancelGeneration"] = ({ id }) =>

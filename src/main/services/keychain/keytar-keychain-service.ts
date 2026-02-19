@@ -3,6 +3,7 @@ import type { KeychainService } from "../interfaces.js";
 
 type KeytarClient = {
   setPassword: (service: string, account: string, password: string) => Promise<void>;
+  getPassword: (service: string, account: string) => Promise<string | null>;
 };
 
 type KeytarServiceDependencies = {
@@ -31,18 +32,20 @@ const asObjectRecord = (value: unknown): Record<string, unknown> | null => {
   return null;
 };
 
-const hasSetPasswordFunction = (value: unknown): value is KeytarClient => {
+const hasKeytarFunctions = (value: unknown): value is KeytarClient => {
   const candidate = asObjectRecord(value);
-  return typeof candidate?.setPassword === "function";
+  return (
+    typeof candidate?.setPassword === "function" && typeof candidate?.getPassword === "function"
+  );
 };
 
 const resolveKeytarClient = (loadedModule: unknown): KeytarClient | null => {
-  if (hasSetPasswordFunction(loadedModule)) {
+  if (hasKeytarFunctions(loadedModule)) {
     return loadedModule;
   }
 
   const record = asObjectRecord(loadedModule);
-  if (hasSetPasswordFunction(record?.default)) {
+  if (hasKeytarFunctions(record?.default)) {
     return record.default;
   }
 
@@ -54,12 +57,12 @@ const loadKeytarClient = async (): Promise<KeytarClient> => {
   const loadedModule = await import(moduleSpecifier);
   const client = resolveKeytarClient(loadedModule);
   if (client === null) {
-    throw new Error("Keytar module loaded but did not expose setPassword().");
+    throw new Error("Keytar module loaded but did not expose setPassword()/getPassword().");
   }
   return client;
 };
 
-const toErrorKind = (error: unknown): "KeychainUnavailableError" | "KeychainWriteError" => {
+const isUnavailableError = (error: unknown): boolean => {
   const record = asObjectRecord(error);
   const code = typeof record?.code === "string" ? record.code.toLowerCase() : "";
   const message =
@@ -70,14 +73,30 @@ const toErrorKind = (error: unknown): "KeychainUnavailableError" | "KeychainWrit
         : "";
 
   if (code === "module_not_found" || code === "err_module_not_found") {
-    return "KeychainUnavailableError";
+    return true;
   }
 
   if (KEYCHAIN_UNAVAILABLE_MESSAGE_HINTS.some((hint) => message.includes(hint))) {
+    return true;
+  }
+
+  return false;
+};
+
+const toSaveErrorKind = (error: unknown): "KeychainUnavailableError" | "KeychainWriteError" => {
+  if (isUnavailableError(error)) {
     return "KeychainUnavailableError";
   }
 
   return "KeychainWriteError";
+};
+
+const toLoadErrorKind = (error: unknown): "KeychainUnavailableError" | "KeychainReadError" => {
+  if (isUnavailableError(error)) {
+    return "KeychainUnavailableError";
+  }
+
+  return "KeychainReadError";
 };
 
 export const createKeytarKeychainService = (
@@ -93,7 +112,15 @@ export const createKeytarKeychainService = (
           const keytar = dependencies.keytarClient ?? (await loadClient());
           await keytar.setPassword(serviceName, account, secret);
         })(),
-        toErrorKind,
+        toSaveErrorKind,
+      ),
+    loadSecret: ({ account }) =>
+      ResultAsync.fromPromise(
+        (async () => {
+          const keytar = dependencies.keytarClient ?? (await loadClient());
+          return keytar.getPassword(serviceName, account);
+        })(),
+        toLoadErrorKind,
       ),
   };
 };

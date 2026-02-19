@@ -37,7 +37,11 @@ type TestBriefing = {
   updatedAtUtc: string;
 };
 
-const createSlice = (options?: { generationDelayMs?: number }) => {
+const createSlice = (options?: {
+  generationDelayMs?: number;
+  failConductorDecision?: boolean;
+  providerFailuresBeforeSuccess?: number;
+}) => {
   let sequence = 0;
   let messageId = 0;
   let generationId = 0;
@@ -45,8 +49,28 @@ const createSlice = (options?: { generationDelayMs?: number }) => {
   const briefingsByCouncilId = new Map<string, TestBriefing>();
 
   const generationDelayMs = options?.generationDelayMs ?? 0;
+  let providerFailuresRemaining = options?.providerFailuresBeforeSuccess ?? 0;
+  const refreshModelCatalogCalls: Array<"councilsList" | "councilCreate" | "councilView"> = [];
 
-  return createCouncilsSlice({
+  const buildConductorDecisionResponse = (promptContent: string): string => {
+    const eligibleMatch = promptContent.match(/Eligible members for next speaker: (.*)/);
+    const eligibleRaw = eligibleMatch?.[1]?.trim() ?? "";
+    const eligible =
+      eligibleRaw.length === 0 || eligibleRaw.startsWith("(")
+        ? []
+        : eligibleRaw
+            .split(",")
+            .map((value) => value.trim())
+            .filter((value) => value.length > 0);
+
+    return JSON.stringify({
+      briefing: `Briefing ${sequence + 1}`,
+      goalReached: false,
+      nextSpeakerAgentId: eligible[0] ?? null,
+    });
+  };
+
+  const slice = createCouncilsSlice({
     nowUtc: () => `2026-02-18T10:00:${String(sequence).padStart(2, "0")}.000Z`,
     createCouncilId: () =>
       asCouncilId(`00000000-0000-4000-8000-${String(++sequence).padStart(12, "0")}`),
@@ -66,14 +90,19 @@ const createSlice = (options?: { generationDelayMs?: number }) => {
         canRefreshModels: true,
       }),
     refreshModelCatalog: ({ viewKind }) =>
-      okAsync({
-        modelCatalog: {
-          snapshotId: `${viewKind}-snapshot-2`,
-          modelsByProvider: {
-            gemini: ["gemini-1.5-flash"],
-          },
-        },
-      }),
+      okAsync(
+        (() => {
+          refreshModelCatalogCalls.push(viewKind);
+          return {
+            modelCatalog: {
+              snapshotId: `${viewKind}-snapshot-2`,
+              modelsByProvider: {
+                gemini: ["gemini-1.5-flash"],
+              },
+            },
+          };
+        })(),
+      ),
     listAvailableAgents: () => okAsync(AVAILABLE_AGENTS),
     loadCouncilMessages: (councilId) =>
       okAsync((messagesByCouncilId.get(councilId) ?? []) as never),
@@ -93,7 +122,7 @@ const createSlice = (options?: { generationDelayMs?: number }) => {
       return okAsync(undefined);
     },
     aiService: {
-      generateText: (_request, abortSignal) =>
+      generateText: (request, abortSignal) =>
         ResultAsync.fromPromise(
           new Promise<{ text: string }>((resolve, reject) => {
             const timer = setTimeout(() => {
@@ -101,7 +130,23 @@ const createSlice = (options?: { generationDelayMs?: number }) => {
                 reject(new Error("aborted"));
                 return;
               }
-              resolve({ text: `Generated turn ${++sequence}` });
+              const promptContent = request.messages.map((message) => message.content).join("\n");
+              const isConductorRequest = promptContent.includes("You are the Council Conductor.");
+              if (providerFailuresRemaining > 0) {
+                providerFailuresRemaining -= 1;
+                reject(new Error("provider failure"));
+                return;
+              }
+              if (options?.failConductorDecision === true && isConductorRequest) {
+                reject(new Error("provider failure"));
+                return;
+              }
+
+              resolve({
+                text: isConductorRequest
+                  ? buildConductorDecisionResponse(promptContent)
+                  : `Generated turn ${++sequence}`,
+              });
             }, generationDelayMs);
             abortSignal.addEventListener(
               "abort",
@@ -117,6 +162,12 @@ const createSlice = (options?: { generationDelayMs?: number }) => {
     },
     createMessageId: () => `message-${++messageId}`,
     createGenerationRequestId: () => `generation-${++generationId}`,
+  });
+
+  return Object.assign(slice, {
+    getRefreshModelCatalogCalls: (): ReadonlyArray<
+      "councilsList" | "councilCreate" | "councilView"
+    > => refreshModelCatalogCalls,
   });
 };
 
@@ -385,6 +436,93 @@ describe("councils handlers", () => {
     expect(view.value.messages[0]?.senderKind).toBe("conductor");
     expect(view.value.messages[1]?.senderKind).toBe("member");
     expect(view.value.council.turnCount).toBe(1);
+    expect(view.value.briefing?.briefing).toContain("Briefing");
+  });
+
+  it("pauses autopilot when provider error occurs during conductor briefing", async () => {
+    const slice = createSlice({ failConductorDecision: true });
+    const saved = await slice.saveCouncil({
+      webContentsId: 26,
+      draft: {
+        viewKind: "councilCreate",
+        id: null,
+        title: "Autopilot Error Council",
+        topic: "Error handling",
+        goal: null,
+        mode: "autopilot",
+        tags: [],
+        memberAgentIds: [PRIMARY_AGENT_ID, SECONDARY_AGENT_ID],
+        memberColorsByAgentId: {},
+        conductorModelRefOrNull: null,
+      },
+    });
+    expect(saved.isOk()).toBe(true);
+    if (saved.isErr()) {
+      return;
+    }
+
+    await slice.startCouncil({
+      webContentsId: 26,
+      id: saved.value.council.id,
+    });
+
+    const advance = await slice.advanceAutopilotTurn({
+      webContentsId: 26,
+      id: saved.value.council.id,
+    });
+    expect(advance.isErr()).toBe(true);
+    if (advance.isErr()) {
+      expect(advance.error.kind).toBe("ProviderError");
+    }
+
+    const view = await slice.getCouncilView({
+      webContentsId: 26,
+      councilId: saved.value.council.id,
+    });
+    expect(view.isOk()).toBe(true);
+    if (view.isOk()) {
+      expect(view.value.council.paused).toBe(true);
+      expect(view.value.messages).toHaveLength(1);
+    }
+  });
+
+  it("does not repeat the same autopilot speaker consecutively", async () => {
+    const slice = createSlice();
+    const saved = await slice.saveCouncil({
+      webContentsId: 27,
+      draft: {
+        viewKind: "councilCreate",
+        id: null,
+        title: "Autopilot Speaker Council",
+        topic: "Speaker rotation",
+        goal: null,
+        mode: "autopilot",
+        tags: [],
+        memberAgentIds: [PRIMARY_AGENT_ID, SECONDARY_AGENT_ID],
+        memberColorsByAgentId: {},
+        conductorModelRefOrNull: null,
+      },
+    });
+    expect(saved.isOk()).toBe(true);
+    if (saved.isErr()) {
+      return;
+    }
+
+    await slice.startCouncil({ webContentsId: 27, id: saved.value.council.id });
+    const first = await slice.advanceAutopilotTurn({
+      webContentsId: 27,
+      id: saved.value.council.id,
+    });
+    const second = await slice.advanceAutopilotTurn({
+      webContentsId: 27,
+      id: saved.value.council.id,
+    });
+
+    expect(first.isOk()).toBe(true);
+    expect(second.isOk()).toBe(true);
+    if (first.isOk() && second.isOk()) {
+      expect(first.value.selectedMemberAgentId).not.toBe(second.value.selectedMemberAgentId);
+    }
   });
 
   it("discards cancelled generation output", async () => {
@@ -438,5 +576,74 @@ describe("councils handlers", () => {
       expect(view.value.messages).toHaveLength(0);
       expect(view.value.generation.status).toBe("idle");
     }
+  });
+
+  it("refreshes model catalog and retries generation after provider error", async () => {
+    const slice = createSlice({ providerFailuresBeforeSuccess: 1 });
+    const saved = await slice.saveCouncil({
+      webContentsId: 28,
+      draft: {
+        viewKind: "councilCreate",
+        id: null,
+        title: "Retry Council",
+        topic: "Retry once",
+        goal: null,
+        mode: "manual",
+        tags: [],
+        memberAgentIds: [PRIMARY_AGENT_ID],
+        memberColorsByAgentId: {},
+        conductorModelRefOrNull: null,
+      },
+    });
+    expect(saved.isOk()).toBe(true);
+    if (saved.isErr()) {
+      return;
+    }
+
+    await slice.startCouncil({ webContentsId: 28, id: saved.value.council.id });
+
+    const generated = await slice.generateManualTurn({
+      webContentsId: 28,
+      id: saved.value.council.id,
+      memberAgentId: PRIMARY_AGENT_ID,
+    });
+    expect(generated.isOk()).toBe(true);
+    expect(slice.getRefreshModelCatalogCalls()).toEqual(["councilView"]);
+  });
+
+  it("returns provider error when retry still fails", async () => {
+    const slice = createSlice({ providerFailuresBeforeSuccess: 2 });
+    const saved = await slice.saveCouncil({
+      webContentsId: 29,
+      draft: {
+        viewKind: "councilCreate",
+        id: null,
+        title: "Retry Fails Council",
+        topic: "Retry fail",
+        goal: null,
+        mode: "manual",
+        tags: [],
+        memberAgentIds: [PRIMARY_AGENT_ID],
+        memberColorsByAgentId: {},
+        conductorModelRefOrNull: null,
+      },
+    });
+    expect(saved.isOk()).toBe(true);
+    if (saved.isErr()) {
+      return;
+    }
+
+    await slice.startCouncil({ webContentsId: 29, id: saved.value.council.id });
+
+    const generated = await slice.generateManualTurn({
+      webContentsId: 29,
+      id: saved.value.council.id,
+      memberAgentId: PRIMARY_AGENT_ID,
+    });
+    expect(generated.isErr()).toBe(true);
+    if (generated.isErr()) {
+      expect(generated.error.kind).toBe("ProviderError");
+    }
+    expect(slice.getRefreshModelCatalogCalls()).toEqual(["councilView"]);
   });
 });

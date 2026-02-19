@@ -9,9 +9,13 @@ describe("keytar keychain service", () => {
     const setPassword = vi.fn<
       (service: string, account: string, password: string) => Promise<void>
     >(() => Promise.resolve());
+    const getPassword = vi.fn<(service: string, account: string) => Promise<string | null>>(() =>
+      Promise.resolve("super-secret"),
+    );
 
     const keytarClient: KeytarClient = {
       setPassword,
+      getPassword,
     };
 
     const service = createKeytarKeychainService({
@@ -30,6 +34,13 @@ describe("keytar keychain service", () => {
       "provider/openrouter",
       "super-secret",
     );
+
+    const loaded = await service.loadSecret({
+      account: "provider/openrouter",
+    });
+    expect(loaded.isOk()).toBe(true);
+    expect(loaded._unsafeUnwrap()).toBe("super-secret");
+    expect(getPassword).toHaveBeenCalledWith("council3-test", "provider/openrouter");
   });
 
   it("maps keychain transport failures to unavailable errors", async () => {
@@ -51,6 +62,7 @@ describe("keytar keychain service", () => {
       loadClient: () =>
         Promise.resolve({
           setPassword: () => Promise.reject(new Error("Permission denied while writing secret")),
+          getPassword: () => Promise.resolve(null),
         }),
     });
 
@@ -61,5 +73,22 @@ describe("keytar keychain service", () => {
 
     expect(result.isErr()).toBe(true);
     expect(result._unsafeUnwrapErr()).toBe("KeychainWriteError");
+  });
+
+  it("maps non-availability read failures to read errors", async () => {
+    const service = createKeytarKeychainService({
+      loadClient: () =>
+        Promise.resolve({
+          setPassword: () => Promise.resolve(),
+          getPassword: () => Promise.reject(new Error("Permission denied while reading secret")),
+        }),
+    });
+
+    const result = await service.loadSecret({
+      account: "provider/gemini",
+    });
+
+    expect(result.isErr()).toBe(true);
+    expect(result._unsafeUnwrapErr()).toBe("KeychainReadError");
   });
 });

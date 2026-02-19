@@ -1,4 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  COUNCIL_VIEW_EXIT_CONFIRMATION_MESSAGE,
+  buildCouncilViewExitPlan,
+} from "../shared/council-view-runtime-guards";
 import type { ModelRef } from "../shared/domain/model-ref";
 import type {
   AgentDto,
@@ -118,6 +122,7 @@ type CouncilViewState =
       isInjectingConductor: boolean;
       isAdvancingAutopilot: boolean;
       isCancellingGeneration: boolean;
+      isLeavingView: boolean;
       selectedManualSpeakerId: string | null;
       conductorDraft: string;
       message: string;
@@ -1005,6 +1010,7 @@ export const App = (): JSX.Element => {
         isInjectingConductor: false,
         isAdvancingAutopilot: false,
         isCancellingGeneration: false,
+        isLeavingView: false,
         selectedManualSpeakerId: result.value.council.memberAgentIds[0] ?? null,
         conductorDraft: "",
         message: "",
@@ -1018,10 +1024,90 @@ export const App = (): JSX.Element => {
     await loadCouncilView(councilId);
   };
 
-  const closeCouncilView = (): void => {
-    setScreen({ kind: "home" });
-    setHomeTab("councils");
-    void loadCouncils({ page: 1, append: false });
+  const leaveCouncilViewSafely = async (onExit: () => void | Promise<void>): Promise<void> => {
+    if (screen.kind !== "councilView") {
+      await onExit();
+      return;
+    }
+
+    if (councilViewState.status !== "ready") {
+      await onExit();
+      return;
+    }
+
+    if (councilViewState.isLeavingView) {
+      return;
+    }
+
+    const exitPlan = buildCouncilViewExitPlan(
+      councilViewState.source.council,
+      councilViewState.source.generation,
+    );
+
+    if (!exitPlan.requiresConfirmation) {
+      await onExit();
+      return;
+    }
+
+    const confirmed = window.confirm(COUNCIL_VIEW_EXIT_CONFIRMATION_MESSAGE);
+    if (!confirmed) {
+      return;
+    }
+
+    setCouncilViewState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            isLeavingView: true,
+            message: "",
+          },
+    );
+
+    if (exitPlan.shouldPauseAutopilot) {
+      const pauseResult = await window.api.councils.pauseAutopilot({
+        id: screen.councilId,
+      });
+
+      if (!pauseResult.ok) {
+        pushToast("error", pauseResult.error.userMessage);
+        setCouncilViewState((current) =>
+          current.status !== "ready"
+            ? current
+            : {
+                ...current,
+                isLeavingView: false,
+                message: pauseResult.error.userMessage,
+              },
+        );
+        return;
+      }
+    }
+
+    const cancelResult = await window.api.councils.cancelGeneration({ id: screen.councilId });
+    if (!cancelResult.ok) {
+      pushToast("error", cancelResult.error.userMessage);
+      setCouncilViewState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              isLeavingView: false,
+              message: cancelResult.error.userMessage,
+            },
+      );
+      return;
+    }
+
+    await onExit();
+  };
+
+  const closeCouncilView = async (): Promise<void> => {
+    await leaveCouncilViewSafely(async () => {
+      setScreen({ kind: "home" });
+      setHomeTab("councils");
+      await loadCouncils({ page: 1, append: false });
+    });
   };
 
   const startCouncilRuntime = async (): Promise<void> => {
@@ -1551,7 +1637,7 @@ export const App = (): JSX.Element => {
       return (
         <main className="shell">
           <header className="section-header">
-            <button className="secondary" onClick={() => closeCouncilView()} type="button">
+            <button className="secondary" onClick={() => void closeCouncilView()} type="button">
               Back
             </button>
             <h1>Council View</h1>
@@ -1565,7 +1651,7 @@ export const App = (): JSX.Element => {
       return (
         <main className="shell">
           <header className="section-header">
-            <button className="secondary" onClick={() => closeCouncilView()} type="button">
+            <button className="secondary" onClick={() => void closeCouncilView()} type="button">
               Back
             </button>
             <h1>Council View</h1>
@@ -1590,12 +1676,22 @@ export const App = (): JSX.Element => {
       <main className="shell">
         <header className="section-header">
           <div className="button-row">
-            <button className="secondary" onClick={() => closeCouncilView()} type="button">
-              Back
+            <button
+              className="secondary"
+              disabled={councilViewState.isLeavingView}
+              onClick={() => void closeCouncilView()}
+              type="button"
+            >
+              {councilViewState.isLeavingView ? "Leaving..." : "Back"}
             </button>
             <button
               className="secondary"
-              onClick={() => void openCouncilEditor(council.id)}
+              disabled={councilViewState.isLeavingView}
+              onClick={() =>
+                void leaveCouncilViewSafely(async () => {
+                  await openCouncilEditor(council.id);
+                })
+              }
               type="button"
             >
               Edit config
