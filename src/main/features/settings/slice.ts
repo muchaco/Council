@@ -1,4 +1,10 @@
 import { ResultAsync, errAsync, okAsync } from "neverthrow";
+import {
+  DEFAULT_CONTEXT_LAST_N,
+  MAX_CONTEXT_LAST_N,
+  MIN_CONTEXT_LAST_N,
+  normalizeContextLastN,
+} from "../../../shared/council-runtime-context-window.js";
 import { type DomainError, domainError } from "../../../shared/domain/errors.js";
 import {
   type ModelCatalogByProvider,
@@ -15,6 +21,7 @@ import type {
   ProviderId,
   RefreshModelCatalogResponse,
   SaveProviderConfigResponse,
+  SetContextLastNResponse,
   SetGlobalDefaultModelResponse,
   TestProviderConnectionResponse,
   ViewKind,
@@ -36,6 +43,7 @@ type ProviderTestState = {
 
 type SettingsState = {
   globalDefaultModelRef: ModelRef | null;
+  contextLastN: number;
 };
 
 type SettingsSliceDependencies = {
@@ -45,13 +53,25 @@ type SettingsSliceDependencies = {
     endpointUrl: string;
     apiKey: string | null;
   }) => ResultAsync<ReadonlyArray<string>, DomainError>;
+  fetchGeminiModels: (params: {
+    endpointUrl: string | null;
+    apiKey: string;
+  }) => ResultAsync<ReadonlyArray<string>, DomainError>;
+  fetchOpenRouterModels: (params: {
+    endpointUrl: string | null;
+    apiKey: string;
+  }) => ResultAsync<ReadonlyArray<string>, DomainError>;
   saveSecret: (params: {
     account: string;
     secret: string;
   }) => ResultAsync<void, "KeychainUnavailableError" | "KeychainWriteError">;
+  loadSecret: (params: {
+    account: string;
+  }) => ResultAsync<string | null, "KeychainUnavailableError" | "KeychainReadError">;
   loadPersistedState: () => ResultAsync<
     {
       globalDefaultModelRef: ModelRef | null;
+      contextLastN: number;
       providerConfigs: ReadonlyArray<{
         providerId: ProviderId;
         endpointUrl: string | null;
@@ -71,6 +91,10 @@ type SettingsSliceDependencies = {
   }) => ResultAsync<void, DomainError>;
   persistGlobalDefaultModel: (params: {
     modelRefOrNull: ModelRef | null;
+    updatedAtUtc: string;
+  }) => ResultAsync<void, DomainError>;
+  persistContextLastN: (params: {
+    contextLastN: number;
     updatedAtUtc: string;
   }) => ResultAsync<void, DomainError>;
 };
@@ -97,6 +121,12 @@ type SettingsSlice = {
     viewKind: ViewKind;
     modelRefOrNull: ModelRef | null;
   }) => ResultAsync<SetGlobalDefaultModelResponse, DomainError>;
+  setContextLastN: (params: {
+    webContentsId: number;
+    viewKind: ViewKind;
+    contextLastN: number;
+  }) => ResultAsync<SetContextLastNResponse, DomainError>;
+  getContextLastN: () => number;
   releaseViewSnapshots: (webContentsId: number) => void;
 };
 
@@ -110,6 +140,8 @@ const PROVIDERS_REQUIRING_API_KEY = new Set<ProviderId>(["gemini", "openrouter"]
 
 const PROVIDERS_REQUIRING_ENDPOINT = new Set<ProviderId>(["ollama"]);
 const DEFAULT_OLLAMA_ENDPOINT = "http://127.0.0.1:11434";
+const DEFAULT_OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1";
+const DEFAULT_GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com";
 
 const PROVIDER_ORDER: ReadonlyArray<ProviderId> = ["gemini", "ollama", "openrouter"];
 
@@ -145,6 +177,67 @@ const parseOllamaModelNames = (payload: unknown): ReadonlyArray<string> => {
   return Array.from(new Set(names));
 };
 
+const parseGeminiModelNames = (payload: unknown): ReadonlyArray<string> => {
+  if (typeof payload !== "object" || payload === null) {
+    return [];
+  }
+
+  const modelsValue = (payload as { models?: unknown }).models;
+  if (!Array.isArray(modelsValue)) {
+    return [];
+  }
+
+  const names = modelsValue
+    .map((model) => {
+      if (typeof model !== "object" || model === null) {
+        return null;
+      }
+
+      const rawName = (model as { name?: unknown }).name;
+      if (typeof rawName !== "string" || rawName.trim().length === 0) {
+        return null;
+      }
+
+      const methods = (model as { supportedGenerationMethods?: unknown })
+        .supportedGenerationMethods;
+      const supportsGenerateContent =
+        Array.isArray(methods) &&
+        methods.some((value) => value === "generateContent" || value === "streamGenerateContent");
+      if (!supportsGenerateContent) {
+        return null;
+      }
+
+      const trimmed = rawName.trim();
+      return trimmed.startsWith("models/") ? trimmed.slice("models/".length) : trimmed;
+    })
+    .filter((name): name is string => typeof name === "string" && name.length > 0);
+
+  return Array.from(new Set(names));
+};
+
+const parseOpenRouterModelNames = (payload: unknown): ReadonlyArray<string> => {
+  if (typeof payload !== "object" || payload === null) {
+    return [];
+  }
+
+  const dataValue = (payload as { data?: unknown }).data;
+  if (!Array.isArray(dataValue)) {
+    return [];
+  }
+
+  const names = dataValue
+    .map((item) => {
+      if (typeof item !== "object" || item === null) {
+        return undefined;
+      }
+      const id = (item as { id?: unknown }).id;
+      return typeof id === "string" && id.trim().length > 0 ? id.trim() : undefined;
+    })
+    .filter((name): name is string => typeof name === "string" && name.length > 0);
+
+  return Array.from(new Set(names));
+};
+
 const createFetchOllamaModels = (
   providerErrorFactory: (devMessage: string, userMessage: string) => DomainError,
 ): SettingsSliceDependencies["fetchOllamaModels"] => {
@@ -174,6 +267,72 @@ const createFetchOllamaModels = (
         providerErrorFactory(
           `Failed to fetch Ollama models from ${normalizedEndpoint}: ${error instanceof Error ? error.message : String(error)}`,
           "Could not fetch Ollama models. Check endpoint and make sure Ollama is running.",
+        ),
+    );
+  };
+};
+
+const createFetchGeminiModels = (
+  providerErrorFactory: (devMessage: string, userMessage: string) => DomainError,
+): SettingsSliceDependencies["fetchGeminiModels"] => {
+  return ({ endpointUrl, apiKey }) => {
+    const endpoint = normalizeNullable(endpointUrl) ?? DEFAULT_GEMINI_ENDPOINT;
+    return ResultAsync.fromPromise(
+      (async () => {
+        const listUrl = new URL("/v1beta/models", endpoint).toString();
+        const response = await fetch(listUrl, {
+          headers: {
+            "x-goog-api-key": apiKey,
+          },
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const payload = await response.json();
+        const models = parseGeminiModelNames(payload);
+        if (models.length === 0) {
+          throw new Error("No supported models returned");
+        }
+        return models;
+      })(),
+      (error) =>
+        providerErrorFactory(
+          `Failed to fetch Gemini models from ${endpoint}: ${error instanceof Error ? error.message : String(error)}`,
+          "Could not fetch Gemini models. Check credentials and endpoint.",
+        ),
+    );
+  };
+};
+
+const createFetchOpenRouterModels = (
+  providerErrorFactory: (devMessage: string, userMessage: string) => DomainError,
+): SettingsSliceDependencies["fetchOpenRouterModels"] => {
+  return ({ endpointUrl, apiKey }) => {
+    const endpoint = normalizeNullable(endpointUrl) ?? DEFAULT_OPENROUTER_ENDPOINT;
+    return ResultAsync.fromPromise(
+      (async () => {
+        const listUrl = new URL("/models", endpoint).toString();
+        const response = await fetch(listUrl, {
+          headers: {
+            authorization: `Bearer ${apiKey}`,
+          },
+        });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const payload = await response.json();
+        const models = parseOpenRouterModelNames(payload);
+        if (models.length === 0) {
+          throw new Error("No supported models returned");
+        }
+        return models;
+      })(),
+      (error) =>
+        providerErrorFactory(
+          `Failed to fetch OpenRouter models from ${endpoint}: ${error instanceof Error ? error.message : String(error)}`,
+          "Could not fetch OpenRouter models. Check credentials and endpoint.",
         ),
     );
   };
@@ -226,20 +385,30 @@ export const createSettingsSlice = (
     });
   const fetchOllamaModels =
     dependencies.fetchOllamaModels ?? createFetchOllamaModels(providerError);
+  const fetchGeminiModels =
+    dependencies.fetchGeminiModels ?? createFetchGeminiModels(providerError);
+  const fetchOpenRouterModels =
+    dependencies.fetchOpenRouterModels ?? createFetchOpenRouterModels(providerError);
+  const loadSecret =
+    dependencies.loadSecret ??
+    ((params: { account: string }) => okAsync(keychainSecrets.get(params.account) ?? null));
   const loadPersistedState =
     dependencies.loadPersistedState ??
     (() =>
       okAsync({
         globalDefaultModelRef: null,
+        contextLastN: DEFAULT_CONTEXT_LAST_N,
         providerConfigs: [],
       }));
   const persistProviderConfig = dependencies.persistProviderConfig ?? (() => okAsync(undefined));
   const persistGlobalDefaultModel =
     dependencies.persistGlobalDefaultModel ?? (() => okAsync(undefined));
+  const persistContextLastN = dependencies.persistContextLastN ?? (() => okAsync(undefined));
   const providerTests = new Map<ProviderId, ProviderTestState>();
   const providerModels = new Map<ProviderId, ReadonlyArray<string>>();
   const settingsState: SettingsState = {
     globalDefaultModelRef: null,
+    contextLastN: DEFAULT_CONTEXT_LAST_N,
   };
   const snapshots = new Map<string, ModelCatalogSnapshotDto>();
   let hydrated = false;
@@ -251,6 +420,10 @@ export const createSettingsSlice = (
 
     return loadPersistedState().map((persisted) => {
       settingsState.globalDefaultModelRef = persisted.globalDefaultModelRef;
+      settingsState.contextLastN = normalizeContextLastN(
+        persisted.contextLastN,
+        DEFAULT_CONTEXT_LAST_N,
+      );
       persistedProviderConfigs.clear();
       providerModels.clear();
 
@@ -285,6 +458,40 @@ export const createSettingsSlice = (
   const resolveProviderModels = (
     provider: ProviderDraftDto,
   ): ResultAsync<ReadonlyArray<string>, DomainError> => {
+    if (provider.providerId === "gemini") {
+      const apiKey = normalizeNullable(provider.apiKey);
+      if (apiKey === null) {
+        return errAsync(
+          validationError(
+            "Provider gemini requires API key",
+            "API key is required for this provider.",
+          ),
+        );
+      }
+
+      return fetchGeminiModels({
+        endpointUrl: provider.endpointUrl,
+        apiKey,
+      });
+    }
+
+    if (provider.providerId === "openrouter") {
+      const apiKey = normalizeNullable(provider.apiKey);
+      if (apiKey === null) {
+        return errAsync(
+          validationError(
+            "Provider openrouter requires API key",
+            "API key is required for this provider.",
+          ),
+        );
+      }
+
+      return fetchOpenRouterModels({
+        endpointUrl: provider.endpointUrl,
+        apiKey,
+      });
+    }
+
     if (provider.providerId === "ollama") {
       return fetchOllamaModels({
         endpointUrl: normalizeOllamaEndpoint(provider.endpointUrl),
@@ -292,7 +499,12 @@ export const createSettingsSlice = (
       });
     }
 
-    return okAsync(PROVIDER_MODELS[provider.providerId]);
+    return errAsync(
+      providerError(
+        `Unsupported provider during model resolution: ${provider.providerId}`,
+        "Provider is not supported.",
+      ),
+    );
   };
 
   const refreshConfiguredProviderModels = (): ResultAsync<void, DomainError> => {
@@ -300,17 +512,78 @@ export const createSettingsSlice = (
 
     for (const persisted of persistedProviderConfigs.values()) {
       chain = chain.andThen(() => {
-        if (persisted.providerId !== "ollama") {
-          providerModels.set(persisted.providerId, PROVIDER_MODELS[persisted.providerId]);
-          return okAsync(undefined);
+        if (persisted.providerId === "ollama") {
+          return (
+            persisted.credentialRef === null
+              ? okAsync<string | null>(null)
+              : loadSecret({ account: persisted.credentialRef }).mapErr(() =>
+                  providerError(
+                    `Failed to load credential for provider ${persisted.providerId}`,
+                    `Could not read stored credentials for ${persisted.providerId}. Re-save provider settings and try again.`,
+                  ),
+                )
+          ).andThen((apiKey) =>
+            fetchOllamaModels({
+              endpointUrl: normalizeOllamaEndpoint(persisted.endpointUrl),
+              apiKey,
+            }).map((models) => {
+              providerModels.set(persisted.providerId, models);
+            }),
+          );
         }
 
-        return fetchOllamaModels({
-          endpointUrl: normalizeOllamaEndpoint(persisted.endpointUrl),
-          apiKey: null,
-        }).map((models) => {
-          providerModels.set(persisted.providerId, models);
-        });
+        if (persisted.credentialRef === null) {
+          return errAsync(
+            providerError(
+              `Missing credential reference for provider ${persisted.providerId}`,
+              `Stored credentials for ${persisted.providerId} are missing. Re-save provider settings and try again.`,
+            ),
+          );
+        }
+
+        return loadSecret({ account: persisted.credentialRef })
+          .mapErr(() =>
+            providerError(
+              `Failed to load credential for provider ${persisted.providerId}`,
+              `Could not read stored credentials for ${persisted.providerId}. Re-save provider settings and try again.`,
+            ),
+          )
+          .andThen((apiKey) => {
+            const normalizedApiKey = normalizeNullable(apiKey);
+            if (normalizedApiKey === null) {
+              return errAsync(
+                providerError(
+                  `Empty credential loaded for provider ${persisted.providerId}`,
+                  `Stored credentials for ${persisted.providerId} are invalid. Re-save provider settings and try again.`,
+                ),
+              );
+            }
+
+            if (persisted.providerId === "gemini") {
+              return fetchGeminiModels({
+                endpointUrl: persisted.endpointUrl,
+                apiKey: normalizedApiKey,
+              }).map((models) => {
+                providerModels.set(persisted.providerId, models);
+              });
+            }
+
+            if (persisted.providerId === "openrouter") {
+              return fetchOpenRouterModels({
+                endpointUrl: persisted.endpointUrl,
+                apiKey: normalizedApiKey,
+              }).map((models) => {
+                providerModels.set(persisted.providerId, models);
+              });
+            }
+
+            return errAsync(
+              providerError(
+                `Unsupported provider during model refresh: ${persisted.providerId}`,
+                "Provider is not supported.",
+              ),
+            );
+          });
       });
     }
 
@@ -319,6 +592,15 @@ export const createSettingsSlice = (
 
   const snapshotKey = (webContentsId: number, viewKind: ViewKind): string =>
     `${webContentsId}:${viewKind}`;
+
+  const clearSnapshotsForWebContents = (webContentsId: number): void => {
+    const prefix = `${webContentsId}:`;
+    for (const key of snapshots.keys()) {
+      if (key.startsWith(prefix)) {
+        snapshots.delete(key);
+      }
+    }
+  };
 
   const refreshSnapshot = (webContentsId: number, viewKind: ViewKind): ModelCatalogSnapshotDto => {
     const snapshot: ModelCatalogSnapshotDto = {
@@ -376,19 +658,6 @@ export const createSettingsSlice = (
   const testProviderConnection = ({ provider }: { provider: ProviderDraftDto }) =>
     hydrate()
       .andThen(() => validateProviderDraft(provider))
-      .andThen(() => {
-        const normalizedApiKey = normalizeNullable(provider.apiKey);
-        if (normalizedApiKey?.toLowerCase().includes("invalid") === true) {
-          return errAsync(
-            providerError(
-              `Provider ${provider.providerId} connection test failed`,
-              "Provider connection test failed. Check credentials and endpoint.",
-            ),
-          );
-        }
-
-        return okAsync(undefined);
-      })
       .andThen(() => resolveProviderModels(provider))
       .andThen((models) => {
         const testToken = randomToken();
@@ -481,6 +750,7 @@ export const createSettingsSlice = (
           persistedProviderConfigs.set(provider.providerId, persisted);
           providerModels.set(provider.providerId, models);
 
+          clearSnapshotsForWebContents(webContentsId);
           const modelCatalog = refreshSnapshot(webContentsId, "settings");
           return {
             provider: toProviderConfigDto(provider.providerId, persisted),
@@ -507,6 +777,7 @@ export const createSettingsSlice = (
       }
 
       return refreshConfiguredProviderModels().andThen(() => {
+        clearSnapshotsForWebContents(webContentsId);
         const modelCatalog = refreshSnapshot(webContentsId, viewKind);
         return okAsync({ modelCatalog } satisfies RefreshModelCatalogResponse);
       });
@@ -547,6 +818,35 @@ export const createSettingsSlice = (
       });
     });
 
+  const setContextLastN = ({
+    contextLastN,
+  }: {
+    webContentsId: number;
+    viewKind: ViewKind;
+    contextLastN: number;
+  }) =>
+    hydrate().andThen(() => {
+      const isInteger = Number.isInteger(contextLastN);
+      if (!isInteger || contextLastN < MIN_CONTEXT_LAST_N || contextLastN > MAX_CONTEXT_LAST_N) {
+        return errAsync(
+          validationError(
+            `Context last N ${contextLastN} is out of range`,
+            `Context window must be between ${MIN_CONTEXT_LAST_N} and ${MAX_CONTEXT_LAST_N}.`,
+          ),
+        );
+      }
+
+      const normalized = normalizeContextLastN(contextLastN, DEFAULT_CONTEXT_LAST_N);
+
+      return persistContextLastN({
+        contextLastN: normalized,
+        updatedAtUtc: nowUtc(),
+      }).map(() => {
+        settingsState.contextLastN = normalized;
+        return { contextLastN: settingsState.contextLastN } satisfies SetContextLastNResponse;
+      });
+    });
+
   const getSettingsView = ({
     webContentsId,
     viewKind,
@@ -564,6 +864,7 @@ export const createSettingsSlice = (
         providers,
         globalDefaultModelRef: settingsState.globalDefaultModelRef,
         globalDefaultModelInvalidConfig: isGlobalDefaultInvalidConfig(snapshot),
+        contextLastN: settingsState.contextLastN,
         modelCatalog:
           persistedProviderConfigs.size === 0
             ? emptyModelCatalogSnapshot(snapshot.snapshotId)
@@ -578,13 +879,10 @@ export const createSettingsSlice = (
     saveProviderConfig,
     refreshModelCatalog,
     setGlobalDefaultModel,
+    setContextLastN,
+    getContextLastN: () => settingsState.contextLastN,
     releaseViewSnapshots: (webContentsId: number): void => {
-      const prefix = `${webContentsId}:`;
-      for (const key of snapshots.keys()) {
-        if (key.startsWith(prefix)) {
-          snapshots.delete(key);
-        }
-      }
+      clearSnapshotsForWebContents(webContentsId);
     },
   };
 };

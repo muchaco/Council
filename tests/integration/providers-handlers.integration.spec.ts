@@ -1,5 +1,5 @@
 import { errAsync, okAsync } from "neverthrow";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createSettingsSlice } from "../../src/main/features/settings/slice";
 
 const createDeterministicSlice = () => {
@@ -7,10 +7,18 @@ const createDeterministicSlice = () => {
   return createSettingsSlice({
     nowUtc: () => "2026-02-18T10:00:00.000Z",
     randomToken: () => `token-${++tokenCounter}`,
+    fetchGeminiModels: () => okAsync(["gemini-1.5-flash", "gemini-1.5-pro"]),
+    fetchOpenRouterModels: () => okAsync(["openai/gpt-4o-mini", "anthropic/claude-3.5-sonnet"]),
+    fetchOllamaModels: () => okAsync(["llama3.1", "qwen2.5", "mistral"]),
   });
 };
 
 describe("settings providers handlers", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
   it("requires successful test before save", async () => {
     const slice = createDeterministicSlice();
     const saveResult = await slice.saveProviderConfig({
@@ -157,6 +165,9 @@ describe("settings providers handlers", () => {
       nowUtc: () => "2026-02-18T10:00:00.000Z",
       randomToken: () => `token-${++tokenCounter}`,
       saveSecret: () => errAsync("KeychainUnavailableError"),
+      fetchGeminiModels: () => okAsync(["gemini-1.5-flash"]),
+      fetchOpenRouterModels: () => okAsync(["openai/gpt-4o-mini"]),
+      fetchOllamaModels: () => okAsync(["llama3.1"]),
     });
 
     const testResult = await slice.testProviderConnection({
@@ -271,5 +282,263 @@ describe("settings providers handlers", () => {
       "qwen2.5:latest",
     ]);
     expect(fetchOllamaModels).toHaveBeenCalled();
+  });
+
+  it("persists settings context window size", async () => {
+    const slice = createDeterministicSlice();
+
+    const setResult = await slice.setContextLastN({
+      webContentsId: 91,
+      viewKind: "settings",
+      contextLastN: 18,
+    });
+    expect(setResult.isOk()).toBe(true);
+    if (setResult.isErr()) {
+      return;
+    }
+    expect(setResult.value.contextLastN).toBe(18);
+
+    const viewResult = await slice.getSettingsView({
+      webContentsId: 91,
+      viewKind: "settings",
+    });
+    expect(viewResult.isOk()).toBe(true);
+    if (viewResult.isErr()) {
+      return;
+    }
+    expect(viewResult.value.contextLastN).toBe(18);
+  });
+
+  it("refresh uses keychain-stored credential for gemini", async () => {
+    let tokenCounter = 0;
+    const loadSecret = vi.fn(() => okAsync("gemini-key-from-keychain"));
+    const fetchGeminiModels = vi.fn(() => okAsync(["gemini-2.5-flash"]));
+
+    const slice = createSettingsSlice({
+      nowUtc: () => "2026-02-18T10:00:00.000Z",
+      randomToken: () => `token-${++tokenCounter}`,
+      loadSecret,
+      fetchGeminiModels,
+      fetchOpenRouterModels: () => okAsync(["openai/gpt-4o-mini"]),
+      fetchOllamaModels: () => okAsync(["llama3.1"]),
+    });
+
+    const testResult = await slice.testProviderConnection({
+      provider: {
+        providerId: "gemini",
+        endpointUrl: null,
+        apiKey: "gemini-key-on-save",
+      },
+    });
+    expect(testResult.isOk()).toBe(true);
+
+    const saveResult = await slice.saveProviderConfig({
+      webContentsId: 121,
+      provider: {
+        providerId: "gemini",
+        endpointUrl: null,
+        apiKey: "gemini-key-on-save",
+      },
+      testToken: testResult._unsafeUnwrap().testToken,
+    });
+    expect(saveResult.isOk()).toBe(true);
+
+    const refreshResult = await slice.refreshModelCatalog({
+      webContentsId: 121,
+      viewKind: "settings",
+    });
+    expect(refreshResult.isOk()).toBe(true);
+    expect(loadSecret).toHaveBeenCalledWith({ account: "provider/gemini" });
+    expect(fetchGeminiModels).toHaveBeenCalledWith({
+      endpointUrl: null,
+      apiKey: "gemini-key-from-keychain",
+    });
+  });
+
+  it("default Gemini model fetch uses header auth and parses model ids", async () => {
+    const fetchMock = vi.fn((_input: string, _init?: RequestInit) =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            models: [
+              {
+                name: "models/gemini-2.5-flash",
+                supportedGenerationMethods: ["generateContent"],
+              },
+              {
+                name: "models/text-embedding-004",
+                supportedGenerationMethods: ["embedContent"],
+              },
+            ],
+          }),
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    let tokenCounter = 0;
+    const slice = createSettingsSlice({
+      nowUtc: () => "2026-02-18T10:00:00.000Z",
+      randomToken: () => `token-${++tokenCounter}`,
+      fetchOpenRouterModels: () => okAsync(["openai/gpt-4o-mini"]),
+      fetchOllamaModels: () => okAsync(["llama3.1"]),
+    });
+
+    const testResult = await slice.testProviderConnection({
+      provider: {
+        providerId: "gemini",
+        endpointUrl: null,
+        apiKey: "gemini-key",
+      },
+    });
+    expect(testResult.isOk()).toBe(true);
+    if (testResult.isErr()) {
+      return;
+    }
+
+    expect(testResult.value.modelsByProvider.gemini).toEqual(["gemini-2.5-flash"]);
+    const firstCall = fetchMock.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    if (firstCall === undefined) {
+      return;
+    }
+
+    const [url, init] = firstCall;
+    expect(url).toContain("/v1beta/models");
+    expect(url).not.toContain("?key=");
+    expect(init).toBeDefined();
+    if (init === undefined) {
+      return;
+    }
+    expect(init.headers).toMatchObject({
+      "x-goog-api-key": "gemini-key",
+    });
+  });
+
+  it("default OpenRouter model fetch uses bearer auth and parses ids", async () => {
+    const fetchMock = vi.fn((_input: string, _init?: RequestInit) =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: [{ id: "openai/gpt-4o-mini" }, { id: "" }, { id: "anthropic/claude-3.5-sonnet" }],
+          }),
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    let tokenCounter = 0;
+    const slice = createSettingsSlice({
+      nowUtc: () => "2026-02-18T10:00:00.000Z",
+      randomToken: () => `token-${++tokenCounter}`,
+      fetchGeminiModels: () => okAsync(["gemini-1.5-flash"]),
+      fetchOllamaModels: () => okAsync(["llama3.1"]),
+    });
+
+    const testResult = await slice.testProviderConnection({
+      provider: {
+        providerId: "openrouter",
+        endpointUrl: null,
+        apiKey: "openrouter-key",
+      },
+    });
+    expect(testResult.isOk()).toBe(true);
+    if (testResult.isErr()) {
+      return;
+    }
+
+    expect(testResult.value.modelsByProvider.openrouter).toEqual([
+      "openai/gpt-4o-mini",
+      "anthropic/claude-3.5-sonnet",
+    ]);
+    const firstCall = fetchMock.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    if (firstCall === undefined) {
+      return;
+    }
+
+    const [url, init] = firstCall;
+    expect(url).toContain("/models");
+    expect(init).toBeDefined();
+    if (init === undefined) {
+      return;
+    }
+    expect(init.headers).toMatchObject({
+      authorization: "Bearer openrouter-key",
+    });
+  });
+
+  it("refresh clears stale snapshots across views so default model stays valid", async () => {
+    let tokenCounter = 0;
+    let geminiModels: ReadonlyArray<string> = ["gemini-1.5-flash"];
+
+    const slice = createSettingsSlice({
+      nowUtc: () => "2026-02-18T10:00:00.000Z",
+      randomToken: () => `token-${++tokenCounter}`,
+      fetchGeminiModels: () => okAsync(geminiModels),
+      fetchOpenRouterModels: () => okAsync(["openai/gpt-4o-mini"]),
+      fetchOllamaModels: () => okAsync(["llama3.1"]),
+    });
+
+    const testResult = await slice.testProviderConnection({
+      provider: {
+        providerId: "gemini",
+        endpointUrl: null,
+        apiKey: "gemini-key",
+      },
+    });
+    expect(testResult.isOk()).toBe(true);
+    if (testResult.isErr()) {
+      return;
+    }
+
+    const saveResult = await slice.saveProviderConfig({
+      webContentsId: 201,
+      provider: {
+        providerId: "gemini",
+        endpointUrl: null,
+        apiKey: "gemini-key",
+      },
+      testToken: testResult.value.testToken,
+    });
+    expect(saveResult.isOk()).toBe(true);
+
+    const initialAgentEditView = await slice.getSettingsView({
+      webContentsId: 201,
+      viewKind: "agentEdit",
+    });
+    expect(initialAgentEditView.isOk()).toBe(true);
+
+    geminiModels = ["gemini-2.0-flash-exp"];
+    const refreshResult = await slice.refreshModelCatalog({
+      webContentsId: 201,
+      viewKind: "settings",
+    });
+    expect(refreshResult.isOk()).toBe(true);
+
+    const setDefaultResult = await slice.setGlobalDefaultModel({
+      webContentsId: 201,
+      viewKind: "settings",
+      modelRefOrNull: { providerId: "gemini", modelId: "gemini-2.0-flash-exp" },
+    });
+    expect(setDefaultResult.isOk()).toBe(true);
+    if (setDefaultResult.isErr()) {
+      return;
+    }
+    expect(setDefaultResult.value.globalDefaultModelInvalidConfig).toBe(false);
+
+    const refreshedAgentEditView = await slice.getSettingsView({
+      webContentsId: 201,
+      viewKind: "agentEdit",
+    });
+    expect(refreshedAgentEditView.isOk()).toBe(true);
+    if (refreshedAgentEditView.isErr()) {
+      return;
+    }
+
+    expect(refreshedAgentEditView.value.globalDefaultModelInvalidConfig).toBe(false);
+    expect(refreshedAgentEditView.value.modelCatalog.modelsByProvider.gemini).toEqual([
+      "gemini-2.0-flash-exp",
+    ]);
   });
 });

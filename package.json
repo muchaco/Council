@@ -30,7 +30,10 @@
     "test:coverage": "bun run test:coverage:unit && bun run test:coverage:integration",
     "test:coverage:unit": "vitest run --config vitest.unit.config.ts --coverage",
     "test:coverage:integration": "vitest run --config vitest.integration.config.ts --coverage",
+    "check:coverage-guardrails": "bun run scripts/verify-coverage-guardrails.ts",
     "check:boundaries": "bun run scripts/check-boundaries.ts",
+    "trace:generate": "bun run scripts/generate-requirement-traceability.ts",
+    "check:traceability": "bun run scripts/check-requirement-traceability.ts",
     "db:migrate:verify": "bun run scripts/verify-migrations.ts",
     "check:required-scripts": "bun run scripts/verify-required-scripts.ts"
   },

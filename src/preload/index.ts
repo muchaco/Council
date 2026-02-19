@@ -9,6 +9,7 @@ const windowApi: WindowApi = {
     getView: async (request) => ipcRenderer.invoke("settings:get-view", request),
     setGlobalDefaultModel: async (request) =>
       ipcRenderer.invoke("settings:set-global-default-model", request),
+    setContextLastN: async (request) => ipcRenderer.invoke("settings:set-context-last-n", request),
   },
   providers: {
     testConnection: async (request) => ipcRenderer.invoke("providers:test-connection", request),
@@ -41,6 +42,7 @@ const windowApi: WindowApi = {
     advanceAutopilotTurn: async (request) =>
       ipcRenderer.invoke("councils:advance-autopilot-turn", request),
     cancelGeneration: async (request) => ipcRenderer.invoke("councils:cancel-generation", request),
+    exportTranscript: async (request) => ipcRenderer.invoke("councils:export-transcript", request),
     refreshModelCatalog: async (request) =>
       ipcRenderer.invoke("councils:refresh-model-catalog", request),
   },

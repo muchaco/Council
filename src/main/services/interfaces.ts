@@ -49,3 +49,21 @@ export type ModelCatalogService = {
     "ProviderError"
   >;
 };
+
+export type ExportService = {
+  saveMarkdownFile: (params: {
+    webContentsId: number;
+    suggestedFileName: string;
+    markdown: string;
+  }) => ResultAsync<
+    | {
+        status: "exported";
+        filePath: string;
+      }
+    | {
+        status: "cancelled";
+        filePath: null;
+      },
+    "ExportDialogError" | "ExportWriteError"
+  >;
+};

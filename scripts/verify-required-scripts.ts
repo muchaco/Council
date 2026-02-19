@@ -10,7 +10,9 @@ const REQUIRED_SCRIPTS = [
   "test:unit",
   "test:integration",
   "test:coverage",
+  "check:coverage-guardrails",
   "check:boundaries",
+  "check:traceability",
   "db:migrate:verify",
 ] as const;
 

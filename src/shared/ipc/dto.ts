@@ -60,6 +60,7 @@ export type GetSettingsViewResponse = {
   providers: ReadonlyArray<ProviderConfigDto>;
   globalDefaultModelRef: ModelRef | null;
   globalDefaultModelInvalidConfig: boolean;
+  contextLastN: number;
   modelCatalog: ModelCatalogSnapshotDto;
   canRefreshModels: boolean;
 };
@@ -101,6 +102,15 @@ export type SetGlobalDefaultModelRequest = {
 export type SetGlobalDefaultModelResponse = {
   globalDefaultModelRef: ModelRef | null;
   globalDefaultModelInvalidConfig: boolean;
+};
+
+export type SetContextLastNRequest = {
+  viewKind: ViewKind;
+  contextLastN: number;
+};
+
+export type SetContextLastNResponse = {
+  contextLastN: number;
 };
 
 export const AGENT_SORT_FIELDS = ["createdAt", "updatedAt"] as const;
@@ -205,6 +215,8 @@ export type CouncilDto = {
   archived: boolean;
   started: boolean;
   paused: boolean;
+  autopilotMaxTurns: number | null;
+  autopilotTurnsCompleted: number;
   turnCount: number;
   createdAtUtc: string;
   updatedAtUtc: string;
@@ -279,8 +291,9 @@ export type CouncilRuntimeBriefingDto = {
 
 export type CouncilGenerationStateDto = {
   status: "idle" | "running";
-  kind: "manualMemberTurn" | "autopilotStep" | "conductorBriefing" | null;
+  kind: "manualMemberTurn" | "autopilotStep" | "conductorBriefing" | "autopilotOpening" | null;
   activeMemberAgentId: string | null;
+  plannedNextSpeakerAgentId: string | null;
 };
 
 export type SaveCouncilRequest = {
@@ -320,6 +333,7 @@ export type SetCouncilArchivedResponse = {
 export type StartCouncilRequest = {
   viewKind: "councilView";
   id: string;
+  maxTurns: number | null;
 };
 
 export type StartCouncilResponse = {
@@ -337,6 +351,7 @@ export type PauseCouncilAutopilotResponse = {
 export type ResumeCouncilAutopilotRequest = {
   viewKind: "councilView";
   id: string;
+  maxTurns: number | null;
 };
 
 export type ResumeCouncilAutopilotResponse = {
@@ -383,3 +398,18 @@ export type CancelCouncilGenerationRequest = {
 export type CancelCouncilGenerationResponse = {
   cancelled: boolean;
 };
+
+export type ExportCouncilTranscriptRequest = {
+  viewKind: "councilsList" | "councilView";
+  id: string;
+};
+
+export type ExportCouncilTranscriptResponse =
+  | {
+      status: "exported";
+      filePath: string;
+    }
+  | {
+      status: "cancelled";
+      filePath: null;
+    };

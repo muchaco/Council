@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { buildAutopilotRecoveryNotice } from "../shared/council-view-autopilot-recovery";
 import {
   COUNCIL_VIEW_EXIT_CONFIRMATION_MESSAGE,
   buildCouncilViewExitPlan,
@@ -122,6 +123,7 @@ type CouncilViewState =
       isInjectingConductor: boolean;
       isAdvancingAutopilot: boolean;
       isCancellingGeneration: boolean;
+      isExportingTranscript: boolean;
       isLeavingView: boolean;
       selectedManualSpeakerId: string | null;
       conductorDraft: string;
@@ -137,7 +139,19 @@ type ToastState = {
   message: string;
 };
 
+type AutopilotLimitModalAction = "start" | "resume";
+
+type AutopilotLimitModalState = {
+  action: AutopilotLimitModalAction;
+  limitTurns: boolean;
+  maxTurnsInput: string;
+  validationMessage: string;
+};
+
 const TOAST_TIMEOUT_MS = 4200;
+const AUTOPILOT_MAX_TURNS_MIN = 1;
+const AUTOPILOT_MAX_TURNS_MAX = 200;
+const AUTOPILOT_DEFAULT_MAX_TURNS = "12";
 
 const PROVIDER_LABELS: Record<ProviderId, string> = {
   gemini: "Gemini",
@@ -205,6 +219,54 @@ const toModelRef = (selection: string): ModelRef | null => {
   return {
     providerId,
     modelId,
+  };
+};
+
+const createAutopilotLimitModalState = (
+  action: AutopilotLimitModalAction,
+): AutopilotLimitModalState => ({
+  action,
+  limitTurns: false,
+  maxTurnsInput: AUTOPILOT_DEFAULT_MAX_TURNS,
+  validationMessage: "",
+});
+
+const resolveAutopilotMaxTurns = (
+  modalState: AutopilotLimitModalState,
+):
+  | {
+      ok: true;
+      maxTurns: number | null;
+    }
+  | {
+      ok: false;
+      validationMessage: string;
+    } => {
+  if (!modalState.limitTurns) {
+    return {
+      ok: true,
+      maxTurns: null,
+    };
+  }
+
+  const parsed = Number.parseInt(modalState.maxTurnsInput.trim(), 10);
+  if (!Number.isInteger(parsed)) {
+    return {
+      ok: false,
+      validationMessage: "Enter a whole number between 1 and 200.",
+    };
+  }
+
+  if (parsed < AUTOPILOT_MAX_TURNS_MIN || parsed > AUTOPILOT_MAX_TURNS_MAX) {
+    return {
+      ok: false,
+      validationMessage: "Turn limit must be between 1 and 200.",
+    };
+  }
+
+  return {
+    ok: true,
+    maxTurns: parsed,
   };
 };
 
@@ -286,6 +348,19 @@ const isCouncilDraftInvalidConfig = (params: {
   return !models.includes(resolved.modelId);
 };
 
+const isModelSelectionInCatalog = (params: {
+  modelSelection: string;
+  modelCatalog: { modelsByProvider: Record<string, ReadonlyArray<string>> };
+}): boolean => {
+  const selected = toModelRef(params.modelSelection);
+  if (selected === null) {
+    return true;
+  }
+
+  const models = params.modelCatalog.modelsByProvider[selected.providerId] ?? [];
+  return models.includes(selected.modelId);
+};
+
 export const App = (): JSX.Element => {
   const [homeTab, setHomeTab] = useState<HomeTab>("councils");
   const [screen, setScreen] = useState<ScreenState>({ kind: "home" });
@@ -302,6 +377,8 @@ export const App = (): JSX.Element => {
     string
   > | null>(null);
   const [savedGlobalDefaultSelection, setSavedGlobalDefaultSelection] = useState("");
+  const [contextLastNInput, setContextLastNInput] = useState("");
+  const [savedContextLastNInput, setSavedContextLastNInput] = useState("");
 
   const [agents, setAgents] = useState<ReadonlyArray<AgentDto>>([]);
   const [agentsPage, setAgentsPage] = useState(1);
@@ -334,10 +411,14 @@ export const App = (): JSX.Element => {
   const [councilsGlobalDefaultModel, setCouncilsGlobalDefaultModel] = useState<ModelRef | null>(
     null,
   );
+  const [exportingCouncilId, setExportingCouncilId] = useState<string | null>(null);
   const [councilEditorState, setCouncilEditorState] = useState<CouncilEditorState>({
     status: "loading",
   });
   const [councilViewState, setCouncilViewState] = useState<CouncilViewState>({ status: "loading" });
+  const [autopilotLimitModal, setAutopilotLimitModal] = useState<AutopilotLimitModalState | null>(
+    null,
+  );
 
   const [toasts, setToasts] = useState<ReadonlyArray<ToastState>>([]);
   const toastTimers = useRef(new Map<string, number>());
@@ -407,6 +488,9 @@ export const App = (): JSX.Element => {
     const nextSelection = toModelSelectionValue(result.value.globalDefaultModelRef);
     setGlobalDefaultSelection(nextSelection);
     setSavedGlobalDefaultSelection(nextSelection);
+    const nextContextLastN = String(result.value.contextLastN);
+    setContextLastNInput(nextContextLastN);
+    setSavedContextLastNInput(nextContextLastN);
     setSavedDraftFingerprints(buildSavedFingerprints(draftMap));
     setRefreshStatus("Ready");
     setSettingsViewState({ status: "ready", data: result.value });
@@ -531,9 +615,17 @@ export const App = (): JSX.Element => {
       currentFingerprints.gemini !== savedDraftFingerprints.gemini ||
       currentFingerprints.ollama !== savedDraftFingerprints.ollama ||
       currentFingerprints.openrouter !== savedDraftFingerprints.openrouter ||
-      globalDefaultSelection !== savedGlobalDefaultSelection
+      globalDefaultSelection !== savedGlobalDefaultSelection ||
+      contextLastNInput.trim() !== savedContextLastNInput.trim()
     );
-  }, [drafts, savedDraftFingerprints, globalDefaultSelection, savedGlobalDefaultSelection]);
+  }, [
+    drafts,
+    savedDraftFingerprints,
+    globalDefaultSelection,
+    savedGlobalDefaultSelection,
+    contextLastNInput,
+    savedContextLastNInput,
+  ]);
 
   const hasUnsavedAgentDraft =
     agentEditorState.status === "ready" &&
@@ -743,6 +835,33 @@ export const App = (): JSX.Element => {
     setSavedGlobalDefaultSelection(globalDefaultSelection);
     setRefreshStatus("Global default model saved.");
     pushToast("info", "Global default model saved.");
+  };
+
+  const onSaveContextLastN = async (): Promise<void> => {
+    const parsed = Number.parseInt(contextLastNInput.trim(), 10);
+    if (!Number.isFinite(parsed) || Number.isNaN(parsed)) {
+      const message = "Context window size must be a whole number.";
+      setRefreshStatus(message);
+      pushToast("warning", message);
+      return;
+    }
+
+    const result = await window.api.settings.setContextLastN({
+      viewKind: "settings",
+      contextLastN: parsed,
+    });
+    if (!result.ok) {
+      setRefreshStatus(result.error.userMessage);
+      pushToast("error", result.error.userMessage);
+      return;
+    }
+
+    await loadSettingsView();
+    const savedValue = String(result.value.contextLastN);
+    setContextLastNInput(savedValue);
+    setSavedContextLastNInput(savedValue);
+    setRefreshStatus("Context window size saved.");
+    pushToast("info", "Context window size saved.");
   };
 
   const openAgentEditor = async (agentId: string | null): Promise<void> => {
@@ -1010,6 +1129,7 @@ export const App = (): JSX.Element => {
         isInjectingConductor: false,
         isAdvancingAutopilot: false,
         isCancellingGeneration: false,
+        isExportingTranscript: false,
         isLeavingView: false,
         selectedManualSpeakerId: result.value.council.memberAgentIds[0] ?? null,
         conductorDraft: "",
@@ -1104,13 +1224,22 @@ export const App = (): JSX.Element => {
 
   const closeCouncilView = async (): Promise<void> => {
     await leaveCouncilViewSafely(async () => {
+      setAutopilotLimitModal(null);
       setScreen({ kind: "home" });
       setHomeTab("councils");
       await loadCouncils({ page: 1, append: false });
     });
   };
 
-  const startCouncilRuntime = async (): Promise<void> => {
+  const openAutopilotLimitModal = (action: AutopilotLimitModalAction): void => {
+    setAutopilotLimitModal(createAutopilotLimitModalState(action));
+  };
+
+  const closeAutopilotLimitModal = (): void => {
+    setAutopilotLimitModal(null);
+  };
+
+  const executeStartCouncilRuntime = async (maxTurns: number | null): Promise<void> => {
     if (screen.kind !== "councilView" || councilViewState.status !== "ready") {
       return;
     }
@@ -1128,6 +1257,7 @@ export const App = (): JSX.Element => {
     const result = await window.api.councils.start({
       viewKind: "councilView",
       id: screen.councilId,
+      maxTurns,
     });
     if (!result.ok) {
       pushToast("error", result.error.userMessage);
@@ -1145,6 +1275,19 @@ export const App = (): JSX.Element => {
 
     pushToast("info", "Council started.");
     await loadCouncilView(screen.councilId);
+  };
+
+  const startCouncilRuntime = async (): Promise<void> => {
+    if (screen.kind !== "councilView" || councilViewState.status !== "ready") {
+      return;
+    }
+
+    if (councilViewState.source.council.mode === "autopilot") {
+      openAutopilotLimitModal("start");
+      return;
+    }
+
+    await executeStartCouncilRuntime(null);
   };
 
   const pauseCouncilRuntime = async (): Promise<void> => {
@@ -1188,6 +1331,14 @@ export const App = (): JSX.Element => {
       return;
     }
 
+    openAutopilotLimitModal("resume");
+  };
+
+  const executeResumeCouncilRuntime = async (maxTurns: number | null): Promise<void> => {
+    if (screen.kind !== "councilView" || councilViewState.status !== "ready") {
+      return;
+    }
+
     setCouncilViewState((current) =>
       current.status !== "ready"
         ? current
@@ -1201,6 +1352,7 @@ export const App = (): JSX.Element => {
     const result = await window.api.councils.resumeAutopilot({
       viewKind: "councilView",
       id: screen.councilId,
+      maxTurns,
     });
     if (!result.ok) {
       pushToast("error", result.error.userMessage);
@@ -1218,6 +1370,38 @@ export const App = (): JSX.Element => {
 
     pushToast("info", "Autopilot resumed.");
     await loadCouncilView(screen.councilId);
+  };
+
+  const submitAutopilotLimitModal = async (): Promise<void> => {
+    if (
+      autopilotLimitModal === null ||
+      screen.kind !== "councilView" ||
+      councilViewState.status !== "ready"
+    ) {
+      return;
+    }
+
+    const resolved = resolveAutopilotMaxTurns(autopilotLimitModal);
+    if (!resolved.ok) {
+      setAutopilotLimitModal((current) =>
+        current === null
+          ? current
+          : {
+              ...current,
+              validationMessage: resolved.validationMessage,
+            },
+      );
+      return;
+    }
+
+    const action = autopilotLimitModal.action;
+    closeAutopilotLimitModal();
+    if (action === "start") {
+      await executeStartCouncilRuntime(resolved.maxTurns);
+      return;
+    }
+
+    await executeResumeCouncilRuntime(resolved.maxTurns);
   };
 
   const generateManualTurn = async (): Promise<void> => {
@@ -1377,6 +1561,102 @@ export const App = (): JSX.Element => {
       result.value.cancelled ? "Generation cancelled." : "No generation in progress.",
     );
     await loadCouncilView(screen.councilId);
+  };
+
+  const exportCouncilTranscript = async (params: {
+    viewKind: "councilsList" | "councilView";
+    councilId: string;
+  }): Promise<void> => {
+    if (params.viewKind === "councilView") {
+      setCouncilViewState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              isExportingTranscript: true,
+              message: "",
+            },
+      );
+    } else {
+      setExportingCouncilId(params.councilId);
+    }
+
+    const result = await window.api.councils.exportTranscript({
+      viewKind: params.viewKind,
+      id: params.councilId,
+    });
+
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      if (params.viewKind === "councilView") {
+        setCouncilViewState((current) =>
+          current.status !== "ready"
+            ? current
+            : {
+                ...current,
+                isExportingTranscript: false,
+                message: result.error.userMessage,
+              },
+        );
+      } else {
+        setExportingCouncilId(null);
+      }
+      return;
+    }
+
+    if (params.viewKind === "councilView") {
+      setCouncilViewState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              isExportingTranscript: false,
+            },
+      );
+    } else {
+      setExportingCouncilId(null);
+    }
+
+    if (result.value.status === "cancelled") {
+      pushToast("warning", "Export cancelled.");
+      return;
+    }
+
+    pushToast("info", `Transcript exported to ${result.value.filePath}`);
+  };
+
+  const setCouncilArchivedFromList = async (params: {
+    councilId: string;
+    archived: boolean;
+  }): Promise<void> => {
+    const result = await window.api.councils.setArchived({
+      id: params.councilId,
+      archived: params.archived,
+    });
+
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      return;
+    }
+
+    pushToast("info", params.archived ? "Council archived." : "Council restored.");
+    await loadCouncils({ page: 1, append: false });
+  };
+
+  const deleteCouncilFromList = async (council: CouncilDto): Promise<void> => {
+    const confirmed = window.confirm(`Delete council \"${council.title}\" permanently?`);
+    if (!confirmed) {
+      return;
+    }
+
+    const result = await window.api.councils.delete({ id: council.id });
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      return;
+    }
+
+    pushToast("info", "Council deleted.");
+    await loadCouncils({ page: 1, append: false });
   };
 
   const closeCouncilEditor = (force = false): void => {
@@ -1671,6 +1951,40 @@ export const App = (): JSX.Element => {
     const generationRunning = councilViewState.source.generation.status === "running";
     const canManualGenerate = council.mode === "manual" && council.started && !council.archived;
     const canAdvanceAutopilot = council.mode === "autopilot" && council.started && !council.paused;
+    const generation = councilViewState.source.generation;
+    const pausedNextSpeakerId =
+      council.mode === "autopilot" && council.paused ? generation.plannedNextSpeakerAgentId : null;
+    const pausedNextSpeakerName =
+      pausedNextSpeakerId === null
+        ? null
+        : (memberNameById.get(pausedNextSpeakerId) ?? pausedNextSpeakerId);
+    const thinkingSpeakerId =
+      generation.status === "running" && generation.kind === "autopilotStep"
+        ? generation.activeMemberAgentId
+        : null;
+    const thinkingSpeakerName =
+      thinkingSpeakerId === null
+        ? null
+        : (memberNameById.get(thinkingSpeakerId) ?? thinkingSpeakerId);
+    const autopilotRecoveryNotice = buildAutopilotRecoveryNotice({
+      council: {
+        mode: council.mode,
+        started: council.started,
+        paused: council.paused,
+      },
+      runtimeMessage: councilViewState.message,
+    });
+    const isAutopilotModalOpen = autopilotLimitModal !== null;
+    const autopilotSubmitLabel =
+      autopilotLimitModal?.action === "start"
+        ? councilViewState.isStarting
+          ? "Starting..."
+          : "Start"
+        : councilViewState.isResuming
+          ? "Resuming..."
+          : "Resume";
+    const autopilotDialogTitle =
+      autopilotLimitModal?.action === "start" ? "Start Autopilot" : "Resume Autopilot";
 
     return (
       <main className="shell">
@@ -1696,10 +2010,23 @@ export const App = (): JSX.Element => {
             >
               Edit config
             </button>
+            <button
+              className="secondary"
+              disabled={councilViewState.isExportingTranscript}
+              onClick={() =>
+                void exportCouncilTranscript({
+                  viewKind: "councilView",
+                  councilId: council.id,
+                })
+              }
+              type="button"
+            >
+              {councilViewState.isExportingTranscript ? "Exporting..." : "Export"}
+            </button>
             {canStart ? (
               <button
                 className="cta"
-                disabled={councilViewState.isStarting}
+                disabled={councilViewState.isStarting || isAutopilotModalOpen}
                 onClick={() => void startCouncilRuntime()}
                 type="button"
               >
@@ -1719,7 +2046,7 @@ export const App = (): JSX.Element => {
             {canResume ? (
               <button
                 className="cta"
-                disabled={councilViewState.isResuming}
+                disabled={councilViewState.isResuming || isAutopilotModalOpen}
                 onClick={() => void resumeCouncilRuntime()}
                 type="button"
               >
@@ -1751,7 +2078,13 @@ export const App = (): JSX.Element => {
           <p>
             Mode: {council.mode} | Started: {council.started ? "yes" : "no"} | Paused:{" "}
             {council.paused ? "yes" : "no"} | Turn count: {council.turnCount}
+            {council.mode === "autopilot"
+              ? ` | Turn limit: ${council.autopilotMaxTurns ?? "none"} (${council.autopilotTurnsCompleted} completed)`
+              : ""}
           </p>
+          {pausedNextSpeakerName !== null ? (
+            <p className="meta">Paused next speaker: {pausedNextSpeakerName}</p>
+          ) : null}
         </header>
 
         <section className="settings-section">
@@ -1821,7 +2154,7 @@ export const App = (): JSX.Element => {
               </span>
             </div>
           ) : null}
-          {councilViewState.message.length > 0 ? (
+          {councilViewState.message.length > 0 && autopilotRecoveryNotice === null ? (
             <p className="status-line">{councilViewState.message}</p>
           ) : null}
         </section>
@@ -1863,7 +2196,10 @@ export const App = (): JSX.Element => {
 
         <section className="settings-section">
           <h2>Transcript</h2>
-          {councilViewState.source.messages.length === 0 ? (
+          {autopilotRecoveryNotice !== null ? (
+            <p className="status status-error">{autopilotRecoveryNotice}</p>
+          ) : null}
+          {councilViewState.source.messages.length === 0 && thinkingSpeakerName === null ? (
             <p className="status">No messages yet.</p>
           ) : (
             <div className="list-grid">
@@ -1880,9 +2216,82 @@ export const App = (): JSX.Element => {
                   </div>
                 </article>
               ))}
+              {thinkingSpeakerName !== null ? (
+                <article className="list-row thinking-row">
+                  <div>
+                    <h3>{thinkingSpeakerName}</h3>
+                    <p className="meta">Thinking...</p>
+                  </div>
+                </article>
+              ) : null}
             </div>
           )}
         </section>
+
+        {autopilotLimitModal !== null ? (
+          <div className="modal-backdrop" role="presentation">
+            <dialog className="modal-panel" open>
+              <h2>{autopilotDialogTitle}</h2>
+              <p className="meta">Set an optional turn limit for this run.</p>
+              <label className="checkbox-field" htmlFor="autopilot-limit-toggle">
+                <input
+                  checked={autopilotLimitModal.limitTurns}
+                  id="autopilot-limit-toggle"
+                  onChange={(event) =>
+                    setAutopilotLimitModal((current) =>
+                      current === null
+                        ? current
+                        : {
+                            ...current,
+                            limitTurns: event.target.checked,
+                            validationMessage: "",
+                          },
+                    )
+                  }
+                  type="checkbox"
+                />
+                <span>Limit turns</span>
+              </label>
+              <label className="field" htmlFor="autopilot-max-turns-input">
+                Max turns ({AUTOPILOT_MAX_TURNS_MIN}-{AUTOPILOT_MAX_TURNS_MAX})
+              </label>
+              <input
+                disabled={!autopilotLimitModal.limitTurns}
+                id="autopilot-max-turns-input"
+                min={AUTOPILOT_MAX_TURNS_MIN}
+                onChange={(event) =>
+                  setAutopilotLimitModal((current) =>
+                    current === null
+                      ? current
+                      : {
+                          ...current,
+                          maxTurnsInput: event.target.value,
+                          validationMessage: "",
+                        },
+                  )
+                }
+                placeholder="e.g. 12"
+                type="number"
+                value={autopilotLimitModal.maxTurnsInput}
+              />
+              {autopilotLimitModal.validationMessage.length > 0 ? (
+                <p className="status-line">{autopilotLimitModal.validationMessage}</p>
+              ) : null}
+              <div className="button-row">
+                <button className="secondary" onClick={closeAutopilotLimitModal} type="button">
+                  Cancel
+                </button>
+                <button
+                  className="cta"
+                  onClick={() => void submitAutopilotLimitModal()}
+                  type="button"
+                >
+                  {autopilotSubmitLabel}
+                </button>
+              </div>
+            </dialog>
+          </div>
+        ) : null}
 
         <div aria-live="polite" className="toast-stack">
           {toasts.map((toast) => (
@@ -1928,6 +2337,10 @@ export const App = (): JSX.Element => {
       conductorModelSelection: councilEditorState.draft.conductorModelSelection,
       modelCatalog: councilEditorState.source.modelCatalog,
       globalDefaultModelRef: councilEditorState.source.globalDefaultModelRef,
+    });
+    const hasUnavailableConductorSelection = !isModelSelectionInCatalog({
+      modelSelection: councilEditorState.draft.conductorModelSelection,
+      modelCatalog: councilEditorState.source.modelCatalog,
     });
 
     return (
@@ -2064,6 +2477,11 @@ export const App = (): JSX.Element => {
               }
               value={councilEditorState.draft.conductorModelSelection}
             >
+              {hasUnavailableConductorSelection ? (
+                <option value={councilEditorState.draft.conductorModelSelection}>
+                  Unavailable ({councilEditorState.draft.conductorModelSelection})
+                </option>
+              ) : null}
               <option value="">Global default</option>
               {Object.entries(councilEditorState.source.modelCatalog.modelsByProvider).map(
                 ([providerId, modelIds]) => (
@@ -2148,6 +2566,10 @@ export const App = (): JSX.Element => {
       modelSelection: agentEditorState.draft.modelSelection,
       modelCatalog: agentEditorState.source.modelCatalog,
       globalDefaultModelRef: agentEditorState.source.globalDefaultModelRef,
+    });
+    const hasUnavailableAgentSelection = !isModelSelectionInCatalog({
+      modelSelection: agentEditorState.draft.modelSelection,
+      modelCatalog: agentEditorState.source.modelCatalog,
     });
 
     return (
@@ -2241,6 +2663,11 @@ export const App = (): JSX.Element => {
               onChange={(event) => updateAgentDraft({ modelSelection: event.target.value })}
               value={agentEditorState.draft.modelSelection}
             >
+              {hasUnavailableAgentSelection ? (
+                <option value={agentEditorState.draft.modelSelection}>
+                  Unavailable ({agentEditorState.draft.modelSelection})
+                </option>
+              ) : null}
               <option value="">Global default</option>
               {Object.entries(agentEditorState.source.modelCatalog.modelsByProvider).map(
                 ([providerId, modelIds]) => (
@@ -2384,13 +2811,57 @@ export const App = (): JSX.Element => {
                   >
                     Open
                   </button>
-                  <button
-                    className="secondary"
-                    onClick={() => void openCouncilEditor(council.id)}
-                    type="button"
-                  >
-                    Edit
-                  </button>
+                  <details className="row-menu">
+                    <summary className="secondary">...</summary>
+                    <div className="row-menu-items">
+                      <button
+                        className="secondary"
+                        disabled={exportingCouncilId === council.id}
+                        onClick={() =>
+                          void exportCouncilTranscript({
+                            viewKind: "councilsList",
+                            councilId: council.id,
+                          })
+                        }
+                        type="button"
+                      >
+                        {exportingCouncilId === council.id ? "Exporting..." : "Export"}
+                      </button>
+                      <button
+                        className="secondary"
+                        disabled={
+                          !council.archived &&
+                          council.mode === "autopilot" &&
+                          council.started &&
+                          !council.paused
+                        }
+                        onClick={() =>
+                          void setCouncilArchivedFromList({
+                            councilId: council.id,
+                            archived: !council.archived,
+                          })
+                        }
+                        title={
+                          !council.archived &&
+                          council.mode === "autopilot" &&
+                          council.started &&
+                          !council.paused
+                            ? "Pause Autopilot before archiving this council."
+                            : undefined
+                        }
+                        type="button"
+                      >
+                        {council.archived ? "Restore" : "Archive"}
+                      </button>
+                      <button
+                        className="danger"
+                        onClick={() => void deleteCouncilFromList(council)}
+                        type="button"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </details>
                 </div>
               </article>
             ))}
@@ -2640,6 +3111,27 @@ export const App = (): JSX.Element => {
                 Invalid config
               </span>
             ) : null}
+          </div>
+        </section>
+
+        <section className="settings-section">
+          <h2>Context Window</h2>
+          <label className="field" htmlFor="context-last-n">
+            Last N messages
+          </label>
+          <input
+            id="context-last-n"
+            min={1}
+            onChange={(event) => setContextLastNInput(event.target.value)}
+            step={1}
+            type="number"
+            value={contextLastNInput}
+          />
+          <p className="meta">Runtime prompts include briefing + last N transcript messages.</p>
+          <div className="button-row">
+            <button className="secondary" onClick={() => void onSaveContextLastN()} type="button">
+              Save context window
+            </button>
           </div>
         </section>
 

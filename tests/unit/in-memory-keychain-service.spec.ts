@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect } from "vitest";
 import { createInMemoryKeychainService } from "../../src/main/services/keychain/in-memory-keychain-service";
+import { itReq } from "../helpers/requirement-trace";
+
+const FILE_REQUIREMENT_IDS = ["C1"] as const;
 
 describe("in-memory keychain service", () => {
-  it("saves credentials through keychain boundary", async () => {
+  itReq(FILE_REQUIREMENT_IDS, "saves credentials through keychain boundary", async () => {
     const service = createInMemoryKeychainService();
     const result = await service.saveSecret({
       account: "provider/gemini",

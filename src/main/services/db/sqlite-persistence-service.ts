@@ -43,6 +43,8 @@ type PersistedCouncil = {
   archivedAtUtc: string | null;
   startedAtUtc: string | null;
   autopilotPaused: boolean;
+  autopilotMaxTurns: number | null;
+  autopilotTurnsCompleted: number;
   turnCount: number;
   createdAtUtc: string;
   updatedAtUtc: string;
@@ -72,6 +74,7 @@ type SqlitePersistenceService = {
   loadSettingsState: () => Result<
     {
       globalDefaultModelRef: ModelRef | null;
+      contextLastN: number;
       providerConfigs: ReadonlyArray<PersistedProviderConfig>;
     },
     DbError
@@ -80,6 +83,7 @@ type SqlitePersistenceService = {
     modelRefOrNull: ModelRef | null,
     updatedAtUtc: string,
   ) => Result<void, DbError>;
+  saveContextLastN: (contextLastN: number, updatedAtUtc: string) => Result<void, DbError>;
   saveProviderConfig: (params: PersistedProviderConfig) => Result<void, DbError>;
   loadAgents: () => Result<ReadonlyArray<PersistedAgent>, DbError>;
   saveAgent: (agent: PersistedAgent) => Result<void, DbError>;
@@ -137,6 +141,8 @@ type CouncilRow = {
   archived_at_utc: string | null;
   started_at_utc: string | null;
   autopilot_paused: number;
+  autopilot_max_turns: number | null;
+  autopilot_turns_completed: number;
   turn_count: number;
   created_at_utc: string;
   updated_at_utc: string;
@@ -168,6 +174,7 @@ type CouncilRuntimeBriefingRow = {
 
 type SettingsRow = {
   global_default_model_ref_json: string | null;
+  context_last_n: number;
 };
 
 const toDbError = (kind: DbError["kind"], message: string): DbError => ({
@@ -263,13 +270,16 @@ export const createSqlitePersistenceService = (
   const loadSettingsState = (): Result<
     {
       globalDefaultModelRef: ModelRef | null;
+      contextLastN: number;
       providerConfigs: ReadonlyArray<PersistedProviderConfig>;
     },
     DbError
   > => {
     try {
       const settingsRow = db
-        .prepare("SELECT global_default_model_ref_json FROM settings WHERE singleton_id = 1")
+        .prepare(
+          "SELECT global_default_model_ref_json, context_last_n FROM settings WHERE singleton_id = 1",
+        )
         .get() as SettingsRow | undefined;
       const providerRows = db
         .prepare(
@@ -282,6 +292,7 @@ export const createSqlitePersistenceService = (
           settingsRow?.global_default_model_ref_json ?? null,
           null,
         ),
+        contextLastN: settingsRow?.context_last_n ?? 20,
         providerConfigs: providerRows.map((row) => ({
           providerId: row.provider_id as ProviderId,
           endpointUrl: row.endpoint_url,
@@ -307,10 +318,10 @@ export const createSqlitePersistenceService = (
     try {
       db.prepare(
         `INSERT INTO settings(singleton_id, global_default_model_ref_json, context_last_n, updated_at_utc)
-         VALUES(1, ?, 20, ?)
+         VALUES(1, ?, COALESCE((SELECT context_last_n FROM settings WHERE singleton_id = 1), 20), ?)
          ON CONFLICT(singleton_id) DO UPDATE SET
-           global_default_model_ref_json = excluded.global_default_model_ref_json,
-           updated_at_utc = excluded.updated_at_utc`,
+            global_default_model_ref_json = excluded.global_default_model_ref_json,
+            updated_at_utc = excluded.updated_at_utc`,
       ).run(modelRefOrNull === null ? null : JSON.stringify(modelRefOrNull), updatedAtUtc);
       return ok(undefined);
     } catch (error) {
@@ -318,6 +329,26 @@ export const createSqlitePersistenceService = (
         toDbError(
           "DbQueryError",
           `Failed saving global default model: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
+    }
+  };
+
+  const saveContextLastN = (contextLastN: number, updatedAtUtc: string): Result<void, DbError> => {
+    try {
+      db.prepare(
+        `INSERT INTO settings(singleton_id, global_default_model_ref_json, context_last_n, updated_at_utc)
+         VALUES(1, COALESCE((SELECT global_default_model_ref_json FROM settings WHERE singleton_id = 1), NULL), ?, ?)
+         ON CONFLICT(singleton_id) DO UPDATE SET
+           context_last_n = excluded.context_last_n,
+           updated_at_utc = excluded.updated_at_utc`,
+      ).run(contextLastN, updatedAtUtc);
+      return ok(undefined);
+    } catch (error) {
+      return err(
+        toDbError(
+          "DbQueryError",
+          `Failed saving context last N: ${error instanceof Error ? error.message : String(error)}`,
         ),
       );
     }
@@ -435,7 +466,7 @@ export const createSqlitePersistenceService = (
     try {
       const councilRows = db
         .prepare(
-          "SELECT id, title, topic, goal, mode, tags_json, member_colors_json, conductor_model_ref_json, archived_at_utc, started_at_utc, autopilot_paused, turn_count, created_at_utc, updated_at_utc FROM councils",
+          "SELECT id, title, topic, goal, mode, tags_json, member_colors_json, conductor_model_ref_json, archived_at_utc, started_at_utc, autopilot_paused, autopilot_max_turns, autopilot_turns_completed, turn_count, created_at_utc, updated_at_utc FROM councils",
         )
         .all() as Array<CouncilRow>;
 
@@ -467,6 +498,8 @@ export const createSqlitePersistenceService = (
           archivedAtUtc: row.archived_at_utc,
           startedAtUtc: row.started_at_utc,
           autopilotPaused: row.autopilot_paused === 1,
+          autopilotMaxTurns: row.autopilot_max_turns,
+          autopilotTurnsCompleted: row.autopilot_turns_completed,
           turnCount: row.turn_count,
           createdAtUtc: row.created_at_utc,
           updatedAtUtc: row.updated_at_utc,
@@ -486,21 +519,23 @@ export const createSqlitePersistenceService = (
     try {
       const save = db.transaction((next: PersistedCouncil) => {
         db.prepare(
-          `INSERT INTO councils(id, title, topic, goal, mode, tags_json, member_colors_json, conductor_model_ref_json, archived_at_utc, started_at_utc, autopilot_paused, turn_count, created_at_utc, updated_at_utc)
-           VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(id) DO UPDATE SET
-             title = excluded.title,
-             topic = excluded.topic,
-             goal = excluded.goal,
-             mode = excluded.mode,
-             tags_json = excluded.tags_json,
-             member_colors_json = excluded.member_colors_json,
-             conductor_model_ref_json = excluded.conductor_model_ref_json,
-             archived_at_utc = excluded.archived_at_utc,
-             started_at_utc = excluded.started_at_utc,
-             autopilot_paused = excluded.autopilot_paused,
-             turn_count = excluded.turn_count,
-             updated_at_utc = excluded.updated_at_utc`,
+          `INSERT INTO councils(id, title, topic, goal, mode, tags_json, member_colors_json, conductor_model_ref_json, archived_at_utc, started_at_utc, autopilot_paused, autopilot_max_turns, autopilot_turns_completed, turn_count, created_at_utc, updated_at_utc)
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              title = excluded.title,
+              topic = excluded.topic,
+              goal = excluded.goal,
+              mode = excluded.mode,
+              tags_json = excluded.tags_json,
+              member_colors_json = excluded.member_colors_json,
+              conductor_model_ref_json = excluded.conductor_model_ref_json,
+              archived_at_utc = excluded.archived_at_utc,
+              started_at_utc = excluded.started_at_utc,
+              autopilot_paused = excluded.autopilot_paused,
+              autopilot_max_turns = excluded.autopilot_max_turns,
+              autopilot_turns_completed = excluded.autopilot_turns_completed,
+              turn_count = excluded.turn_count,
+              updated_at_utc = excluded.updated_at_utc`,
         ).run(
           next.id,
           next.title,
@@ -515,6 +550,8 @@ export const createSqlitePersistenceService = (
           next.archivedAtUtc,
           next.startedAtUtc,
           next.autopilotPaused ? 1 : 0,
+          next.autopilotMaxTurns,
+          next.autopilotTurnsCompleted,
           next.turnCount,
           next.createdAtUtc,
           next.updatedAtUtc,
@@ -711,6 +748,7 @@ export const createSqlitePersistenceService = (
     initialize,
     loadSettingsState,
     saveGlobalDefaultModel,
+    saveContextLastN,
     saveProviderConfig,
     loadAgents,
     saveAgent,

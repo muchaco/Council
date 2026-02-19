@@ -17,6 +17,7 @@ import { createSettingsIpcHandlers } from "../features/settings/ipc-handlers.js"
 import { createSettingsSlice } from "../features/settings/slice.js";
 import { createProviderAiService } from "../services/ai/provider-ai-service.js";
 import { createSqlitePersistenceService } from "../services/db/sqlite-persistence-service.js";
+import { createElectronExportService } from "../services/export/electron-export-service.js";
 import { createKeytarKeychainService } from "../services/keychain/keytar-keychain-service.js";
 
 const toValidationFailure = (devMessage: string): IpcResult<never> => ({
@@ -65,9 +66,11 @@ export const registerIpcHandlers = (): {
     loadSecret: (account) =>
       keychain.loadSecret({ account }).mapErr(() => "ProviderError" as const),
   });
+  const exportService = createElectronExportService();
 
   const settingsSlice = createSettingsSlice({
     saveSecret: keychain.saveSecret,
+    loadSecret: ({ account }) => keychain.loadSecret({ account }),
     loadPersistedState: () => {
       const result = persistence.loadSettingsState();
       if (result.isErr()) {
@@ -84,6 +87,13 @@ export const registerIpcHandlers = (): {
     },
     persistGlobalDefaultModel: ({ modelRefOrNull, updatedAtUtc }) => {
       const result = persistence.saveGlobalDefaultModel(modelRefOrNull, updatedAtUtc);
+      if (result.isErr()) {
+        return errAsync(toDomainPersistenceError(result.error.message));
+      }
+      return okAsync(undefined);
+    },
+    persistContextLastN: ({ contextLastN, updatedAtUtc }) => {
+      const result = persistence.saveContextLastN(contextLastN, updatedAtUtc);
       if (result.isErr()) {
         return errAsync(toDomainPersistenceError(result.error.message));
       }
@@ -155,6 +165,8 @@ export const registerIpcHandlers = (): {
           archivedAtUtc: council.archivedAtUtc,
           startedAtUtc: council.startedAtUtc,
           autopilotPaused: council.autopilotPaused,
+          autopilotMaxTurns: council.autopilotMaxTurns,
+          autopilotTurnsCompleted: council.autopilotTurnsCompleted,
           turnCount: council.turnCount,
           createdAtUtc: council.createdAtUtc,
           updatedAtUtc: council.updatedAtUtc,
@@ -175,6 +187,8 @@ export const registerIpcHandlers = (): {
         archivedAtUtc: council.archivedAtUtc,
         startedAtUtc: council.startedAtUtc,
         autopilotPaused: council.autopilotPaused,
+        autopilotMaxTurns: council.autopilotMaxTurns,
+        autopilotTurnsCompleted: council.autopilotTurnsCompleted,
         turnCount: council.turnCount,
         createdAtUtc: council.createdAtUtc,
         updatedAtUtc: council.updatedAtUtc,
@@ -271,6 +285,8 @@ export const registerIpcHandlers = (): {
     aiService,
     createMessageId: () => randomUUID(),
     createGenerationRequestId: () => randomUUID(),
+    getContextLastN: () => settingsSlice.getContextLastN(),
+    exportService,
   });
   const agentsSlice = createAgentsSlice({
     nowUtc: () => new Date().toISOString(),
@@ -376,6 +392,9 @@ export const registerIpcHandlers = (): {
   ipcMain.handle("settings:set-global-default-model", async (event, payload) =>
     settingsHandlers.setGlobalDefaultModel(payload, event.sender.id),
   );
+  ipcMain.handle("settings:set-context-last-n", async (event, payload) =>
+    settingsHandlers.setContextLastN(payload, event.sender.id),
+  );
   ipcMain.handle("agents:list", async (event, payload) =>
     agentsHandlers.listAgents(payload, event.sender.id),
   );
@@ -427,6 +446,9 @@ export const registerIpcHandlers = (): {
   );
   ipcMain.handle("councils:cancel-generation", async (_event, payload) =>
     councilsHandlers.cancelGeneration(payload),
+  );
+  ipcMain.handle("councils:export-transcript", async (event, payload) =>
+    councilsHandlers.exportTranscript(payload, event.sender.id),
   );
   ipcMain.handle("councils:refresh-model-catalog", async (event, payload) =>
     councilsHandlers.refreshModelCatalog(payload, event.sender.id),

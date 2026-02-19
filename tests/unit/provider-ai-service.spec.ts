@@ -94,4 +94,57 @@ describe("provider ai service", () => {
     expect(result.isErr()).toBe(true);
     expect(result._unsafeUnwrapErr()).toBe("ProviderError");
   });
+
+  it("calls Gemini with API key header instead of query param", async () => {
+    const fetchMock = vi.fn((_input: string, _init?: RequestInit) =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            candidates: [{ content: { parts: [{ text: "gemini-text" }] } }],
+          }),
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const service = createProviderAiService({
+      loadProviderConfig: () =>
+        okAsync({
+          endpointUrl: null,
+          credentialRef: "provider/gemini",
+        }),
+      loadSecret: () => okAsync("super-secret"),
+    });
+
+    const result = await service.generateText(
+      {
+        providerId: "gemini",
+        modelId: "gemini-1.5-flash",
+        messages: [{ role: "user", content: "hello" }],
+      },
+      new AbortController().signal,
+    );
+
+    expect(result.isOk()).toBe(true);
+    expect(result._unsafeUnwrap().text).toBe("gemini-text");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const firstCall = fetchMock.mock.calls[0];
+    expect(firstCall).toBeDefined();
+    if (firstCall === undefined) {
+      return;
+    }
+
+    const [url, init] = firstCall;
+    expect(url).toContain("/v1beta/models/gemini-1.5-flash:generateContent");
+    expect(url).not.toContain("?key=");
+    expect(init).toBeDefined();
+    if (init === undefined) {
+      return;
+    }
+    expect(init.headers).toMatchObject({
+      "content-type": "application/json",
+      "x-goog-api-key": "super-secret",
+    });
+  });
 });

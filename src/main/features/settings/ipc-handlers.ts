@@ -5,6 +5,7 @@ import type {
   IpcResult,
   RefreshModelCatalogResponse,
   SaveProviderConfigResponse,
+  SetContextLastNResponse,
   SetGlobalDefaultModelResponse,
   TestProviderConnectionResponse,
 } from "../../../shared/ipc/dto.js";
@@ -12,6 +13,7 @@ import {
   GET_SETTINGS_VIEW_REQUEST_SCHEMA,
   REFRESH_MODEL_CATALOG_REQUEST_SCHEMA,
   SAVE_PROVIDER_CONFIG_REQUEST_SCHEMA,
+  SET_CONTEXT_LAST_N_REQUEST_SCHEMA,
   SET_GLOBAL_DEFAULT_MODEL_REQUEST_SCHEMA,
   TEST_PROVIDER_CONNECTION_REQUEST_SCHEMA,
 } from "../../../shared/ipc/validators.js";
@@ -24,6 +26,7 @@ const toValidationFailure = (message: string): IpcResult<never> => ({
 
 const sanitizeDomainError = (error: DomainError): DomainError => ({
   ...error,
+  devMessage: "Redacted at IPC boundary.",
   details: undefined,
 });
 
@@ -119,6 +122,24 @@ export const createSettingsIpcHandlers = (slice: SettingsSlice) => ({
         webContentsId,
         viewKind: parsed.data.viewKind,
         modelRefOrNull: parsed.data.modelRefOrNull,
+      }),
+    );
+  },
+
+  setContextLastN: async (
+    payload: unknown,
+    webContentsId: number,
+  ): Promise<IpcResult<SetContextLastNResponse>> => {
+    const parsed = SET_CONTEXT_LAST_N_REQUEST_SCHEMA.safeParse(payload);
+    if (!parsed.success) {
+      return toValidationFailure("Invalid setContextLastN payload.");
+    }
+
+    return toIpcResult(
+      slice.setContextLastN({
+        webContentsId,
+        viewKind: parsed.data.viewKind,
+        contextLastN: parsed.data.contextLastN,
       }),
     );
   },

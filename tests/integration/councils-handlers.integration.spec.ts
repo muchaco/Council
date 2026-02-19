@@ -41,6 +41,7 @@ const createSlice = (options?: {
   generationDelayMs?: number;
   failConductorDecision?: boolean;
   providerFailuresBeforeSuccess?: number;
+  contextLastN?: number;
 }) => {
   let sequence = 0;
   let messageId = 0;
@@ -51,22 +52,45 @@ const createSlice = (options?: {
   const generationDelayMs = options?.generationDelayMs ?? 0;
   let providerFailuresRemaining = options?.providerFailuresBeforeSuccess ?? 0;
   const refreshModelCatalogCalls: Array<"councilsList" | "councilCreate" | "councilView"> = [];
+  const memberPrompts: Array<string> = [];
+  const conductorPrompts: Array<string> = [];
+  const transcriptExports: Array<{
+    webContentsId: number;
+    suggestedFileName: string;
+    markdown: string;
+  }> = [];
+
+  const readEligibleMembers = (promptContent: string, label: string): ReadonlyArray<string> => {
+    const eligibleMatch = promptContent.match(new RegExp(`${label}: (.*)`));
+    const eligibleRaw = eligibleMatch?.[1]?.trim() ?? "";
+    if (eligibleRaw.length === 0 || eligibleRaw.startsWith("(")) {
+      return [];
+    }
+
+    return eligibleRaw
+      .split(",")
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+  };
 
   const buildConductorDecisionResponse = (promptContent: string): string => {
-    const eligibleMatch = promptContent.match(/Eligible members for next speaker: (.*)/);
-    const eligibleRaw = eligibleMatch?.[1]?.trim() ?? "";
-    const eligible =
-      eligibleRaw.length === 0 || eligibleRaw.startsWith("(")
-        ? []
-        : eligibleRaw
-            .split(",")
-            .map((value) => value.trim())
-            .filter((value) => value.length > 0);
+    const eligible = readEligibleMembers(promptContent, "Eligible members for next speaker");
 
     return JSON.stringify({
       briefing: `Briefing ${sequence + 1}`,
       goalReached: false,
       nextSpeakerAgentId: eligible[0] ?? null,
+    });
+  };
+
+  const buildConductorOpeningResponse = (promptContent: string): string => {
+    const eligible = readEligibleMembers(promptContent, "Eligible members for first speaker");
+
+    return JSON.stringify({
+      openingMessage: "Opening kickoff",
+      briefing: `Briefing ${sequence + 1}`,
+      goalReached: false,
+      firstSpeakerAgentId: eligible[0] ?? PRIMARY_AGENT_ID,
     });
   };
 
@@ -132,19 +156,32 @@ const createSlice = (options?: {
               }
               const promptContent = request.messages.map((message) => message.content).join("\n");
               const isConductorRequest = promptContent.includes("You are the Council Conductor.");
+              if (isConductorRequest) {
+                conductorPrompts.push(promptContent);
+              } else {
+                memberPrompts.push(promptContent);
+              }
               if (providerFailuresRemaining > 0) {
                 providerFailuresRemaining -= 1;
                 reject(new Error("provider failure"));
                 return;
               }
-              if (options?.failConductorDecision === true && isConductorRequest) {
+              const isOpeningRequest = promptContent.includes("starting an Autopilot council");
+
+              if (
+                options?.failConductorDecision === true &&
+                isConductorRequest &&
+                !isOpeningRequest
+              ) {
                 reject(new Error("provider failure"));
                 return;
               }
 
               resolve({
                 text: isConductorRequest
-                  ? buildConductorDecisionResponse(promptContent)
+                  ? isOpeningRequest
+                    ? buildConductorOpeningResponse(promptContent)
+                    : buildConductorDecisionResponse(promptContent)
                   : `Generated turn ${++sequence}`,
               });
             }, generationDelayMs);
@@ -162,12 +199,29 @@ const createSlice = (options?: {
     },
     createMessageId: () => `message-${++messageId}`,
     createGenerationRequestId: () => `generation-${++generationId}`,
+    getContextLastN: () => options?.contextLastN ?? 12,
+    exportService: {
+      saveMarkdownFile: ({ webContentsId, suggestedFileName, markdown }) => {
+        transcriptExports.push({ webContentsId, suggestedFileName, markdown });
+        return okAsync({
+          status: "exported" as const,
+          filePath: `/tmp/${suggestedFileName}.md`,
+        });
+      },
+    },
   });
 
   return Object.assign(slice, {
     getRefreshModelCatalogCalls: (): ReadonlyArray<
       "councilsList" | "councilCreate" | "councilView"
     > => refreshModelCatalogCalls,
+    getMemberPrompts: (): ReadonlyArray<string> => memberPrompts,
+    getConductorPrompts: (): ReadonlyArray<string> => conductorPrompts,
+    getTranscriptExports: (): ReadonlyArray<{
+      webContentsId: number;
+      suggestedFileName: string;
+      markdown: string;
+    }> => transcriptExports,
   });
 };
 
@@ -339,6 +393,7 @@ describe("councils handlers", () => {
     const started = await slice.startCouncil({
       webContentsId: 23,
       id: saved.value.council.id,
+      maxTurns: null,
     });
     expect(started.isOk()).toBe(true);
     if (started.isErr()) {
@@ -367,15 +422,141 @@ describe("councils handlers", () => {
     }
     expect(paused.value.council.paused).toBe(true);
 
+    const viewWhilePaused = await slice.getCouncilView({
+      webContentsId: 23,
+      councilId: saved.value.council.id,
+    });
+    expect(viewWhilePaused.isOk()).toBe(true);
+    if (viewWhilePaused.isOk()) {
+      expect(viewWhilePaused.value.generation.plannedNextSpeakerAgentId).toBe(PRIMARY_AGENT_ID);
+    }
+
     const resumed = await slice.resumeCouncilAutopilot({
       webContentsId: 23,
       id: saved.value.council.id,
+      maxTurns: null,
     });
     expect(resumed.isOk()).toBe(true);
     if (resumed.isErr()) {
       return;
     }
     expect(resumed.value.council.paused).toBe(false);
+  });
+
+  it("runs autopilot opening on start and persists first planned speaker", async () => {
+    const slice = createSlice();
+    const saved = await slice.saveCouncil({
+      webContentsId: 231,
+      draft: {
+        viewKind: "councilCreate",
+        id: null,
+        title: "Opening Council",
+        topic: "Kickoff sequence",
+        goal: null,
+        mode: "autopilot",
+        tags: [],
+        memberAgentIds: [PRIMARY_AGENT_ID, SECONDARY_AGENT_ID],
+        memberColorsByAgentId: {},
+        conductorModelRefOrNull: null,
+      },
+    });
+    expect(saved.isOk()).toBe(true);
+    if (saved.isErr()) {
+      return;
+    }
+
+    const started = await slice.startCouncil({
+      webContentsId: 231,
+      id: saved.value.council.id,
+      maxTurns: 4,
+    });
+    expect(started.isOk()).toBe(true);
+    if (started.isErr()) {
+      return;
+    }
+    expect(started.value.council.autopilotMaxTurns).toBe(4);
+    expect(started.value.council.autopilotTurnsCompleted).toBe(0);
+
+    const viewAfterStart = await slice.getCouncilView({
+      webContentsId: 231,
+      councilId: saved.value.council.id,
+    });
+    expect(viewAfterStart.isOk()).toBe(true);
+    if (viewAfterStart.isErr()) {
+      return;
+    }
+
+    expect(viewAfterStart.value.messages).toHaveLength(1);
+    expect(viewAfterStart.value.messages[0]?.senderKind).toBe("conductor");
+    expect(viewAfterStart.value.messages[0]?.content).toBe("Opening kickoff");
+    expect(viewAfterStart.value.generation.plannedNextSpeakerAgentId).toBe(PRIMARY_AGENT_ID);
+
+    const firstAdvance = await slice.advanceAutopilotTurn({
+      webContentsId: 231,
+      id: saved.value.council.id,
+    });
+    expect(firstAdvance.isOk()).toBe(true);
+    if (firstAdvance.isOk()) {
+      expect(firstAdvance.value.selectedMemberAgentId).toBe(PRIMARY_AGENT_ID);
+    }
+  });
+
+  it("pauses autopilot when configured max turns are reached", async () => {
+    const slice = createSlice();
+    const saved = await slice.saveCouncil({
+      webContentsId: 232,
+      draft: {
+        viewKind: "councilCreate",
+        id: null,
+        title: "Turn Limit Council",
+        topic: "Bound runtime",
+        goal: null,
+        mode: "autopilot",
+        tags: [],
+        memberAgentIds: [PRIMARY_AGENT_ID, SECONDARY_AGENT_ID],
+        memberColorsByAgentId: {},
+        conductorModelRefOrNull: null,
+      },
+    });
+    expect(saved.isOk()).toBe(true);
+    if (saved.isErr()) {
+      return;
+    }
+
+    await slice.startCouncil({
+      webContentsId: 232,
+      id: saved.value.council.id,
+      maxTurns: 1,
+    });
+
+    const firstAdvance = await slice.advanceAutopilotTurn({
+      webContentsId: 232,
+      id: saved.value.council.id,
+    });
+    expect(firstAdvance.isOk()).toBe(true);
+
+    const viewAfterFirstAdvance = await slice.getCouncilView({
+      webContentsId: 232,
+      councilId: saved.value.council.id,
+    });
+    expect(viewAfterFirstAdvance.isOk()).toBe(true);
+    if (viewAfterFirstAdvance.isErr()) {
+      return;
+    }
+
+    expect(viewAfterFirstAdvance.value.council.paused).toBe(true);
+    expect(viewAfterFirstAdvance.value.council.autopilotTurnsCompleted).toBe(1);
+
+    const resume = await slice.resumeCouncilAutopilot({
+      webContentsId: 232,
+      id: saved.value.council.id,
+      maxTurns: null,
+    });
+    expect(resume.isOk()).toBe(true);
+    if (resume.isOk()) {
+      expect(resume.value.council.autopilotTurnsCompleted).toBe(0);
+      expect(resume.value.council.autopilotMaxTurns).toBeNull();
+    }
   });
 
   it("appends transcript messages in order for conductor + manual generation", async () => {
@@ -405,6 +586,7 @@ describe("councils handlers", () => {
         await slice.startCouncil({
           webContentsId: 24,
           id: saved.value.council.id,
+          maxTurns: null,
         })
       ).isOk(),
     ).toBe(true);
@@ -439,6 +621,65 @@ describe("councils handlers", () => {
     expect(view.value.briefing?.briefing).toContain("Briefing");
   });
 
+  it("uses briefing plus last N messages for runtime prompts", async () => {
+    const slice = createSlice({ contextLastN: 2 });
+    const saved = await slice.saveCouncil({
+      webContentsId: 30,
+      draft: {
+        viewKind: "councilCreate",
+        id: null,
+        title: "Context Council",
+        topic: "Context handling",
+        goal: "Keep only recent context",
+        mode: "manual",
+        tags: [],
+        memberAgentIds: [PRIMARY_AGENT_ID],
+        memberColorsByAgentId: {},
+        conductorModelRefOrNull: null,
+      },
+    });
+    expect(saved.isOk()).toBe(true);
+    if (saved.isErr()) {
+      return;
+    }
+
+    await slice.startCouncil({ webContentsId: 30, id: saved.value.council.id, maxTurns: null });
+    await slice.injectConductorMessage({
+      webContentsId: 30,
+      id: saved.value.council.id,
+      content: "Kickoff",
+    });
+    await slice.injectConductorMessage({
+      webContentsId: 30,
+      id: saved.value.council.id,
+      content: "Second note",
+    });
+    await slice.injectConductorMessage({
+      webContentsId: 30,
+      id: saved.value.council.id,
+      content: "Third note",
+    });
+
+    const generated = await slice.generateManualTurn({
+      webContentsId: 30,
+      id: saved.value.council.id,
+      memberAgentId: PRIMARY_AGENT_ID,
+    });
+    expect(generated.isOk()).toBe(true);
+
+    const latestMemberPrompt = slice.getMemberPrompts().at(-1) ?? "";
+    expect(latestMemberPrompt).toContain("Second note");
+    expect(latestMemberPrompt).toContain("Third note");
+    expect(latestMemberPrompt).not.toContain("Kickoff");
+    expect(latestMemberPrompt).toContain("Earlier messages omitted: 1");
+
+    const latestConductorPrompt = slice.getConductorPrompts().at(-1) ?? "";
+    expect(latestConductorPrompt).toContain("Third note");
+    expect(latestConductorPrompt).toContain("Generated turn");
+    expect(latestConductorPrompt).not.toContain("Kickoff");
+    expect(latestConductorPrompt).toContain("Earlier messages omitted: 2");
+  });
+
   it("pauses autopilot when provider error occurs during conductor briefing", async () => {
     const slice = createSlice({ failConductorDecision: true });
     const saved = await slice.saveCouncil({
@@ -464,6 +705,7 @@ describe("councils handlers", () => {
     await slice.startCouncil({
       webContentsId: 26,
       id: saved.value.council.id,
+      maxTurns: null,
     });
 
     const advance = await slice.advanceAutopilotTurn({
@@ -482,7 +724,7 @@ describe("councils handlers", () => {
     expect(view.isOk()).toBe(true);
     if (view.isOk()) {
       expect(view.value.council.paused).toBe(true);
-      expect(view.value.messages).toHaveLength(1);
+      expect(view.value.messages).toHaveLength(2);
     }
   });
 
@@ -508,7 +750,7 @@ describe("councils handlers", () => {
       return;
     }
 
-    await slice.startCouncil({ webContentsId: 27, id: saved.value.council.id });
+    await slice.startCouncil({ webContentsId: 27, id: saved.value.council.id, maxTurns: null });
     const first = await slice.advanceAutopilotTurn({
       webContentsId: 27,
       id: saved.value.council.id,
@@ -550,6 +792,7 @@ describe("councils handlers", () => {
     await slice.startCouncil({
       webContentsId: 25,
       id: saved.value.council.id,
+      maxTurns: null,
     });
 
     const generationPromise = slice.generateManualTurn({
@@ -578,6 +821,51 @@ describe("councils handlers", () => {
     }
   });
 
+  it("exposes active autopilot speaker while generation is running", async () => {
+    const slice = createSlice({ generationDelayMs: 120 });
+    const saved = await slice.saveCouncil({
+      webContentsId: 251,
+      draft: {
+        viewKind: "councilCreate",
+        id: null,
+        title: "Thinking Council",
+        topic: "Show active speaker",
+        goal: null,
+        mode: "autopilot",
+        tags: [],
+        memberAgentIds: [PRIMARY_AGENT_ID, SECONDARY_AGENT_ID],
+        memberColorsByAgentId: {},
+        conductorModelRefOrNull: null,
+      },
+    });
+    expect(saved.isOk()).toBe(true);
+    if (saved.isErr()) {
+      return;
+    }
+
+    await slice.startCouncil({ webContentsId: 251, id: saved.value.council.id, maxTurns: null });
+
+    const advancePromise = slice.advanceAutopilotTurn({
+      webContentsId: 251,
+      id: saved.value.council.id,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const viewDuringGeneration = await slice.getCouncilView({
+      webContentsId: 251,
+      councilId: saved.value.council.id,
+    });
+    expect(viewDuringGeneration.isOk()).toBe(true);
+    if (viewDuringGeneration.isOk()) {
+      expect(viewDuringGeneration.value.generation.status).toBe("running");
+      expect(viewDuringGeneration.value.generation.kind).toBe("autopilotStep");
+      expect(viewDuringGeneration.value.generation.activeMemberAgentId).toBe(PRIMARY_AGENT_ID);
+    }
+
+    const advanceResult = await advancePromise;
+    expect(advanceResult.isOk()).toBe(true);
+  });
+
   it("refreshes model catalog and retries generation after provider error", async () => {
     const slice = createSlice({ providerFailuresBeforeSuccess: 1 });
     const saved = await slice.saveCouncil({
@@ -600,7 +888,7 @@ describe("councils handlers", () => {
       return;
     }
 
-    await slice.startCouncil({ webContentsId: 28, id: saved.value.council.id });
+    await slice.startCouncil({ webContentsId: 28, id: saved.value.council.id, maxTurns: null });
 
     const generated = await slice.generateManualTurn({
       webContentsId: 28,
@@ -633,7 +921,7 @@ describe("councils handlers", () => {
       return;
     }
 
-    await slice.startCouncil({ webContentsId: 29, id: saved.value.council.id });
+    await slice.startCouncil({ webContentsId: 29, id: saved.value.council.id, maxTurns: null });
 
     const generated = await slice.generateManualTurn({
       webContentsId: 29,
@@ -645,5 +933,67 @@ describe("councils handlers", () => {
       expect(generated.error.kind).toBe("ProviderError");
     }
     expect(slice.getRefreshModelCatalogCalls()).toEqual(["councilView"]);
+  });
+
+  it("exports transcript markdown with header and UI-visible message fields", async () => {
+    const slice = createSlice();
+    const saved = await slice.saveCouncil({
+      webContentsId: 31,
+      draft: {
+        viewKind: "councilCreate",
+        id: null,
+        title: "Export Council",
+        topic: "Markdown export",
+        goal: "Capture transcript",
+        mode: "manual",
+        tags: [],
+        memberAgentIds: [PRIMARY_AGENT_ID],
+        memberColorsByAgentId: {
+          [PRIMARY_AGENT_ID]: "#2d6cdf",
+        },
+        conductorModelRefOrNull: null,
+      },
+    });
+    expect(saved.isOk()).toBe(true);
+    if (saved.isErr()) {
+      return;
+    }
+
+    await slice.startCouncil({ webContentsId: 31, id: saved.value.council.id, maxTurns: null });
+    await slice.injectConductorMessage({
+      webContentsId: 31,
+      id: saved.value.council.id,
+      content: "Kickoff note",
+    });
+    await slice.generateManualTurn({
+      webContentsId: 31,
+      id: saved.value.council.id,
+      memberAgentId: PRIMARY_AGENT_ID,
+    });
+
+    const exported = await slice.exportTranscript({
+      webContentsId: 31,
+      id: saved.value.council.id,
+    });
+    expect(exported.isOk()).toBe(true);
+    if (exported.isErr()) {
+      return;
+    }
+
+    expect(exported.value.status).toBe("exported");
+    const request = slice.getTranscriptExports().at(-1);
+    expect(request).toBeDefined();
+    if (request === undefined) {
+      return;
+    }
+
+    expect(request.suggestedFileName).toBe("Export Council");
+    expect(request.markdown).toContain("# Export Council");
+    expect(request.markdown).toContain("- Topic: Markdown export");
+    expect(request.markdown).toContain("- Goal: Capture transcript");
+    expect(request.markdown).toContain("### 1. Conductor");
+    expect(request.markdown).toContain("- Timestamp: 2026-02-18T10:00:");
+    expect(request.markdown).toContain("Kickoff note");
+    expect(request.markdown).not.toContain("#2d6cdf");
   });
 });

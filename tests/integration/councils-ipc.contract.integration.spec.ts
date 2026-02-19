@@ -69,6 +69,13 @@ const createHandlers = () => {
     },
     createMessageId: () => `message-${++messageId}`,
     createGenerationRequestId: () => `generation-${++generationId}`,
+    exportService: {
+      saveMarkdownFile: () =>
+        okAsync({
+          status: "exported" as const,
+          filePath: "/tmp/export.md",
+        }),
+    },
   });
 
   return createCouncilsIpcHandlers(slice);
@@ -146,11 +153,13 @@ describe("councils ipc contract", () => {
       return;
     }
     expect(view.value.council.id).toBe(save.value.council.id);
+    expect(view.value.generation.plannedNextSpeakerAgentId).toBeNull();
 
     const started = await handlers.startCouncil(
       {
         viewKind: "councilView",
         id: save.value.council.id,
+        maxTurns: null,
       },
       31,
     );
@@ -189,6 +198,26 @@ describe("councils ipc contract", () => {
     );
     expect(invalidManual.ok).toBe(false);
 
+    const invalidStart = await handlers.startCouncil(
+      {
+        viewKind: "councilView",
+        id: "00000000-0000-4000-8000-000000000112",
+        maxTurns: 0,
+      },
+      44,
+    );
+    expect(invalidStart.ok).toBe(false);
+
+    const invalidResume = await handlers.resumeCouncilAutopilot(
+      {
+        viewKind: "councilView",
+        id: "00000000-0000-4000-8000-000000000112",
+        maxTurns: 201,
+      },
+      44,
+    );
+    expect(invalidResume.ok).toBe(false);
+
     const invalidInject = await handlers.injectConductorMessage(
       {
         viewKind: "councilView",
@@ -198,5 +227,49 @@ describe("councils ipc contract", () => {
       44,
     );
     expect(invalidInject.ok).toBe(false);
+
+    const invalidExport = await handlers.exportTranscript(
+      {
+        viewKind: "settings",
+        id: "00000000-0000-4000-8000-000000000112",
+      },
+      44,
+    );
+    expect(invalidExport.ok).toBe(false);
+  });
+
+  it("exports transcript through typed IPC handler", async () => {
+    const handlers = createHandlers();
+    const saved = await handlers.saveCouncil(
+      {
+        viewKind: "councilCreate",
+        id: null,
+        title: "Export Contract Council",
+        topic: "Contract path",
+        goal: null,
+        mode: "manual",
+        tags: [],
+        memberAgentIds: ["00000000-0000-4000-8000-000000000101"],
+        memberColorsByAgentId: {},
+        conductorModelRefOrNull: null,
+      },
+      51,
+    );
+    expect(saved.ok).toBe(true);
+    if (!saved.ok) {
+      return;
+    }
+
+    const exported = await handlers.exportTranscript(
+      {
+        viewKind: "councilsList",
+        id: saved.value.council.id,
+      },
+      51,
+    );
+    expect(exported.ok).toBe(true);
+    if (exported.ok) {
+      expect(exported.value.status).toBe("exported");
+    }
   });
 });

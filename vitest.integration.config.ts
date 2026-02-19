@@ -8,7 +8,12 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "lcov"],
       reportsDirectory: "coverage/integration",
-      include: ["scripts/**/*.ts"],
+      include: [
+        "src/main/features/**/*.ts",
+        "src/main/ipc/**/*.ts",
+        "src/main/services/**/*.ts",
+        "scripts/**/*.ts",
+      ],
       thresholds: {
         lines: 50,
         functions: 50,

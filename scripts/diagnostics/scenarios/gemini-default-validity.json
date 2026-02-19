@@ -1,0 +1,18 @@
+{
+  "name": "gemini-default-validity",
+  "steps": [
+    { "action": "waitForText", "text": "Council" },
+    { "action": "click", "selector": "button:has-text('Settings')" },
+    { "action": "waitForText", "text": "Providers" },
+    {
+      "action": "evaluate",
+      "saveAs": "probe",
+      "expression": "async () => { const refresh = await window.api.providers.refreshModelCatalog({ viewKind: 'settings' }); const settingsView = await window.api.settings.getView({ viewKind: 'settings' }); const result = { refreshOk: refresh.ok, settingsOk: settingsView.ok }; if (!settingsView.ok) { result.settingsErrorKind = settingsView.error.kind; return result; } result.globalDefaultModelRef = settingsView.value.globalDefaultModelRef; result.globalDefaultInvalid = settingsView.value.globalDefaultModelInvalidConfig; result.geminiModelsCount = (settingsView.value.modelCatalog.modelsByProvider.gemini ?? []).length; if (settingsView.value.globalDefaultModelRef === null) { result.skipped = 'no-global-default'; return result; } const saveAttempt = await window.api.agents.save({ viewKind: 'agentEdit', id: null, name: `probe-${Date.now()}`, systemPrompt: 'probe', verbosity: null, temperature: null, tags: [], modelRefOrNull: null }); result.saveOk = saveAttempt.ok; if (!saveAttempt.ok) { result.saveErrorKind = saveAttempt.error.kind; result.saveErrorUserMessage = saveAttempt.error.userMessage; return result; } result.savedAgentId = saveAttempt.value.agent.id; const deleteAttempt = await window.api.agents.delete({ id: saveAttempt.value.agent.id }); result.deleteOk = deleteAttempt.ok; return result; }"
+    },
+    {
+      "action": "screenshot",
+      "file": "gemini-default-validity.png",
+      "fullPage": true
+    }
+  ]
+}

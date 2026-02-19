@@ -172,6 +172,12 @@ input::placeholder {
   background: rgb(17 24 39 / 8%);
 }
 
+.status-error {
+  border: 1px solid #ea7f7f;
+  background: #fff1f1;
+  color: #7a1212;
+}
+
 .tabs {
   display: flex;
   gap: 0.5rem;
@@ -223,6 +229,43 @@ input::placeholder {
   margin: 0;
 }
 
+.thinking-row {
+  border-style: dashed;
+  opacity: 0.9;
+}
+
+.row-menu {
+  position: relative;
+}
+
+.row-menu summary {
+  list-style: none;
+}
+
+.row-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.row-menu-items {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 10;
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.45rem;
+  min-width: 9rem;
+  border: 1px solid rgb(17 24 39 / 16%);
+  border-radius: 0.65rem;
+  background: #fff;
+  box-shadow: 0 10px 24px rgb(15 23 42 / 20%);
+}
+
+.row-menu-items .secondary,
+.row-menu-items .danger {
+  width: 100%;
+}
+
 .toast-stack {
   position: fixed;
   right: 1rem;
@@ -258,6 +301,42 @@ input::placeholder {
   border-color: #ea7f7f;
   background: #fff1f1;
   color: #7a1212;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(15 23 42 / 40%);
+  display: grid;
+  place-items: center;
+  z-index: 1100;
+  padding: 1rem;
+}
+
+.modal-panel {
+  border: 1px solid rgb(17 24 39 / 16%);
+  border-radius: 0.85rem;
+  box-shadow: 0 18px 45px rgb(15 23 42 / 25%);
+  background: #fff;
+  color: #0f172a;
+  width: min(30rem, calc(100vw - 2rem));
+  margin: 0;
+  padding: 1rem;
+}
+
+.modal-panel::backdrop {
+  display: none;
+}
+
+.modal-panel h2 {
+  margin: 0;
+}
+
+.checkbox-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.4rem;
 }
 
 @media (max-width: 768px) {

@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect } from "vitest";
 import { DOMAIN_ERROR_KINDS, domainError } from "../../src/shared/domain/errors";
+import { itReq } from "../helpers/requirement-trace";
+
+const FILE_REQUIREMENT_IDS = ["E2", "E3"] as const;
 
 describe("domain errors", () => {
-  it("exposes stable error kinds", () => {
+  itReq(FILE_REQUIREMENT_IDS, "exposes stable error kinds", () => {
     expect(DOMAIN_ERROR_KINDS).toEqual([
       "ValidationError",
       "NotFoundError",
@@ -14,7 +17,7 @@ describe("domain errors", () => {
     ]);
   });
 
-  it("builds typed error objects", () => {
+  itReq(FILE_REQUIREMENT_IDS, "builds typed error objects", () => {
     const error = domainError("ValidationError", "Missing title", "Please provide a title.", {
       field: "title",
     });

@@ -1,11 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, vi } from "vitest";
 import {
   type KeytarClient,
   createKeytarKeychainService,
 } from "../../src/main/services/keychain/keytar-keychain-service";
+import { itReq } from "../helpers/requirement-trace";
+
+const FILE_REQUIREMENT_IDS = ["C1", "C2", "H2"] as const;
 
 describe("keytar keychain service", () => {
-  it("writes credentials via keytar adapter", async () => {
+  itReq(FILE_REQUIREMENT_IDS, "writes credentials via keytar adapter", async () => {
     const setPassword = vi.fn<
       (service: string, account: string, password: string) => Promise<void>
     >(() => Promise.resolve());
@@ -43,21 +46,25 @@ describe("keytar keychain service", () => {
     expect(getPassword).toHaveBeenCalledWith("council3-test", "provider/openrouter");
   });
 
-  it("maps keychain transport failures to unavailable errors", async () => {
-    const service = createKeytarKeychainService({
-      loadClient: () => Promise.reject(new Error("No such interface 'org.freedesktop.secrets'")),
-    });
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "maps keychain transport failures to unavailable errors",
+    async () => {
+      const service = createKeytarKeychainService({
+        loadClient: () => Promise.reject(new Error("No such interface 'org.freedesktop.secrets'")),
+      });
 
-    const result = await service.saveSecret({
-      account: "provider/gemini",
-      secret: "secret",
-    });
+      const result = await service.saveSecret({
+        account: "provider/gemini",
+        secret: "secret",
+      });
 
-    expect(result.isErr()).toBe(true);
-    expect(result._unsafeUnwrapErr()).toBe("KeychainUnavailableError");
-  });
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr()).toBe("KeychainUnavailableError");
+    },
+  );
 
-  it("maps non-availability failures to write errors", async () => {
+  itReq(FILE_REQUIREMENT_IDS, "maps non-availability failures to write errors", async () => {
     const service = createKeytarKeychainService({
       loadClient: () =>
         Promise.resolve({
@@ -75,7 +82,7 @@ describe("keytar keychain service", () => {
     expect(result._unsafeUnwrapErr()).toBe("KeychainWriteError");
   });
 
-  it("maps non-availability read failures to read errors", async () => {
+  itReq(FILE_REQUIREMENT_IDS, "maps non-availability read failures to read errors", async () => {
     const service = createKeytarKeychainService({
       loadClient: () =>
         Promise.resolve({

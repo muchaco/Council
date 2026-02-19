@@ -8,7 +8,13 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "lcov"],
       reportsDirectory: "coverage/unit",
-      include: ["src/shared/domain/**/*.ts", "src/shared/ipc/validators.ts"],
+      include: [
+        "src/shared/domain/**/*.ts",
+        "src/shared/ipc/validators.ts",
+        "src/shared/council-runtime-conductor.ts",
+        "src/shared/council-runtime-context-window.ts",
+        "src/shared/council-view-runtime-guards.ts",
+      ],
       thresholds: {
         lines: 90,
         functions: 90,

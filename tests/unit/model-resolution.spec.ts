@@ -1,13 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect } from "vitest";
 import {
   buildAvailableModelKeys,
   groupModelsByProvider,
   isModelConfigInvalid,
   resolveModelRef,
 } from "../../src/shared/domain/model-ref";
+import { itReq } from "../helpers/requirement-trace";
+
+const FILE_REQUIREMENT_IDS = ["E2", "R4.12", "R4.15", "R4.18", "R4.19"] as const;
 
 describe("model resolution", () => {
-  it("resolves explicit model when available", () => {
+  itReq(FILE_REQUIREMENT_IDS, "resolves explicit model when available", () => {
     const result = resolveModelRef({
       modelRefOrNull: { providerId: "openrouter", modelId: "gpt-4o-mini" },
       globalDefaultModelRef: null,
@@ -21,7 +24,7 @@ describe("model resolution", () => {
     });
   });
 
-  it("falls back to global default when explicit model is null", () => {
+  itReq(FILE_REQUIREMENT_IDS, "falls back to global default when explicit model is null", () => {
     const result = resolveModelRef({
       modelRefOrNull: null,
       globalDefaultModelRef: { providerId: "gemini", modelId: "gemini-1.5-flash" },
@@ -31,7 +34,7 @@ describe("model resolution", () => {
     expect(result.isOk()).toBe(true);
   });
 
-  it("returns invalid config when resolved model is unavailable", () => {
+  itReq(FILE_REQUIREMENT_IDS, "returns invalid config when resolved model is unavailable", () => {
     const result = resolveModelRef({
       modelRefOrNull: { providerId: "ollama", modelId: "qwen2" },
       globalDefaultModelRef: null,
@@ -42,30 +45,38 @@ describe("model resolution", () => {
     expect(result._unsafeUnwrapErr()).toBe("InvalidConfigError");
   });
 
-  it("returns invalid config when no explicit or default model exists", () => {
-    const result = resolveModelRef({
-      modelRefOrNull: null,
-      globalDefaultModelRef: null,
-      availableModelKeys: new Set(),
-    });
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "returns invalid config when no explicit or default model exists",
+    () => {
+      const result = resolveModelRef({
+        modelRefOrNull: null,
+        globalDefaultModelRef: null,
+        availableModelKeys: new Set(),
+      });
 
-    expect(result.isErr()).toBe(true);
-    expect(result._unsafeUnwrapErr()).toBe("InvalidConfigError");
-  });
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr()).toBe("InvalidConfigError");
+    },
+  );
 
-  it("marks null resolution invalid when global default is unavailable", () => {
-    const invalid = isModelConfigInvalid({
-      modelRefOrNull: null,
-      globalDefaultModelRef: { providerId: "gemini", modelId: "gemini-1.5-pro" },
-      availableModelKeys: buildAvailableModelKeys({
-        gemini: ["gemini-1.5-flash"],
-      }),
-    });
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "marks null resolution invalid when global default is unavailable",
+    () => {
+      const invalid = isModelConfigInvalid({
+        modelRefOrNull: null,
+        globalDefaultModelRef: { providerId: "gemini", modelId: "gemini-1.5-pro" },
+        availableModelKeys: buildAvailableModelKeys({
+          gemini: ["gemini-1.5-flash"],
+        }),
+      });
 
-    expect(invalid).toBe(true);
-  });
+      expect(invalid).toBe(true);
+    },
+  );
 
-  it("creates grouped provider sections for model picker", () => {
+  itReq(FILE_REQUIREMENT_IDS, "creates grouped provider sections for model picker", () => {
     const grouped = groupModelsByProvider({
       gemini: ["gemini-1.5-flash", "gemini-1.5-pro"],
       openrouter: ["openai/gpt-4o-mini"],

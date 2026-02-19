@@ -4,6 +4,7 @@ import {
   CANCEL_COUNCIL_GENERATION_REQUEST_SCHEMA,
   DELETE_AGENT_REQUEST_SCHEMA,
   DELETE_COUNCIL_REQUEST_SCHEMA,
+  EXPORT_COUNCIL_TRANSCRIPT_REQUEST_SCHEMA,
   GENERATE_MANUAL_COUNCIL_TURN_REQUEST_SCHEMA,
   GET_AGENT_EDITOR_VIEW_REQUEST_SCHEMA,
   GET_COUNCIL_EDITOR_VIEW_REQUEST_SCHEMA,
@@ -17,6 +18,7 @@ import {
   SAVE_AGENT_REQUEST_SCHEMA,
   SAVE_COUNCIL_REQUEST_SCHEMA,
   SAVE_PROVIDER_CONFIG_REQUEST_SCHEMA,
+  SET_CONTEXT_LAST_N_REQUEST_SCHEMA,
   SET_COUNCIL_ARCHIVED_REQUEST_SCHEMA,
   SET_GLOBAL_DEFAULT_MODEL_REQUEST_SCHEMA,
   START_COUNCIL_REQUEST_SCHEMA,
@@ -57,10 +59,31 @@ describe("ipc validators", () => {
     expect(parsed.success).toBe(false);
   });
 
+  it("rejects provider payload with unknown fields", () => {
+    const parsed = TEST_PROVIDER_CONNECTION_REQUEST_SCHEMA.safeParse({
+      provider: {
+        providerId: "gemini",
+        endpointUrl: null,
+        apiKey: "abc123",
+        secret: "leak",
+      },
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
   it("accepts nullable global default model payload", () => {
     const parsed = SET_GLOBAL_DEFAULT_MODEL_REQUEST_SCHEMA.safeParse({
       viewKind: "settings",
       modelRefOrNull: null,
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("accepts valid context last N payload", () => {
+    const parsed = SET_CONTEXT_LAST_N_REQUEST_SCHEMA.safeParse({
+      viewKind: "settings",
+      contextLastN: 24,
     });
     expect(parsed.success).toBe(true);
   });
@@ -187,13 +210,31 @@ describe("ipc validators", () => {
     const startParsed = START_COUNCIL_REQUEST_SCHEMA.safeParse({
       viewKind: "councilView",
       id: "00000000-0000-4000-8000-000000000112",
+      maxTurns: null,
     });
     const resumeParsed = RESUME_COUNCIL_AUTOPILOT_REQUEST_SCHEMA.safeParse({
       viewKind: "councilView",
       id: "00000000-0000-4000-8000-000000000112",
+      maxTurns: 12,
     });
     expect(startParsed.success).toBe(true);
     expect(resumeParsed.success).toBe(true);
+  });
+
+  it("rejects invalid max turn payloads", () => {
+    const invalidStart = START_COUNCIL_REQUEST_SCHEMA.safeParse({
+      viewKind: "councilView",
+      id: "00000000-0000-4000-8000-000000000112",
+      maxTurns: 0,
+    });
+    const invalidResume = RESUME_COUNCIL_AUTOPILOT_REQUEST_SCHEMA.safeParse({
+      viewKind: "councilView",
+      id: "00000000-0000-4000-8000-000000000112",
+      maxTurns: 500,
+    });
+
+    expect(invalidStart.success).toBe(false);
+    expect(invalidResume.success).toBe(false);
   });
 
   it("accepts manual generation and autopilot advance payloads", () => {
@@ -219,5 +260,19 @@ describe("ipc validators", () => {
     const cancelParsed = CANCEL_COUNCIL_GENERATION_REQUEST_SCHEMA.safeParse({ id: "bad-id" });
     expect(injectParsed.success).toBe(false);
     expect(cancelParsed.success).toBe(false);
+  });
+
+  it("validates council transcript export payload", () => {
+    const valid = EXPORT_COUNCIL_TRANSCRIPT_REQUEST_SCHEMA.safeParse({
+      viewKind: "councilsList",
+      id: "00000000-0000-4000-8000-000000000114",
+    });
+    const invalid = EXPORT_COUNCIL_TRANSCRIPT_REQUEST_SCHEMA.safeParse({
+      viewKind: "settings",
+      id: "00000000-0000-4000-8000-000000000114",
+    });
+
+    expect(valid.success).toBe(true);
+    expect(invalid.success).toBe(false);
   });
 });

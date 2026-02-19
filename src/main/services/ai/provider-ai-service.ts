@@ -211,12 +211,13 @@ const generateWithGemini = (
     (async () => {
       const url = buildUrl(
         endpoint,
-        `/v1beta/models/${encodeURIComponent(request.modelId)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+        `/v1beta/models/${encodeURIComponent(request.modelId)}:generateContent`,
       );
       const response = await fetch(url, {
         method: "POST",
         headers: {
           "content-type": "application/json",
+          "x-goog-api-key": apiKey,
         },
         body: JSON.stringify({
           ...(systemPrompt.length === 0

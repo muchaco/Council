@@ -25,20 +25,26 @@ export const GET_SETTINGS_VIEW_REQUEST_SCHEMA = z.object({
   viewKind: VIEW_KIND_SCHEMA,
 });
 
-export const PROVIDER_DRAFT_SCHEMA = z.object({
-  providerId: PROVIDER_ID_SCHEMA,
-  endpointUrl: z.string().url().max(500).nullable(),
-  apiKey: z.string().min(1).max(500).nullable(),
-});
+export const PROVIDER_DRAFT_SCHEMA = z
+  .object({
+    providerId: PROVIDER_ID_SCHEMA,
+    endpointUrl: z.string().url().max(500).nullable(),
+    apiKey: z.string().min(1).max(500).nullable(),
+  })
+  .strict();
 
-export const TEST_PROVIDER_CONNECTION_REQUEST_SCHEMA = z.object({
-  provider: PROVIDER_DRAFT_SCHEMA,
-});
+export const TEST_PROVIDER_CONNECTION_REQUEST_SCHEMA = z
+  .object({
+    provider: PROVIDER_DRAFT_SCHEMA,
+  })
+  .strict();
 
-export const SAVE_PROVIDER_CONFIG_REQUEST_SCHEMA = z.object({
-  provider: PROVIDER_DRAFT_SCHEMA,
-  testToken: z.string().min(1).max(200),
-});
+export const SAVE_PROVIDER_CONFIG_REQUEST_SCHEMA = z
+  .object({
+    provider: PROVIDER_DRAFT_SCHEMA,
+    testToken: z.string().min(1).max(200),
+  })
+  .strict();
 
 export const REFRESH_MODEL_CATALOG_REQUEST_SCHEMA = z.object({
   viewKind: VIEW_KIND_SCHEMA,
@@ -47,6 +53,11 @@ export const REFRESH_MODEL_CATALOG_REQUEST_SCHEMA = z.object({
 export const SET_GLOBAL_DEFAULT_MODEL_REQUEST_SCHEMA = z.object({
   viewKind: VIEW_KIND_SCHEMA,
   modelRefOrNull: MODEL_REF_SCHEMA.nullable(),
+});
+
+export const SET_CONTEXT_LAST_N_REQUEST_SCHEMA = z.object({
+  viewKind: VIEW_KIND_SCHEMA,
+  contextLastN: z.number().int().min(1).max(200),
 });
 
 const SORT_DIRECTION_SCHEMA = z.enum(SORT_DIRECTIONS);
@@ -129,6 +140,7 @@ export const SET_COUNCIL_ARCHIVED_REQUEST_SCHEMA = z.object({
 export const START_COUNCIL_REQUEST_SCHEMA = z.object({
   viewKind: z.literal("councilView"),
   id: z.string().uuid(),
+  maxTurns: z.number().int().min(1).max(200).nullable(),
 });
 
 export const PAUSE_COUNCIL_AUTOPILOT_REQUEST_SCHEMA = z.object({
@@ -138,6 +150,7 @@ export const PAUSE_COUNCIL_AUTOPILOT_REQUEST_SCHEMA = z.object({
 export const RESUME_COUNCIL_AUTOPILOT_REQUEST_SCHEMA = z.object({
   viewKind: z.literal("councilView"),
   id: z.string().uuid(),
+  maxTurns: z.number().int().min(1).max(200).nullable(),
 });
 
 export const GENERATE_MANUAL_COUNCIL_TURN_REQUEST_SCHEMA = z.object({
@@ -158,5 +171,10 @@ export const ADVANCE_AUTOPILOT_TURN_REQUEST_SCHEMA = z.object({
 });
 
 export const CANCEL_COUNCIL_GENERATION_REQUEST_SCHEMA = z.object({
+  id: z.string().uuid(),
+});
+
+export const EXPORT_COUNCIL_TRANSCRIPT_REQUEST_SCHEMA = z.object({
+  viewKind: z.union([z.literal("councilsList"), z.literal("councilView")]),
   id: z.string().uuid(),
 });

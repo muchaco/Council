@@ -4,6 +4,7 @@ import type {
   AdvanceAutopilotTurnResponse,
   CancelCouncilGenerationResponse,
   DeleteCouncilResponse,
+  ExportCouncilTranscriptResponse,
   GenerateManualCouncilTurnResponse,
   GetCouncilEditorViewResponse,
   GetCouncilViewResponse,
@@ -21,6 +22,7 @@ import {
   ADVANCE_AUTOPILOT_TURN_REQUEST_SCHEMA,
   CANCEL_COUNCIL_GENERATION_REQUEST_SCHEMA,
   DELETE_COUNCIL_REQUEST_SCHEMA,
+  EXPORT_COUNCIL_TRANSCRIPT_REQUEST_SCHEMA,
   GENERATE_MANUAL_COUNCIL_TURN_REQUEST_SCHEMA,
   GET_COUNCIL_EDITOR_VIEW_REQUEST_SCHEMA,
   GET_COUNCIL_VIEW_REQUEST_SCHEMA,
@@ -173,6 +175,7 @@ export const createCouncilsIpcHandlers = (slice: CouncilsSlice) => ({
       slice.startCouncil({
         webContentsId,
         id: parsed.data.id,
+        maxTurns: parsed.data.maxTurns,
       }),
     );
   },
@@ -207,6 +210,7 @@ export const createCouncilsIpcHandlers = (slice: CouncilsSlice) => ({
       slice.resumeCouncilAutopilot({
         webContentsId,
         id: parsed.data.id,
+        maxTurns: parsed.data.maxTurns,
       }),
     );
   },
@@ -274,6 +278,23 @@ export const createCouncilsIpcHandlers = (slice: CouncilsSlice) => ({
 
     return toIpcResult(
       slice.cancelGeneration({
+        id: parsed.data.id,
+      }),
+    );
+  },
+
+  exportTranscript: async (
+    payload: unknown,
+    webContentsId: number,
+  ): Promise<IpcResult<ExportCouncilTranscriptResponse>> => {
+    const parsed = EXPORT_COUNCIL_TRANSCRIPT_REQUEST_SCHEMA.safeParse(payload);
+    if (!parsed.success) {
+      return toValidationFailure("Invalid exportCouncilTranscript payload.");
+    }
+
+    return toIpcResult(
+      slice.exportTranscript({
+        webContentsId,
         id: parsed.data.id,
       }),
     );

@@ -7,6 +7,8 @@ import type {
   DeleteAgentResponse,
   DeleteCouncilRequest,
   DeleteCouncilResponse,
+  ExportCouncilTranscriptRequest,
+  ExportCouncilTranscriptResponse,
   GenerateManualCouncilTurnRequest,
   GenerateManualCouncilTurnResponse,
   GetAgentEditorViewRequest,
@@ -38,6 +40,8 @@ import type {
   SaveCouncilResponse,
   SaveProviderConfigRequest,
   SaveProviderConfigResponse,
+  SetContextLastNRequest,
+  SetContextLastNResponse,
   SetCouncilArchivedRequest,
   SetCouncilArchivedResponse,
   SetGlobalDefaultModelRequest,
@@ -57,6 +61,9 @@ export interface WindowApi {
     setGlobalDefaultModel: (
       request: SetGlobalDefaultModelRequest,
     ) => Promise<IpcResult<SetGlobalDefaultModelResponse>>;
+    setContextLastN: (
+      request: SetContextLastNRequest,
+    ) => Promise<IpcResult<SetContextLastNResponse>>;
   };
   providers: {
     testConnection: (
@@ -110,6 +117,9 @@ export interface WindowApi {
     cancelGeneration: (
       request: CancelCouncilGenerationRequest,
     ) => Promise<IpcResult<CancelCouncilGenerationResponse>>;
+    exportTranscript: (
+      request: ExportCouncilTranscriptRequest,
+    ) => Promise<IpcResult<ExportCouncilTranscriptResponse>>;
     refreshModelCatalog: (
       request: RefreshModelCatalogRequest,
     ) => Promise<IpcResult<RefreshModelCatalogResponse>>;

@@ -44,6 +44,9 @@ describe("sqlite persistence service", () => {
     );
     expect(saveGlobal.isOk()).toBe(true);
 
+    const saveContext = persistence.saveContextLastN(14, "2026-02-18T10:00:02.000Z");
+    expect(saveContext.isOk()).toBe(true);
+
     const reloaded = createSqlitePersistenceService({
       dbFilePath: path.join(tempDir, "council3.sqlite3"),
       migrationsDirPath: path.join(process.cwd(), "src", "main", "services", "db", "migrations"),
@@ -61,6 +64,7 @@ describe("sqlite persistence service", () => {
       providerId: "gemini",
       modelId: "gemini-1.5-flash",
     });
+    expect(loaded.value.contextLastN).toBe(14);
     expect(loaded.value.providerConfigs).toHaveLength(1);
     expect(loaded.value.providerConfigs[0]?.providerId).toBe("gemini");
 
@@ -146,6 +150,8 @@ describe("sqlite persistence service", () => {
           archivedAtUtc: null,
           startedAtUtc: "2026-02-18T10:02:00.000Z",
           autopilotPaused: false,
+          autopilotMaxTurns: null,
+          autopilotTurnsCompleted: 0,
           turnCount: 3,
           createdAtUtc: "2026-02-18T10:00:01.000Z",
           updatedAtUtc: "2026-02-18T10:00:01.000Z",
@@ -165,6 +171,8 @@ describe("sqlite persistence service", () => {
     expect(loaded.value[0]?.memberAgentIds).toEqual(["00000000-0000-4000-8000-000000000101"]);
     expect(loaded.value[0]?.startedAtUtc).toBe("2026-02-18T10:02:00.000Z");
     expect(loaded.value[0]?.autopilotPaused).toBe(false);
+    expect(loaded.value[0]?.autopilotMaxTurns).toBeNull();
+    expect(loaded.value[0]?.autopilotTurnsCompleted).toBe(0);
     expect(loaded.value[0]?.turnCount).toBe(3);
 
     const count = persistence.countCouncilsUsingAgent("00000000-0000-4000-8000-000000000101");
@@ -211,6 +219,8 @@ describe("sqlite persistence service", () => {
           archivedAtUtc: null,
           startedAtUtc: "2026-02-18T10:05:00.000Z",
           autopilotPaused: true,
+          autopilotMaxTurns: 5,
+          autopilotTurnsCompleted: 2,
           turnCount: 0,
           createdAtUtc: "2026-02-18T10:00:01.000Z",
           updatedAtUtc: "2026-02-18T10:00:01.000Z",

@@ -16,6 +16,12 @@
     }
   },
   "files": {
-    "ignore": ["dist", "coverage", "node_modules"]
+    "ignore": [
+      "dist",
+      "coverage",
+      "node_modules",
+      "docs/traceability/requirements-traceability.generated.json",
+      "docs/traceability/requirements-traceability.generated.md"
+    ]
   }
 }

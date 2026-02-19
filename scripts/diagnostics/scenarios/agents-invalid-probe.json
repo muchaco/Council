@@ -1,0 +1,13 @@
+{
+  "name": "agents-invalid-probe",
+  "steps": [
+    { "action": "waitForText", "text": "Council" },
+    { "action": "click", "selector": "button:has-text('Agents')" },
+    {
+      "action": "evaluate",
+      "saveAs": "probe",
+      "expression": "async () => { const first = await window.api.agents.list({ viewKind: 'agentsList', searchText: '', tagFilter: '', sortBy: 'updatedAt', sortDirection: 'desc', page: 1 }); if (!first.ok) { return { ok: false, error: first.error }; } const invalid = first.value.items.filter((agent) => agent.invalidConfig).map((agent) => ({ id: agent.id, name: agent.name, modelRefOrNull: agent.modelRefOrNull })); return { ok: true, total: first.value.total, invalidCount: invalid.length, invalid }; }"
+    },
+    { "action": "screenshot", "file": "agents-invalid-probe.png", "fullPage": true }
+  ]
+}

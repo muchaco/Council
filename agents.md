@@ -46,6 +46,10 @@
   - Unit: 90% (focus on pure domain and prompt/model resolution logic)
   - Integration: 50% (critical command/query flows, migration/constraints, runtime error/cancel semantics)
   - Contract/guardrail checks: 100% pass/fail gate (not line coverage; all required checks must pass)
+- Coverage include scopes are guardrails, not optional tuning:
+  - Unit coverage includes must keep pure shared logic (`src/shared/domain`, runtime prompt/context helpers, and IPC validators).
+  - Integration coverage includes must keep main-process orchestration layers (`src/main/features`, `src/main/ipc`, `src/main/services`) plus guardrail scripts.
+  - Validate scope drift with `bun run check:coverage-guardrails` (wired by `scripts/verify-coverage-guardrails.ts`).
 - Mocking policy:
   - Prefer real pure functions and in-memory deterministic fixtures.
   - Use mocks/fakes only at hard IO boundaries (`AiService`, keychain, filesystem, external providers).
