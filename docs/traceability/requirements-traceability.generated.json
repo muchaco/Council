@@ -1,11 +1,11 @@
 {
-  "generatedAtUtc": "2026-02-19T10:56:21.991Z",
+  "generatedAtUtc": "2026-02-19T12:42:51.799Z",
   "summary": {
-    "specFilesTracked": 24,
-    "testCasesTracked": 117,
-    "annotatedTestCases": 117,
+    "specFilesTracked": 27,
+    "testCasesTracked": 128,
+    "annotatedTestCases": 128,
     "unmappedTestCases": 0,
-    "mappedRequirementIds": 122
+    "mappedRequirementIds": 127
   },
   "entries": [
     {
@@ -1811,6 +1811,43 @@
       "totalTestCount": 2
     },
     {
+      "filePath": "tests/unit/council-view-accessibility.spec.ts",
+      "cases": [
+        {
+          "name": "moves focus down and up within transcript bounds",
+          "requirementIds": [
+            "U15.2"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "supports Home and End keyboard navigation",
+          "requirementIds": [
+            "U15.2"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "returns null for unsupported keys",
+          "requirementIds": [
+            "U15.2"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "builds descriptive aria labels with identity and message details",
+          "requirementIds": [
+            "U15.3",
+            "U15.4"
+          ],
+          "source": "itReq"
+        }
+      ],
+      "plainItCount": 0,
+      "itReqInvocationCount": 4,
+      "totalTestCount": 4
+    },
+    {
       "filePath": "tests/unit/council-view-autopilot-recovery.spec.ts",
       "cases": [
         {
@@ -1891,6 +1928,42 @@
       "plainItCount": 0,
       "itReqInvocationCount": 2,
       "totalTestCount": 2
+    },
+    {
+      "filePath": "tests/unit/home-keyboard-accessibility.spec.ts",
+      "cases": [
+        {
+          "name": "cycles tab focus index with ArrowRight and ArrowLeft",
+          "requirementIds": [
+            "U15.2"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "supports Home and End for tab keyboard navigation",
+          "requirementIds": [
+            "U15.2"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "returns null for unsupported tab navigation keys",
+          "requirementIds": [
+            "U15.2"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "recognizes Enter and Space list-row open keys",
+          "requirementIds": [
+            "U15.2"
+          ],
+          "source": "itReq"
+        }
+      ],
+      "plainItCount": 0,
+      "itReqInvocationCount": 4,
+      "totalTestCount": 4
     },
     {
       "filePath": "tests/unit/ids.spec.ts",
@@ -2714,6 +2787,35 @@
       "plainItCount": 0,
       "itReqInvocationCount": 4,
       "totalTestCount": 4
+    },
+    {
+      "filePath": "tests/unit/provider-settings-ui.spec.ts",
+      "cases": [
+        {
+          "name": "builds stable provider draft fingerprints",
+          "requirementIds": [
+            "U5.3"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "detects provider draft changes against saved fingerprint",
+          "requirementIds": [
+            "U5.3"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "marks provider as configured when saved",
+          "requirementIds": [
+            "U5.2"
+          ],
+          "source": "itReq"
+        }
+      ],
+      "plainItCount": 0,
+      "itReqInvocationCount": 3,
+      "totalTestCount": 3
     },
     {
       "filePath": "tests/unit/tag-value-object.spec.ts",

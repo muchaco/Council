@@ -143,6 +143,17 @@ input::placeholder {
   cursor: not-allowed;
 }
 
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+.tab:focus-visible,
+.home-list-row:focus-visible,
+.row-menu summary:focus-visible {
+  outline: 3px solid #0a5c66;
+  outline-offset: 2px;
+}
+
 .warning-badge {
   display: inline-flex;
   align-items: center;
@@ -152,6 +163,28 @@ input::placeholder {
   border-radius: 999px;
   font-size: 0.8rem;
   padding: 0.15rem 0.55rem;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  padding: 0.15rem 0.55rem;
+  font-weight: 600;
+}
+
+.status-badge-ok {
+  border-color: #4aa77a;
+  background: #eaf8f0;
+  color: #0f5132;
+}
+
+.status-badge-muted {
+  border-color: rgb(17 24 39 / 18%);
+  background: rgb(17 24 39 / 6%);
+  color: rgb(15 23 42 / 75%);
 }
 
 .meta {
@@ -223,6 +256,28 @@ input::placeholder {
   border-radius: 0.75rem;
   padding: 0.75rem;
   background: rgb(255 255 255 / 68%);
+}
+
+.home-list-row {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+
+.transcript-row {
+  width: 100%;
+  border: 1px solid rgb(17 24 39 / 12%);
+  background: rgb(255 255 255 / 68%);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: default;
 }
 
 .list-row h3 {

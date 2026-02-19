@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import {
+  buildTranscriptMessageAriaLabel,
+  resolveTranscriptFocusIndex,
+} from "../shared/council-view-accessibility.js";
 import { buildAutopilotRecoveryNotice } from "../shared/council-view-autopilot-recovery";
 import {
   COUNCIL_VIEW_EXIT_CONFIRMATION_MESSAGE,
   buildCouncilViewExitPlan,
 } from "../shared/council-view-runtime-guards";
 import type { ModelRef } from "../shared/domain/model-ref";
+import { resolveHomeTabFocusIndex } from "../shared/home-keyboard-accessibility.js";
 import type {
   AgentDto,
   AgentSortField,
@@ -21,8 +27,15 @@ import type {
   ProviderId,
   SortDirection,
 } from "../shared/ipc/dto";
+import {
+  fingerprintProviderDraft,
+  isProviderConfigured,
+  isProviderDraftChanged,
+} from "../shared/provider-settings-ui.js";
 
 type HomeTab = "councils" | "agents" | "settings";
+
+const HOME_TAB_ORDER: ReadonlyArray<HomeTab> = ["councils", "agents", "settings"];
 
 type ScreenState =
   | { kind: "home" }
@@ -170,13 +183,6 @@ const toInitialDraftState = (provider: ProviderConfigDto): ProviderDraftState =>
   isSaving: false,
 });
 
-const fingerprintProvider = (provider: ProviderDraftState): string =>
-  JSON.stringify({
-    providerId: provider.providerId,
-    endpointUrl: provider.endpointUrl.trim() || null,
-    apiKey: provider.apiKey.trim() || null,
-  });
-
 const toProviderDraftDto = (provider: ProviderDraftState): ProviderDraftDto => ({
   providerId: provider.providerId,
   endpointUrl: provider.endpointUrl.trim() || null,
@@ -185,6 +191,21 @@ const toProviderDraftDto = (provider: ProviderDraftState): ProviderDraftDto => (
 
 const isSaveAllowed = (provider: ProviderDraftState): boolean =>
   provider.testToken !== null && !provider.isTesting && !provider.isSaving;
+
+const isConnectionTestAllowed = (params: {
+  provider: ProviderDraftState;
+  savedFingerprint: string | null;
+}): boolean => {
+  const { provider, savedFingerprint } = params;
+  if (provider.isTesting || provider.isSaving) {
+    return false;
+  }
+
+  return isProviderDraftChanged({
+    provider,
+    savedFingerprint,
+  });
+};
 
 const sortProviderIds = (providerIds: ReadonlyArray<string>): ReadonlyArray<string> =>
   [...providerIds].sort((a, b) => a.localeCompare(b));
@@ -197,9 +218,9 @@ const providerIdsFromState = (
 const buildSavedFingerprints = (
   drafts: Record<ProviderId, ProviderDraftState>,
 ): Record<ProviderId, string> => ({
-  gemini: fingerprintProvider(drafts.gemini),
-  ollama: fingerprintProvider(drafts.ollama),
-  openrouter: fingerprintProvider(drafts.openrouter),
+  gemini: fingerprintProviderDraft(drafts.gemini),
+  ollama: fingerprintProviderDraft(drafts.ollama),
+  openrouter: fingerprintProviderDraft(drafts.openrouter),
 });
 
 const toModelSelectionValue = (modelRefOrNull: ModelRef | null): string =>
@@ -423,6 +444,13 @@ export const App = (): JSX.Element => {
   const [toasts, setToasts] = useState<ReadonlyArray<ToastState>>([]);
   const toastTimers = useRef(new Map<string, number>());
   const draftsRef = useRef<Record<ProviderId, ProviderDraftState> | null>(null);
+  const autopilotModalDialogRef = useRef<HTMLDialogElement | null>(null);
+  const transcriptRowRefs = useRef<Array<HTMLElement | null>>([]);
+  const homeTabButtonRefs = useRef<Record<HomeTab, HTMLButtonElement | null>>({
+    councils: null,
+    agents: null,
+    settings: null,
+  });
 
   const pushToast = useCallback((level: ToastLevel, message: string): void => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -447,6 +475,22 @@ export const App = (): JSX.Element => {
       toastTimers.current.clear();
     };
   }, []);
+
+  useEffect(() => {
+    if (autopilotLimitModal === null) {
+      return;
+    }
+
+    const dialog = autopilotModalDialogRef.current;
+    if (dialog === null) {
+      return;
+    }
+
+    const focusTarget = dialog.querySelector<HTMLElement>(
+      "#autopilot-max-turns-input:not(:disabled), #autopilot-limit-toggle",
+    );
+    focusTarget?.focus();
+  }, [autopilotLimitModal]);
 
   const loadSettingsView = useCallback(async (): Promise<void> => {
     setSettingsViewState({ status: "loading" });
@@ -677,7 +721,25 @@ export const App = (): JSX.Element => {
     }
 
     const provider = currentDrafts[providerId];
-    const initialFingerprint = fingerprintProvider(provider);
+    const savedFingerprint = savedDraftFingerprints?.[providerId] ?? null;
+    if (!isProviderDraftChanged({ provider, savedFingerprint })) {
+      const infoMessage = "No provider changes to test. Edit endpoint or key first.";
+      pushToast("info", infoMessage);
+      setDrafts((current) =>
+        current === null
+          ? current
+          : {
+              ...current,
+              [providerId]: {
+                ...current[providerId],
+                message: infoMessage,
+              },
+            },
+      );
+      return;
+    }
+
+    const initialFingerprint = fingerprintProviderDraft(provider);
     setDrafts((current) =>
       current === null
         ? current
@@ -696,7 +758,7 @@ export const App = (): JSX.Element => {
     });
 
     const latestDraft = draftsRef.current?.[providerId] ?? provider;
-    const draftChanged = fingerprintProvider(latestDraft) !== initialFingerprint;
+    const draftChanged = fingerprintProviderDraft(latestDraft) !== initialFingerprint;
     if (result.ok) {
       const toastMessage = draftChanged
         ? "Draft changed after test. Re-run test before saving."
@@ -1404,6 +1466,64 @@ export const App = (): JSX.Element => {
     await executeResumeCouncilRuntime(resolved.maxTurns);
   };
 
+  const handleAutopilotModalKeyDown = (event: ReactKeyboardEvent<HTMLDialogElement>): void => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeAutopilotLimitModal();
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void submitAutopilotLimitModal();
+    }
+  };
+
+  const handleTranscriptRowKeyDown = (
+    event: ReactKeyboardEvent<HTMLElement>,
+    currentIndex: number,
+    totalRows: number,
+  ): void => {
+    const nextIndex = resolveTranscriptFocusIndex({
+      currentIndex,
+      key: event.key,
+      totalItems: totalRows,
+    });
+    if (nextIndex === null || nextIndex === currentIndex) {
+      return;
+    }
+
+    event.preventDefault();
+    transcriptRowRefs.current[nextIndex]?.focus();
+  };
+
+  const handleHomeTabKeyDown = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    currentTab: HomeTab,
+  ): void => {
+    const currentIndex = HOME_TAB_ORDER.indexOf(currentTab);
+    if (currentIndex < 0) {
+      return;
+    }
+
+    const nextIndex = resolveHomeTabFocusIndex({
+      currentIndex,
+      key: event.key,
+      totalTabs: HOME_TAB_ORDER.length,
+    });
+    if (nextIndex === null || nextIndex === currentIndex) {
+      return;
+    }
+
+    event.preventDefault();
+    const nextTab = HOME_TAB_ORDER[nextIndex];
+    if (nextTab === undefined) {
+      return;
+    }
+    setHomeTab(nextTab);
+    homeTabButtonRefs.current[nextTab]?.focus();
+  };
+
   const generateManualTurn = async (): Promise<void> => {
     if (screen.kind !== "councilView" || councilViewState.status !== "ready") {
       return;
@@ -1985,6 +2105,8 @@ export const App = (): JSX.Element => {
           : "Resume";
     const autopilotDialogTitle =
       autopilotLimitModal?.action === "start" ? "Start Autopilot" : "Resume Autopilot";
+    const transcriptRowCount =
+      councilViewState.source.messages.length + (thinkingSpeakerName === null ? 0 : 1);
 
     return (
       <main className="shell">
@@ -2028,6 +2150,11 @@ export const App = (): JSX.Element => {
                 className="cta"
                 disabled={councilViewState.isStarting || isAutopilotModalOpen}
                 onClick={() => void startCouncilRuntime()}
+                title={
+                  council.invalidConfig
+                    ? "Start is disabled until model config is fixed."
+                    : undefined
+                }
                 type="button"
               >
                 {councilViewState.isStarting ? "Starting..." : "Start"}
@@ -2048,6 +2175,11 @@ export const App = (): JSX.Element => {
                 className="cta"
                 disabled={councilViewState.isResuming || isAutopilotModalOpen}
                 onClick={() => void resumeCouncilRuntime()}
+                title={
+                  council.invalidConfig
+                    ? "Resume is disabled until model config is fixed."
+                    : undefined
+                }
                 type="button"
               >
                 {councilViewState.isResuming ? "Resuming..." : "Resume"}
@@ -2203,8 +2335,20 @@ export const App = (): JSX.Element => {
             <p className="status">No messages yet.</p>
           ) : (
             <div className="list-grid">
-              {councilViewState.source.messages.map((message) => (
-                <article className="list-row" key={message.id}>
+              {councilViewState.source.messages.map((message, index) => (
+                <button
+                  aria-label={buildTranscriptMessageAriaLabel(message)}
+                  className="list-row transcript-row"
+                  data-transcript-row-index={index}
+                  key={message.id}
+                  onKeyDown={(event) =>
+                    handleTranscriptRowKeyDown(event, index, transcriptRowCount)
+                  }
+                  ref={(element) => {
+                    transcriptRowRefs.current[index] = element;
+                  }}
+                  type="button"
+                >
                   <div>
                     <h3>
                       {message.senderName} {message.senderKind === "conductor" ? "(Conductor)" : ""}
@@ -2214,15 +2358,30 @@ export const App = (): JSX.Element => {
                     </p>
                     <p className="meta">{message.content}</p>
                   </div>
-                </article>
+                </button>
               ))}
               {thinkingSpeakerName !== null ? (
-                <article className="list-row thinking-row">
+                <button
+                  aria-label={`${thinkingSpeakerName}, member, thinking placeholder.`}
+                  className="list-row thinking-row transcript-row"
+                  data-transcript-row-index={councilViewState.source.messages.length}
+                  onKeyDown={(event) =>
+                    handleTranscriptRowKeyDown(
+                      event,
+                      councilViewState.source.messages.length,
+                      transcriptRowCount,
+                    )
+                  }
+                  ref={(element) => {
+                    transcriptRowRefs.current[councilViewState.source.messages.length] = element;
+                  }}
+                  type="button"
+                >
                   <div>
                     <h3>{thinkingSpeakerName}</h3>
                     <p className="meta">Thinking...</p>
                   </div>
-                </article>
+                </button>
               ) : null}
             </div>
           )}
@@ -2230,8 +2389,15 @@ export const App = (): JSX.Element => {
 
         {autopilotLimitModal !== null ? (
           <div className="modal-backdrop" role="presentation">
-            <dialog className="modal-panel" open>
-              <h2>{autopilotDialogTitle}</h2>
+            <dialog
+              aria-labelledby="autopilot-limit-dialog-title"
+              aria-modal="true"
+              className="modal-panel"
+              onKeyDown={handleAutopilotModalKeyDown}
+              open
+              ref={autopilotModalDialogRef}
+            >
+              <h2 id="autopilot-limit-dialog-title">{autopilotDialogTitle}</h2>
               <p className="meta">Set an optional turn limit for this run.</p>
               <label className="checkbox-field" htmlFor="autopilot-limit-toggle">
                 <input
@@ -2506,7 +2672,11 @@ export const App = (): JSX.Element => {
               {councilEditorState.isRefreshingModels ? "Refreshing..." : "Refresh models"}
             </button>
             {invalidConfig ? (
-              <span className="warning-badge" title="Invalid config">
+              <span
+                aria-label="Invalid configuration"
+                className="warning-badge"
+                title="Invalid config"
+              >
                 Invalid config
               </span>
             ) : null}
@@ -2692,7 +2862,11 @@ export const App = (): JSX.Element => {
               {agentEditorState.isRefreshingModels ? "Refreshing..." : "Refresh models"}
             </button>
             {invalidConfig ? (
-              <span className="warning-badge" title="Invalid config">
+              <span
+                aria-label="Invalid configuration"
+                className="warning-badge"
+                title="Invalid config"
+              >
                 Invalid config
               </span>
             ) : null}
@@ -2717,7 +2891,12 @@ export const App = (): JSX.Element => {
   const renderHomeContent = (): JSX.Element => {
     if (homeTab === "councils") {
       return (
-        <section className="settings-section">
+        <section
+          aria-labelledby="home-tab-councils"
+          className="settings-section"
+          id="home-panel-councils"
+          role="tabpanel"
+        >
           <header className="section-header compact">
             <h2>Councils</h2>
             <p>{councilsTotal} total</p>
@@ -2776,7 +2955,12 @@ export const App = (): JSX.Element => {
           <div className="list-grid">
             {councils.map((council) => (
               <article className="list-row" key={council.id}>
-                <div>
+                <button
+                  aria-label={`Open council ${council.title}`}
+                  className="home-list-row"
+                  onClick={() => void openCouncilView(council.id)}
+                  type="button"
+                >
                   <h3>{council.title}</h3>
                   <p className="meta">Topic: {council.topic}</p>
                   <p className="meta">Mode: {council.mode}</p>
@@ -2792,15 +2976,19 @@ export const App = (): JSX.Element => {
                   <p className="meta">
                     Tags: {council.tags.length > 0 ? council.tags.join(", ") : "None"}
                   </p>
-                </div>
+                </button>
                 <div className="button-row">
                   {council.archived ? (
-                    <span className="warning-badge" title="Archived">
+                    <span aria-label="Archived council" className="warning-badge" title="Archived">
                       Archived
                     </span>
                   ) : null}
                   {council.invalidConfig ? (
-                    <span className="warning-badge" title="Invalid config">
+                    <span
+                      aria-label="Invalid configuration"
+                      className="warning-badge"
+                      title="Invalid config"
+                    >
                       Invalid config
                     </span>
                   ) : null}
@@ -2883,7 +3071,12 @@ export const App = (): JSX.Element => {
 
     if (homeTab === "agents") {
       return (
-        <section className="settings-section">
+        <section
+          aria-labelledby="home-tab-agents"
+          className="settings-section"
+          id="home-panel-agents"
+          role="tabpanel"
+        >
           <header className="section-header compact">
             <h2>Agents</h2>
             <p>{agentsTotal} total</p>
@@ -2932,17 +3125,26 @@ export const App = (): JSX.Element => {
           <div className="list-grid">
             {agents.map((agent) => (
               <article className="list-row" key={agent.id}>
-                <div>
+                <button
+                  aria-label={`Open agent ${agent.name}`}
+                  className="home-list-row"
+                  onClick={() => void openAgentEditor(agent.id)}
+                  type="button"
+                >
                   <h3>{agent.name}</h3>
                   <p className="meta">{agent.systemPrompt}</p>
                   <p className="meta">Model: {modelLabel(agent, agentsGlobalDefaultModel)}</p>
                   <p className="meta">
                     Tags: {agent.tags.length > 0 ? agent.tags.join(", ") : "None"}
                   </p>
-                </div>
+                </button>
                 <div className="button-row">
                   {agent.invalidConfig ? (
-                    <span className="warning-badge" title="Invalid config">
+                    <span
+                      aria-label="Invalid configuration"
+                      className="warning-badge"
+                      title="Invalid config"
+                    >
                       Invalid config
                     </span>
                   ) : null}
@@ -2974,7 +3176,12 @@ export const App = (): JSX.Element => {
 
     if (settingsViewState.status === "loading" || drafts === null) {
       return (
-        <section className="settings-section">
+        <section
+          aria-labelledby="home-tab-settings"
+          className="settings-section"
+          id="home-panel-settings"
+          role="tabpanel"
+        >
           <h2>Settings</h2>
           <p className="status">Loading settings...</p>
         </section>
@@ -2983,7 +3190,12 @@ export const App = (): JSX.Element => {
 
     if (settingsViewState.status === "error") {
       return (
-        <section className="settings-section">
+        <section
+          aria-labelledby="home-tab-settings"
+          className="settings-section"
+          id="home-panel-settings"
+          role="tabpanel"
+        >
           <h2>Settings</h2>
           <p className="status">Error: {settingsViewState.message}</p>
           <button className="cta" onClick={() => void loadSettingsView()} type="button">
@@ -2995,7 +3207,12 @@ export const App = (): JSX.Element => {
 
     return (
       <>
-        <section className="settings-section">
+        <section
+          aria-labelledby="home-tab-settings"
+          className="settings-section"
+          id="home-panel-settings"
+          role="tabpanel"
+        >
           <h2>Providers</h2>
           <div className="provider-grid">
             {providerOrder.map((providerId) => {
@@ -3003,11 +3220,26 @@ export const App = (): JSX.Element => {
               const savedProvider = settingsViewState.data.providers.find(
                 (item) => item.providerId === providerId,
               );
+              const savedFingerprint =
+                savedDraftFingerprints === null ? null : savedDraftFingerprints[providerId];
+              const connectionTestAllowed = isConnectionTestAllowed({
+                provider,
+                savedFingerprint,
+              });
+              const providerConfigured =
+                savedProvider !== undefined && isProviderConfigured(savedProvider);
               const showOllamaNote = providerId === "ollama";
 
               return (
                 <article className="provider-card" key={providerId}>
                   <h3>{PROVIDER_LABELS[providerId]}</h3>
+                  <p className="meta">
+                    <span
+                      className={`status-badge ${providerConfigured ? "status-badge-ok" : "status-badge-muted"}`}
+                    >
+                      {providerConfigured ? "Configured" : "Not configured"}
+                    </span>
+                  </p>
                   <p className="meta">
                     Last saved: {savedProvider?.lastSavedAtUtc ?? "Not saved yet"}
                   </p>
@@ -3053,8 +3285,13 @@ export const App = (): JSX.Element => {
                   <div className="button-row">
                     <button
                       className="cta"
-                      disabled={provider.isTesting || provider.isSaving}
+                      disabled={!connectionTestAllowed}
                       onClick={() => void runConnectionTest(providerId)}
+                      title={
+                        connectionTestAllowed
+                          ? "Test updated provider settings"
+                          : "Edit endpoint or key before running a new test"
+                      }
                       type="button"
                     >
                       {provider.isTesting ? "Testing..." : "Test connection"}
@@ -3107,7 +3344,11 @@ export const App = (): JSX.Element => {
               Save global default
             </button>
             {settingsViewState.data.globalDefaultModelInvalidConfig ? (
-              <span className="warning-badge" title="Invalid config">
+              <span
+                aria-label="Invalid configuration"
+                className="warning-badge"
+                title="Invalid config"
+              >
                 Invalid config
               </span>
             ) : null}
@@ -3157,24 +3398,51 @@ export const App = (): JSX.Element => {
       <header className="section-header">
         <h1>Council</h1>
         <p>Home tabs: Councils, Agents, Settings.</p>
-        <div className="tabs">
+        <div aria-label="Home tabs" className="tabs" role="tablist">
           <button
+            aria-controls="home-panel-councils"
+            aria-selected={homeTab === "councils"}
             className={homeTab === "councils" ? "tab tab-active" : "tab"}
+            id="home-tab-councils"
+            onKeyDown={(event) => handleHomeTabKeyDown(event, "councils")}
             onClick={() => setHomeTab("councils")}
+            ref={(element) => {
+              homeTabButtonRefs.current.councils = element;
+            }}
+            role="tab"
+            tabIndex={homeTab === "councils" ? 0 : -1}
             type="button"
           >
             Councils
           </button>
           <button
+            aria-controls="home-panel-agents"
+            aria-selected={homeTab === "agents"}
             className={homeTab === "agents" ? "tab tab-active" : "tab"}
+            id="home-tab-agents"
+            onKeyDown={(event) => handleHomeTabKeyDown(event, "agents")}
             onClick={() => setHomeTab("agents")}
+            ref={(element) => {
+              homeTabButtonRefs.current.agents = element;
+            }}
+            role="tab"
+            tabIndex={homeTab === "agents" ? 0 : -1}
             type="button"
           >
             Agents
           </button>
           <button
+            aria-controls="home-panel-settings"
+            aria-selected={homeTab === "settings"}
             className={homeTab === "settings" ? "tab tab-active" : "tab"}
+            id="home-tab-settings"
+            onKeyDown={(event) => handleHomeTabKeyDown(event, "settings")}
             onClick={() => setHomeTab("settings")}
+            ref={(element) => {
+              homeTabButtonRefs.current.settings = element;
+            }}
+            role="tab"
+            tabIndex={homeTab === "settings" ? 0 : -1}
             type="button"
           >
             Settings

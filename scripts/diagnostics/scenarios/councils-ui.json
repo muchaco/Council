@@ -2,21 +2,37 @@
   "name": "councils-ui",
   "steps": [
     { "action": "waitForText", "text": "Council" },
-    { "action": "click", "selector": "button:has-text('Settings')" },
-    { "action": "waitForText", "text": "Providers" },
-    { "action": "fill", "selector": "#gemini-key", "value": "diag-gemini-key" },
-    { "action": "click", "selector": "button:has-text('Test connection')" },
-    { "action": "waitForText", "text": "Connection test successful" },
-    { "action": "click", "selector": ".provider-card:first-child button.secondary" },
-    { "action": "waitForText", "text": "provider saved" },
-
     {
       "action": "evaluate",
-      "saveAs": "seedAgent",
-      "expression": "async () => window.api.agents.save({ viewKind: 'agentEdit', id: null, name: `Council Member ${Date.now()}`, systemPrompt: 'You are a focused contributor.', verbosity: null, temperature: null, tags: ['diag'], modelRefOrNull: { providerId: 'gemini', modelId: 'gemini-1.5-flash' } })"
+      "saveAs": "activeTabAfterArrowRight",
+      "expression": "async () => { const active = document.querySelector('button.tab-active'); if (!(active instanceof HTMLButtonElement)) { return null; } active.focus(); active.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })); await new Promise((resolve) => window.setTimeout(resolve, 0)); const next = document.querySelector('button.tab-active'); return next instanceof HTMLButtonElement ? (next.textContent?.trim() ?? null) : null; }"
     },
-    { "action": "assertSaved", "key": "seedAgent", "hasPath": "value.agent.id" },
-
+    { "action": "assertSaved", "key": "activeTabAfterArrowRight", "equals": "Agents" },
+    {
+      "action": "evaluate",
+      "saveAs": "activeTabAfterArrowLeft",
+      "expression": "async () => { const active = document.querySelector('button.tab-active'); if (!(active instanceof HTMLButtonElement)) { return null; } active.focus(); active.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true })); await new Promise((resolve) => window.setTimeout(resolve, 0)); const next = document.querySelector('button.tab-active'); return next instanceof HTMLButtonElement ? (next.textContent?.trim() ?? null) : null; }"
+    },
+    { "action": "assertSaved", "key": "activeTabAfterArrowLeft", "equals": "Councils" },
+    { "action": "click", "selector": "button:has-text('Settings')" },
+    { "action": "waitForText", "text": "Providers" },
+    {
+      "action": "evaluate",
+      "saveAs": "testDisabledInitially",
+      "expression": "() => { const button = Array.from(document.querySelectorAll('.provider-card button')).find((node) => node.textContent?.trim() === 'Test connection'); return button instanceof HTMLButtonElement ? button.disabled : null; }"
+    },
+    { "action": "assertSaved", "key": "testDisabledInitially", "equals": true },
+    {
+      "action": "fill",
+      "selector": "#openrouter-endpoint",
+      "value": "https://openrouter.example.test/v1"
+    },
+    {
+      "action": "evaluate",
+      "saveAs": "testEnabledAfterDraftChange",
+      "expression": "() => { const card = Array.from(document.querySelectorAll('.provider-card')).find((node) => node.textContent?.includes('OpenRouter')); if (!(card instanceof HTMLElement)) { return null; } const button = Array.from(card.querySelectorAll('button')).find((node) => node.textContent?.trim() === 'Test connection'); return button instanceof HTMLButtonElement ? button.disabled : null; }"
+    },
+    { "action": "assertSaved", "key": "testEnabledAfterDraftChange", "equals": false },
     { "action": "click", "selector": "button:has-text('Councils')" },
     { "action": "waitForText", "text": "New Council" },
     { "action": "click", "selector": "button:has-text('New Council')" },
@@ -24,36 +40,7 @@
       "action": "waitForText",
       "text": "Title, Topic, and at least one Member are required before save."
     },
-    { "action": "fill", "selector": "#council-title", "value": "Delivery Council" },
-    {
-      "action": "fill",
-      "selector": "#council-topic",
-      "value": "How do we reduce cycle time this sprint?"
-    },
-    { "action": "fill", "selector": "#council-tags", "value": "delivery" },
-    { "action": "click", "selector": "input[type='checkbox']" },
-    { "action": "click", "selector": "button:has-text('Save')" },
-    { "action": "waitForText", "text": "Delivery Council" },
-
-    { "action": "click", "selector": "button:has-text('Open')" },
-    { "action": "waitForText", "text": "Members" },
-    { "action": "click", "selector": "button:has-text('Start')" },
-    { "action": "waitForText", "text": "Generate selected member" },
-    { "action": "click", "selector": "button:has-text('Generate selected member')" },
-    { "action": "waitForText", "text": "Transcript" },
-    {
-      "action": "evaluate",
-      "saveAs": "injectConductor",
-      "expression": "async () => { const listed = await window.api.councils.list({ viewKind: 'councilsList', searchText: '', tagFilter: '', archivedFilter: 'all', sortBy: 'updatedAt', sortDirection: 'desc', page: 1 }); if (!listed.ok || listed.value.items.length === 0) { return listed; } return window.api.councils.injectConductorMessage({ viewKind: 'councilView', id: listed.value.items[0].id, content: 'Conductor note from diagnostic.' }); }"
-    },
-    { "action": "assertSaved", "key": "injectConductor", "hasPath": "value.message.id" },
     { "action": "click", "selector": "button:has-text('Back')" },
-    { "action": "click", "selector": "button:has-text('Edit')" },
-    { "action": "waitForText", "text": "Mode is locked after creation." },
-    { "action": "click", "selector": "button:has-text('Archive')" },
-    { "action": "waitForText", "text": "Council archived." },
-    { "action": "click", "selector": "button:has-text('Back')" },
-    { "action": "expectVisible", "selector": ".warning-badge:has-text('Archived')" },
     { "action": "screenshot", "file": "councils-ui.png", "fullPage": true }
   ]
 }

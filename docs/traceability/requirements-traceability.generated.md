@@ -1,14 +1,14 @@
 # Test-to-Requirement Index (Generated)
 
-Generated at: 2026-02-19T10:56:21.991Z
+Generated at: 2026-02-19T12:42:51.799Z
 
 ## Summary
 
-- Spec files tracked: 24
-- Test cases tracked: 117
-- Annotated test cases: 117
+- Spec files tracked: 27
+- Test cases tracked: 128
+- Annotated test cases: 128
 - Unmapped test cases: 0
-- Unique mapped requirement IDs: 122
+- Unique mapped requirement IDs: 127
 
 ## Index
 
@@ -86,6 +86,11 @@ Generated at: 2026-02-19T10:56:21.991Z
 - `tests/unit/council-runtime-context-window.spec.ts`
   - [itReq] `normalizes out-of-range values` -> E1, F1
   - [itReq] `selects only the last N messages with omitted count` -> E1, F1
+- `tests/unit/council-view-accessibility.spec.ts`
+  - [itReq] `moves focus down and up within transcript bounds` -> U15.2
+  - [itReq] `supports Home and End keyboard navigation` -> U15.2
+  - [itReq] `returns null for unsupported keys` -> U15.2
+  - [itReq] `builds descriptive aria labels with identity and message details` -> U15.3, U15.4
 - `tests/unit/council-view-autopilot-recovery.spec.ts`
   - [itReq] `returns notice when autopilot is paused with runtime error` -> U12.6
   - [itReq] `returns null when message is empty` -> U12.6
@@ -97,6 +102,11 @@ Generated at: 2026-02-19T10:56:21.991Z
 - `tests/unit/domain-errors-shape.spec.ts`
   - [itReq] `exposes stable error kinds` -> E2, E3
   - [itReq] `builds typed error objects` -> E2, E3
+- `tests/unit/home-keyboard-accessibility.spec.ts`
+  - [itReq] `cycles tab focus index with ArrowRight and ArrowLeft` -> U15.2
+  - [itReq] `supports Home and End for tab keyboard navigation` -> U15.2
+  - [itReq] `returns null for unsupported tab navigation keys` -> U15.2
+  - [itReq] `recognizes Enter and Space list-row open keys` -> U15.2
 - `tests/unit/ids.spec.ts`
   - [itReq] `preserves raw values while branding` -> I1
 - `tests/unit/in-memory-keychain-service.spec.ts`
@@ -145,6 +155,10 @@ Generated at: 2026-02-19T10:56:21.991Z
   - [itReq] `calls Ollama without API key when credential ref is absent` -> C1, D1, D2, D3, R8.1
   - [itReq] `maps keychain read failures to provider error` -> C1, D1, D2, D3, R8.1
   - [itReq] `calls Gemini with API key header instead of query param` -> C1, D1, D2, D3, R8.1
+- `tests/unit/provider-settings-ui.spec.ts`
+  - [itReq] `builds stable provider draft fingerprints` -> U5.3
+  - [itReq] `detects provider draft changes against saved fingerprint` -> U5.3
+  - [itReq] `marks provider as configured when saved` -> U5.2
 - `tests/unit/tag-value-object.spec.ts`
   - [itReq] `accepts valid tags and trims whitespace` -> E1, E2, R5.6, R5.7
   - [itReq] `rejects duplicate tags case-insensitively` -> E1, E2, R5.6, R5.7
