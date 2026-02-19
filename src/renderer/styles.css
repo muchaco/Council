@@ -450,6 +450,15 @@ textarea:focus-visible,
   opacity: 0.9;
 }
 
+.thinking-row-group {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.thinking-cancel-button {
+  justify-self: start;
+}
+
 .row-menu {
   position: relative;
 }

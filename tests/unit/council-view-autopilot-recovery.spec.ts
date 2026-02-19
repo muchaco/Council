@@ -1,5 +1,8 @@
 import { describe, expect } from "vitest";
-import { buildAutopilotRecoveryNotice } from "../../src/shared/council-view-autopilot-recovery";
+import {
+  buildAutopilotRecoveryNotice,
+  buildManualRetryNotice,
+} from "../../src/shared/council-view-autopilot-recovery";
 import { itReq } from "../helpers/requirement-trace";
 
 describe("council view autopilot recovery", () => {
@@ -51,5 +54,36 @@ describe("council view autopilot recovery", () => {
 
     expect(manualNotice).toBeNull();
     expect(runningAutopilotNotice).toBeNull();
+  });
+
+  itReq(["U13.4"], "returns manual retry guidance copy for manual runtime errors", () => {
+    const notice = buildManualRetryNotice({
+      council: {
+        mode: "manual",
+      },
+      runtimeMessage: "Message generation failed.",
+    });
+
+    expect(notice).toContain("Message generation failed.");
+    expect(notice).toContain("same member or a different member to retry");
+  });
+
+  itReq(["U13.4"], "returns null manual retry guidance for non-manual mode or empty text", () => {
+    expect(
+      buildManualRetryNotice({
+        council: {
+          mode: "autopilot",
+        },
+        runtimeMessage: "Message generation failed.",
+      }),
+    ).toBeNull();
+    expect(
+      buildManualRetryNotice({
+        council: {
+          mode: "manual",
+        },
+        runtimeMessage: "   ",
+      }),
+    ).toBeNull();
   });
 });

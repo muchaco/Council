@@ -37,6 +37,30 @@
       "key": "transcriptActionAffordancesHidden",
       "equals": true
     },
+    { "action": "click", "selector": "button:has-text('Start')" },
+    {
+      "action": "fill",
+      "selector": "textarea",
+      "value": "First transcript diagnostic message."
+    },
+    { "action": "click", "selector": "button:has-text('Send as Conductor')" },
+    { "action": "waitForText", "text": "Conductor message added." },
+    {
+      "action": "evaluate",
+      "saveAs": "emptyStateHiddenAfterFirstMessage",
+      "expression": "() => !document.body.textContent?.includes('No messages yet.')"
+    },
+    { "action": "assertSaved", "key": "emptyStateHiddenAfterFirstMessage", "equals": true },
+    {
+      "action": "evaluate",
+      "saveAs": "transcriptStartHiddenAfterFirstMessage",
+      "expression": "() => { const transcriptSection = Array.from(document.querySelectorAll('.council-view-left-column .settings-section')).find((section) => section.querySelector('h2')?.textContent?.trim() === 'Transcript'); if (!(transcriptSection instanceof HTMLElement)) { return false; } return Array.from(transcriptSection.querySelectorAll('button')).every((button) => button.textContent?.trim() !== 'Start'); }"
+    },
+    {
+      "action": "assertSaved",
+      "key": "transcriptStartHiddenAfterFirstMessage",
+      "equals": true
+    },
     { "action": "screenshot", "file": "council-view-transcript.png", "fullPage": true }
   ]
 }

@@ -1,11 +1,11 @@
 {
-  "generatedAtUtc": "2026-02-19T20:18:59.240Z",
+  "generatedAtUtc": "2026-02-19T20:38:51.553Z",
   "summary": {
-    "specFilesTracked": 30,
-    "testCasesTracked": 147,
-    "annotatedTestCases": 147,
+    "specFilesTracked": 31,
+    "testCasesTracked": 156,
+    "annotatedTestCases": 156,
     "unmappedTestCases": 0,
-    "mappedRequirementIds": 147
+    "mappedRequirementIds": 152
   },
   "entries": [
     {
@@ -2250,11 +2250,70 @@
             "U12.6"
           ],
           "source": "itReq"
+        },
+        {
+          "name": "returns manual retry guidance copy for manual runtime errors",
+          "requirementIds": [
+            "U13.4"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "returns null manual retry guidance for non-manual mode or empty text",
+          "requirementIds": [
+            "U13.4"
+          ],
+          "source": "itReq"
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 3,
-      "totalTestCount": 3
+      "itReqInvocationCount": 5,
+      "totalTestCount": 5
+    },
+    {
+      "filePath": "tests/unit/council-view-runtime-controls.spec.ts",
+      "cases": [
+        {
+          "name": "shows Start in empty-state panel before autopilot begins",
+          "requirementIds": [
+            "U12.1",
+            "U8.9"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "hides empty-state Start after first message and keeps autopilot controls state-machine driven",
+          "requirementIds": [
+            "U12.3",
+            "U8.10"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "surfaces Pause only while autopilot is running",
+          "requirementIds": [
+            "U12.3"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "surfaces Resume only while autopilot is paused",
+          "requirementIds": [
+            "U12.3"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "keeps manual Start in top controls instead of empty-state panel",
+          "requirementIds": [
+            "U8.9"
+          ],
+          "source": "itReq"
+        }
+      ],
+      "plainItCount": 0,
+      "itReqInvocationCount": 5,
+      "totalTestCount": 5
     },
     {
       "filePath": "tests/unit/council-view-runtime-guards.spec.ts",
@@ -2316,11 +2375,26 @@
             "U8.4"
           ],
           "source": "itReq"
+        },
+        {
+          "name": "resolves thinking speaker for running or pending member generation",
+          "requirementIds": [
+            "U8.6",
+            "U8.8"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "shows inline cancel only when a thinking placeholder is visible",
+          "requirementIds": [
+            "U8.7"
+          ],
+          "source": "itReq"
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 3,
-      "totalTestCount": 3
+      "itReqInvocationCount": 5,
+      "totalTestCount": 5
     },
     {
       "filePath": "tests/unit/domain-errors-shape.spec.ts",

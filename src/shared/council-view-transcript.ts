@@ -7,9 +7,32 @@ const DEFAULT_CONDUCTOR_ACCENT_COLOR = "#1d4ed8";
 
 export type TranscriptMessageAlignment = "left" | "right";
 
+export type ThinkingPlaceholderSpeakerIdParams = {
+  generation: {
+    status: "idle" | "running";
+    activeMemberAgentId: string | null;
+  };
+  pendingManualMemberAgentId: string | null;
+};
+
 export const resolveTranscriptMessageAlignment = (
   message: Pick<CouncilMessageDto, "senderKind">,
 ): TranscriptMessageAlignment => (message.senderKind === "conductor" ? "right" : "left");
+
+export const resolveThinkingPlaceholderSpeakerId = (
+  params: ThinkingPlaceholderSpeakerIdParams,
+): string | null => {
+  if (params.generation.status === "running" && params.generation.activeMemberAgentId !== null) {
+    return params.generation.activeMemberAgentId;
+  }
+
+  return params.pendingManualMemberAgentId;
+};
+
+export const shouldRenderInlineThinkingCancel = (params: {
+  generationActive: boolean;
+  thinkingSpeakerId: string | null;
+}): boolean => params.generationActive && params.thinkingSpeakerId !== null;
 
 export const resolveTranscriptAccentColor = (
   message: Pick<CouncilMessageDto, "senderKind" | "senderColor">,

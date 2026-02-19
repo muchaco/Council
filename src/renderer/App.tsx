@@ -28,15 +28,21 @@ import {
   resolveInlineConfigEditKeyboardAction,
   resolveTranscriptFocusIndex,
 } from "../shared/council-view-accessibility.js";
-import { buildAutopilotRecoveryNotice } from "../shared/council-view-autopilot-recovery";
+import {
+  buildAutopilotRecoveryNotice,
+  buildManualRetryNotice,
+} from "../shared/council-view-autopilot-recovery";
+import { resolveCouncilViewRuntimeControls } from "../shared/council-view-runtime-controls.js";
 import {
   COUNCIL_VIEW_EXIT_CONFIRMATION_MESSAGE,
   buildCouncilViewExitPlan,
 } from "../shared/council-view-runtime-guards";
 import {
+  resolveThinkingPlaceholderSpeakerId,
   resolveTranscriptAccentColor,
   resolveTranscriptAvatarInitials,
   resolveTranscriptMessageAlignment,
+  shouldRenderInlineThinkingCancel,
 } from "../shared/council-view-transcript.js";
 import type { ModelRef } from "../shared/domain/model-ref";
 import { resolveHomeTabFocusIndex } from "../shared/home-keyboard-accessibility.js";
@@ -178,6 +184,7 @@ type CouncilViewState =
       isPausing: boolean;
       isResuming: boolean;
       isGeneratingManualTurn: boolean;
+      pendingManualMemberAgentId: string | null;
       isInjectingConductor: boolean;
       isAdvancingAutopilot: boolean;
       isCancellingGeneration: boolean;
@@ -197,6 +204,7 @@ type CouncilViewState =
       showMemberRemoveDialog: boolean;
       pendingMemberRemovalId: string | null;
       conductorDraft: string;
+      manualTurnRetryMessage: string | null;
       message: string;
     }
   | { status: "error"; message: string };
@@ -1199,6 +1207,7 @@ export const App = (): JSX.Element => {
         isPausing: false,
         isResuming: false,
         isGeneratingManualTurn: false,
+        pendingManualMemberAgentId: null,
         isInjectingConductor: false,
         isAdvancingAutopilot: false,
         isCancellingGeneration: false,
@@ -1218,6 +1227,7 @@ export const App = (): JSX.Element => {
         showMemberRemoveDialog: false,
         pendingMemberRemovalId: null,
         conductorDraft: "",
+        manualTurnRetryMessage: null,
         message: "",
       });
     },
@@ -2059,6 +2069,8 @@ export const App = (): JSX.Element => {
         : {
             ...current,
             isGeneratingManualTurn: true,
+            pendingManualMemberAgentId: memberAgentId,
+            manualTurnRetryMessage: null,
             message: "",
           },
     );
@@ -2076,7 +2088,9 @@ export const App = (): JSX.Element => {
           : {
               ...current,
               isGeneratingManualTurn: false,
-              message: result.error.userMessage,
+              pendingManualMemberAgentId: null,
+              manualTurnRetryMessage: result.error.userMessage,
+              message: "",
             },
       );
       return;
@@ -2705,10 +2719,20 @@ export const App = (): JSX.Element => {
     const memberNameById = new Map(
       councilViewState.source.availableAgents.map((agent) => [agent.id, agent.name]),
     );
-    const canStart = !council.started && !council.archived;
-    const canPause = council.mode === "autopilot" && council.started && !council.paused;
-    const canResume = council.mode === "autopilot" && council.started && council.paused;
+    const runtimeControls = resolveCouncilViewRuntimeControls({
+      mode: council.mode,
+      started: council.started,
+      paused: council.paused,
+      archived: council.archived,
+      messageCount: councilViewState.source.messages.length,
+    });
+    const canStart = runtimeControls.canStart;
+    const canPause = runtimeControls.canPause;
+    const canResume = runtimeControls.canResume;
+    const showTopBarStart = runtimeControls.showTopBarStart;
+    const showEmptyStateStart = runtimeControls.showEmptyStateStart;
     const generationRunning = councilViewState.source.generation.status === "running";
+    const generationActive = generationRunning || councilViewState.isGeneratingManualTurn;
     const canManualGenerate = council.mode === "manual" && council.started && !council.archived;
     const canAdvanceAutopilot = council.mode === "autopilot" && council.started && !council.paused;
     const generation = councilViewState.source.generation;
@@ -2718,10 +2742,10 @@ export const App = (): JSX.Element => {
       pausedNextSpeakerId === null
         ? null
         : (memberNameById.get(pausedNextSpeakerId) ?? pausedNextSpeakerId);
-    const thinkingSpeakerId =
-      generation.status === "running" && generation.kind === "autopilotStep"
-        ? generation.activeMemberAgentId
-        : null;
+    const thinkingSpeakerId = resolveThinkingPlaceholderSpeakerId({
+      generation,
+      pendingManualMemberAgentId: councilViewState.pendingManualMemberAgentId,
+    });
     const thinkingSpeakerName =
       thinkingSpeakerId === null
         ? null
@@ -2732,6 +2756,10 @@ export const App = (): JSX.Element => {
         : (council.memberColorsByAgentId[thinkingSpeakerId] ??
           MEMBER_COLOR_PALETTE[0] ??
           "#0a5c66");
+    const showInlineThinkingCancel = shouldRenderInlineThinkingCancel({
+      generationActive,
+      thinkingSpeakerId,
+    });
     const autopilotRecoveryNotice = buildAutopilotRecoveryNotice({
       council: {
         mode: council.mode,
@@ -2739,6 +2767,12 @@ export const App = (): JSX.Element => {
         paused: council.paused,
       },
       runtimeMessage: councilViewState.message,
+    });
+    const manualRetryNotice = buildManualRetryNotice({
+      council: {
+        mode: council.mode,
+      },
+      runtimeMessage: councilViewState.manualTurnRetryMessage,
     });
     const isAutopilotModalOpen = autopilotLimitModal !== null;
     const autopilotSubmitLabel =
@@ -2751,6 +2785,14 @@ export const App = (): JSX.Element => {
           : "Resume";
     const autopilotDialogTitle =
       autopilotLimitModal?.action === "start" ? "Start Autopilot" : "Resume Autopilot";
+    const startDisabled =
+      councilViewState.isStarting ||
+      council.invalidConfig ||
+      isAutopilotModalOpen ||
+      councilViewState.configEdit !== null;
+    const startDisabledReason = council.invalidConfig
+      ? "Start is disabled until model config is fixed."
+      : undefined;
     const transcriptRowCount =
       councilViewState.source.messages.length + (thinkingSpeakerName === null ? 0 : 1);
     const configEditField = councilViewState.configEdit?.field ?? null;
@@ -2798,21 +2840,12 @@ export const App = (): JSX.Element => {
             >
               {councilViewState.isLeavingView ? "Leaving..." : "Back"}
             </button>
-            {canStart ? (
+            {showTopBarStart ? (
               <button
                 className="cta"
-                disabled={
-                  councilViewState.isStarting ||
-                  council.invalidConfig ||
-                  isAutopilotModalOpen ||
-                  councilViewState.configEdit !== null
-                }
+                disabled={startDisabled}
                 onClick={() => void startCouncilRuntime()}
-                title={
-                  council.invalidConfig
-                    ? "Start is disabled until model config is fixed."
-                    : undefined
-                }
+                title={startDisabledReason}
                 type="button"
               >
                 {councilViewState.isStarting ? "Starting..." : "Start"}
@@ -2871,7 +2904,7 @@ export const App = (): JSX.Element => {
                 Invalid config
               </span>
             ) : null}
-            {generationRunning ? (
+            {generationActive && !showInlineThinkingCancel ? (
               <button
                 className="secondary"
                 disabled={
@@ -2969,12 +3002,30 @@ export const App = (): JSX.Element => {
                 {autopilotRecoveryNotice !== null ? (
                   <p className="status status-error">{autopilotRecoveryNotice}</p>
                 ) : null}
+                {manualRetryNotice !== null ? (
+                  <p className="status status-error">{manualRetryNotice}</p>
+                ) : null}
                 {councilViewState.source.messages.length === 0 && thinkingSpeakerName === null ? (
-                  <p className="status">
-                    {council.mode === "manual"
-                      ? "No messages yet. Choose the next speaker from Members."
-                      : "No messages yet."}
-                  </p>
+                  <div className="status">
+                    <p>
+                      {council.mode === "manual"
+                        ? "No messages yet. Choose the next speaker from Members."
+                        : "No messages yet."}
+                    </p>
+                    {showEmptyStateStart ? (
+                      <div className="button-row">
+                        <button
+                          className="cta"
+                          disabled={startDisabled}
+                          onClick={() => void startCouncilRuntime()}
+                          title={startDisabledReason}
+                          type="button"
+                        >
+                          {councilViewState.isStarting ? "Starting..." : "Start"}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                 ) : (
                   <div className="list-grid transcript-scroll-panel">
                     {councilViewState.source.messages.map((message, index) => (
@@ -3020,41 +3071,58 @@ export const App = (): JSX.Element => {
                       </button>
                     ))}
                     {thinkingSpeakerName !== null ? (
-                      <button
-                        aria-label={`${thinkingSpeakerName}, member, thinking placeholder.`}
-                        className="thinking-row transcript-row transcript-row-member"
-                        data-transcript-row-index={councilViewState.source.messages.length}
-                        onKeyDown={(event) =>
-                          handleTranscriptRowKeyDown(
-                            event,
-                            councilViewState.source.messages.length,
-                            transcriptRowCount,
-                          )
-                        }
-                        ref={(element) => {
-                          transcriptRowRefs.current[councilViewState.source.messages.length] =
-                            element;
-                        }}
-                        type="button"
-                      >
-                        <div
-                          className="transcript-message"
-                          style={
-                            {
-                              "--transcript-accent": thinkingSpeakerColor ?? "#0a5c66",
-                            } as CSSProperties
+                      <div className="thinking-row-group">
+                        <button
+                          aria-label={`${thinkingSpeakerName}, member, thinking placeholder.`}
+                          className="thinking-row transcript-row transcript-row-member"
+                          data-transcript-row-index={councilViewState.source.messages.length}
+                          onKeyDown={(event) =>
+                            handleTranscriptRowKeyDown(
+                              event,
+                              councilViewState.source.messages.length,
+                              transcriptRowCount,
+                            )
                           }
+                          ref={(element) => {
+                            transcriptRowRefs.current[councilViewState.source.messages.length] =
+                              element;
+                          }}
+                          type="button"
                         >
-                          <span aria-hidden="true" className="transcript-avatar">
-                            {resolveTranscriptAvatarInitials(thinkingSpeakerName)}
-                          </span>
-                          <div className="transcript-bubble">
-                            <p className="meta transcript-sender-name">{thinkingSpeakerName}</p>
-                            <p className="transcript-content">...</p>
-                            <p className="meta transcript-timestamp">Thinking...</p>
+                          <div
+                            className="transcript-message"
+                            style={
+                              {
+                                "--transcript-accent": thinkingSpeakerColor ?? "#0a5c66",
+                              } as CSSProperties
+                            }
+                          >
+                            <span aria-hidden="true" className="transcript-avatar">
+                              {resolveTranscriptAvatarInitials(thinkingSpeakerName)}
+                            </span>
+                            <div className="transcript-bubble">
+                              <p className="meta transcript-sender-name">{thinkingSpeakerName}</p>
+                              <p className="transcript-content">...</p>
+                              <p className="meta transcript-timestamp">Thinking...</p>
+                            </div>
                           </div>
-                        </div>
-                      </button>
+                        </button>
+                        {showInlineThinkingCancel ? (
+                          <button
+                            className="secondary thinking-cancel-button"
+                            disabled={
+                              councilViewState.isCancellingGeneration ||
+                              councilViewState.configEdit !== null
+                            }
+                            onClick={() => void cancelCouncilGeneration()}
+                            type="button"
+                          >
+                            {councilViewState.isCancellingGeneration
+                              ? "Cancelling..."
+                              : "Cancel generation"}
+                          </button>
+                        ) : null}
+                      </div>
                     ) : null}
                   </div>
                 )}

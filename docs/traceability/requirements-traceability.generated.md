@@ -1,14 +1,14 @@
 # Test-to-Requirement Index (Generated)
 
-Generated at: 2026-02-19T20:18:59.240Z
+Generated at: 2026-02-19T20:38:51.553Z
 
 ## Summary
 
-- Spec files tracked: 30
-- Test cases tracked: 147
-- Annotated test cases: 147
+- Spec files tracked: 31
+- Test cases tracked: 156
+- Annotated test cases: 156
 - Unmapped test cases: 0
-- Unique mapped requirement IDs: 147
+- Unique mapped requirement IDs: 152
 
 ## Index
 
@@ -112,6 +112,14 @@ Generated at: 2026-02-19T20:18:59.240Z
   - [itReq] `returns notice when autopilot is paused with runtime error` -> U12.6
   - [itReq] `returns null when message is empty` -> U12.6
   - [itReq] `returns null when council is not paused autopilot` -> U12.6
+  - [itReq] `returns manual retry guidance copy for manual runtime errors` -> U13.4
+  - [itReq] `returns null manual retry guidance for non-manual mode or empty text` -> U13.4
+- `tests/unit/council-view-runtime-controls.spec.ts`
+  - [itReq] `shows Start in empty-state panel before autopilot begins` -> U12.1, U8.9
+  - [itReq] `hides empty-state Start after first message and keeps autopilot controls state-machine driven` -> U12.3, U8.10
+  - [itReq] `surfaces Pause only while autopilot is running` -> U12.3
+  - [itReq] `surfaces Resume only while autopilot is paused` -> U12.3
+  - [itReq] `keeps manual Start in top controls instead of empty-state panel` -> U8.9
 - `tests/unit/council-view-runtime-guards.spec.ts`
   - [itReq] `uses council view leave confirmation copy` -> U11.2
   - [itReq] `requires confirmation and pause when autopilot is running` -> R3.12
@@ -121,6 +129,8 @@ Generated at: 2026-02-19T20:18:59.240Z
   - [itReq] `renders member and conductor messages on opposite sides` -> U13.3, U8.4
   - [itReq] `uses sender color accents with stable fallbacks` -> U8.4
   - [itReq] `builds avatar initials from sender names` -> U8.4
+  - [itReq] `resolves thinking speaker for running or pending member generation` -> U8.6, U8.8
+  - [itReq] `shows inline cancel only when a thinking placeholder is visible` -> U8.7
 - `tests/unit/domain-errors-shape.spec.ts`
   - [itReq] `exposes stable error kinds` -> E2, E3
   - [itReq] `builds typed error objects` -> E2, E3
