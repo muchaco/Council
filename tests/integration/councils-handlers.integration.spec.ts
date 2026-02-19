@@ -5,6 +5,7 @@ import { asAgentId, asCouncilId } from "../../src/shared/domain/ids";
 import { itReq } from "../helpers/requirement-trace";
 
 const FILE_REQUIREMENT_IDS = [
+  "R1.11",
   "R2.1",
   "R2.2",
   "R2.3",
@@ -77,6 +78,7 @@ const FILE_REQUIREMENT_IDS = [
   "U13.4",
   "U16.1",
   "U16.2",
+  "U16.4",
   "U9.3",
   "U9.6",
   "U9.7",
@@ -97,6 +99,7 @@ const AVAILABLE_AGENTS = [
 ];
 const PRIMARY_AGENT_ID = "00000000-0000-4000-8000-000000000101";
 const SECONDARY_AGENT_ID = "00000000-0000-4000-8000-000000000102";
+const INVALID_AGENT_ID = "00000000-0000-4000-8000-000000000103";
 
 type TestMessage = {
   id: string;
@@ -122,6 +125,11 @@ const createSlice = (options?: {
   failConductorDecision?: boolean;
   providerFailuresBeforeSuccess?: number;
   contextLastN?: number;
+  availableAgents?: ReadonlyArray<{
+    id: string;
+    name: string;
+    invalidConfig: boolean;
+  }>;
   initialCouncils?: ReadonlyArray<CouncilRecord>;
 }) => {
   let sequence = 0;
@@ -131,6 +139,7 @@ const createSlice = (options?: {
   const briefingsByCouncilId = new Map<string, TestBriefing>();
 
   const generationDelayMs = options?.generationDelayMs ?? 0;
+  const availableAgents = options?.availableAgents ?? AVAILABLE_AGENTS;
   let providerFailuresRemaining = options?.providerFailuresBeforeSuccess ?? 0;
   const refreshModelCatalogCalls: Array<"councilsList" | "councilCreate" | "councilView"> = [];
   const memberPrompts: Array<string> = [];
@@ -209,7 +218,7 @@ const createSlice = (options?: {
             };
           })(),
         ),
-      listAvailableAgents: () => okAsync(AVAILABLE_AGENTS),
+      listAvailableAgents: () => okAsync(availableAgents),
       loadCouncilMessages: (councilId) =>
         okAsync((messagesByCouncilId.get(councilId) ?? []) as never),
       appendCouncilMessage: (message) => {
@@ -659,6 +668,87 @@ describe("councils handlers", () => {
     expect(changed.isErr()).toBe(true);
     expect(changed._unsafeUnwrapErr().kind).toBe("StateViolationError");
   });
+
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "allows invalid-config agents as members but blocks start and resume until fixed",
+    async () => {
+      const invalidAgents = [
+        ...AVAILABLE_AGENTS,
+        {
+          id: INVALID_AGENT_ID,
+          name: "Legacy Member",
+          invalidConfig: true,
+        },
+      ];
+
+      const slice = createSlice({ availableAgents: invalidAgents });
+      const saved = await slice.saveCouncil({
+        webContentsId: 224,
+        draft: {
+          viewKind: "councilCreate",
+          id: null,
+          title: "Invalid Member Council",
+          topic: "Compatibility checks",
+          goal: null,
+          mode: "autopilot",
+          tags: [],
+          memberAgentIds: [INVALID_AGENT_ID],
+          memberColorsByAgentId: {},
+          conductorModelRefOrNull: null,
+        },
+      });
+      expect(saved.isOk()).toBe(true);
+      if (saved.isErr()) {
+        return;
+      }
+
+      const startBlocked = await slice.startCouncil({
+        webContentsId: 224,
+        id: saved.value.council.id,
+        maxTurns: null,
+      });
+      expect(startBlocked.isErr()).toBe(true);
+      if (startBlocked.isErr()) {
+        expect(startBlocked.error.kind).toBe("StateViolationError");
+      }
+
+      const resumeSlice = createSlice({
+        availableAgents: invalidAgents,
+        initialCouncils: [
+          {
+            id: asCouncilId("00000000-0000-4000-8000-999999999902"),
+            title: "Invalid Member Resume Council",
+            topic: "Resume gating",
+            goal: null,
+            mode: "autopilot",
+            tags: [],
+            memberAgentIds: [asAgentId(INVALID_AGENT_ID)],
+            memberColorsByAgentId: {},
+            conductorModelRefOrNull: null,
+            archivedAtUtc: null,
+            startedAtUtc: "2026-02-18T10:00:00.000Z",
+            autopilotPaused: true,
+            autopilotMaxTurns: null,
+            autopilotTurnsCompleted: 0,
+            turnCount: 1,
+            createdAtUtc: "2026-02-18T10:00:00.000Z",
+            updatedAtUtc: "2026-02-18T10:00:00.000Z",
+          },
+        ],
+      });
+
+      const resumeBlocked = await resumeSlice.resumeCouncilAutopilot({
+        webContentsId: 224,
+        id: "00000000-0000-4000-8000-999999999902",
+        maxTurns: null,
+      });
+      expect(resumeBlocked.isErr()).toBe(true);
+      if (resumeBlocked.isErr()) {
+        expect(resumeBlocked.error.kind).toBe("StateViolationError");
+      }
+    },
+  );
 
   itReq(
     FILE_REQUIREMENT_IDS,

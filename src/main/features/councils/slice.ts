@@ -1236,126 +1236,152 @@ export const createCouncilsSlice = (
       webContentsId,
       councilId: id,
       viewKind: "councilView",
-    }).andThen(({ council, modelContext, availableModelKeys }) => {
-      if (council.topic.trim().length === 0) {
-        return errAsync(
-          validationError(
-            `Council ${id} cannot start without a topic`,
-            "Topic is required before starting the council.",
-          ),
-        );
-      }
-
-      if (council.memberAgentIds.length === 0) {
-        return errAsync(
-          validationError(
-            `Council ${id} cannot start without members`,
-            "At least one member is required before starting the council.",
-          ),
-        );
-      }
-
-      if (council.archivedAtUtc !== null) {
-        return errAsync(
-          stateError(`Council ${id} is archived`, "Archived councils are read-only."),
-        );
-      }
-
-      if (
-        isModelConfigInvalid({
-          modelRefOrNull: council.conductorModelRefOrNull,
-          globalDefaultModelRef: modelContext.globalDefaultModelRef,
-          availableModelKeys,
-        })
-      ) {
-        return errAsync(
-          stateError(
-            `Council ${id} has invalid model configuration`,
-            "Cannot start because model configuration is invalid.",
-          ),
-        );
-      }
-
-      if (council.startedAtUtc !== null) {
-        return errAsync(stateError(`Council ${id} already started`, "Council is already started."));
-      }
-
-      const normalizedMaxTurns = normalizeAutopilotMaxTurns(maxTurns);
-      const now = dependencies.nowUtc();
-      const next: CouncilRecord = {
-        ...council,
-        startedAtUtc: now,
-        autopilotPaused: council.mode === "autopilot" ? false : council.autopilotPaused,
-        autopilotMaxTurns: council.mode === "autopilot" ? normalizedMaxTurns : null,
-        autopilotTurnsCompleted: council.mode === "autopilot" ? 0 : council.autopilotTurnsCompleted,
-        updatedAtUtc: now,
-      };
-
-      return persistCouncil(next).andThen(() => {
-        records.set(next.id, next);
-        plannedNextSpeakerByCouncilId.delete(next.id);
-        if (next.mode !== "autopilot") {
-          return okAsync({
-            council: toCouncilDto({
-              record: next,
-              availableModelKeys,
-              globalDefaultModelRef: modelContext.globalDefaultModelRef,
-            }),
-          } satisfies StartCouncilResponse);
-        }
-
-        return runAutopilotOpeningDecision({
+    }).andThen(({ council, modelContext, availableModelKeys }) =>
+      dependencies
+        .listAvailableAgents({
           webContentsId,
-          council: next,
-          modelContext,
+          viewKind: "councilView",
         })
-          .andThen((opening) => {
-            const openingTimestamp = dependencies.nowUtc();
-
-            return appendMessage({
-              id: dependencies.createMessageId(),
-              councilId: next.id,
-              senderKind: "conductor",
-              senderAgentId: null,
-              senderName: "Conductor",
-              senderColor: null,
-              content: opening.openingMessage,
-              createdAtUtc: openingTimestamp,
-            }).andThen(() =>
-              persistBriefing({
-                councilId: next.id,
-                briefing: opening.briefing,
-                goalReached: opening.goalReached,
-                updatedAtUtc: openingTimestamp,
-              }).andThen(() => {
-                plannedNextSpeakerByCouncilId.set(next.id, asAgentId(opening.firstSpeakerAgentId));
-
-                const finalCouncil: CouncilRecord = {
-                  ...next,
-                  autopilotPaused: opening.goalReached,
-                  updatedAtUtc: openingTimestamp,
-                };
-
-                return persistCouncil(finalCouncil).map(() => {
-                  records.set(finalCouncil.id, finalCouncil);
-                  return {
-                    council: toCouncilDto({
-                      record: finalCouncil,
-                      availableModelKeys,
-                      globalDefaultModelRef: modelContext.globalDefaultModelRef,
-                    }),
-                  } satisfies StartCouncilResponse;
-                });
-              }),
-            );
-          })
-          .orElse((error) =>
-            pauseAutopilotAfterError({ council: next, error }).andThen((pausedError) =>
-              errAsync(pausedError),
-            ),
+        .andThen((availableAgents) => {
+          const availableAgentById = new Map(availableAgents.map((agent) => [agent.id, agent]));
+          const hasInvalidMemberConfig = council.memberAgentIds.some(
+            (memberAgentId) => availableAgentById.get(memberAgentId)?.invalidConfig === true,
           );
-      });
-    });
+          if (hasInvalidMemberConfig) {
+            return errAsync(
+              stateError(
+                `Council ${id} includes member agents with invalid model configuration`,
+                "Cannot start because one or more council members have invalid model configuration.",
+              ),
+            );
+          }
+
+          if (council.topic.trim().length === 0) {
+            return errAsync(
+              validationError(
+                `Council ${id} cannot start without a topic`,
+                "Topic is required before starting the council.",
+              ),
+            );
+          }
+
+          if (council.memberAgentIds.length === 0) {
+            return errAsync(
+              validationError(
+                `Council ${id} cannot start without members`,
+                "At least one member is required before starting the council.",
+              ),
+            );
+          }
+
+          if (council.archivedAtUtc !== null) {
+            return errAsync(
+              stateError(`Council ${id} is archived`, "Archived councils are read-only."),
+            );
+          }
+
+          if (
+            isModelConfigInvalid({
+              modelRefOrNull: council.conductorModelRefOrNull,
+              globalDefaultModelRef: modelContext.globalDefaultModelRef,
+              availableModelKeys,
+            })
+          ) {
+            return errAsync(
+              stateError(
+                `Council ${id} has invalid model configuration`,
+                "Cannot start because model configuration is invalid.",
+              ),
+            );
+          }
+
+          if (council.startedAtUtc !== null) {
+            return errAsync(
+              stateError(`Council ${id} already started`, "Council is already started."),
+            );
+          }
+
+          const normalizedMaxTurns = normalizeAutopilotMaxTurns(maxTurns);
+          const now = dependencies.nowUtc();
+          const next: CouncilRecord = {
+            ...council,
+            startedAtUtc: now,
+            autopilotPaused: council.mode === "autopilot" ? false : council.autopilotPaused,
+            autopilotMaxTurns: council.mode === "autopilot" ? normalizedMaxTurns : null,
+            autopilotTurnsCompleted:
+              council.mode === "autopilot" ? 0 : council.autopilotTurnsCompleted,
+            updatedAtUtc: now,
+          };
+
+          return persistCouncil(next).andThen(() => {
+            records.set(next.id, next);
+            plannedNextSpeakerByCouncilId.delete(next.id);
+            if (next.mode !== "autopilot") {
+              return okAsync({
+                council: toCouncilDto({
+                  record: next,
+                  availableModelKeys,
+                  globalDefaultModelRef: modelContext.globalDefaultModelRef,
+                }),
+              } satisfies StartCouncilResponse);
+            }
+
+            return runAutopilotOpeningDecision({
+              webContentsId,
+              council: next,
+              modelContext,
+            })
+              .andThen((opening) => {
+                const openingTimestamp = dependencies.nowUtc();
+
+                return appendMessage({
+                  id: dependencies.createMessageId(),
+                  councilId: next.id,
+                  senderKind: "conductor",
+                  senderAgentId: null,
+                  senderName: "Conductor",
+                  senderColor: null,
+                  content: opening.openingMessage,
+                  createdAtUtc: openingTimestamp,
+                }).andThen(() =>
+                  persistBriefing({
+                    councilId: next.id,
+                    briefing: opening.briefing,
+                    goalReached: opening.goalReached,
+                    updatedAtUtc: openingTimestamp,
+                  }).andThen(() => {
+                    plannedNextSpeakerByCouncilId.set(
+                      next.id,
+                      asAgentId(opening.firstSpeakerAgentId),
+                    );
+
+                    const finalCouncil: CouncilRecord = {
+                      ...next,
+                      autopilotPaused: opening.goalReached,
+                      updatedAtUtc: openingTimestamp,
+                    };
+
+                    return persistCouncil(finalCouncil).map(() => {
+                      records.set(finalCouncil.id, finalCouncil);
+                      return {
+                        council: toCouncilDto({
+                          record: finalCouncil,
+                          availableModelKeys,
+                          globalDefaultModelRef: modelContext.globalDefaultModelRef,
+                        }),
+                      } satisfies StartCouncilResponse;
+                    });
+                  }),
+                );
+              })
+              .orElse((error) =>
+                pauseAutopilotAfterError({ council: next, error }).andThen((pausedError) =>
+                  errAsync(pausedError),
+                ),
+              );
+          });
+        }),
+    );
 
   const pauseCouncilAutopilot: CouncilsSlice["pauseCouncilAutopilot"] = ({ webContentsId, id }) =>
     loadCouncilWithModelContext({
@@ -1408,85 +1434,108 @@ export const createCouncilsSlice = (
       webContentsId,
       councilId: id,
       viewKind: "councilView",
-    }).andThen(({ council, modelContext, availableModelKeys }) => {
-      if (council.topic.trim().length === 0) {
-        return errAsync(
-          validationError(
-            `Council ${id} cannot resume without a topic`,
-            "Topic is required before resuming the council.",
-          ),
-        );
-      }
-
-      if (council.memberAgentIds.length === 0) {
-        return errAsync(
-          validationError(
-            `Council ${id} cannot resume without members`,
-            "At least one member is required before resuming the council.",
-          ),
-        );
-      }
-
-      if (council.mode !== "autopilot") {
-        return errAsync(
-          stateError(`Council ${id} is not autopilot`, "Only Autopilot councils can be resumed."),
-        );
-      }
-
-      if (council.archivedAtUtc !== null) {
-        return errAsync(
-          stateError(`Council ${id} is archived`, "Archived councils are read-only."),
-        );
-      }
-
-      if (council.startedAtUtc === null) {
-        return errAsync(
-          stateError(`Council ${id} is not started`, "Start the council before resuming."),
-        );
-      }
-
-      if (!council.autopilotPaused) {
-        return errAsync(
-          stateError(`Council ${id} is already running`, "Autopilot is already running."),
-        );
-      }
-
-      if (
-        isModelConfigInvalid({
-          modelRefOrNull: council.conductorModelRefOrNull,
-          globalDefaultModelRef: modelContext.globalDefaultModelRef,
-          availableModelKeys,
+    }).andThen(({ council, modelContext, availableModelKeys }) =>
+      dependencies
+        .listAvailableAgents({
+          webContentsId,
+          viewKind: "councilView",
         })
-      ) {
-        return errAsync(
-          stateError(
-            `Council ${id} has invalid model configuration`,
-            "Cannot resume because model configuration is invalid.",
-          ),
-        );
-      }
+        .andThen((availableAgents) => {
+          const availableAgentById = new Map(availableAgents.map((agent) => [agent.id, agent]));
+          const hasInvalidMemberConfig = council.memberAgentIds.some(
+            (memberAgentId) => availableAgentById.get(memberAgentId)?.invalidConfig === true,
+          );
+          if (hasInvalidMemberConfig) {
+            return errAsync(
+              stateError(
+                `Council ${id} includes member agents with invalid model configuration`,
+                "Cannot resume because one or more council members have invalid model configuration.",
+              ),
+            );
+          }
 
-      const normalizedMaxTurns = normalizeAutopilotMaxTurns(maxTurns);
-      const now = dependencies.nowUtc();
-      const next: CouncilRecord = {
-        ...council,
-        autopilotPaused: false,
-        autopilotMaxTurns: normalizedMaxTurns,
-        autopilotTurnsCompleted: 0,
-        updatedAtUtc: now,
-      };
+          if (council.topic.trim().length === 0) {
+            return errAsync(
+              validationError(
+                `Council ${id} cannot resume without a topic`,
+                "Topic is required before resuming the council.",
+              ),
+            );
+          }
 
-      return persistCouncil(next).andThen(() => {
-        records.set(next.id, next);
-        return okAsync({
-          council: toCouncilDto({
-            record: next,
-            availableModelKeys,
-            globalDefaultModelRef: modelContext.globalDefaultModelRef,
-          }),
-        } satisfies ResumeCouncilAutopilotResponse);
-      });
-    });
+          if (council.memberAgentIds.length === 0) {
+            return errAsync(
+              validationError(
+                `Council ${id} cannot resume without members`,
+                "At least one member is required before resuming the council.",
+              ),
+            );
+          }
+
+          if (council.mode !== "autopilot") {
+            return errAsync(
+              stateError(
+                `Council ${id} is not autopilot`,
+                "Only Autopilot councils can be resumed.",
+              ),
+            );
+          }
+
+          if (council.archivedAtUtc !== null) {
+            return errAsync(
+              stateError(`Council ${id} is archived`, "Archived councils are read-only."),
+            );
+          }
+
+          if (council.startedAtUtc === null) {
+            return errAsync(
+              stateError(`Council ${id} is not started`, "Start the council before resuming."),
+            );
+          }
+
+          if (!council.autopilotPaused) {
+            return errAsync(
+              stateError(`Council ${id} is already running`, "Autopilot is already running."),
+            );
+          }
+
+          if (
+            isModelConfigInvalid({
+              modelRefOrNull: council.conductorModelRefOrNull,
+              globalDefaultModelRef: modelContext.globalDefaultModelRef,
+              availableModelKeys,
+            })
+          ) {
+            return errAsync(
+              stateError(
+                `Council ${id} has invalid model configuration`,
+                "Cannot resume because model configuration is invalid.",
+              ),
+            );
+          }
+
+          const normalizedMaxTurns = normalizeAutopilotMaxTurns(maxTurns);
+          const now = dependencies.nowUtc();
+          const next: CouncilRecord = {
+            ...council,
+            autopilotPaused: false,
+            autopilotMaxTurns: normalizedMaxTurns,
+            autopilotTurnsCompleted: 0,
+            updatedAtUtc: now,
+          };
+
+          return persistCouncil(next).andThen(() => {
+            records.set(next.id, next);
+            return okAsync({
+              council: toCouncilDto({
+                record: next,
+                availableModelKeys,
+                globalDefaultModelRef: modelContext.globalDefaultModelRef,
+              }),
+            } satisfies ResumeCouncilAutopilotResponse);
+          });
+        }),
+    );
 
   const generateManualTurn: CouncilsSlice["generateManualTurn"] = ({
     webContentsId,

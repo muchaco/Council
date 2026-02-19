@@ -386,8 +386,7 @@ This document defines user-facing UX behavior for Council. It complements the Fu
 
 ### 11.2 Destructive actions
 - **U11.3** Delete Council confirmation includes Council title in the dialog. **[1.00]**
-- **U11.4** Archive/Restore confirmations are optional; if implemented, they must be consistent. **[0.70]**
-  **Recommendation:** Do not confirm Archive or Restore; only confirm Delete and member removal. This is consistent with "polished consumer app" but not strictly specified.
+- **U11.4** Archive/Restore does not require a confirmation dialog; actions execute immediately and remain consistent across list/editor/view flows. **[1.00]**
 
 ### 11.3 Member removal confirmation
 - **U11.5** Removing a member requires confirmation:
@@ -485,7 +484,7 @@ These are the remaining places where UX decisions conflict slightly with the fun
 - **U16.1** Resolved: Topic is required during Council creation and remains editable later in Council View Config. **[1.00]**
 - **U16.2** Resolved: Manual speaker selection uses explicit per-member action buttons in Members panel (no row-click speaker trigger). **[1.00]**
 - **U16.3** Turn limit modal numeric constraints (min, max, validation) unspecified. **[0.85]**
-- **U16.4** Whether Archive/Restore requires confirmation not specified. **[0.70]**
+- **U16.4** Resolved: Archive/Restore uses no confirmation dialog, consistently across list/editor/view flows. **[1.00]**
 
 ---
 

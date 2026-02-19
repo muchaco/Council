@@ -1,4 +1,4 @@
-import { ResultAsync, okAsync } from "neverthrow";
+import { ResultAsync, errAsync, okAsync } from "neverthrow";
 import { describe, expect } from "vitest";
 import { createCouncilsIpcHandlers } from "../../src/main/features/councils/ipc-handlers";
 import { createCouncilsSlice } from "../../src/main/features/councils/slice";
@@ -15,6 +15,7 @@ const FILE_REQUIREMENT_IDS = [
   "R3.25",
   "R3.26",
   "R3.32",
+  "R8.1",
   "U3.8",
   "U10.1",
   "U10.9",
@@ -22,12 +23,16 @@ const FILE_REQUIREMENT_IDS = [
   "U12.2",
 ] as const;
 
-const createHandlers = () => {
+const createHandlers = (options?: {
+  generationDelayMs?: number;
+  failExport?: boolean;
+}) => {
   let sequence = 0;
   let messageId = 0;
   let generationId = 0;
   const messagesByCouncilId = new Map<string, Array<unknown>>();
   const briefingsByCouncilId = new Map<string, unknown>();
+  const generationDelayMs = options?.generationDelayMs ?? 0;
   const slice = createCouncilsSlice({
     nowUtc: () => "2026-02-18T10:00:00.000Z",
     createCouncilId: () =>
@@ -82,17 +87,41 @@ const createHandlers = () => {
       return okAsync(undefined);
     },
     aiService: {
-      generateText: () =>
-        ResultAsync.fromPromise(Promise.resolve({ text: "generated" }), () => "ProviderError"),
+      generateText: (_request, abortSignal) =>
+        ResultAsync.fromPromise(
+          new Promise<{ text: string }>((resolve, reject) => {
+            const timer = setTimeout(() => {
+              if (abortSignal.aborted) {
+                reject(new Error("aborted"));
+                return;
+              }
+              resolve({ text: "generated" });
+            }, generationDelayMs);
+            abortSignal.addEventListener(
+              "abort",
+              () => {
+                clearTimeout(timer);
+                reject(new Error("aborted"));
+              },
+              { once: true },
+            );
+          }),
+          () => "ProviderError",
+        ),
     },
     createMessageId: () => `message-${++messageId}`,
     createGenerationRequestId: () => `generation-${++generationId}`,
     exportService: {
-      saveMarkdownFile: () =>
-        okAsync({
+      saveMarkdownFile: () => {
+        if (options?.failExport === true) {
+          return errAsync("ExportWriteError" as const);
+        }
+
+        return okAsync({
           status: "exported" as const,
           filePath: "/tmp/export.md",
-        }),
+        });
+      },
     },
   });
 
@@ -316,6 +345,114 @@ describe("councils ipc contract", () => {
     expect(exported.ok).toBe(true);
     if (exported.ok) {
       expect(exported.value.status).toBe("exported");
+    }
+  });
+
+  itReq(FILE_REQUIREMENT_IDS, "enforces runtime cancellation semantics over IPC", async () => {
+    const handlers = createHandlers({ generationDelayMs: 120 });
+    const saved = await handlers.saveCouncil(
+      {
+        viewKind: "councilCreate",
+        id: null,
+        title: "Cancel Contract Council",
+        topic: "Cancellation semantics",
+        goal: null,
+        mode: "manual",
+        tags: [],
+        memberAgentIds: ["00000000-0000-4000-8000-000000000101"],
+        memberColorsByAgentId: {},
+        conductorModelRefOrNull: null,
+      },
+      52,
+    );
+    expect(saved.ok).toBe(true);
+    if (!saved.ok) {
+      return;
+    }
+
+    const started = await handlers.startCouncil(
+      {
+        viewKind: "councilView",
+        id: saved.value.council.id,
+        maxTurns: null,
+      },
+      52,
+    );
+    expect(started.ok).toBe(true);
+
+    const generationPromise = handlers.generateManualTurn(
+      {
+        viewKind: "councilView",
+        id: saved.value.council.id,
+        memberAgentId: "00000000-0000-4000-8000-000000000101",
+      },
+      52,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const cancelled = await handlers.cancelGeneration({
+      id: saved.value.council.id,
+    });
+    expect(cancelled.ok).toBe(true);
+    if (cancelled.ok) {
+      expect(cancelled.value.cancelled).toBe(true);
+    }
+
+    const generationResult = await generationPromise;
+    expect(generationResult.ok).toBe(false);
+    if (!generationResult.ok) {
+      expect(generationResult.error.kind).toBe("StateViolationError");
+    }
+
+    const view = await handlers.getCouncilView(
+      {
+        viewKind: "councilView",
+        councilId: saved.value.council.id,
+      },
+      52,
+    );
+    expect(view.ok).toBe(true);
+    if (view.ok) {
+      expect(view.value.messages).toHaveLength(0);
+      expect(view.value.generation.status).toBe("idle");
+    }
+  });
+
+  itReq(FILE_REQUIREMENT_IDS, "redacts internal path-bearing error details over IPC", async () => {
+    const handlers = createHandlers({ failExport: true });
+    const saved = await handlers.saveCouncil(
+      {
+        viewKind: "councilCreate",
+        id: null,
+        title: "Export Failure Council",
+        topic: "Path redaction",
+        goal: null,
+        mode: "manual",
+        tags: [],
+        memberAgentIds: ["00000000-0000-4000-8000-000000000101"],
+        memberColorsByAgentId: {},
+        conductorModelRefOrNull: null,
+      },
+      53,
+    );
+    expect(saved.ok).toBe(true);
+    if (!saved.ok) {
+      return;
+    }
+
+    const exported = await handlers.exportTranscript(
+      {
+        viewKind: "councilsList",
+        id: saved.value.council.id,
+      },
+      53,
+    );
+    expect(exported.ok).toBe(false);
+    if (!exported.ok) {
+      expect(exported.error.devMessage).toBe("Redacted at IPC boundary.");
+      expect(exported.error.details).toBeUndefined();
+      const serialized = JSON.stringify(exported.error);
+      expect(serialized.includes("/tmp")).toBe(false);
     }
   });
 });

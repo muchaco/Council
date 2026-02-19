@@ -24,6 +24,7 @@ const toValidationFailure = (message: string): IpcResult<never> => ({
 
 const sanitizeDomainError = (error: DomainError): DomainError => ({
   ...error,
+  devMessage: "Redacted at IPC boundary.",
   details: undefined,
 });
 
