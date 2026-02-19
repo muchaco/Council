@@ -179,9 +179,9 @@ Confidence scale: **1.00** = fully specified and testable, **0.85** = minor deta
 - **R3.28** If an error occurs in Manual Mode, state is preserved; user may retry by selecting a Member again or selecting a different Member. **[0.95]**
 
 ### 3.6 Context Limits
-- **R3.29** When history becomes too long, prompts do not include full history. Instead: include current Briefing plus the last N messages (fixed message count). **[0.85]**
-- **R3.30** The Conductor Briefing update uses prior Briefing plus last N messages when full history is too long. **[0.95]**
-- **R3.31** N is a constant configurable by implementation but not specified yet. **[0.85]**
+- **R3.29** Runtime prompt building uses a bounded context window: include current Briefing plus only the last N transcript messages (fixed message count), and include omitted-count metadata when earlier messages are excluded. **[1.00]**
+- **R3.30** Conductor Briefing+Goal updates use prior Briefing plus the same last-N context-window rule used by member turn prompts. **[1.00]**
+- **R3.31** `N` defaults to `12`, is user-configurable in Settings, and is constrained to integer range `1..200`. **[1.00]**
 
 ### 3.7 Export
 - **R3.32** User can export a Council transcript as Markdown text. **[0.95]**

@@ -1,5 +1,6 @@
 import { describe, expect } from "vitest";
 import {
+  buildManualSpeakerSelectionAriaLabel,
   buildTranscriptMessageAriaLabel,
   resolveInlineConfigEditKeyboardAction,
   resolveTranscriptFocusIndex,
@@ -57,6 +58,14 @@ describe("council view accessibility helpers", () => {
       expect(label).toContain("Member");
       expect(label).toContain("message 3");
       expect(label).toContain("I propose we split the task.");
+    },
+  );
+
+  itReq(
+    ["U9.8", "U13.1", "U15.3"],
+    "builds explicit aria label for manual speaker action button",
+    () => {
+      expect(buildManualSpeakerSelectionAriaLabel("Alex")).toBe("Select Alex as next speaker");
     },
   );
 });

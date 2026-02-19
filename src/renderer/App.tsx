@@ -24,6 +24,7 @@ import {
   toModelSelectionValue,
 } from "../shared/app-ui-helpers.js";
 import {
+  buildManualSpeakerSelectionAriaLabel,
   buildTranscriptMessageAriaLabel,
   resolveInlineConfigEditKeyboardAction,
   resolveTranscriptFocusIndex,
@@ -434,6 +435,7 @@ export const App = (): JSX.Element => {
   });
   const councilConfigEditContainerRef = useRef<HTMLDivElement | null>(null);
   const councilConfigEditInputRef = useRef<HTMLTextAreaElement | HTMLSelectElement | null>(null);
+  const homeTabAtDetailOpenRef = useRef<HomeTab>("councils");
 
   useEffect(() => {
     draftsRef.current = drafts;
@@ -462,6 +464,47 @@ export const App = (): JSX.Element => {
 
     councilConfigEditInputRef.current?.focus();
   }, [councilViewState]);
+
+  useEffect(() => {
+    if (screen.kind === "home") {
+      document.title = homeTab === "settings" ? "Settings" : "Council";
+      return;
+    }
+
+    if (screen.kind === "councilView") {
+      const title =
+        councilViewState.status === "ready"
+          ? councilViewState.source.council.title
+          : "Council View";
+      document.title = `Council: ${title}`;
+      return;
+    }
+
+    if (screen.kind === "agentEditor") {
+      const title =
+        agentEditorState.status === "ready"
+          ? agentEditorState.draft.name.trim() || "New Agent"
+          : screen.agentId === null
+            ? "New Agent"
+            : "Agent";
+      document.title = `Agent: ${title}`;
+      return;
+    }
+
+    if (screen.kind === "councilEditor") {
+      if (screen.councilId === null) {
+        document.title = "New Council";
+        return;
+      }
+
+      const fallbackTitle = "Council";
+      const title =
+        councilEditorState.status === "ready"
+          ? councilEditorState.draft.title.trim() || fallbackTitle
+          : fallbackTitle;
+      document.title = `Council: ${title}`;
+    }
+  }, [screen, homeTab, councilViewState, agentEditorState, councilEditorState]);
 
   useEffect(() => {
     if (
@@ -927,6 +970,9 @@ export const App = (): JSX.Element => {
   };
 
   const openAgentEditor = async (agentId: string | null): Promise<void> => {
+    if (screen.kind === "home") {
+      homeTabAtDetailOpenRef.current = homeTab;
+    }
     setScreen({ kind: "agentEditor", agentId });
     setAgentEditorState({ status: "loading" });
 
@@ -970,7 +1016,7 @@ export const App = (): JSX.Element => {
     }
 
     setScreen({ kind: "home" });
-    setHomeTab("agents");
+    setHomeTab(homeTabAtDetailOpenRef.current);
     void loadAgents({ page: 1, append: false });
   };
 
@@ -1154,6 +1200,9 @@ export const App = (): JSX.Element => {
   };
 
   const openCouncilEditor = async (councilId: string | null): Promise<void> => {
+    if (screen.kind === "home") {
+      homeTabAtDetailOpenRef.current = homeTab;
+    }
     setScreen({ kind: "councilEditor", councilId });
     setCouncilEditorState({ status: "loading" });
 
@@ -1235,6 +1284,9 @@ export const App = (): JSX.Element => {
   );
 
   const openCouncilView = async (councilId: string): Promise<void> => {
+    if (screen.kind === "home") {
+      homeTabAtDetailOpenRef.current = homeTab;
+    }
     setScreen({ kind: "councilView", councilId });
     await loadCouncilView(councilId);
   };
@@ -1242,7 +1294,7 @@ export const App = (): JSX.Element => {
   const completeCouncilViewClose = async (): Promise<void> => {
     setAutopilotLimitModal(null);
     setScreen({ kind: "home" });
-    setHomeTab("councils");
+    setHomeTab(homeTabAtDetailOpenRef.current);
     await loadCouncils({ page: 1, append: false });
   };
 
@@ -2379,7 +2431,7 @@ export const App = (): JSX.Element => {
 
     pushToast("info", "Council deleted.");
     setScreen({ kind: "home" });
-    setHomeTab("councils");
+    setHomeTab(homeTabAtDetailOpenRef.current);
     await loadCouncils({ page: 1, append: false });
   };
 
@@ -2476,6 +2528,48 @@ export const App = (): JSX.Element => {
 
   const saveCouncil = async (): Promise<void> => {
     if (councilEditorState.status !== "ready") {
+      return;
+    }
+
+    if (councilEditorState.draft.title.trim().length === 0) {
+      const message = "Title is required.";
+      pushToast("warning", message);
+      setCouncilEditorState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              message,
+            },
+      );
+      return;
+    }
+
+    if (councilEditorState.draft.topic.trim().length === 0) {
+      const message = "Topic is required before saving a council.";
+      pushToast("warning", message);
+      setCouncilEditorState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              message,
+            },
+      );
+      return;
+    }
+
+    if (councilEditorState.draft.selectedMemberIds.length === 0) {
+      const message = "Select at least one member before saving.";
+      pushToast("warning", message);
+      setCouncilEditorState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              message,
+            },
+      );
       return;
     }
 
@@ -2734,6 +2828,13 @@ export const App = (): JSX.Element => {
     const generationRunning = councilViewState.source.generation.status === "running";
     const generationActive = generationRunning || councilViewState.isGeneratingManualTurn;
     const canManualGenerate = council.mode === "manual" && council.started && !council.archived;
+    const manualSpeakerDisabledReason = council.archived
+      ? "Archived councils are read-only."
+      : !council.started
+        ? "Start the council before selecting the next speaker."
+        : generationRunning || councilViewState.isGeneratingManualTurn
+          ? "Wait for the current generation to finish."
+          : null;
     const canAdvanceAutopilot = council.mode === "autopilot" && council.started && !council.paused;
     const generation = councilViewState.source.generation;
     const pausedNextSpeakerId =
@@ -3297,13 +3398,13 @@ export const App = (): JSX.Element => {
                               </option>
                             ))}
                           </select>
-                          {canManualGenerate ? (
+                          {council.mode === "manual" ? (
                             <button
+                              aria-label={buildManualSpeakerSelectionAriaLabel(memberName)}
                               className="secondary"
-                              disabled={
-                                generationRunning || councilViewState.isGeneratingManualTurn
-                              }
+                              disabled={manualSpeakerDisabledReason !== null}
                               onClick={() => void generateManualTurn(memberAgentId)}
+                              title={manualSpeakerDisabledReason ?? undefined}
                               type="button"
                             >
                               {councilViewState.isGeneratingManualTurn

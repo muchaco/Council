@@ -1237,6 +1237,24 @@ export const createCouncilsSlice = (
       councilId: id,
       viewKind: "councilView",
     }).andThen(({ council, modelContext, availableModelKeys }) => {
+      if (council.topic.trim().length === 0) {
+        return errAsync(
+          validationError(
+            `Council ${id} cannot start without a topic`,
+            "Topic is required before starting the council.",
+          ),
+        );
+      }
+
+      if (council.memberAgentIds.length === 0) {
+        return errAsync(
+          validationError(
+            `Council ${id} cannot start without members`,
+            "At least one member is required before starting the council.",
+          ),
+        );
+      }
+
       if (council.archivedAtUtc !== null) {
         return errAsync(
           stateError(`Council ${id} is archived`, "Archived councils are read-only."),
@@ -1391,6 +1409,24 @@ export const createCouncilsSlice = (
       councilId: id,
       viewKind: "councilView",
     }).andThen(({ council, modelContext, availableModelKeys }) => {
+      if (council.topic.trim().length === 0) {
+        return errAsync(
+          validationError(
+            `Council ${id} cannot resume without a topic`,
+            "Topic is required before resuming the council.",
+          ),
+        );
+      }
+
+      if (council.memberAgentIds.length === 0) {
+        return errAsync(
+          validationError(
+            `Council ${id} cannot resume without members`,
+            "At least one member is required before resuming the council.",
+          ),
+        );
+      }
+
       if (council.mode !== "autopilot") {
         return errAsync(
           stateError(`Council ${id} is not autopilot`, "Only Autopilot councils can be resumed."),

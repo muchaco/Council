@@ -22,6 +22,15 @@ describe("home keyboard accessibility helpers", () => {
     expect(resolveHomeTabFocusIndex({ currentIndex: 1, key: "Enter", totalTabs: 3 })).toBeNull();
   });
 
+  itReq(["U15.2"], "returns null when current tab index is out of bounds", () => {
+    expect(
+      resolveHomeTabFocusIndex({ currentIndex: -1, key: "ArrowRight", totalTabs: 3 }),
+    ).toBeNull();
+    expect(
+      resolveHomeTabFocusIndex({ currentIndex: 3, key: "ArrowLeft", totalTabs: 3 }),
+    ).toBeNull();
+  });
+
   itReq(["U15.2"], "recognizes Enter and Space list-row open keys", () => {
     expect(isListRowOpenKey("Enter")).toBe(true);
     expect(isListRowOpenKey(" ")).toBe(true);

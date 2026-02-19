@@ -37,6 +37,9 @@ export const buildTranscriptMessageAriaLabel = (message: CouncilMessageDto): str
   return `${message.senderName}, ${senderRole}, message ${message.sequenceNumber}, ${message.createdAtUtc}. ${message.content}`;
 };
 
+export const buildManualSpeakerSelectionAriaLabel = (memberName: string): string =>
+  `Select ${memberName} as next speaker`;
+
 export const resolveInlineConfigEditKeyboardAction = (params: {
   key: string;
   shiftKey: boolean;

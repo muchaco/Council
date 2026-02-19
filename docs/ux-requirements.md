@@ -226,11 +226,9 @@ This document defines user-facing UX behavior for Council. It complements the Fu
   - Members (required at least 1)
   - Member colors palette selection per Member
   - Tags (0..3)
-  - Topic and Goal are configured after creation in Council View Config tab (see Section 8). **[0.85]**
-  **Note:** This aligns with the UX decision to keep Topic and Goal in Council View Config only. Functional spec includes Topic as required at creation. This requires a product decision to either:
-  - collect Topic in create and show it also in Config, or
-  - allow creating with temporary Topic and require user to set it in Config before start.
-  **[0.70]**
+  - Topic (required at creation)
+  - Goal (optional at creation; editable later in Config tab)
+  Topic remains editable in Council View Config tab after creation. **[1.00]**
 
 ### 7.2 Save and Start
 - **U7.2** Create does not auto-start. After saving, user lands in Council View empty state. **[1.00]**
@@ -322,11 +320,7 @@ This document defines user-facing UX behavior for Council. It complements the Fu
   **[0.85]**
 
 ### 9.3 Manual mode speaker selection
-- **U9.8** In Manual mode, selecting next speaker happens inside Members panel:
-  - Each member row has an action "Select to speak" or clicking the row triggers selection.
-  - No selection via transcript interactions.
-  **[0.85]**
-  **Note:** Functional spec requires the user selects the next responding Member. Exact UI control wording and whether row click selects vs explicit button remains a minor open detail.
+- **U9.8** In Manual mode, selecting next speaker happens inside Members panel with an explicit per-row button labeled "Select to speak"; row click alone does not trigger speaker selection. No selection via transcript interactions. **[1.00]**
 
 ---
 
@@ -441,7 +435,7 @@ This document defines user-facing UX behavior for Council. It complements the Fu
 
 ## 13. Manual Mode UX
 
-- **U13.1** Manual mode uses Members panel for selecting the next responding Member. **[0.85]**
+- **U13.1** Manual mode uses Members panel for selecting the next responding Member via explicit per-member action controls. **[1.00]**
 - **U13.2** User can always type messages in the composer. These are treated as Conductor messages. **[1.00]**
 - **U13.3** Conductor does not have a separate UI identity. **[1.00]**
 - **U13.4** On generation/provider error:
@@ -488,11 +482,8 @@ This document defines user-facing UX behavior for Council. It complements the Fu
 
 These are the remaining places where UX decisions conflict slightly with the functional requirements or lack numeric constraints.
 
-- **U16.1** Council creation requires Topic per functional spec, but UX decision places Topic only in Config tab after creation. Requires a reconciled rule:
-  - Option A: keep Topic required during creation and also editable only in Config (shown read-only elsewhere)
-  - Option B: allow creation with placeholder Topic and require setting before Start
-  **[0.70]**
-- **U16.2** Manual mode speaker selection control specifics (row click vs explicit button) are not fixed. **[0.85]**
+- **U16.1** Resolved: Topic is required during Council creation and remains editable later in Council View Config. **[1.00]**
+- **U16.2** Resolved: Manual speaker selection uses explicit per-member action buttons in Members panel (no row-click speaker trigger). **[1.00]**
 - **U16.3** Turn limit modal numeric constraints (min, max, validation) unspecified. **[0.85]**
 - **U16.4** Whether Archive/Restore requires confirmation not specified. **[0.70]**
 

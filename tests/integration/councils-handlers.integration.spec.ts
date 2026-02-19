@@ -1,7 +1,7 @@
 import { ResultAsync, okAsync } from "neverthrow";
 import { describe, expect } from "vitest";
-import { createCouncilsSlice } from "../../src/main/features/councils/slice";
-import { asCouncilId } from "../../src/shared/domain/ids";
+import { type CouncilRecord, createCouncilsSlice } from "../../src/main/features/councils/slice";
+import { asAgentId, asCouncilId } from "../../src/shared/domain/ids";
 import { itReq } from "../helpers/requirement-trace";
 
 const FILE_REQUIREMENT_IDS = [
@@ -9,13 +9,21 @@ const FILE_REQUIREMENT_IDS = [
   "R2.2",
   "R2.3",
   "R2.4",
+  "R2.5",
   "R2.6",
   "R2.7",
   "R2.8",
   "R2.9",
+  "R2.10",
   "R2.11",
+  "R2.12",
+  "R2.13",
+  "R2.14",
+  "R2.15",
+  "R2.16",
   "R2.17",
   "R2.18",
+  "R2.19",
   "R2.20",
   "R2.21",
   "R2.22",
@@ -40,6 +48,9 @@ const FILE_REQUIREMENT_IDS = [
   "R3.25",
   "R3.26",
   "R3.27",
+  "R3.29",
+  "R3.30",
+  "R3.31",
   "R3.32",
   "R3.33",
   "R3.34",
@@ -64,6 +75,8 @@ const FILE_REQUIREMENT_IDS = [
   "U13.1",
   "U13.2",
   "U13.4",
+  "U16.1",
+  "U16.2",
   "U9.3",
   "U9.6",
   "U9.7",
@@ -109,6 +122,7 @@ const createSlice = (options?: {
   failConductorDecision?: boolean;
   providerFailuresBeforeSuccess?: number;
   contextLastN?: number;
+  initialCouncils?: ReadonlyArray<CouncilRecord>;
 }) => {
   let sequence = 0;
   let messageId = 0;
@@ -161,122 +175,125 @@ const createSlice = (options?: {
     });
   };
 
-  const slice = createCouncilsSlice({
-    nowUtc: () => `2026-02-18T10:00:${String(sequence).padStart(2, "0")}.000Z`,
-    createCouncilId: () =>
-      asCouncilId(`00000000-0000-4000-8000-${String(++sequence).padStart(12, "0")}`),
-    pageSize: 2,
-    getModelContext: ({ viewKind }) =>
-      okAsync({
-        modelCatalog: {
-          snapshotId: `${viewKind}-snapshot-1`,
-          modelsByProvider: {
-            gemini: ["gemini-1.5-flash"],
-          },
-        },
-        globalDefaultModelRef: {
-          providerId: "gemini",
-          modelId: "gemini-1.5-flash",
-        },
-        canRefreshModels: true,
-      }),
-    refreshModelCatalog: ({ viewKind }) =>
-      okAsync(
-        (() => {
-          refreshModelCatalogCalls.push(viewKind);
-          return {
-            modelCatalog: {
-              snapshotId: `${viewKind}-snapshot-2`,
-              modelsByProvider: {
-                gemini: ["gemini-1.5-flash"],
-              },
+  const slice = createCouncilsSlice(
+    {
+      nowUtc: () => `2026-02-18T10:00:${String(sequence).padStart(2, "0")}.000Z`,
+      createCouncilId: () =>
+        asCouncilId(`00000000-0000-4000-8000-${String(++sequence).padStart(12, "0")}`),
+      pageSize: 2,
+      getModelContext: ({ viewKind }) =>
+        okAsync({
+          modelCatalog: {
+            snapshotId: `${viewKind}-snapshot-1`,
+            modelsByProvider: {
+              gemini: ["gemini-1.5-flash"],
             },
-          };
-        })(),
-      ),
-    listAvailableAgents: () => okAsync(AVAILABLE_AGENTS),
-    loadCouncilMessages: (councilId) =>
-      okAsync((messagesByCouncilId.get(councilId) ?? []) as never),
-    appendCouncilMessage: (message) => {
-      const current = messagesByCouncilId.get(message.councilId) ?? [];
-      const next = {
-        ...message,
-        sequenceNumber: current.length + 1,
-      };
-      messagesByCouncilId.set(message.councilId, [...current, next]);
-      return okAsync(next);
-    },
-    loadCouncilRuntimeBriefing: (councilId) =>
-      okAsync((briefingsByCouncilId.get(councilId) ?? null) as never),
-    persistCouncilRuntimeBriefing: (briefing) => {
-      briefingsByCouncilId.set(briefing.councilId, briefing);
-      return okAsync(undefined);
-    },
-    aiService: {
-      generateText: (request, abortSignal) =>
-        ResultAsync.fromPromise(
-          new Promise<{ text: string }>((resolve, reject) => {
-            const timer = setTimeout(() => {
-              if (abortSignal.aborted) {
-                reject(new Error("aborted"));
-                return;
-              }
-              const promptContent = request.messages.map((message) => message.content).join("\n");
-              const isConductorRequest = promptContent.includes("You are the Council Conductor.");
-              if (isConductorRequest) {
-                conductorPrompts.push(promptContent);
-              } else {
-                memberPrompts.push(promptContent);
-              }
-              if (providerFailuresRemaining > 0) {
-                providerFailuresRemaining -= 1;
-                reject(new Error("provider failure"));
-                return;
-              }
-              const isOpeningRequest = promptContent.includes("starting an Autopilot council");
-
-              if (
-                options?.failConductorDecision === true &&
-                isConductorRequest &&
-                !isOpeningRequest
-              ) {
-                reject(new Error("provider failure"));
-                return;
-              }
-
-              resolve({
-                text: isConductorRequest
-                  ? isOpeningRequest
-                    ? buildConductorOpeningResponse(promptContent)
-                    : buildConductorDecisionResponse(promptContent)
-                  : `Generated turn ${++sequence}`,
-              });
-            }, generationDelayMs);
-            abortSignal.addEventListener(
-              "abort",
-              () => {
-                clearTimeout(timer);
-                reject(new Error("aborted"));
+          },
+          globalDefaultModelRef: {
+            providerId: "gemini",
+            modelId: "gemini-1.5-flash",
+          },
+          canRefreshModels: true,
+        }),
+      refreshModelCatalog: ({ viewKind }) =>
+        okAsync(
+          (() => {
+            refreshModelCatalogCalls.push(viewKind);
+            return {
+              modelCatalog: {
+                snapshotId: `${viewKind}-snapshot-2`,
+                modelsByProvider: {
+                  gemini: ["gemini-1.5-flash"],
+                },
               },
-              { once: true },
-            );
-          }),
-          () => "ProviderError",
+            };
+          })(),
         ),
-    },
-    createMessageId: () => `message-${++messageId}`,
-    createGenerationRequestId: () => `generation-${++generationId}`,
-    getContextLastN: () => options?.contextLastN ?? 12,
-    exportService: {
-      saveMarkdownFile: ({ webContentsId, suggestedFileName, markdown }) => {
-        transcriptExports.push({ webContentsId, suggestedFileName, markdown });
-        return okAsync({
-          status: "exported" as const,
-          filePath: `/tmp/${suggestedFileName}.md`,
-        });
+      listAvailableAgents: () => okAsync(AVAILABLE_AGENTS),
+      loadCouncilMessages: (councilId) =>
+        okAsync((messagesByCouncilId.get(councilId) ?? []) as never),
+      appendCouncilMessage: (message) => {
+        const current = messagesByCouncilId.get(message.councilId) ?? [];
+        const next = {
+          ...message,
+          sequenceNumber: current.length + 1,
+        };
+        messagesByCouncilId.set(message.councilId, [...current, next]);
+        return okAsync(next);
+      },
+      loadCouncilRuntimeBriefing: (councilId) =>
+        okAsync((briefingsByCouncilId.get(councilId) ?? null) as never),
+      persistCouncilRuntimeBriefing: (briefing) => {
+        briefingsByCouncilId.set(briefing.councilId, briefing);
+        return okAsync(undefined);
+      },
+      aiService: {
+        generateText: (request, abortSignal) =>
+          ResultAsync.fromPromise(
+            new Promise<{ text: string }>((resolve, reject) => {
+              const timer = setTimeout(() => {
+                if (abortSignal.aborted) {
+                  reject(new Error("aborted"));
+                  return;
+                }
+                const promptContent = request.messages.map((message) => message.content).join("\n");
+                const isConductorRequest = promptContent.includes("You are the Council Conductor.");
+                if (isConductorRequest) {
+                  conductorPrompts.push(promptContent);
+                } else {
+                  memberPrompts.push(promptContent);
+                }
+                if (providerFailuresRemaining > 0) {
+                  providerFailuresRemaining -= 1;
+                  reject(new Error("provider failure"));
+                  return;
+                }
+                const isOpeningRequest = promptContent.includes("starting an Autopilot council");
+
+                if (
+                  options?.failConductorDecision === true &&
+                  isConductorRequest &&
+                  !isOpeningRequest
+                ) {
+                  reject(new Error("provider failure"));
+                  return;
+                }
+
+                resolve({
+                  text: isConductorRequest
+                    ? isOpeningRequest
+                      ? buildConductorOpeningResponse(promptContent)
+                      : buildConductorDecisionResponse(promptContent)
+                    : `Generated turn ${++sequence}`,
+                });
+              }, generationDelayMs);
+              abortSignal.addEventListener(
+                "abort",
+                () => {
+                  clearTimeout(timer);
+                  reject(new Error("aborted"));
+                },
+                { once: true },
+              );
+            }),
+            () => "ProviderError",
+          ),
+      },
+      createMessageId: () => `message-${++messageId}`,
+      createGenerationRequestId: () => `generation-${++generationId}`,
+      getContextLastN: () => options?.contextLastN ?? 12,
+      exportService: {
+        saveMarkdownFile: ({ webContentsId, suggestedFileName, markdown }) => {
+          transcriptExports.push({ webContentsId, suggestedFileName, markdown });
+          return okAsync({
+            status: "exported" as const,
+            filePath: `/tmp/${suggestedFileName}.md`,
+          });
+        },
       },
     },
-  });
+    options?.initialCouncils,
+  );
 
   return Object.assign(slice, {
     getRefreshModelCatalogCalls: (): ReadonlyArray<
@@ -341,6 +358,214 @@ describe("councils handlers", () => {
     expect(page2._unsafeUnwrap().items).toHaveLength(1);
     expect(page2._unsafeUnwrap().hasMore).toBe(false);
   });
+
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "keeps created councils not-started and enforces topic-required create flow",
+    async () => {
+      const slice = createSlice();
+      const saved = await slice.saveCouncil({
+        webContentsId: 201,
+        draft: {
+          viewKind: "councilCreate",
+          id: null,
+          title: "Topic Required Council",
+          topic: "Launch plan",
+          goal: null,
+          mode: "manual",
+          tags: [],
+          memberAgentIds: [PRIMARY_AGENT_ID],
+          memberColorsByAgentId: {},
+          conductorModelRefOrNull: null,
+        },
+      });
+      expect(saved.isOk()).toBe(true);
+      if (saved.isErr()) {
+        return;
+      }
+
+      const view = await slice.getCouncilView({
+        webContentsId: 201,
+        councilId: saved.value.council.id,
+      });
+      expect(view.isOk()).toBe(true);
+      if (view.isOk()) {
+        expect(view.value.council.started).toBe(false);
+      }
+
+      const saveWithoutTopic = await slice.saveCouncil({
+        webContentsId: 201,
+        draft: {
+          viewKind: "councilCreate",
+          id: null,
+          title: "Invalid Council",
+          topic: "   ",
+          goal: null,
+          mode: "manual",
+          tags: [],
+          memberAgentIds: [PRIMARY_AGENT_ID],
+          memberColorsByAgentId: {},
+          conductorModelRefOrNull: null,
+        },
+      });
+      expect(saveWithoutTopic.isErr()).toBe(true);
+      if (saveWithoutTopic.isErr()) {
+        expect(saveWithoutTopic.error.kind).toBe("ValidationError");
+      }
+    },
+  );
+
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "blocks runtime and config mutation while archived then allows restore edits",
+    async () => {
+      const slice = createSlice();
+      const saved = await slice.saveCouncil({
+        webContentsId: 202,
+        draft: {
+          viewKind: "councilCreate",
+          id: null,
+          title: "Archived ReadOnly Council",
+          topic: "Read-only checks",
+          goal: null,
+          mode: "manual",
+          tags: ["ops"],
+          memberAgentIds: [PRIMARY_AGENT_ID, SECONDARY_AGENT_ID],
+          memberColorsByAgentId: {},
+          conductorModelRefOrNull: null,
+        },
+      });
+      expect(saved.isOk()).toBe(true);
+      if (saved.isErr()) {
+        return;
+      }
+
+      const archived = await slice.setArchived({
+        webContentsId: 202,
+        id: saved.value.council.id,
+        archived: true,
+      });
+      expect(archived.isOk()).toBe(true);
+
+      const startArchived = await slice.startCouncil({
+        webContentsId: 202,
+        id: saved.value.council.id,
+        maxTurns: null,
+      });
+      expect(startArchived.isErr()).toBe(true);
+
+      const manualTurnArchived = await slice.generateManualTurn({
+        webContentsId: 202,
+        id: saved.value.council.id,
+        memberAgentId: PRIMARY_AGENT_ID,
+      });
+      expect(manualTurnArchived.isErr()).toBe(true);
+
+      const injectArchived = await slice.injectConductorMessage({
+        webContentsId: 202,
+        id: saved.value.council.id,
+        content: "Should be blocked",
+      });
+      expect(injectArchived.isErr()).toBe(true);
+
+      const editArchived = await slice.saveCouncil({
+        webContentsId: 202,
+        draft: {
+          viewKind: "councilView",
+          id: saved.value.council.id,
+          title: saved.value.council.title,
+          topic: saved.value.council.topic,
+          goal: "Archived edit",
+          mode: saved.value.council.mode,
+          tags: saved.value.council.tags,
+          memberAgentIds: saved.value.council.memberAgentIds,
+          memberColorsByAgentId: saved.value.council.memberColorsByAgentId,
+          conductorModelRefOrNull: {
+            providerId: "gemini",
+            modelId: "gemini-1.5-flash",
+          },
+        },
+      });
+      expect(editArchived.isErr()).toBe(true);
+      if (editArchived.isErr()) {
+        expect(editArchived.error.kind).toBe("StateViolationError");
+      }
+
+      const restored = await slice.setArchived({
+        webContentsId: 202,
+        id: saved.value.council.id,
+        archived: false,
+      });
+      expect(restored.isOk()).toBe(true);
+
+      const editAfterRestore = await slice.saveCouncil({
+        webContentsId: 202,
+        draft: {
+          viewKind: "councilView",
+          id: saved.value.council.id,
+          title: "Restored Council",
+          topic: saved.value.council.topic,
+          goal: "Allowed now",
+          mode: saved.value.council.mode,
+          tags: ["ops", "restored"],
+          memberAgentIds: saved.value.council.memberAgentIds,
+          memberColorsByAgentId: saved.value.council.memberColorsByAgentId,
+          conductorModelRefOrNull: {
+            providerId: "gemini",
+            modelId: "gemini-1.5-flash",
+          },
+        },
+      });
+      expect(editAfterRestore.isOk()).toBe(true);
+      if (editAfterRestore.isOk()) {
+        expect(editAfterRestore.value.council.conductorModelRefOrNull).toEqual({
+          providerId: "gemini",
+          modelId: "gemini-1.5-flash",
+        });
+      }
+    },
+  );
+
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "blocks start for councils with missing topic even if legacy data exists",
+    async () => {
+      const slice = createSlice({
+        initialCouncils: [
+          {
+            id: asCouncilId("00000000-0000-4000-8000-999999999901"),
+            title: "Legacy Council",
+            topic: "",
+            goal: null,
+            mode: "manual",
+            tags: [],
+            memberAgentIds: [asAgentId(PRIMARY_AGENT_ID)],
+            memberColorsByAgentId: {},
+            conductorModelRefOrNull: null,
+            archivedAtUtc: null,
+            startedAtUtc: null,
+            autopilotPaused: true,
+            autopilotMaxTurns: null,
+            autopilotTurnsCompleted: 0,
+            turnCount: 0,
+            createdAtUtc: "2026-02-18T10:00:00.000Z",
+            updatedAtUtc: "2026-02-18T10:00:00.000Z",
+          },
+        ],
+      });
+
+      const started = await slice.startCouncil({
+        webContentsId: 203,
+        id: "00000000-0000-4000-8000-999999999901",
+        maxTurns: null,
+      });
+
+      expect(started.isErr()).toBe(true);
+      if (started.isErr()) {
+        expect(started.error.kind).toBe("ValidationError");
+      }
+    },
+  );
 
   itReq(FILE_REQUIREMENT_IDS, "archives and restores council", async () => {
     const slice = createSlice();
@@ -891,12 +1116,14 @@ describe("councils handlers", () => {
       expect(latestMemberPrompt).toContain("Second note");
       expect(latestMemberPrompt).toContain("Third note");
       expect(latestMemberPrompt).not.toContain("Kickoff");
+      expect(latestMemberPrompt).toContain("Current briefing: Briefing");
       expect(latestMemberPrompt).toContain("Earlier messages omitted: 1");
 
       const latestConductorPrompt = slice.getConductorPrompts().at(-1) ?? "";
       expect(latestConductorPrompt).toContain("Third note");
       expect(latestConductorPrompt).toContain("Generated turn");
       expect(latestConductorPrompt).not.toContain("Kickoff");
+      expect(latestConductorPrompt).toContain("Previous briefing: Briefing");
       expect(latestConductorPrompt).toContain("Earlier messages omitted: 2");
     },
   );
