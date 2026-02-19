@@ -1,8 +1,11 @@
 import { okAsync } from "neverthrow";
-import { describe, expect, it } from "vitest";
+import { describe, expect } from "vitest";
 import { createAgentsIpcHandlers } from "../../src/main/features/agents/ipc-handlers";
 import { createAgentsSlice } from "../../src/main/features/agents/slice";
 import { asAgentId } from "../../src/shared/domain/ids";
+import { itReq } from "../helpers/requirement-trace";
+
+const FILE_REQUIREMENT_IDS = ["A3", "R1.1", "R1.2"] as const;
 
 const createHandlers = () => {
   let sequence = 0;
@@ -39,7 +42,7 @@ const createHandlers = () => {
 };
 
 describe("agents ipc contract", () => {
-  it("validates list payload", async () => {
+  itReq(FILE_REQUIREMENT_IDS, "validates list payload", async () => {
     const handlers = createHandlers();
     const result = await handlers.listAgents(
       {
@@ -59,7 +62,7 @@ describe("agents ipc contract", () => {
     }
   });
 
-  it("creates and retrieves editor view", async () => {
+  itReq(FILE_REQUIREMENT_IDS, "creates and retrieves editor view", async () => {
     const handlers = createHandlers();
     const save = await handlers.saveAgent(
       {

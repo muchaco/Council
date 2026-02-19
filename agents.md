@@ -36,6 +36,10 @@
 ## C) Test and Coverage Rules
 
 - Test-as-spec is mandatory: every externally observable behavior change requires test updates/additions.
+- Requirement traceability is test-level and mandatory:
+  - Use `itReq([...ids], "test name", fn)` from `tests/helpers/requirement-trace.ts` for every test case.
+  - Do not use plain `it(...)` in spec files.
+  - Keep requirement IDs exact (`R*`, `U*`, `A*`..`I*`, `IMPL-*`).
 - Rare escape hatch (no test change) is only allowed for provable behavior-preserving refactors; document proof in `/docs/status.md`.
 - No E2E tests are planned.
 - Test slices for this repo:
@@ -95,12 +99,17 @@
 ## F) Status Tracking
 
 - `/docs/status.md` is mandatory and must always reflect current implementation state.
+- Traceability is generated, not hand-maintained:
+  - Source artifacts: `docs/traceability/requirements-traceability.generated.json` and `docs/traceability/requirements-traceability.generated.md`.
+  - Regenerate with `bun run trace:generate`.
+  - Validate with `bun run check:traceability` (fails on unknown IDs, unmapped specs, plain `it(...)`, or unannotated tests).
+  - `docs/status.md` traceability block between `<!-- TRACEABILITY:BEGIN -->` and `<!-- TRACEABILITY:END -->` is generator-managed.
 - After every meaningful change, update `/docs/status.md` with:
   - implemented behavior,
   - implementation approach and concrete code locations,
   - in-progress items,
   - remaining gaps,
-  - updated requirement <-> test traceability mappings.
+  - refreshed generated traceability snapshot (run generator, do not hand-edit mappings).
 - Requirement IDs must remain exact and bidirectional traceability must be complete.
 
 ## G) Planning Artifacts

@@ -1,7 +1,37 @@
 import { okAsync } from "neverthrow";
-import { describe, expect, it } from "vitest";
+import { describe, expect } from "vitest";
 import { createAgentsSlice } from "../../src/main/features/agents/slice";
 import { asAgentId } from "../../src/shared/domain/ids";
+import { itReq } from "../helpers/requirement-trace";
+
+const FILE_REQUIREMENT_IDS = [
+  "R1.1",
+  "R1.2",
+  "R1.4",
+  "R1.5",
+  "R1.8",
+  "R1.9",
+  "R1.12",
+  "R1.13",
+  "R1.14",
+  "R1.15",
+  "R1.16",
+  "R1.17",
+  "R1.18",
+  "R1.19",
+  "R6.1",
+  "R6.2",
+  "R6.3",
+  "R6.4",
+  "U4.1",
+  "U4.2",
+  "U4.3",
+  "U4.4",
+  "U6.1",
+  "U6.2",
+  "U6.4",
+  "U6.6",
+] as const;
 
 const createSlice = () => {
   let sequence = 0;
@@ -39,7 +69,7 @@ const createSlice = () => {
 };
 
 describe("agents handlers", () => {
-  it("creates and lists agents with pagination", async () => {
+  itReq(FILE_REQUIREMENT_IDS, "creates and lists agents with pagination", async () => {
     const slice = createSlice();
 
     for (let index = 0; index < 5; index += 1) {
@@ -84,7 +114,7 @@ describe("agents handlers", () => {
     expect(page2._unsafeUnwrap().hasMore).toBe(false);
   });
 
-  it("filters by text and tag", async () => {
+  itReq(FILE_REQUIREMENT_IDS, "filters by text and tag", async () => {
     const slice = createSlice();
     await slice.saveAgent({
       webContentsId: 11,
@@ -138,7 +168,7 @@ describe("agents handlers", () => {
     expect(tagFiltered._unsafeUnwrap().items[0]?.name).toBe("Researcher");
   });
 
-  it("blocks saving agent with invalid model config", async () => {
+  itReq(FILE_REQUIREMENT_IDS, "blocks saving agent with invalid model config", async () => {
     const slice = createAgentsSlice({
       nowUtc: () => "2026-02-18T10:00:00.000Z",
       createAgentId: () => asAgentId("00000000-0000-4000-8000-000000000001"),
@@ -189,7 +219,7 @@ describe("agents handlers", () => {
     expect(result._unsafeUnwrapErr().kind).toBe("InvalidConfigError");
   });
 
-  it("deletes existing agent", async () => {
+  itReq(FILE_REQUIREMENT_IDS, "deletes existing agent", async () => {
     const slice = createSlice();
     const saved = await slice.saveAgent({
       webContentsId: 13,
@@ -223,7 +253,7 @@ describe("agents handlers", () => {
     expect(nextList._unsafeUnwrap().items).toHaveLength(0);
   });
 
-  it("blocks delete when agent is referenced by council", async () => {
+  itReq(FILE_REQUIREMENT_IDS, "blocks delete when agent is referenced by council", async () => {
     const slice = createAgentsSlice({
       nowUtc: () => "2026-02-18T10:00:00.000Z",
       createAgentId: () => asAgentId("00000000-0000-4000-8000-000000000001"),

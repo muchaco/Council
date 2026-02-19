@@ -1,8 +1,24 @@
 import { ResultAsync, okAsync } from "neverthrow";
-import { describe, expect, it } from "vitest";
+import { describe, expect } from "vitest";
 import { createCouncilsIpcHandlers } from "../../src/main/features/councils/ipc-handlers";
 import { createCouncilsSlice } from "../../src/main/features/councils/slice";
 import { asCouncilId } from "../../src/shared/domain/ids";
+import { itReq } from "../helpers/requirement-trace";
+
+const FILE_REQUIREMENT_IDS = [
+  "A3",
+  "R2.1",
+  "R2.3",
+  "R3.1",
+  "R3.7",
+  "R3.23",
+  "R3.25",
+  "R3.26",
+  "R3.32",
+  "U3.8",
+  "U11.6",
+  "U12.2",
+] as const;
 
 const createHandlers = () => {
   let sequence = 0;
@@ -82,7 +98,7 @@ const createHandlers = () => {
 };
 
 describe("councils ipc contract", () => {
-  it("validates list payload", async () => {
+  itReq(FILE_REQUIREMENT_IDS, "validates list payload", async () => {
     const handlers = createHandlers();
     const result = await handlers.listCouncils(
       {
@@ -103,7 +119,7 @@ describe("councils ipc contract", () => {
     }
   });
 
-  it("creates and fetches council editor view", async () => {
+  itReq(FILE_REQUIREMENT_IDS, "creates and fetches council editor view", async () => {
     const handlers = createHandlers();
     const save = await handlers.saveCouncil(
       {
@@ -170,7 +186,7 @@ describe("councils ipc contract", () => {
     expect(started.value.council.started).toBe(true);
   });
 
-  it("validates runtime command payloads", async () => {
+  itReq(FILE_REQUIREMENT_IDS, "validates runtime command payloads", async () => {
     const handlers = createHandlers();
 
     const invalidView = await handlers.getCouncilView(
@@ -238,7 +254,7 @@ describe("councils ipc contract", () => {
     expect(invalidExport.ok).toBe(false);
   });
 
-  it("exports transcript through typed IPC handler", async () => {
+  itReq(FILE_REQUIREMENT_IDS, "exports transcript through typed IPC handler", async () => {
     const handlers = createHandlers();
     const saved = await handlers.saveCouncil(
       {

@@ -1,8 +1,21 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect } from "vitest";
 import { createSqlitePersistenceService } from "../../src/main/services/db/sqlite-persistence-service";
+import { itReq } from "../helpers/requirement-trace";
+
+const FILE_REQUIREMENT_IDS = [
+  "B1",
+  "B2",
+  "B3",
+  "R7.1",
+  "R2.1",
+  "R3.3",
+  "R3.7",
+  "R3.8",
+  "R3.23",
+] as const;
 
 const createTempPersistence = () => {
   const tempDir = mkdtempSync(path.join(tmpdir(), "council3-db-"));
@@ -20,7 +33,7 @@ const createTempPersistence = () => {
 };
 
 describe("sqlite persistence service", () => {
-  it("persists settings and providers across re-open", () => {
+  itReq(FILE_REQUIREMENT_IDS, "persists settings and providers across re-open", () => {
     const { tempDir, persistence } = createTempPersistence();
 
     const init = persistence.initialize();
@@ -71,7 +84,7 @@ describe("sqlite persistence service", () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("persists agents across re-open and supports delete", () => {
+  itReq(FILE_REQUIREMENT_IDS, "persists agents across re-open and supports delete", () => {
     const { tempDir, persistence } = createTempPersistence();
     expect(persistence.initialize().isOk()).toBe(true);
 
@@ -113,7 +126,7 @@ describe("sqlite persistence service", () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("persists councils and member references", () => {
+  itReq(FILE_REQUIREMENT_IDS, "persists councils and member references", () => {
     const { tempDir, persistence } = createTempPersistence();
     expect(persistence.initialize().isOk()).toBe(true);
 
@@ -184,7 +197,7 @@ describe("sqlite persistence service", () => {
     rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("persists council transcript messages and runtime briefing", () => {
+  itReq(FILE_REQUIREMENT_IDS, "persists council transcript messages and runtime briefing", () => {
     const { tempDir, persistence } = createTempPersistence();
     expect(persistence.initialize().isOk()).toBe(true);
 

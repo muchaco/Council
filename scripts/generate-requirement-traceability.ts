@@ -11,8 +11,8 @@ type TraceabilityDocument = {
   summary: {
     specFilesTracked: number;
     testCasesTracked: number;
-    perTestCases: number;
-    legacyFileCases: number;
+    annotatedTestCases: number;
+    unmappedTestCases: number;
     mappedRequirementIds: number;
   };
   entries: ReadonlyArray<TraceabilityEntry>;
@@ -36,8 +36,8 @@ const toMarkdown = (document: TraceabilityDocument): string => {
   lines.push("");
   lines.push(`- Spec files tracked: ${document.summary.specFilesTracked}`);
   lines.push(`- Test cases tracked: ${document.summary.testCasesTracked}`);
-  lines.push(`- Per-test mapped cases: ${document.summary.perTestCases}`);
-  lines.push(`- Legacy file-level mapped cases: ${document.summary.legacyFileCases}`);
+  lines.push(`- Annotated test cases: ${document.summary.annotatedTestCases}`);
+  lines.push(`- Unmapped test cases: ${document.summary.unmappedTestCases}`);
   lines.push(`- Unique mapped requirement IDs: ${document.summary.mappedRequirementIds}`);
   lines.push("");
   lines.push("## Index");
@@ -90,14 +90,16 @@ export const generateRequirementTraceability = (): TraceabilityDocument => {
 
   const testCases = entries.flatMap((entry) => entry.cases);
   const mappedRequirementIds = collectAllMappedRequirementIds(entries);
+  const testCasesTracked = entries.reduce((count, entry) => count + entry.totalTestCount, 0);
+  const annotatedTestCases = testCases.length;
 
   const document: TraceabilityDocument = {
     generatedAtUtc,
     summary: {
       specFilesTracked: entries.length,
-      testCasesTracked: testCases.length,
-      perTestCases: testCases.filter((testCase) => testCase.source === "itReq").length,
-      legacyFileCases: testCases.filter((testCase) => testCase.source === "legacy-file-map").length,
+      testCasesTracked,
+      annotatedTestCases,
+      unmappedTestCases: Math.max(0, testCasesTracked - annotatedTestCases),
       mappedRequirementIds: mappedRequirementIds.length,
     },
     entries,

@@ -1,10 +1,9 @@
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
-import { LEGACY_FILE_REQUIREMENT_MAP } from "../tests/requirements-file-map";
 
 const REQUIREMENT_ID_PATTERN = /\b(?:R\d+\.\d+|U\d+\.\d+|[A-I]\d+|IMPL-\d+)\b/g;
 
-export type TraceSource = "itReq" | "legacy-file-map";
+export type TraceSource = "itReq";
 
 export type TraceabilityCase = {
   name: string;
@@ -15,6 +14,9 @@ export type TraceabilityCase = {
 export type TraceabilityEntry = {
   filePath: string;
   cases: ReadonlyArray<TraceabilityCase>;
+  plainItCount: number;
+  itReqInvocationCount: number;
+  totalTestCount: number;
 };
 
 const listSpecFiles = (directoryPath: string): ReadonlyArray<string> => {
@@ -50,9 +52,22 @@ const parseIdsFromArrayLiteral = (arrayLiteral: string): ReadonlyArray<string> =
 };
 
 const parseItReqCases = (sourceText: string): ReadonlyArray<TraceabilityCase> => {
-  const itReqPattern = /itReq\s*\(\s*\[([\s\S]*?)\]\s*,\s*(["'`])([\s\S]*?)\2\s*,/g;
+  const constArrayPattern = /const\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*\[([\s\S]*?)\]\s+as const;/g;
+  const namedRequirementIds = new Map<string, ReadonlyArray<string>>();
+  let constMatch: RegExpExecArray | null = constArrayPattern.exec(sourceText);
+  while (constMatch !== null) {
+    const name = constMatch[1] ?? "";
+    const ids = parseIdsFromArrayLiteral(constMatch[2] ?? "");
+    if (name.length > 0 && ids.length > 0) {
+      namedRequirementIds.set(name, ids);
+    }
+    constMatch = constArrayPattern.exec(sourceText);
+  }
+
+  const inlineItReqPattern = /itReq\s*\(\s*\[([\s\S]*?)\]\s*,\s*(["'`])([\s\S]*?)\2\s*,/g;
+  const namedItReqPattern = /itReq\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,\s*(["'`])([\s\S]*?)\2\s*,/g;
   const cases: Array<TraceabilityCase> = [];
-  let match: RegExpExecArray | null = itReqPattern.exec(sourceText);
+  let match: RegExpExecArray | null = inlineItReqPattern.exec(sourceText);
 
   while (match !== null) {
     const ids = parseIdsFromArrayLiteral(match[1] ?? "");
@@ -61,7 +76,18 @@ const parseItReqCases = (sourceText: string): ReadonlyArray<TraceabilityCase> =>
       cases.push({ name, requirementIds: ids, source: "itReq" });
     }
 
-    match = itReqPattern.exec(sourceText);
+    match = inlineItReqPattern.exec(sourceText);
+  }
+
+  let namedMatch: RegExpExecArray | null = namedItReqPattern.exec(sourceText);
+  while (namedMatch !== null) {
+    const ids = namedRequirementIds.get(namedMatch[1] ?? "") ?? [];
+    const name = (namedMatch[3] ?? "").replace(/\s+/g, " ").trim();
+    if (ids.length > 0 && name.length > 0) {
+      cases.push({ name, requirementIds: ids, source: "itReq" });
+    }
+
+    namedMatch = namedItReqPattern.exec(sourceText);
   }
 
   return cases;
@@ -78,29 +104,15 @@ export const collectRequirementTraceability = (): ReadonlyArray<TraceabilityEntr
   for (const relativeFilePath of files) {
     const sourceText = readFileSync(path.join(process.cwd(), relativeFilePath), "utf8");
     const perTestCases = parseItReqCases(sourceText);
-    if (perTestCases.length > 0) {
-      entries.push({ filePath: relativeFilePath, cases: perTestCases });
-      continue;
-    }
-
-    const legacyIds =
-      LEGACY_FILE_REQUIREMENT_MAP[relativeFilePath as keyof typeof LEGACY_FILE_REQUIREMENT_MAP] ??
-      [];
-    if (legacyIds.length > 0) {
-      entries.push({
-        filePath: relativeFilePath,
-        cases: [
-          {
-            name: "*",
-            requirementIds: normalizeIds([...legacyIds]),
-            source: "legacy-file-map",
-          },
-        ],
-      });
-      continue;
-    }
-
-    entries.push({ filePath: relativeFilePath, cases: [] });
+    const plainItCount = (sourceText.match(/\bit\s*\(/g) ?? []).length;
+    const itReqInvocationCount = (sourceText.match(/\bitReq\s*\(/g) ?? []).length;
+    entries.push({
+      filePath: relativeFilePath,
+      cases: perTestCases,
+      plainItCount,
+      itReqInvocationCount,
+      totalTestCount: plainItCount + itReqInvocationCount,
+    });
   }
 
   return entries;

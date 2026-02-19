@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect } from "vitest";
 import {
   ADVANCE_AUTOPILOT_TURN_REQUEST_SCHEMA,
   CANCEL_COUNCIL_GENERATION_REQUEST_SCHEMA,
@@ -24,19 +24,42 @@ import {
   START_COUNCIL_REQUEST_SCHEMA,
   TEST_PROVIDER_CONNECTION_REQUEST_SCHEMA,
 } from "../../src/shared/ipc/validators";
+import { itReq } from "../helpers/requirement-trace";
+
+const FILE_REQUIREMENT_IDS = [
+  "A3",
+  "C1",
+  "R4.6",
+  "R4.8",
+  "R4.17",
+  "F1",
+  "R1.1",
+  "R1.2",
+  "R2.1",
+  "R2.3",
+  "R2.7",
+  "R3.1",
+  "R3.7",
+  "R3.8",
+  "R3.23",
+  "R3.32",
+  "U11.6",
+  "U12.2",
+  "R6.1",
+] as const;
 
 describe("ipc validators", () => {
-  it("accepts valid payload", () => {
+  itReq(FILE_REQUIREMENT_IDS, "accepts valid payload", () => {
     const parsed = HEALTH_PING_REQUEST_SCHEMA.safeParse({ message: "ping" });
     expect(parsed.success).toBe(true);
   });
 
-  it("rejects empty payload", () => {
+  itReq(FILE_REQUIREMENT_IDS, "rejects empty payload", () => {
     const parsed = HEALTH_PING_REQUEST_SCHEMA.safeParse({ message: "" });
     expect(parsed.success).toBe(false);
   });
 
-  it("accepts provider test payload", () => {
+  itReq(FILE_REQUIREMENT_IDS, "accepts provider test payload", () => {
     const parsed = TEST_PROVIDER_CONNECTION_REQUEST_SCHEMA.safeParse({
       provider: {
         providerId: "gemini",
@@ -47,7 +70,7 @@ describe("ipc validators", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("rejects save payload without test token", () => {
+  itReq(FILE_REQUIREMENT_IDS, "rejects save payload without test token", () => {
     const parsed = SAVE_PROVIDER_CONFIG_REQUEST_SCHEMA.safeParse({
       provider: {
         providerId: "openrouter",
@@ -59,7 +82,7 @@ describe("ipc validators", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("rejects provider payload with unknown fields", () => {
+  itReq(FILE_REQUIREMENT_IDS, "rejects provider payload with unknown fields", () => {
     const parsed = TEST_PROVIDER_CONNECTION_REQUEST_SCHEMA.safeParse({
       provider: {
         providerId: "gemini",
@@ -72,7 +95,7 @@ describe("ipc validators", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("accepts nullable global default model payload", () => {
+  itReq(FILE_REQUIREMENT_IDS, "accepts nullable global default model payload", () => {
     const parsed = SET_GLOBAL_DEFAULT_MODEL_REQUEST_SCHEMA.safeParse({
       viewKind: "settings",
       modelRefOrNull: null,
@@ -80,7 +103,7 @@ describe("ipc validators", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("accepts valid context last N payload", () => {
+  itReq(FILE_REQUIREMENT_IDS, "accepts valid context last N payload", () => {
     const parsed = SET_CONTEXT_LAST_N_REQUEST_SCHEMA.safeParse({
       viewKind: "settings",
       contextLastN: 24,
@@ -88,7 +111,7 @@ describe("ipc validators", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("accepts valid list agents payload", () => {
+  itReq(FILE_REQUIREMENT_IDS, "accepts valid list agents payload", () => {
     const parsed = LIST_AGENTS_REQUEST_SCHEMA.safeParse({
       viewKind: "agentsList",
       searchText: "planner",
@@ -100,7 +123,7 @@ describe("ipc validators", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("rejects invalid list agents page", () => {
+  itReq(FILE_REQUIREMENT_IDS, "rejects invalid list agents page", () => {
     const parsed = LIST_AGENTS_REQUEST_SCHEMA.safeParse({
       viewKind: "agentsList",
       searchText: "",
@@ -112,7 +135,7 @@ describe("ipc validators", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("accepts save agent payload with nullable model", () => {
+  itReq(FILE_REQUIREMENT_IDS, "accepts save agent payload with nullable model", () => {
     const parsed = SAVE_AGENT_REQUEST_SCHEMA.safeParse({
       viewKind: "agentEdit",
       id: null,
@@ -126,7 +149,7 @@ describe("ipc validators", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("accepts nullable get editor payload", () => {
+  itReq(FILE_REQUIREMENT_IDS, "accepts nullable get editor payload", () => {
     const parsed = GET_AGENT_EDITOR_VIEW_REQUEST_SCHEMA.safeParse({
       viewKind: "agentEdit",
       agentId: null,
@@ -134,12 +157,12 @@ describe("ipc validators", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("rejects delete payload with non-uuid id", () => {
+  itReq(FILE_REQUIREMENT_IDS, "rejects delete payload with non-uuid id", () => {
     const parsed = DELETE_AGENT_REQUEST_SCHEMA.safeParse({ id: "agent-1" });
     expect(parsed.success).toBe(false);
   });
 
-  it("accepts valid list councils payload", () => {
+  itReq(FILE_REQUIREMENT_IDS, "accepts valid list councils payload", () => {
     const parsed = LIST_COUNCILS_REQUEST_SCHEMA.safeParse({
       viewKind: "councilsList",
       searchText: "strategy",
@@ -152,7 +175,7 @@ describe("ipc validators", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("accepts valid save council payload", () => {
+  itReq(FILE_REQUIREMENT_IDS, "accepts valid save council payload", () => {
     const parsed = SAVE_COUNCIL_REQUEST_SCHEMA.safeParse({
       viewKind: "councilCreate",
       id: null,
@@ -170,7 +193,7 @@ describe("ipc validators", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("accepts nullable get council editor payload", () => {
+  itReq(FILE_REQUIREMENT_IDS, "accepts nullable get council editor payload", () => {
     const parsed = GET_COUNCIL_EDITOR_VIEW_REQUEST_SCHEMA.safeParse({
       viewKind: "councilCreate",
       councilId: null,
@@ -178,7 +201,7 @@ describe("ipc validators", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("rejects invalid set archived payload", () => {
+  itReq(FILE_REQUIREMENT_IDS, "rejects invalid set archived payload", () => {
     const parsed = SET_COUNCIL_ARCHIVED_REQUEST_SCHEMA.safeParse({
       id: "not-a-uuid",
       archived: true,
@@ -186,12 +209,12 @@ describe("ipc validators", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("rejects invalid delete council payload", () => {
+  itReq(FILE_REQUIREMENT_IDS, "rejects invalid delete council payload", () => {
     const parsed = DELETE_COUNCIL_REQUEST_SCHEMA.safeParse({ id: "council-1" });
     expect(parsed.success).toBe(false);
   });
 
-  it("accepts valid council view payload", () => {
+  itReq(FILE_REQUIREMENT_IDS, "accepts valid council view payload", () => {
     const parsed = GET_COUNCIL_VIEW_REQUEST_SCHEMA.safeParse({
       viewKind: "councilView",
       councilId: "00000000-0000-4000-8000-000000000111",
@@ -199,14 +222,14 @@ describe("ipc validators", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("rejects pause autopilot payload with invalid id", () => {
+  itReq(FILE_REQUIREMENT_IDS, "rejects pause autopilot payload with invalid id", () => {
     const parsed = PAUSE_COUNCIL_AUTOPILOT_REQUEST_SCHEMA.safeParse({
       id: "invalid",
     });
     expect(parsed.success).toBe(false);
   });
 
-  it("accepts valid start and resume council payloads", () => {
+  itReq(FILE_REQUIREMENT_IDS, "accepts valid start and resume council payloads", () => {
     const startParsed = START_COUNCIL_REQUEST_SCHEMA.safeParse({
       viewKind: "councilView",
       id: "00000000-0000-4000-8000-000000000112",
@@ -221,7 +244,7 @@ describe("ipc validators", () => {
     expect(resumeParsed.success).toBe(true);
   });
 
-  it("rejects invalid max turn payloads", () => {
+  itReq(FILE_REQUIREMENT_IDS, "rejects invalid max turn payloads", () => {
     const invalidStart = START_COUNCIL_REQUEST_SCHEMA.safeParse({
       viewKind: "councilView",
       id: "00000000-0000-4000-8000-000000000112",
@@ -237,7 +260,7 @@ describe("ipc validators", () => {
     expect(invalidResume.success).toBe(false);
   });
 
-  it("accepts manual generation and autopilot advance payloads", () => {
+  itReq(FILE_REQUIREMENT_IDS, "accepts manual generation and autopilot advance payloads", () => {
     const manualParsed = GENERATE_MANUAL_COUNCIL_TURN_REQUEST_SCHEMA.safeParse({
       viewKind: "councilView",
       id: "00000000-0000-4000-8000-000000000113",
@@ -251,18 +274,22 @@ describe("ipc validators", () => {
     expect(advanceParsed.success).toBe(true);
   });
 
-  it("rejects empty conductor injection content and invalid cancel id", () => {
-    const injectParsed = INJECT_CONDUCTOR_MESSAGE_REQUEST_SCHEMA.safeParse({
-      viewKind: "councilView",
-      id: "00000000-0000-4000-8000-000000000114",
-      content: "   ",
-    });
-    const cancelParsed = CANCEL_COUNCIL_GENERATION_REQUEST_SCHEMA.safeParse({ id: "bad-id" });
-    expect(injectParsed.success).toBe(false);
-    expect(cancelParsed.success).toBe(false);
-  });
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "rejects empty conductor injection content and invalid cancel id",
+    () => {
+      const injectParsed = INJECT_CONDUCTOR_MESSAGE_REQUEST_SCHEMA.safeParse({
+        viewKind: "councilView",
+        id: "00000000-0000-4000-8000-000000000114",
+        content: "   ",
+      });
+      const cancelParsed = CANCEL_COUNCIL_GENERATION_REQUEST_SCHEMA.safeParse({ id: "bad-id" });
+      expect(injectParsed.success).toBe(false);
+      expect(cancelParsed.success).toBe(false);
+    },
+  );
 
-  it("validates council transcript export payload", () => {
+  itReq(FILE_REQUIREMENT_IDS, "validates council transcript export payload", () => {
     const valid = EXPORT_COUNCIL_TRANSCRIPT_REQUEST_SCHEMA.safeParse({
       viewKind: "councilsList",
       id: "00000000-0000-4000-8000-000000000114",

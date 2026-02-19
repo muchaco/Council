@@ -1,13 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect } from "vitest";
 import {
   buildAutopilotOpeningPrompt,
   buildConductorDecisionPrompt,
   parseAutopilotOpeningDecision,
   parseConductorDecision,
 } from "../../src/shared/council-runtime-conductor";
+import { itReq } from "../helpers/requirement-trace";
+
+const FILE_REQUIREMENT_IDS = ["R3.13", "R3.14", "R3.18", "R3.20", "E1", "E2", "F1"] as const;
 
 describe("council runtime conductor helpers", () => {
-  it("builds a prompt with strict JSON contract", () => {
+  itReq(FILE_REQUIREMENT_IDS, "builds a prompt with strict JSON contract", () => {
     const prompt = buildConductorDecisionPrompt({
       mode: "autopilot",
       topic: "Reduce cycle time",
@@ -30,7 +33,7 @@ describe("council runtime conductor helpers", () => {
     expect(prompt).toContain("Earlier messages omitted: 3");
   });
 
-  it("parses valid manual-mode conductor decision", () => {
+  itReq(FILE_REQUIREMENT_IDS, "parses valid manual-mode conductor decision", () => {
     const parsed = parseConductorDecision({
       text: JSON.stringify({
         briefing: "Manual update",
@@ -48,7 +51,7 @@ describe("council runtime conductor helpers", () => {
     }
   });
 
-  it("rejects invalid autopilot speaker selection", () => {
+  itReq(FILE_REQUIREMENT_IDS, "rejects invalid autopilot speaker selection", () => {
     const parsed = parseConductorDecision({
       text: JSON.stringify({
         briefing: "Autopilot update",
@@ -62,7 +65,7 @@ describe("council runtime conductor helpers", () => {
     expect(parsed.isErr()).toBe(true);
   });
 
-  it("builds and parses autopilot opening contract", () => {
+  itReq(FILE_REQUIREMENT_IDS, "builds and parses autopilot opening contract", () => {
     const prompt = buildAutopilotOpeningPrompt({
       topic: "Kickoff",
       goal: "Align on next steps",
@@ -89,7 +92,7 @@ describe("council runtime conductor helpers", () => {
     }
   });
 
-  it("builds manual-mode prompt fallback sections", () => {
+  itReq(FILE_REQUIREMENT_IDS, "builds manual-mode prompt fallback sections", () => {
     const prompt = buildConductorDecisionPrompt({
       mode: "manual",
       topic: "Kickoff",
@@ -106,7 +109,7 @@ describe("council runtime conductor helpers", () => {
     expect(prompt).toContain("Eligible members for next speaker: (manual mode - must return null)");
   });
 
-  it("rejects malformed manual and autopilot decision payloads", () => {
+  itReq(FILE_REQUIREMENT_IDS, "rejects malformed manual and autopilot decision payloads", () => {
     expect(
       parseConductorDecision({
         text: "not-json",
@@ -172,7 +175,7 @@ describe("council runtime conductor helpers", () => {
     ).toBe(true);
   });
 
-  it("rejects malformed autopilot opening payloads", () => {
+  itReq(FILE_REQUIREMENT_IDS, "rejects malformed autopilot opening payloads", () => {
     expect(
       parseAutopilotOpeningDecision({
         text: "not-json",

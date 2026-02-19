@@ -1,8 +1,11 @@
 import { errAsync, okAsync } from "neverthrow";
-import { describe, expect, it } from "vitest";
+import { describe, expect } from "vitest";
 import { createSettingsIpcHandlers } from "../../src/main/features/settings/ipc-handlers";
 import { createSettingsSlice } from "../../src/main/features/settings/slice";
 import { domainError } from "../../src/shared/domain/errors";
+import { itReq } from "../helpers/requirement-trace";
+
+const FILE_REQUIREMENT_IDS = ["A3", "C1", "C2", "D5", "F1", "IMPL-005"] as const;
 
 const createHandlers = () => {
   let tokenCounter = 0;
@@ -17,7 +20,7 @@ const createHandlers = () => {
 };
 
 describe("providers ipc contract", () => {
-  it("validates payload shapes", async () => {
+  itReq(FILE_REQUIREMENT_IDS, "validates payload shapes", async () => {
     const handlers = createHandlers();
     const result = await handlers.testProviderConnection({
       provider: {
@@ -33,25 +36,29 @@ describe("providers ipc contract", () => {
     }
   });
 
-  it("rejects provider payloads with unknown credential fields", async () => {
-    const handlers = createHandlers();
-    const result = await handlers.testProviderConnection({
-      provider: {
-        providerId: "gemini",
-        endpointUrl: null,
-        apiKey: "abc123",
-        secret: "should-not-cross-ipc",
-      },
-    });
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "rejects provider payloads with unknown credential fields",
+    async () => {
+      const handlers = createHandlers();
+      const result = await handlers.testProviderConnection({
+        provider: {
+          providerId: "gemini",
+          endpointUrl: null,
+          apiKey: "abc123",
+          secret: "should-not-cross-ipc",
+        },
+      });
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.kind).toBe("ValidationError");
-      expect(JSON.stringify(result.error).includes("should-not-cross-ipc")).toBe(false);
-    }
-  });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.kind).toBe("ValidationError");
+        expect(JSON.stringify(result.error).includes("should-not-cross-ipc")).toBe(false);
+      }
+    },
+  );
 
-  it("never returns credential secrets in IPC responses", async () => {
+  itReq(FILE_REQUIREMENT_IDS, "never returns credential secrets in IPC responses", async () => {
     const handlers = createHandlers();
     const testResult = await handlers.testProviderConnection({
       provider: {
@@ -96,43 +103,47 @@ describe("providers ipc contract", () => {
     expect(JSON.stringify(viewResult.value).includes("super-secret-token")).toBe(false);
   });
 
-  it("redacts provider error details before returning over IPC", async () => {
-    const slice = createSettingsSlice({
-      nowUtc: () => "2026-02-18T10:00:00.000Z",
-      randomToken: () => "token-1",
-      fetchOpenRouterModels: () =>
-        errAsync(
-          domainError(
-            "ProviderError",
-            "provider rejected api key super-secret-token",
-            "Could not fetch OpenRouter models. Check credentials and endpoint.",
-            {
-              apiKey: "super-secret-token",
-            },
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "redacts provider error details before returning over IPC",
+    async () => {
+      const slice = createSettingsSlice({
+        nowUtc: () => "2026-02-18T10:00:00.000Z",
+        randomToken: () => "token-1",
+        fetchOpenRouterModels: () =>
+          errAsync(
+            domainError(
+              "ProviderError",
+              "provider rejected api key super-secret-token",
+              "Could not fetch OpenRouter models. Check credentials and endpoint.",
+              {
+                apiKey: "super-secret-token",
+              },
+            ),
           ),
-        ),
-      fetchGeminiModels: () => okAsync(["gemini-1.5-flash"]),
-      fetchOllamaModels: () => okAsync(["llama3.1"]),
-    });
-    const handlers = createSettingsIpcHandlers(slice);
+        fetchGeminiModels: () => okAsync(["gemini-1.5-flash"]),
+        fetchOllamaModels: () => okAsync(["llama3.1"]),
+      });
+      const handlers = createSettingsIpcHandlers(slice);
 
-    const result = await handlers.testProviderConnection({
-      provider: {
-        providerId: "openrouter",
-        endpointUrl: null,
-        apiKey: "super-secret-token",
-      },
-    });
+      const result = await handlers.testProviderConnection({
+        provider: {
+          providerId: "openrouter",
+          endpointUrl: null,
+          apiKey: "super-secret-token",
+        },
+      });
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.devMessage).toBe("Redacted at IPC boundary.");
-      expect(result.error.details).toBeUndefined();
-      expect(JSON.stringify(result.error).includes("super-secret-token")).toBe(false);
-    }
-  });
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.devMessage).toBe("Redacted at IPC boundary.");
+        expect(result.error.details).toBeUndefined();
+        expect(JSON.stringify(result.error).includes("super-secret-token")).toBe(false);
+      }
+    },
+  );
 
-  it("validates context last N payload", async () => {
+  itReq(FILE_REQUIREMENT_IDS, "validates context last N payload", async () => {
     const handlers = createHandlers();
     const result = await handlers.setContextLastN(
       {

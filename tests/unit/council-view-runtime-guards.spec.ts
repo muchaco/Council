@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect } from "vitest";
 import { buildCouncilViewExitPlan } from "../../src/shared/council-view-runtime-guards";
+import { itReq } from "../helpers/requirement-trace";
+
+const FILE_REQUIREMENT_IDS = ["R3.12"] as const;
 
 describe("council view runtime guards", () => {
-  it("requires confirmation and pause when autopilot is running", () => {
+  itReq(FILE_REQUIREMENT_IDS, "requires confirmation and pause when autopilot is running", () => {
     const plan = buildCouncilViewExitPlan(
       {
         mode: "autopilot",
@@ -21,41 +24,49 @@ describe("council view runtime guards", () => {
     });
   });
 
-  it("requires confirmation and cancellation when generation is running", () => {
-    const plan = buildCouncilViewExitPlan(
-      {
-        mode: "manual",
-        started: true,
-        paused: false,
-      },
-      {
-        status: "running",
-      },
-    );
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "requires confirmation and cancellation when generation is running",
+    () => {
+      const plan = buildCouncilViewExitPlan(
+        {
+          mode: "manual",
+          started: true,
+          paused: false,
+        },
+        {
+          status: "running",
+        },
+      );
 
-    expect(plan).toEqual({
-      requiresConfirmation: true,
-      shouldPauseAutopilot: false,
-      shouldCancelGeneration: true,
-    });
-  });
+      expect(plan).toEqual({
+        requiresConfirmation: true,
+        shouldPauseAutopilot: false,
+        shouldCancelGeneration: true,
+      });
+    },
+  );
 
-  it("does not require confirmation when autopilot is already paused and idle", () => {
-    const plan = buildCouncilViewExitPlan(
-      {
-        mode: "autopilot",
-        started: true,
-        paused: true,
-      },
-      {
-        status: "idle",
-      },
-    );
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "does not require confirmation when autopilot is already paused and idle",
+    () => {
+      const plan = buildCouncilViewExitPlan(
+        {
+          mode: "autopilot",
+          started: true,
+          paused: true,
+        },
+        {
+          status: "idle",
+        },
+      );
 
-    expect(plan).toEqual({
-      requiresConfirmation: false,
-      shouldPauseAutopilot: false,
-      shouldCancelGeneration: false,
-    });
-  });
+      expect(plan).toEqual({
+        requiresConfirmation: false,
+        shouldPauseAutopilot: false,
+        shouldCancelGeneration: false,
+      });
+    },
+  );
 });
