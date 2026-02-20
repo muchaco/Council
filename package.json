@@ -14,6 +14,7 @@
     "dev:electron": "bun run build:main && bun run build:preload && bunx concurrently -k -n renderer,main,preload,electron -c cyan,green,yellow,magenta \"bun run dev:renderer\" \"bun run dev:main:watch\" \"bun run dev:preload:watch\" \"bun run dev:electron:start\"",
     "tool:electron": "sh -c '[ -z \"$DISPLAY\" ] && xvfb-run -a node scripts/diagnostics/electron-diagnostic.mjs \"$@\" || node scripts/diagnostics/electron-diagnostic.mjs \"$@\"' --",
     "diag:electron": "bun run tool:electron -- --scenario scripts/diagnostics/scenarios/settings-smoke.json",
+    "scenario:quantum-gravity": "node scripts/diagnostics/quantum-gravity-debate.mjs",
     "rebuild:native": "bunx electron-rebuild -f -w better-sqlite3,keytar",
     "postinstall": "node node_modules/electron/install.js",
     "format": "biome format --write .",

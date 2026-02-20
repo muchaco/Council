@@ -1,0 +1,16 @@
+{
+  "name": "agents-delete-all",
+  "steps": [
+    { "action": "waitForText", "text": "Council" },
+    { "action": "click", "selector": "button:has-text('Agents')" },
+    { "action": "waitForText", "text": "New Agent" },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const agentsToDelete = []; let page = 1; let hasMore = true; while (hasMore && page <= 10) { const result = await window.api.agents.list({ viewKind: 'agentsList', searchText: '', tagFilter: '', sortBy: 'updatedAt', sortDirection: 'desc', page }); if (!result.ok) break; agentsToDelete.push(...result.value.items); hasMore = result.value.hasMore; page++; } for (const agent of agentsToDelete) { await window.api.agents.delete({ id: agent.id }); } return `Deleted ${agentsToDelete.length} agents`; }"
+    },
+    { "action": "click", "selector": "button:has-text('Councils')" },
+    { "action": "click", "selector": "button:has-text('Agents')" },
+    { "action": "waitForText", "text": "No agents yet" },
+    { "action": "screenshot", "file": "agents-deleted-all.png", "fullPage": true }
+  ]
+}

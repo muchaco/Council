@@ -1,0 +1,59 @@
+{
+  "name": "council-card-dropdown-zindex",
+  "steps": [
+    { "action": "waitForText", "text": "Councils" },
+    { "action": "waitForText", "text": "New Council" },
+    {
+      "action": "evaluate",
+      "saveAs": "councilCardCount",
+      "expression": "() => document.querySelectorAll('.council-card').length"
+    },
+    {
+      "action": "evaluate",
+      "saveAs": "hasCards",
+      "expression": "() => document.querySelectorAll('.council-card').length > 0"
+    },
+    { "action": "assertSaved", "key": "hasCards", "equals": true },
+    {
+      "action": "click",
+      "selector": ".council-card:first-of-type .council-btn-more"
+    },
+    {
+      "action": "waitForSelector",
+      "selector": ".council-actions-menu[open]"
+    },
+    {
+      "action": "evaluate",
+      "saveAs": "menuIsOpen",
+      "expression": "() => { const menu = document.querySelector('.council-actions-menu[open]'); return menu !== null; }"
+    },
+    { "action": "assertSaved", "key": "menuIsOpen", "equals": true },
+    {
+      "action": "evaluate",
+      "saveAs": "dropdownVisible",
+      "expression": "() => { const dropdown = document.querySelector('.council-menu-dropdown'); if (!(dropdown instanceof HTMLElement)) { return false; } const rect = dropdown.getBoundingClientRect(); return rect.height > 0 && rect.width > 0; }"
+    },
+    { "action": "assertSaved", "key": "dropdownVisible", "equals": true },
+    {
+      "action": "evaluate",
+      "saveAs": "zIndexCheck",
+      "expression": "() => { const firstCard = document.querySelector('.council-card'); const secondCard = document.querySelector('.council-card:nth-of-type(2)'); const openCard = document.querySelector('.council-card:has(.council-actions-menu[open])'); const dropdown = document.querySelector('.council-menu-dropdown'); if (!firstCard || !secondCard || !(dropdown instanceof HTMLElement)) { return { error: 'Missing elements' }; } const firstZ = parseInt(window.getComputedStyle(firstCard).zIndex || '0'); const secondZ = parseInt(window.getComputedStyle(secondCard).zIndex || '0'); const openZ = openCard ? parseInt(window.getComputedStyle(openCard).zIndex || '0') : 0; const dropdownRect = dropdown.getBoundingClientRect(); const secondRect = secondCard.getBoundingClientRect(); const dropdownAboveSecondCard = dropdownRect.top + dropdownRect.height <= secondRect.top + 20; return { firstZ, secondZ, openZ, dropdownAboveSecondCard, dropdownTop: dropdownRect.top, secondCardTop: secondRect.top }; }"
+    },
+    { "action": "screenshot", "file": "council-card-dropdown-zindex.png", "fullPage": true },
+    {
+      "action": "click",
+      "selector": "body"
+    },
+    {
+      "action": "waitForSelector",
+      "selector": ".council-actions-menu[open]",
+      "state": "hidden"
+    },
+    {
+      "action": "evaluate",
+      "saveAs": "menuClosed",
+      "expression": "() => document.querySelector('.council-actions-menu[open]') === null"
+    },
+    { "action": "assertSaved", "key": "menuClosed", "equals": true }
+  ]
+}

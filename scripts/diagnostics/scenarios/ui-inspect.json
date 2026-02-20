@@ -1,0 +1,12 @@
+{
+  "name": "ui-inspect",
+  "steps": [
+    { "action": "waitForText", "text": "Council" },
+    { "action": "click", "selector": "button:has-text('Agents')" },
+    { "action": "waitForText", "text": "New Agent" },
+    { "action": "screenshot", "file": "agents-list.png", "fullPage": true },
+    { "action": "click", "selector": "button:has-text('Councils')" },
+    { "action": "waitForText", "text": "New Council" },
+    { "action": "screenshot", "file": "councils-list.png", "fullPage": true }
+  ]
+}

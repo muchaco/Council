@@ -70,6 +70,7 @@ import {
 } from "../shared/provider-settings-ui.js";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ToastStack } from "./ToastStack";
+import { ColorPicker } from "./components/ColorPicker";
 import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card";
@@ -439,6 +440,7 @@ export const App = (): JSX.Element => {
   );
   const [exportingCouncilId, setExportingCouncilId] = useState<string | null>(null);
   const [pendingCouncilListDelete, setPendingCouncilListDelete] = useState<CouncilDto | null>(null);
+  const [pendingAgentListDelete, setPendingAgentListDelete] = useState<AgentDto | null>(null);
   const [councilEditorState, setCouncilEditorState] = useState<CouncilEditorState>({
     status: "loading",
   });
@@ -707,6 +709,35 @@ export const App = (): JSX.Element => {
       void loadCouncils({ page: 1, append: false });
     }
   }, [homeTab, screen.kind, loadCouncils]);
+
+  // Close council menu dropdowns when clicking outside
+  useEffect(() => {
+    if (screen.kind !== "home" || homeTab !== "councils") {
+      return;
+    }
+
+    const handleClickOutside = (event: MouseEvent): void => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      const openMenus = document.querySelectorAll<HTMLDetailsElement>(
+        ".council-actions-menu[open]",
+      );
+
+      for (const menu of openMenus) {
+        if (!menu.contains(target)) {
+          menu.open = false;
+        }
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [screen.kind, homeTab]);
 
   const providerOrder = useMemo(() => {
     if (drafts === null) {
@@ -1676,6 +1707,46 @@ export const App = (): JSX.Element => {
     }
   };
 
+  const handleCouncilMenuToggle = (event: React.SyntheticEvent<HTMLDetailsElement>): void => {
+    const details = event.currentTarget;
+    const dropdown = details.querySelector(".council-menu-dropdown") as HTMLElement | null;
+    if (!dropdown || !details.open) {
+      return;
+    }
+
+    // Check if there's enough space below; if not, position above
+    const rect = dropdown.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - rect.top;
+    const dropdownHeight = rect.height;
+
+    if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
+      dropdown.classList.add("council-menu-dropdown-up");
+    } else {
+      dropdown.classList.remove("council-menu-dropdown-up");
+    }
+  };
+
+  const handleAgentMenuToggle = (event: React.SyntheticEvent<HTMLDetailsElement>): void => {
+    const details = event.currentTarget;
+    const dropdown = details.querySelector(".agent-menu-dropdown") as HTMLElement | null;
+    if (!dropdown || !details.open) {
+      return;
+    }
+
+    // Check if there's enough space below; if not, position above
+    const rect = dropdown.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - rect.top;
+    const dropdownHeight = rect.height;
+
+    if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
+      dropdown.classList.add("agent-menu-dropdown-up");
+    } else {
+      dropdown.classList.remove("agent-menu-dropdown-up");
+    }
+  };
+
   const focusCouncilRowMenuAction = (
     detailsElement: HTMLDetailsElement,
     position: "first" | "last",
@@ -2390,6 +2461,26 @@ export const App = (): JSX.Element => {
 
     pushToast("info", "Council deleted.");
     await loadCouncils({ page: 1, append: false });
+  };
+
+  const deleteAgentFromList = async (agent: AgentDto): Promise<void> => {
+    setPendingAgentListDelete(agent);
+  };
+
+  const confirmDeleteAgentFromList = async (): Promise<void> => {
+    if (pendingAgentListDelete === null) {
+      return;
+    }
+
+    const result = await window.api.agents.delete({ id: pendingAgentListDelete.id });
+    setPendingAgentListDelete(null);
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      return;
+    }
+
+    pushToast("info", "Agent deleted.");
+    await loadAgents({ page: 1, append: false });
   };
 
   const setCouncilArchivedFromView = async (
@@ -3401,26 +3492,19 @@ export const App = (): JSX.Element => {
                           <span aria-hidden="true" className="member-avatar">
                             {memberName.slice(0, 2).toUpperCase()}
                           </span>
-                          <label className="meta" htmlFor={`member-color-${memberAgentId}`}>
-                            Color
-                          </label>
-                          <select
+                          <ColorPicker
+                            colors={MEMBER_COLOR_PALETTE}
                             id={`member-color-${memberAgentId}`}
-                            onChange={(event) =>
-                              void setCouncilViewMemberColor({
-                                memberAgentId,
-                                color: event.target.value,
-                              })
-                            }
+                            label="Color"
                             value={memberColor}
                             disabled={!canEditMembers || councilViewState.isSavingMembers}
-                          >
-                            {MEMBER_COLOR_PALETTE.map((color) => (
-                              <option key={color} value={color}>
-                                {color}
-                              </option>
-                            ))}
-                          </select>
+                            onChange={(color) =>
+                              void setCouncilViewMemberColor({
+                                memberAgentId,
+                                color,
+                              })
+                            }
+                          />
                           {council.mode === "manual" ? (
                             <button
                               aria-label={buildManualSpeakerSelectionAriaLabel(memberName)}
@@ -4529,52 +4613,70 @@ export const App = (): JSX.Element => {
           id="home-panel-councils"
           role="tabpanel"
         >
-          <header className="section-header compact">
-            <h2>Councils</h2>
-            <p>{councilsTotal} total</p>
+          <header className="section-header compact council-header">
+            <div className="council-header-main">
+              <div>
+                <h2>Councils</h2>
+                <p className="council-count">{councilsTotal} total</p>
+              </div>
+              <button
+                className="cta new-council-btn"
+                onClick={() => void openCouncilEditor(null)}
+                type="button"
+              >
+                <span className="new-council-icon">+</span>
+                New Council
+              </button>
+            </div>
           </header>
-          <div className="agents-controls">
-            <input
-              aria-label="Search councils"
-              onChange={(event) => setCouncilsSearchText(event.target.value)}
-              placeholder="Search title or topic"
-              type="text"
-              value={councilsSearchText}
-            />
-            <input
-              aria-label="Filter councils by tag"
-              onChange={(event) => setCouncilsTagFilter(event.target.value)}
-              placeholder="Tag filter"
-              type="text"
-              value={councilsTagFilter}
-            />
-            <select
-              value={councilsArchivedFilter}
-              onChange={(event) =>
-                setCouncilsArchivedFilter(event.target.value as CouncilArchivedFilter)
-              }
-            >
-              <option value="all">All</option>
-              <option value="active">Active</option>
-              <option value="archived">Archived</option>
-            </select>
-            <select
-              value={councilsSortBy}
-              onChange={(event) => setCouncilsSortBy(event.target.value as CouncilSortField)}
-            >
-              <option value="updatedAt">Sort: Modified</option>
-              <option value="createdAt">Sort: Created</option>
-            </select>
-            <select
-              value={councilsSortDirection}
-              onChange={(event) => setCouncilsSortDirection(event.target.value as SortDirection)}
-            >
-              <option value="desc">Desc</option>
-              <option value="asc">Asc</option>
-            </select>
-            <button className="cta" onClick={() => void openCouncilEditor(null)} type="button">
-              New Council
-            </button>
+          <div className="councils-toolbar">
+            <div className="councils-search-group">
+              <input
+                aria-label="Search councils"
+                className="councils-search-input"
+                onChange={(event) => setCouncilsSearchText(event.target.value)}
+                placeholder="Search title or topic"
+                type="text"
+                value={councilsSearchText}
+              />
+              <input
+                aria-label="Filter councils by tag"
+                className="councils-tag-input"
+                onChange={(event) => setCouncilsTagFilter(event.target.value)}
+                placeholder="Filter by tag"
+                type="text"
+                value={councilsTagFilter}
+              />
+            </div>
+            <div className="councils-filter-group">
+              <select
+                className="councils-filter-select"
+                value={councilsArchivedFilter}
+                onChange={(event) =>
+                  setCouncilsArchivedFilter(event.target.value as CouncilArchivedFilter)
+                }
+              >
+                <option value="all">All councils</option>
+                <option value="active">Active only</option>
+                <option value="archived">Archived only</option>
+              </select>
+              <select
+                className="councils-filter-select"
+                value={councilsSortBy}
+                onChange={(event) => setCouncilsSortBy(event.target.value as CouncilSortField)}
+              >
+                <option value="updatedAt">Last modified</option>
+                <option value="createdAt">Date created</option>
+              </select>
+              <select
+                className="councils-filter-select"
+                value={councilsSortDirection}
+                onChange={(event) => setCouncilsSortDirection(event.target.value as SortDirection)}
+              >
+                <option value="desc">Newest first</option>
+                <option value="asc">Oldest first</option>
+              </select>
+            </div>
           </div>
 
           {councilsError !== null ? <p className="status">Error: {councilsError}</p> : null}
@@ -4584,132 +4686,198 @@ export const App = (): JSX.Element => {
             <p className="status">No councils yet. Create your first council.</p>
           ) : null}
 
-          <div className="list-grid">
-            {councils.map((council) => (
-              <article className="list-row" key={council.id}>
+          <div className="councils-grid">
+            {councils.map((council) => {
+              const runtimeStatus = council.started
+                ? council.paused
+                  ? "paused"
+                  : "running"
+                : "stopped";
+              return (
+                <article
+                  className={`council-card ${council.archived ? "council-card-archived" : ""}`}
+                  key={council.id}
+                >
+                  <div className="council-card-header">
+                    <div className="council-card-title-row">
+                      <h3 className="council-card-title">{council.title}</h3>
+                      <div className="council-card-badges">
+                        {council.archived ? (
+                          <span className="council-badge council-badge-archived">Archived</span>
+                        ) : null}
+                        {council.invalidConfig ? (
+                          <span className="council-badge council-badge-error">Config Error</span>
+                        ) : null}
+                        <span
+                          className={`council-badge council-badge-status council-status-${runtimeStatus}`}
+                        >
+                          {runtimeStatus === "running"
+                            ? "● Running"
+                            : runtimeStatus === "paused"
+                              ? "⏸ Paused"
+                              : "○ Stopped"}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="council-card-topic" title={council.topic}>
+                      {council.topic}
+                    </p>
+                  </div>
+
+                  <div className="council-card-stats">
+                    <div className="council-stat">
+                      <span className="council-stat-value">{council.memberAgentIds.length}</span>
+                      <span className="council-stat-label">
+                        {council.memberAgentIds.length === 1 ? "member" : "members"}
+                      </span>
+                    </div>
+                    <div className="council-stat-divider" />
+                    <div className="council-stat">
+                      <span className="council-stat-value">{council.turnCount}</span>
+                      <span className="council-stat-label">
+                        {council.turnCount === 1 ? "turn" : "turns"}
+                      </span>
+                    </div>
+                    <div className="council-stat-divider" />
+                    <div className="council-stat">
+                      <span className="council-stat-value council-mode-badge">{council.mode}</span>
+                    </div>
+                  </div>
+
+                  {council.tags.length > 0 ? (
+                    <div className="council-card-tags">
+                      {council.tags.slice(0, 3).map((tag) => (
+                        <span className="council-tag" key={tag}>
+                          {tag}
+                        </span>
+                      ))}
+                      {council.tags.length > 3 ? (
+                        <span className="council-tag council-tag-more">
+                          +{council.tags.length - 3}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  <div className="council-card-actions">
+                    <button
+                      className="council-btn-open"
+                      onClick={() => void openCouncilView(council.id)}
+                      type="button"
+                    >
+                      Open Council
+                    </button>
+                    <details
+                      aria-label={`Actions menu for council ${council.title}`}
+                      className="council-actions-menu"
+                      onKeyDown={handleCouncilRowMenuKeyDown}
+                      onToggle={handleCouncilMenuToggle}
+                    >
+                      <summary
+                        aria-label={`Toggle actions for council ${council.title}`}
+                        className="council-btn-more"
+                        onKeyDown={handleCouncilRowMenuSummaryKeyDown}
+                      >
+                        <svg
+                          aria-hidden="true"
+                          fill="none"
+                          height="16"
+                          stroke="currentColor"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          viewBox="0 0 24 24"
+                          width="16"
+                        >
+                          <circle cx="12" cy="12" r="1" />
+                          <circle cx="19" cy="12" r="1" />
+                          <circle cx="5" cy="12" r="1" />
+                        </svg>
+                      </summary>
+                      <div
+                        aria-label={`Council actions for ${council.title}`}
+                        className="council-menu-dropdown"
+                      >
+                        <button
+                          className="council-menu-item"
+                          disabled={exportingCouncilId === council.id}
+                          onClick={(event) => {
+                            const details = event.currentTarget.closest("details");
+                            if (details) {
+                              details.open = false;
+                            }
+                            void exportCouncilTranscript({
+                              viewKind: "councilsList",
+                              councilId: council.id,
+                            });
+                          }}
+                          type="button"
+                        >
+                          {exportingCouncilId === council.id ? "Exporting..." : "Export transcript"}
+                        </button>
+                        <button
+                          className="council-menu-item"
+                          disabled={
+                            !council.archived &&
+                            council.mode === "autopilot" &&
+                            council.started &&
+                            !council.paused
+                          }
+                          onClick={(event) => {
+                            const details = event.currentTarget.closest("details");
+                            if (details) {
+                              details.open = false;
+                            }
+                            void setCouncilArchivedFromList({
+                              councilId: council.id,
+                              archived: !council.archived,
+                            });
+                          }}
+                          title={
+                            !council.archived &&
+                            council.mode === "autopilot" &&
+                            council.started &&
+                            !council.paused
+                              ? "Pause Autopilot before archiving"
+                              : undefined
+                          }
+                          type="button"
+                        >
+                          {council.archived ? "Restore council" : "Archive council"}
+                        </button>
+                        <hr className="council-menu-divider" />
+                        <button
+                          className="council-menu-item council-menu-item-danger"
+                          onClick={(event) => {
+                            const details = event.currentTarget.closest("details");
+                            if (details) {
+                              details.open = false;
+                            }
+                            void deleteCouncilFromList(council);
+                          }}
+                          type="button"
+                        >
+                          Delete council
+                        </button>
+                      </div>
+                    </details>
+                  </div>
+                </article>
+              );
+            })}
+            {councilsHasMore ? (
+              <div className="councils-load-more">
                 <button
-                  aria-label={`Open council ${council.title}`}
-                  className="home-list-row"
-                  onClick={() => void openCouncilView(council.id)}
+                  className="secondary"
+                  disabled={councilsLoadingMore}
+                  onClick={() => void loadCouncils({ page: councilsPage + 1, append: true })}
                   type="button"
                 >
-                  <h3>{council.title}</h3>
-                  <p className="meta">Topic: {council.topic}</p>
-                  <p className="meta">Mode: {council.mode}</p>
-                  <p className="meta">
-                    Runtime:{" "}
-                    {council.started ? (council.paused ? "Paused" : "Running") : "Not started"}
-                  </p>
-                  <p className="meta">
-                    Conductor: {councilModelLabel(council, councilsGlobalDefaultModel)}
-                  </p>
-                  <p className="meta">Turn count: {council.turnCount}</p>
-                  <p className="meta">Members: {council.memberAgentIds.length}</p>
-                  <p className="meta">
-                    Tags: {council.tags.length > 0 ? council.tags.join(", ") : "None"}
-                  </p>
+                  {councilsLoadingMore ? "Loading..." : "Load more"}
                 </button>
-                <div className="button-row">
-                  {council.archived ? (
-                    <span aria-label="Archived council" className="warning-badge" title="Archived">
-                      Archived
-                    </span>
-                  ) : null}
-                  {council.invalidConfig ? (
-                    <span
-                      aria-label="Invalid configuration"
-                      className="warning-badge"
-                      title="Invalid config"
-                    >
-                      Invalid config
-                    </span>
-                  ) : null}
-                  <button
-                    className="cta"
-                    onClick={() => void openCouncilView(council.id)}
-                    type="button"
-                  >
-                    Open
-                  </button>
-                  <details
-                    aria-label={`Actions menu for council ${council.title}`}
-                    className="row-menu"
-                    onKeyDown={handleCouncilRowMenuKeyDown}
-                  >
-                    <summary
-                      aria-label={`Toggle actions for council ${council.title}`}
-                      className="secondary"
-                      onKeyDown={handleCouncilRowMenuSummaryKeyDown}
-                    >
-                      Actions
-                    </summary>
-                    <div
-                      aria-label={`Council actions for ${council.title}`}
-                      className="row-menu-items"
-                    >
-                      <button
-                        className="secondary"
-                        disabled={exportingCouncilId === council.id}
-                        onClick={() =>
-                          void exportCouncilTranscript({
-                            viewKind: "councilsList",
-                            councilId: council.id,
-                          })
-                        }
-                        type="button"
-                      >
-                        {exportingCouncilId === council.id ? "Exporting..." : "Export"}
-                      </button>
-                      <button
-                        className="secondary"
-                        disabled={
-                          !council.archived &&
-                          council.mode === "autopilot" &&
-                          council.started &&
-                          !council.paused
-                        }
-                        onClick={() =>
-                          void setCouncilArchivedFromList({
-                            councilId: council.id,
-                            archived: !council.archived,
-                          })
-                        }
-                        title={
-                          !council.archived &&
-                          council.mode === "autopilot" &&
-                          council.started &&
-                          !council.paused
-                            ? "Pause Autopilot before archiving this council."
-                            : undefined
-                        }
-                        type="button"
-                      >
-                        {council.archived ? "Restore" : "Archive"}
-                      </button>
-                      <button
-                        className="danger"
-                        onClick={() => void deleteCouncilFromList(council)}
-                        type="button"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </details>
-                </div>
-              </article>
-            ))}
+              </div>
+            ) : null}
           </div>
-
-          {councilsHasMore ? (
-            <button
-              className="secondary"
-              disabled={councilsLoadingMore}
-              onClick={() => void loadCouncils({ page: councilsPage + 1, append: true })}
-              type="button"
-            >
-              {councilsLoadingMore ? "Loading..." : "Load more"}
-            </button>
-          ) : null}
         </section>
       );
     }
@@ -4723,41 +4891,61 @@ export const App = (): JSX.Element => {
           role="tabpanel"
         >
           <header className="section-header compact">
-            <h2>Agents</h2>
-            <p>{agentsTotal} total</p>
+            <div className="council-header-main">
+              <div>
+                <h2>Agents</h2>
+                <p className="council-count">{agentsTotal} total</p>
+              </div>
+              <button
+                className="cta new-council-btn"
+                onClick={() => void openAgentEditor(null)}
+                type="button"
+              >
+                <span className="new-council-icon" aria-hidden="true">
+                  +
+                </span>
+                New Agent
+              </button>
+            </div>
           </header>
-          <div className="agents-controls">
-            <input
-              aria-label="Search agents"
-              onChange={(event) => setAgentsSearchText(event.target.value)}
-              placeholder="Search name or prompt"
-              type="text"
-              value={agentsSearchText}
-            />
-            <input
-              aria-label="Filter by tag"
-              onChange={(event) => setAgentsTagFilter(event.target.value)}
-              placeholder="Tag filter"
-              type="text"
-              value={agentsTagFilter}
-            />
-            <select
-              value={agentsSortBy}
-              onChange={(event) => setAgentsSortBy(event.target.value as AgentSortField)}
-            >
-              <option value="updatedAt">Sort: Modified</option>
-              <option value="createdAt">Sort: Created</option>
-            </select>
-            <select
-              value={agentsSortDirection}
-              onChange={(event) => setAgentsSortDirection(event.target.value as SortDirection)}
-            >
-              <option value="desc">Desc</option>
-              <option value="asc">Asc</option>
-            </select>
-            <button className="cta" onClick={() => void openAgentEditor(null)} type="button">
-              New Agent
-            </button>
+
+          <div className="agents-toolbar">
+            <div className="agents-search-group">
+              <input
+                aria-label="Search agents"
+                className="agents-search-input"
+                onChange={(event) => setAgentsSearchText(event.target.value)}
+                placeholder="Search name or prompt"
+                type="text"
+                value={agentsSearchText}
+              />
+              <input
+                aria-label="Filter by tag"
+                className="agents-tag-input"
+                onChange={(event) => setAgentsTagFilter(event.target.value)}
+                placeholder="Filter by tag"
+                type="text"
+                value={agentsTagFilter}
+              />
+            </div>
+            <div className="agents-filter-group">
+              <select
+                className="agents-filter-select"
+                value={agentsSortBy}
+                onChange={(event) => setAgentsSortBy(event.target.value as AgentSortField)}
+              >
+                <option value="updatedAt">Sort: Modified</option>
+                <option value="createdAt">Sort: Created</option>
+              </select>
+              <select
+                className="agents-filter-select"
+                value={agentsSortDirection}
+                onChange={(event) => setAgentsSortDirection(event.target.value as SortDirection)}
+              >
+                <option value="desc">Desc</option>
+                <option value="asc">Asc</option>
+              </select>
+            </div>
           </div>
 
           {agentsError !== null ? <p className="status">Error: {agentsError}</p> : null}
@@ -4767,54 +4955,123 @@ export const App = (): JSX.Element => {
             <p className="status">No agents yet. Create your first agent.</p>
           ) : null}
 
-          <div className="list-grid">
+          <div className="agents-grid">
             {agents.map((agent) => (
-              <article className="list-row" key={agent.id}>
-                <button
-                  aria-label={`Open agent ${agent.name}`}
-                  className="home-list-row"
-                  onClick={() => void openAgentEditor(agent.id)}
-                  type="button"
-                >
-                  <h3>{agent.name}</h3>
-                  <p className="meta">{agent.systemPrompt}</p>
-                  <p className="meta">Model: {modelLabel(agent, agentsGlobalDefaultModel)}</p>
-                  <p className="meta">
-                    Tags: {agent.tags.length > 0 ? agent.tags.join(", ") : "None"}
-                  </p>
-                </button>
-                <div className="button-row">
-                  {agent.invalidConfig ? (
-                    <span
-                      aria-label="Invalid configuration"
-                      className="warning-badge"
-                      title="Invalid config"
-                    >
-                      Invalid config
+              <article className="agent-card" key={agent.id}>
+                <div className="agent-card-header">
+                  <h3 className="agent-card-title">{agent.name}</h3>
+                  <div className="agent-card-badges">
+                    {agent.invalidConfig ? (
+                      <span
+                        aria-label="Invalid configuration"
+                        className="council-badge council-badge-error"
+                        title="Invalid config"
+                      >
+                        Invalid config
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+
+                <p className="agent-card-prompt">{agent.systemPrompt}</p>
+
+                <div className="agent-card-stats">
+                  <div className="agent-stat">
+                    <span className="agent-stat-label">Model:</span>
+                    <span className="agent-stat-value">
+                      {modelLabel(agent, agentsGlobalDefaultModel)}
                     </span>
-                  ) : null}
-                  <button
-                    className="secondary"
-                    onClick={() => void openAgentEditor(agent.id)}
-                    type="button"
+                  </div>
+                </div>
+
+                {agent.tags.length > 0 ? (
+                  <div className="agent-card-tags">
+                    {agent.tags.slice(0, 3).map((tag) => (
+                      <span key={tag} className="agent-tag">
+                        {tag}
+                      </span>
+                    ))}
+                    {agent.tags.length > 3 ? (
+                      <span className="agent-tag council-tag-more">+{agent.tags.length - 3}</span>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                <div className="agent-card-actions">
+                  <details
+                    aria-label={`Actions menu for agent ${agent.name}`}
+                    className="agent-actions-menu"
+                    onToggle={handleAgentMenuToggle}
                   >
-                    Edit
-                  </button>
+                    <summary
+                      aria-label={`Toggle actions for agent ${agent.name}`}
+                      className="agent-btn-more"
+                    >
+                      <svg
+                        aria-hidden="true"
+                        fill="none"
+                        height="16"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        viewBox="0 0 24 24"
+                        width="16"
+                      >
+                        <circle cx="12" cy="12" r="1" />
+                        <circle cx="19" cy="12" r="1" />
+                        <circle cx="5" cy="12" r="1" />
+                      </svg>
+                    </summary>
+                    <div
+                      aria-label={`Agent actions for ${agent.name}`}
+                      className="agent-menu-dropdown"
+                    >
+                      <button
+                        className="agent-menu-item"
+                        onClick={(event) => {
+                          const details = event.currentTarget.closest("details");
+                          if (details) {
+                            details.open = false;
+                          }
+                          void openAgentEditor(agent.id);
+                        }}
+                        type="button"
+                      >
+                        Edit agent
+                      </button>
+                      <hr className="agent-menu-divider" />
+                      <button
+                        className="agent-menu-item agent-menu-item-danger"
+                        onClick={(event) => {
+                          const details = event.currentTarget.closest("details");
+                          if (details) {
+                            details.open = false;
+                          }
+                          void deleteAgentFromList(agent);
+                        }}
+                        type="button"
+                      >
+                        Delete agent
+                      </button>
+                    </div>
+                  </details>
                 </div>
               </article>
             ))}
+            {agentsHasMore ? (
+              <div className="agents-load-more">
+                <button
+                  className="secondary"
+                  disabled={agentsLoadingMore}
+                  onClick={() => void loadAgents({ page: agentsPage + 1, append: true })}
+                  type="button"
+                >
+                  {agentsLoadingMore ? "Loading..." : "Load more"}
+                </button>
+              </div>
+            ) : null}
           </div>
-
-          {agentsHasMore ? (
-            <button
-              className="secondary"
-              disabled={agentsLoadingMore}
-              onClick={() => void loadAgents({ page: agentsPage + 1, append: true })}
-              type="button"
-            >
-              {agentsLoadingMore ? "Loading..." : "Load more"}
-            </button>
-          ) : null}
         </section>
       );
     }
@@ -5122,6 +5379,21 @@ export const App = (): JSX.Element => {
         }}
         open={pendingCouncilListDelete !== null}
         title="Delete council?"
+      />
+
+      <ConfirmDialog
+        confirmLabel="Delete"
+        message={
+          pendingAgentListDelete === null
+            ? ""
+            : `Delete agent "${pendingAgentListDelete.name}" permanently?`
+        }
+        onCancel={() => setPendingAgentListDelete(null)}
+        onConfirm={() => {
+          void confirmDeleteAgentFromList();
+        }}
+        open={pendingAgentListDelete !== null}
+        title="Delete agent?"
       />
 
       <ToastStack toasts={toasts} />

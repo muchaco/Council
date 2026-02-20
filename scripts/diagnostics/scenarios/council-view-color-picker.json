@@ -1,0 +1,11 @@
+{
+  "name": "council-view-color-picker",
+  "steps": [
+    { "action": "waitForText", "text": "Council" },
+    { "action": "click", "selector": "button:has-text('Councils')" },
+    { "action": "waitForText", "text": "New Council" },
+    { "action": "click", "selector": "button:has-text('Open Council')" },
+    { "action": "waitForText", "text": "Back" },
+    { "action": "screenshot", "file": "council-view-color-picker.png", "fullPage": true }
+  ]
+}
