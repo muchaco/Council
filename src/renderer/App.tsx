@@ -70,6 +70,29 @@ import {
 } from "../shared/provider-settings-ui.js";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ToastStack } from "./ToastStack";
+import { Badge } from "./components/ui/badge";
+import { Button } from "./components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./components/ui/dialog";
+import { Input } from "./components/ui/input";
+import { Label } from "./components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "./components/ui/select";
+import { Textarea } from "./components/ui/textarea";
 import { useToastQueue } from "./use-toast-queue";
 
 type HomeTab = "councils" | "agents" | "settings";
@@ -3898,22 +3921,18 @@ export const App = (): JSX.Element => {
           title="Delete council?"
         />
 
-        {autopilotLimitModal !== null ? (
-          <div className="modal-backdrop" role="presentation">
-            <dialog
-              aria-labelledby="autopilot-limit-dialog-title"
-              aria-modal="true"
-              className="modal-panel"
-              onKeyDown={handleAutopilotModalKeyDown}
-              open
-              ref={autopilotModalDialogRef}
-            >
-              <h2 id="autopilot-limit-dialog-title">{autopilotDialogTitle}</h2>
-              <p className="meta">Set an optional turn limit for this run.</p>
-              <label className="checkbox-field" htmlFor="autopilot-limit-toggle">
+        <Dialog open={autopilotLimitModal !== null} onOpenChange={() => closeAutopilotLimitModal()}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{autopilotDialogTitle}</DialogTitle>
+              <DialogDescription>Set an optional turn limit for this run.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="flex items-center space-x-2">
                 <input
-                  checked={autopilotLimitModal.limitTurns}
+                  type="checkbox"
                   id="autopilot-limit-toggle"
+                  checked={autopilotLimitModal?.limitTurns ?? false}
                   onChange={(event) =>
                     setAutopilotLimitModal((current) =>
                       current === null
@@ -3925,50 +3944,51 @@ export const App = (): JSX.Element => {
                           },
                     )
                   }
-                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300"
                 />
-                <span>Limit turns</span>
-              </label>
-              <label className="field" htmlFor="autopilot-max-turns-input">
-                Max turns ({AUTOPILOT_MAX_TURNS_MIN}-{AUTOPILOT_MAX_TURNS_MAX})
-              </label>
-              <input
-                disabled={!autopilotLimitModal.limitTurns}
-                id="autopilot-max-turns-input"
-                min={AUTOPILOT_MAX_TURNS_MIN}
-                onChange={(event) =>
-                  setAutopilotLimitModal((current) =>
-                    current === null
-                      ? current
-                      : {
-                          ...current,
-                          maxTurnsInput: event.target.value,
-                          validationMessage: "",
-                        },
-                  )
-                }
-                placeholder="e.g. 12"
-                type="number"
-                value={autopilotLimitModal.maxTurnsInput}
-              />
-              {autopilotLimitModal.validationMessage.length > 0 ? (
-                <p className="status-line">{autopilotLimitModal.validationMessage}</p>
-              ) : null}
-              <div className="button-row">
-                <button className="secondary" onClick={closeAutopilotLimitModal} type="button">
-                  Cancel
-                </button>
-                <button
-                  className="cta"
-                  onClick={() => void submitAutopilotLimitModal()}
-                  type="button"
-                >
-                  {autopilotSubmitLabel}
-                </button>
+                <Label htmlFor="autopilot-limit-toggle">Limit turns</Label>
               </div>
-            </dialog>
-          </div>
-        ) : null}
+              <div className="space-y-2">
+                <Label htmlFor="autopilot-max-turns-input">
+                  Max turns ({AUTOPILOT_MAX_TURNS_MIN}-{AUTOPILOT_MAX_TURNS_MAX})
+                </Label>
+                <Input
+                  id="autopilot-max-turns-input"
+                  type="number"
+                  disabled={!(autopilotLimitModal?.limitTurns ?? false)}
+                  min={AUTOPILOT_MAX_TURNS_MIN}
+                  placeholder="e.g. 12"
+                  value={autopilotLimitModal?.maxTurnsInput ?? ""}
+                  onChange={(event) =>
+                    setAutopilotLimitModal((current) =>
+                      current === null
+                        ? current
+                        : {
+                            ...current,
+                            maxTurnsInput: event.target.value,
+                            validationMessage: "",
+                          },
+                    )
+                  }
+                />
+              </div>
+              {autopilotLimitModal?.validationMessage &&
+              autopilotLimitModal.validationMessage.length > 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {autopilotLimitModal.validationMessage}
+                </p>
+              ) : null}
+            </div>
+            <DialogFooter className="flex gap-2">
+              <Button variant="secondary" onClick={closeAutopilotLimitModal}>
+                Cancel
+              </Button>
+              <Button onClick={() => void submitAutopilotLimitModal()}>
+                {autopilotSubmitLabel}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <ToastStack toasts={toasts} />
       </main>
@@ -4857,98 +4877,96 @@ export const App = (): JSX.Element => {
               const providerLabel = PROVIDER_LABELS[providerId];
 
               return (
-                <article className="provider-card" key={providerId}>
-                  <h3>{providerLabel}</h3>
-                  <p className="meta">
-                    <span
-                      aria-label={buildProviderConfiguredBadgeAriaLabel({
-                        providerLabel,
-                        configured: providerConfigured,
-                      })}
-                      className={`status-badge ${providerConfigured ? "status-badge-ok" : "status-badge-muted"}`}
-                    >
-                      {providerConfigured ? "Configured" : "Not configured"}
-                    </span>
-                  </p>
-                  <p className="meta">
-                    Last saved: {savedProvider?.lastSavedAtUtc ?? "Not saved yet"}
-                  </p>
+                <Card key={providerId} className="provider-card">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-lg">{providerLabel}</CardTitle>
+                      <Badge
+                        aria-label={buildProviderConfiguredBadgeAriaLabel({
+                          providerLabel,
+                          configured: providerConfigured,
+                        })}
+                        variant={providerConfigured ? "default" : "secondary"}
+                      >
+                        {providerConfigured ? "Configured" : "Not configured"}
+                      </Badge>
+                    </div>
+                    <CardDescription>
+                      Last saved: {savedProvider?.lastSavedAtUtc ?? "Not saved yet"}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor={`${providerId}-endpoint`}>Endpoint URL</Label>
+                      <Input
+                        id={`${providerId}-endpoint`}
+                        onChange={(event) =>
+                          updateProviderDraft(providerId, { endpointUrl: event.target.value })
+                        }
+                        placeholder={
+                          providerId === "ollama" ? "http://127.0.0.1:11434" : "Optional endpoint"
+                        }
+                        value={provider.endpointUrl}
+                      />
+                    </div>
 
-                  <label className="field" htmlFor={`${providerId}-endpoint`}>
-                    Endpoint URL
-                  </label>
-                  <input
-                    id={`${providerId}-endpoint`}
-                    onChange={(event) =>
-                      updateProviderDraft(providerId, { endpointUrl: event.target.value })
-                    }
-                    placeholder={
-                      providerId === "ollama" ? "http://127.0.0.1:11434" : "Optional endpoint"
-                    }
-                    type="text"
-                    value={provider.endpointUrl}
-                  />
+                    <div className="space-y-2">
+                      <Label htmlFor={`${providerId}-key`}>API key</Label>
+                      <Input
+                        id={`${providerId}-key`}
+                        type="password"
+                        onChange={(event) =>
+                          updateProviderDraft(providerId, { apiKey: event.target.value })
+                        }
+                        placeholder={showOllamaNote ? "Optional for local Ollama" : "Enter API key"}
+                        value={provider.apiKey}
+                      />
+                      {showOllamaNote ? (
+                        <p className="text-xs text-muted-foreground">
+                          Local Ollama usually does not need an API key.
+                        </p>
+                      ) : null}
+                    </div>
 
-                  <label className="field" htmlFor={`${providerId}-key`}>
-                    API key
-                  </label>
-                  <input
-                    id={`${providerId}-key`}
-                    onChange={(event) =>
-                      updateProviderDraft(providerId, { apiKey: event.target.value })
-                    }
-                    placeholder={
-                      showOllamaNote
-                        ? "Optional for local Ollama, required by some remote endpoints"
-                        : "Enter API key"
-                    }
-                    type="password"
-                    value={provider.apiKey}
-                  />
-                  {showOllamaNote ? (
-                    <p className="meta">Local Ollama usually does not need an API key.</p>
-                  ) : null}
-                  <p className="meta">
-                    Credential in keychain: {savedProvider?.hasCredential ? "Saved" : "Not saved"}
-                  </p>
-
-                  <div className="button-row">
-                    <button
-                      aria-label={buildProviderConnectionTestButtonAriaLabel({
-                        providerLabel,
-                        connectionTestAllowed,
-                      })}
-                      className="cta"
-                      disabled={!connectionTestAllowed}
-                      onClick={() => void runConnectionTest(providerId)}
-                      title={
-                        connectionTestAllowed
-                          ? "Test updated provider settings"
-                          : "Edit endpoint or key before running a new test"
-                      }
-                      type="button"
-                    >
-                      {provider.isTesting ? "Testing..." : "Test connection"}
-                    </button>
-                    <button
-                      className="secondary"
-                      disabled={!isSaveAllowed(provider)}
-                      onClick={() => void saveProvider(providerId)}
-                      type="button"
-                    >
-                      {provider.isSaving ? "Saving..." : "Save"}
-                    </button>
-                  </div>
-
-                  <p aria-live="polite" className="status-line">
-                    Status: {provider.testStatusText}
-                  </p>
-                  {provider.message.length > 0 ? (
-                    <p aria-live="polite" className="status-line">
-                      {provider.message}
+                    <p className="text-sm text-muted-foreground">
+                      Credential in keychain: {savedProvider?.hasCredential ? "Saved" : "Not saved"}
                     </p>
-                  ) : null}
-                </article>
+
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        aria-label={buildProviderConnectionTestButtonAriaLabel({
+                          providerLabel,
+                          connectionTestAllowed,
+                        })}
+                        disabled={!connectionTestAllowed}
+                        onClick={() => void runConnectionTest(providerId)}
+                        title={
+                          connectionTestAllowed
+                            ? "Test updated provider settings"
+                            : "Edit endpoint or key before running a new test"
+                        }
+                      >
+                        {provider.isTesting ? "Testing..." : "Test connection"}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        disabled={!isSaveAllowed(provider)}
+                        onClick={() => void saveProvider(providerId)}
+                      >
+                        {provider.isSaving ? "Saving..." : "Save"}
+                      </Button>
+                    </div>
+
+                    <p aria-live="polite" className="text-sm text-muted-foreground">
+                      Status: {provider.testStatusText}
+                    </p>
+                    {provider.message.length > 0 ? (
+                      <p aria-live="polite" className="text-sm text-muted-foreground">
+                        {provider.message}
+                      </p>
+                    ) : null}
+                  </CardContent>
+                </Card>
               );
             })}
           </div>

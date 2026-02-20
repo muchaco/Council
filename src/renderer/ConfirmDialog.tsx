@@ -1,5 +1,14 @@
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 import { resolveConfirmDialogKeyboardAction } from "../shared/app-ui-helpers";
+import { Button } from "./components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./components/ui/dialog";
 
 type ConfirmDialogProps = {
   open: boolean;
@@ -26,7 +35,7 @@ export const ConfirmDialog = ({
     return null;
   }
 
-  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDialogElement>): void => {
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
     const action = resolveConfirmDialogKeyboardAction(event.key);
     if (action === "cancel") {
       event.preventDefault();
@@ -39,20 +48,25 @@ export const ConfirmDialog = ({
     }
   };
 
+  const confirmVariant =
+    confirmTone === "danger" ? "destructive" : confirmTone === "cta" ? "default" : "secondary";
+
   return (
-    <div className="modal-backdrop" role="presentation">
-      <dialog aria-modal="true" className="modal-panel" onKeyDown={handleKeyDown} open>
-        <h2>{title}</h2>
-        <p className="meta">{message}</p>
-        <div className="button-row">
-          <button className={confirmTone} onClick={onConfirm} type="button">
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
+      <DialogContent onKeyDown={handleKeyDown}>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{message}</DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="flex gap-2 justify-end">
+          <Button variant={confirmVariant} onClick={onConfirm}>
             {confirmLabel}
-          </button>
-          <button className="secondary" onClick={onCancel} type="button">
+          </Button>
+          <Button variant="outline" onClick={onCancel}>
             {cancelLabel}
-          </button>
-        </div>
-      </dialog>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
