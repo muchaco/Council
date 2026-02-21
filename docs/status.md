@@ -32,6 +32,15 @@ Current repository state snapshot:
 - **Agents List Enhancement (2026-02-20)**: Agents list now uses beautiful card-based grid layout matching the Council Chamber aesthetic, with refined typography, warm amber tags, stats panels, and hover animations consistent with the Councils cards design.
 - **Color Picker Component (2026-02-20)**: New visual ColorPicker component replaces hex value dropdowns in Council View member color selection. Features color swatches with named colors (Teal, Blue, Amber, Violet, Crimson, Emerald, Forest, Rust), keyboard navigation (arrows, Enter, Escape, Home, End), and dropdown animation matching the refined aesthetic.
 - **Autopilot Autonomous Loop Fix (2026-02-20)**: Fixed Autopilot mode to be truly autonomous - removed the manual "Next turn" button and implemented automatic turn chaining via a `useEffect` loop that auto-advances when conditions are met (autopilot mode, started, not paused, not archived, no generation running, and a planned next speaker exists). This aligns with requirements R3.19 and U12.3-U12.4. The only user controls during autopilot are now Pause/Resume.
+- **UI Modernization Refactor (2026-02-21)**: Complete UI transformation from legacy "Council Chamber" aesthetic to modern AI workspace design:
+  - New sidebar navigation with icons replacing top tabs
+  - Geist font for UI elements + Instrument Serif for major headers
+  - Modern shadcn/ui Card components for all list items
+  - Compact provider cards with Sheet-based action menus
+  - Agent editor with accordion for advanced settings (verbosity, temperature)
+  - Status badges with animated dot indicators
+  - Consistent spacing and typography across all pages
+  - See `UI_REFACTOR_SUMMARY.md` for complete details
 
 ## 2) Implementation Status by Requirement
 

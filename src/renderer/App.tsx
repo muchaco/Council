@@ -1,3 +1,12 @@
+import {
+  ChevronLeft,
+  LayoutDashboard,
+  MessageSquare,
+  MoreVertical,
+  Plus,
+  Settings,
+  Users,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
 import {
@@ -71,6 +80,13 @@ import {
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ToastStack } from "./ToastStack";
 import { ColorPicker } from "./components/ColorPicker";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "./components/ui/accordion";
+import { Avatar, AvatarFallback } from "./components/ui/avatar";
 import { Badge } from "./components/ui/badge";
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card";
@@ -93,6 +109,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./components/ui/select";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "./components/ui/sheet";
 import { Textarea } from "./components/ui/textarea";
 import { useToastQueue } from "./use-toast-queue";
 
@@ -3066,253 +3083,229 @@ export const App = (): JSX.Element => {
     });
 
     return (
-      <main className="shell">
-        <header className="section-header">
-          <div className="button-row">
-            <button
-              className="secondary"
-              disabled={councilViewState.isLeavingView}
-              onClick={() => void closeCouncilView()}
-              type="button"
-            >
-              {councilViewState.isLeavingView ? "Leaving..." : "Back"}
-            </button>
-            {showTopBarStart ? (
-              <button
-                className="cta"
-                disabled={startDisabled}
-                onClick={() => void startCouncilRuntime()}
-                title={startDisabledReason}
-                type="button"
+      <main className="main-content">
+        <div className="main-content-inner">
+          <header className="mb-6">
+            <div className="flex items-center justify-between mb-6">
+              <Button
+                variant="outline"
+                onClick={() => void closeCouncilView()}
+                disabled={councilViewState.isLeavingView}
+                className="gap-2"
               >
-                {councilViewState.isStarting ? "Starting..." : "Start"}
-              </button>
-            ) : null}
-            {canPause ? (
-              <button
-                className="secondary"
-                disabled={councilViewState.isPausing || councilViewState.configEdit !== null}
-                onClick={() => void pauseCouncilRuntime()}
-                type="button"
-              >
-                {councilViewState.isPausing ? "Pausing..." : "Pause"}
-              </button>
-            ) : null}
-            {canResume ? (
-              <button
-                className="cta"
-                disabled={
-                  councilViewState.isResuming ||
-                  council.invalidConfig ||
-                  isAutopilotModalOpen ||
-                  councilViewState.configEdit !== null
-                }
-                onClick={() => void resumeCouncilRuntime()}
-                title={
-                  council.invalidConfig
-                    ? "Resume is disabled until model config is fixed."
-                    : undefined
-                }
-                type="button"
-              >
-                {councilViewState.isResuming ? "Resuming..." : "Resume"}
-              </button>
-            ) : null}
-
-            {(canStart || canResume) && council.invalidConfig ? (
-              <span
-                aria-label="Invalid configuration"
-                className="warning-badge"
-                title="Resolved conductor model is unavailable in this view's model catalog snapshot."
-              >
-                Invalid config
+                <ChevronLeft className="h-4 w-4" />
+                {councilViewState.isLeavingView ? "Leaving..." : "Back"}
+              </Button>
+              <div className="flex items-center gap-2">
+                {showTopBarStart ? (
+                  <Button
+                    disabled={startDisabled}
+                    onClick={() => void startCouncilRuntime()}
+                    title={startDisabledReason}
+                  >
+                    {councilViewState.isStarting ? "Starting..." : "Start"}
+                  </Button>
+                ) : null}
+                {canPause ? (
+                  <Button
+                    variant="outline"
+                    disabled={councilViewState.isPausing || councilViewState.configEdit !== null}
+                    onClick={() => void pauseCouncilRuntime()}
+                  >
+                    {councilViewState.isPausing ? "Pausing..." : "Pause"}
+                  </Button>
+                ) : null}
+                {canResume ? (
+                  <Button
+                    disabled={
+                      councilViewState.isResuming ||
+                      council.invalidConfig ||
+                      isAutopilotModalOpen ||
+                      councilViewState.configEdit !== null
+                    }
+                    onClick={() => void resumeCouncilRuntime()}
+                    title={
+                      council.invalidConfig
+                        ? "Resume is disabled until model config is fixed."
+                        : undefined
+                    }
+                  >
+                    {councilViewState.isResuming ? "Resuming..." : "Resume"}
+                  </Button>
+                ) : null}
+                {(canStart || canResume) && council.invalidConfig ? (
+                  <Badge
+                    variant="destructive"
+                    title="Resolved conductor model is unavailable in this view's model catalog snapshot."
+                  >
+                    Invalid config
+                  </Badge>
+                ) : null}
+                {generationActive && !showInlineThinkingCancel ? (
+                  <Button
+                    variant="outline"
+                    disabled={
+                      councilViewState.isCancellingGeneration ||
+                      councilViewState.configEdit !== null
+                    }
+                    onClick={() => void cancelCouncilGeneration()}
+                  >
+                    {councilViewState.isCancellingGeneration ? "Cancelling..." : "Cancel"}
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+            <h1 className="font-serif text-3xl mb-2">{council.title}</h1>
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <Badge variant="outline" className="capitalize">
+                {council.mode}
+              </Badge>
+              <span className="flex items-center gap-1.5">
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    council.started && !council.paused
+                      ? "bg-green-500 animate-pulse"
+                      : council.paused
+                        ? "bg-amber-500"
+                        : "bg-slate-400"
+                  }`}
+                />
+                {council.started ? (council.paused ? "Paused" : "Running") : "Stopped"}
               </span>
+              <span>Turn {council.turnCount}</span>
+              {council.mode === "autopilot" && (
+                <span>
+                  {council.autopilotTurnsCompleted}/{council.autopilotMaxTurns ?? "∞"} completed
+                </span>
+              )}
+            </div>
+            {pausedNextSpeakerName !== null ? (
+              <p className="text-sm text-muted-foreground mt-2">
+                Next speaker: {pausedNextSpeakerName}
+              </p>
             ) : null}
-            {generationActive && !showInlineThinkingCancel ? (
-              <button
-                className="secondary"
-                disabled={
-                  councilViewState.isCancellingGeneration || councilViewState.configEdit !== null
+
+            {/* Tab Navigation */}
+            <div
+              className="flex items-center gap-1 border-b mt-6"
+              role="tablist"
+              aria-label="Council view tabs"
+            >
+              <Button
+                variant={councilViewState.activeTab === "discussion" ? "secondary" : "ghost"}
+                className="rounded-b-none border-b-2 border-transparent data-[state=active]:border-primary"
+                data-state={councilViewState.activeTab === "discussion" ? "active" : "inactive"}
+                onClick={() =>
+                  setCouncilViewState((current) =>
+                    current.status !== "ready" ? current : { ...current, activeTab: "discussion" },
+                  )
                 }
-                onClick={() => void cancelCouncilGeneration()}
-                type="button"
+                disabled={
+                  councilViewState.configEdit !== null &&
+                  councilViewState.activeTab !== "discussion"
+                }
+                role="tab"
+                aria-selected={councilViewState.activeTab === "discussion"}
+                aria-controls="council-view-panel-discussion"
+                id="council-view-tab-discussion"
               >
-                {councilViewState.isCancellingGeneration ? "Cancelling..." : "Cancel generation"}
-              </button>
-            ) : null}
-          </div>
-          <h1>{council.title}</h1>
-          <p>
-            Mode: {council.mode} | Started: {council.started ? "yes" : "no"} | Paused:{" "}
-            {council.paused ? "yes" : "no"} | Turn count: {council.turnCount}
-            {council.mode === "autopilot"
-              ? ` | Turn limit: ${council.autopilotMaxTurns ?? "none"} (${council.autopilotTurnsCompleted} completed)`
-              : ""}
-          </p>
-          {pausedNextSpeakerName !== null ? (
-            <p className="meta">Paused next speaker: {pausedNextSpeakerName}</p>
+                Discussion
+              </Button>
+              <Button
+                variant={councilViewState.activeTab === "config" ? "secondary" : "ghost"}
+                className="rounded-b-none border-b-2 border-transparent data-[state=active]:border-primary"
+                data-state={councilViewState.activeTab === "config" ? "active" : "inactive"}
+                onClick={() =>
+                  setCouncilViewState((current) =>
+                    current.status !== "ready" ? current : { ...current, activeTab: "config" },
+                  )
+                }
+                disabled={
+                  councilViewState.configEdit !== null && councilViewState.activeTab !== "config"
+                }
+                role="tab"
+                aria-selected={councilViewState.activeTab === "config"}
+                aria-controls="council-view-panel-config"
+                id="council-view-tab-config"
+              >
+                Config
+              </Button>
+            </div>
+          </header>
+
+          {council.archived ? (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+              <p className="text-sm text-amber-800">Archived councils are read-only.</p>
+            </div>
           ) : null}
-          <div aria-label="Council view tabs" className="tabs" role="tablist">
-            <button
-              aria-controls="council-view-panel-discussion"
-              aria-selected={councilViewState.activeTab === "discussion"}
-              className={councilViewState.activeTab === "discussion" ? "tab tab-active" : "tab"}
-              disabled={
-                councilViewState.configEdit !== null && councilViewState.activeTab !== "discussion"
-              }
-              id="council-view-tab-discussion"
-              onClick={() =>
-                setCouncilViewState((current) =>
-                  current.status !== "ready"
-                    ? current
-                    : {
-                        ...current,
-                        activeTab: "discussion",
-                      },
-                )
-              }
-              role="tab"
-              type="button"
-            >
-              Discussion
-            </button>
-            <button
-              aria-controls="council-view-panel-config"
-              aria-selected={councilViewState.activeTab === "config"}
-              className={councilViewState.activeTab === "config" ? "tab tab-active" : "tab"}
-              disabled={
-                councilViewState.configEdit !== null && councilViewState.activeTab !== "config"
-              }
-              id="council-view-tab-config"
-              onClick={() =>
-                setCouncilViewState((current) =>
-                  current.status !== "ready"
-                    ? current
-                    : {
-                        ...current,
-                        activeTab: "config",
-                      },
-                )
-              }
-              role="tab"
-              type="button"
-            >
-              Config
-            </button>
-          </div>
-        </header>
+          {council.invalidConfig ? (
+            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 mb-4">
+              <p className="text-sm text-destructive">
+                Invalid config: start/resume is blocked until you select an available Conductor
+                model or refresh models in Config.
+              </p>
+            </div>
+          ) : null}
+          {councilViewState.message.length > 0 && autopilotRecoveryNotice === null ? (
+            <div className="bg-muted rounded-lg p-3 mb-4">
+              <p className="text-sm">{councilViewState.message}</p>
+            </div>
+          ) : null}
 
-        {council.archived ? <p className="status-line">Archived councils are read-only.</p> : null}
-        {council.invalidConfig ? (
-          <p className="status-line">
-            Invalid config: start/resume is blocked until you select an available Conductor model or
-            refresh models in Config.
-          </p>
-        ) : null}
-        {councilViewState.message.length > 0 && autopilotRecoveryNotice === null ? (
-          <p className="status-line">{councilViewState.message}</p>
-        ) : null}
-
-        {councilViewState.activeTab === "discussion" ? (
-          <section
-            aria-labelledby="council-view-tab-discussion"
-            className="council-view-grid"
-            id="council-view-panel-discussion"
-            role="tabpanel"
-          >
-            <div className="council-view-left-column">
-              <section className="settings-section council-view-section">
-                <h2>Transcript</h2>
-                {autopilotRecoveryNotice !== null ? (
-                  <p className="status status-error">{autopilotRecoveryNotice}</p>
-                ) : null}
-                {manualRetryNotice !== null ? (
-                  <p className="status status-error">{manualRetryNotice}</p>
-                ) : null}
-                {councilViewState.source.messages.length === 0 && thinkingSpeakerName === null ? (
-                  <div className="status">
-                    <p>
-                      {council.mode === "manual"
-                        ? "No messages yet. Choose the next speaker from Members."
-                        : "No messages yet."}
-                    </p>
-                    {showEmptyStateStart ? (
-                      <div className="button-row">
-                        <button
-                          className="cta"
-                          disabled={startDisabled}
-                          onClick={() => void startCouncilRuntime()}
-                          title={startDisabledReason}
-                          type="button"
-                        >
-                          {councilViewState.isStarting ? "Starting..." : "Start"}
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="list-grid transcript-scroll-panel">
-                    {councilViewState.source.messages.map((message, index) => (
-                      <button
-                        aria-label={buildTranscriptMessageAriaLabel(message)}
-                        className={`transcript-row ${
-                          resolveTranscriptMessageAlignment(message) === "right"
-                            ? "transcript-row-conductor"
-                            : "transcript-row-member"
-                        }`}
-                        data-transcript-row-index={index}
-                        key={message.id}
-                        onKeyDown={(event) =>
-                          handleTranscriptRowKeyDown(event, index, transcriptRowCount)
-                        }
-                        ref={(element) => {
-                          transcriptRowRefs.current[index] = element;
-                        }}
-                        type="button"
-                      >
-                        <div
-                          className="transcript-message"
-                          style={
-                            {
-                              "--transcript-accent": resolveTranscriptAccentColor(
-                                message,
-                                councilViewState.source.council.memberColorsByAgentId,
-                              ),
-                            } as CSSProperties
-                          }
-                        >
-                          <span aria-hidden="true" className="transcript-avatar">
-                            {resolveTranscriptAvatarInitials(message.senderName)}
-                          </span>
-                          <div className="transcript-bubble">
-                            <p className="meta transcript-sender-name">
-                              {message.senderName}
-                              {message.senderKind === "conductor" ? " (Conductor)" : ""}
-                            </p>
-                            <p className="transcript-content">{message.content}</p>
-                            <p className="meta transcript-timestamp" title={message.createdAtUtc}>
-                              #{message.sequenceNumber} at {message.createdAtUtc}
-                            </p>
-                          </div>
+          {councilViewState.activeTab === "discussion" ? (
+            <section
+              aria-labelledby="council-view-tab-discussion"
+              className="council-view-grid"
+              id="council-view-panel-discussion"
+              role="tabpanel"
+            >
+              <div className="council-view-left-column">
+                <section className="settings-section council-view-section">
+                  <h2>Transcript</h2>
+                  {autopilotRecoveryNotice !== null ? (
+                    <p className="status status-error">{autopilotRecoveryNotice}</p>
+                  ) : null}
+                  {manualRetryNotice !== null ? (
+                    <p className="status status-error">{manualRetryNotice}</p>
+                  ) : null}
+                  {councilViewState.source.messages.length === 0 && thinkingSpeakerName === null ? (
+                    <div className="status">
+                      <p>
+                        {council.mode === "manual"
+                          ? "No messages yet. Choose the next speaker from Members."
+                          : "No messages yet."}
+                      </p>
+                      {showEmptyStateStart ? (
+                        <div className="button-row">
+                          <button
+                            className="cta"
+                            disabled={startDisabled}
+                            onClick={() => void startCouncilRuntime()}
+                            title={startDisabledReason}
+                            type="button"
+                          >
+                            {councilViewState.isStarting ? "Starting..." : "Start"}
+                          </button>
                         </div>
-                      </button>
-                    ))}
-                    {thinkingSpeakerName !== null ? (
-                      <div className="thinking-row-group">
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="list-grid transcript-scroll-panel">
+                      {councilViewState.source.messages.map((message, index) => (
                         <button
-                          aria-label={`${thinkingSpeakerName}, member, thinking placeholder.`}
-                          className="thinking-row transcript-row transcript-row-member"
-                          data-transcript-row-index={councilViewState.source.messages.length}
+                          aria-label={buildTranscriptMessageAriaLabel(message)}
+                          className={`transcript-row ${
+                            resolveTranscriptMessageAlignment(message) === "right"
+                              ? "transcript-row-conductor"
+                              : "transcript-row-member"
+                          }`}
+                          data-transcript-row-index={index}
+                          key={message.id}
                           onKeyDown={(event) =>
-                            handleTranscriptRowKeyDown(
-                              event,
-                              councilViewState.source.messages.length,
-                              transcriptRowCount,
-                            )
+                            handleTranscriptRowKeyDown(event, index, transcriptRowCount)
                           }
                           ref={(element) => {
-                            transcriptRowRefs.current[councilViewState.source.messages.length] =
-                              element;
+                            transcriptRowRefs.current[index] = element;
                           }}
                           type="button"
                         >
@@ -3320,468 +3313,304 @@ export const App = (): JSX.Element => {
                             className="transcript-message"
                             style={
                               {
-                                "--transcript-accent": thinkingSpeakerColor ?? "#0a5c66",
+                                "--transcript-accent": resolveTranscriptAccentColor(
+                                  message,
+                                  councilViewState.source.council.memberColorsByAgentId,
+                                ),
                               } as CSSProperties
                             }
                           >
                             <span aria-hidden="true" className="transcript-avatar">
-                              {resolveTranscriptAvatarInitials(thinkingSpeakerName)}
+                              {resolveTranscriptAvatarInitials(message.senderName)}
                             </span>
                             <div className="transcript-bubble">
-                              <p className="meta transcript-sender-name">{thinkingSpeakerName}</p>
-                              <p className="transcript-content">...</p>
-                              <p className="meta transcript-timestamp">Thinking...</p>
+                              <p className="meta transcript-sender-name">
+                                {message.senderName}
+                                {message.senderKind === "conductor" ? " (Conductor)" : ""}
+                              </p>
+                              <p className="transcript-content">{message.content}</p>
+                              <p className="meta transcript-timestamp" title={message.createdAtUtc}>
+                                #{message.sequenceNumber} at {message.createdAtUtc}
+                              </p>
                             </div>
                           </div>
                         </button>
-                        {showInlineThinkingCancel ? (
+                      ))}
+                      {thinkingSpeakerName !== null ? (
+                        <div className="thinking-row-group">
                           <button
-                            className="secondary thinking-cancel-button"
-                            disabled={
-                              councilViewState.isCancellingGeneration ||
-                              councilViewState.configEdit !== null
+                            aria-label={`${thinkingSpeakerName}, member, thinking placeholder.`}
+                            className="thinking-row transcript-row transcript-row-member"
+                            data-transcript-row-index={councilViewState.source.messages.length}
+                            onKeyDown={(event) =>
+                              handleTranscriptRowKeyDown(
+                                event,
+                                councilViewState.source.messages.length,
+                                transcriptRowCount,
+                              )
                             }
-                            onClick={() => void cancelCouncilGeneration()}
+                            ref={(element) => {
+                              transcriptRowRefs.current[councilViewState.source.messages.length] =
+                                element;
+                            }}
                             type="button"
                           >
-                            {councilViewState.isCancellingGeneration
-                              ? "Cancelling..."
-                              : "Cancel generation"}
+                            <div
+                              className="transcript-message"
+                              style={
+                                {
+                                  "--transcript-accent": thinkingSpeakerColor ?? "#0a5c66",
+                                } as CSSProperties
+                              }
+                            >
+                              <span aria-hidden="true" className="transcript-avatar">
+                                {resolveTranscriptAvatarInitials(thinkingSpeakerName)}
+                              </span>
+                              <div className="transcript-bubble">
+                                <p className="meta transcript-sender-name">{thinkingSpeakerName}</p>
+                                <p className="transcript-content">...</p>
+                                <p className="meta transcript-timestamp">Thinking...</p>
+                              </div>
+                            </div>
                           </button>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                )}
-              </section>
+                          {showInlineThinkingCancel ? (
+                            <button
+                              className="secondary thinking-cancel-button"
+                              disabled={
+                                councilViewState.isCancellingGeneration ||
+                                councilViewState.configEdit !== null
+                              }
+                              onClick={() => void cancelCouncilGeneration()}
+                              type="button"
+                            >
+                              {councilViewState.isCancellingGeneration
+                                ? "Cancelling..."
+                                : "Cancel generation"}
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </section>
 
-              <section className="settings-section council-view-section">
-                <h2>Conductor message</h2>
-                <textarea
-                  onChange={(event) =>
-                    setCouncilViewState((current) =>
-                      current.status !== "ready"
-                        ? current
-                        : {
-                            ...current,
-                            conductorDraft: event.target.value,
-                          },
-                    )
-                  }
-                  rows={4}
-                  value={councilViewState.conductorDraft}
-                />
-                <div className="button-row">
-                  <button
-                    className="secondary"
-                    disabled={
-                      councilViewState.isInjectingConductor || generationRunning || council.archived
-                    }
-                    onClick={() => void injectConductorMessage()}
-                    type="button"
-                  >
-                    {councilViewState.isInjectingConductor ? "Sending..." : "Send as Conductor"}
-                  </button>
-                </div>
-              </section>
-            </div>
-
-            <aside className="council-view-right-column">
-              <section className="settings-section council-view-section">
-                <h2>Briefing</h2>
-                {runtimeBriefing === null ? (
-                  <p className="meta">Briefing not generated yet.</p>
-                ) : (
-                  <>
-                    <p className="meta">TLDR</p>
-                    <p className="status-line">{runtimeBriefing.briefing}</p>
-                    <p className="meta">
-                      Goal status: {runtimeBriefing.goalReached ? "Reached" : "In progress"}
-                    </p>
-                    {runtimeBriefing.goalReached ? (
-                      <div className="briefing-goal-callout">
-                        <p className="briefing-goal-callout-title">Goal reached</p>
-                        <p className="briefing-goal-callout-body">
-                          The latest briefing reports this council has reached its stated goal.
-                        </p>
-                      </div>
-                    ) : null}
-                    <p className="meta">Last updated: {runtimeBriefing.updatedAtUtc}</p>
-                  </>
-                )}
-              </section>
-
-              <section className="settings-section council-view-section">
-                <div className="button-row">
-                  <h2>Members</h2>
-                  <button
-                    className="secondary"
-                    disabled={!canEditMembers || councilViewState.isSavingMembers}
-                    onClick={() =>
+                <section className="settings-section council-view-section">
+                  <h2>Conductor message</h2>
+                  <textarea
+                    onChange={(event) =>
                       setCouncilViewState((current) =>
                         current.status !== "ready"
                           ? current
                           : {
                               ...current,
-                              showAddMemberPanel: !current.showAddMemberPanel,
+                              conductorDraft: event.target.value,
                             },
                       )
                     }
-                    type="button"
-                  >
-                    {councilViewState.showAddMemberPanel ? "Close add" : "Add member"}
-                  </button>
-                </div>
-                {councilViewState.showAddMemberPanel ? (
-                  <div className="status">
-                    <label className="field" htmlFor="council-view-add-member-search">
-                      Search agents
-                    </label>
-                    <input
-                      id="council-view-add-member-search"
-                      onChange={(event) =>
+                    rows={4}
+                    value={councilViewState.conductorDraft}
+                  />
+                  <div className="button-row">
+                    <button
+                      className="secondary"
+                      disabled={
+                        councilViewState.isInjectingConductor ||
+                        generationRunning ||
+                        council.archived
+                      }
+                      onClick={() => void injectConductorMessage()}
+                      type="button"
+                    >
+                      {councilViewState.isInjectingConductor ? "Sending..." : "Send as Conductor"}
+                    </button>
+                  </div>
+                </section>
+              </div>
+
+              <aside className="council-view-right-column">
+                <section className="settings-section council-view-section">
+                  <h2>Briefing</h2>
+                  {runtimeBriefing === null ? (
+                    <p className="meta">Briefing not generated yet.</p>
+                  ) : (
+                    <>
+                      <p className="meta">TLDR</p>
+                      <p className="status-line">{runtimeBriefing.briefing}</p>
+                      <p className="meta">
+                        Goal status: {runtimeBriefing.goalReached ? "Reached" : "In progress"}
+                      </p>
+                      {runtimeBriefing.goalReached ? (
+                        <div className="briefing-goal-callout">
+                          <p className="briefing-goal-callout-title">Goal reached</p>
+                          <p className="briefing-goal-callout-body">
+                            The latest briefing reports this council has reached its stated goal.
+                          </p>
+                        </div>
+                      ) : null}
+                      <p className="meta">Last updated: {runtimeBriefing.updatedAtUtc}</p>
+                    </>
+                  )}
+                </section>
+
+                <section className="settings-section council-view-section">
+                  <div className="button-row">
+                    <h2>Members</h2>
+                    <button
+                      className="secondary"
+                      disabled={!canEditMembers || councilViewState.isSavingMembers}
+                      onClick={() =>
                         setCouncilViewState((current) =>
                           current.status !== "ready"
                             ? current
                             : {
                                 ...current,
-                                addMemberSearchText: event.target.value,
+                                showAddMemberPanel: !current.showAddMemberPanel,
                               },
                         )
                       }
-                      placeholder="Search by name"
-                      value={councilViewState.addMemberSearchText}
-                    />
-                    <div className="list-grid">
-                      {addableAgents.map((agent) => (
-                        <article className="list-row" key={agent.id}>
-                          <div>
-                            <h3>{agent.name}</h3>
-                            <p className="meta">{agent.id}</p>
-                          </div>
-                          <button
-                            className="secondary"
-                            disabled={!canEditMembers || councilViewState.isSavingMembers}
-                            onClick={() => void addCouncilViewMember(agent.id)}
-                            type="button"
-                          >
-                            Add
-                          </button>
-                        </article>
-                      ))}
-                      {addableAgents.length === 0 ? (
-                        <p className="meta">No matching agents available.</p>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
-                <div className="list-grid">
-                  {council.memberAgentIds.map((memberAgentId) => {
-                    const memberName = memberNameById.get(memberAgentId) ?? memberAgentId;
-                    const memberHasMessages = memberIdsWithMessages.has(memberAgentId);
-                    const memberColor =
-                      council.memberColorsByAgentId[memberAgentId] ??
-                      MEMBER_COLOR_PALETTE[0] ??
-                      "#0a5c66";
-                    const removeDisabledReason = resolveMemberRemoveDisabledReason({
-                      archived: council.archived,
-                      canEditMembers,
-                      memberHasMessages,
-                      memberCount: council.memberAgentIds.length,
-                      isSavingMembers: councilViewState.isSavingMembers,
-                      started: council.started,
-                      paused: council.paused,
-                      mode: council.mode,
-                    });
-                    const removeReasonId = `member-remove-reason-${memberAgentId}`;
-                    return (
-                      <article className="list-row member-row" key={memberAgentId}>
-                        <div>
-                          <h3>{memberName}</h3>
-                          <p className="meta">Agent id: {memberAgentId}</p>
-                        </div>
-                        <div className="member-row-actions">
-                          <span aria-hidden="true" className="member-avatar">
-                            {memberName.slice(0, 2).toUpperCase()}
-                          </span>
-                          <ColorPicker
-                            colors={MEMBER_COLOR_PALETTE}
-                            id={`member-color-${memberAgentId}`}
-                            label="Color"
-                            value={memberColor}
-                            disabled={!canEditMembers || councilViewState.isSavingMembers}
-                            onChange={(color) =>
-                              void setCouncilViewMemberColor({
-                                memberAgentId,
-                                color,
-                              })
-                            }
-                          />
-                          {council.mode === "manual" ? (
-                            <button
-                              aria-label={buildManualSpeakerSelectionAriaLabel(memberName)}
-                              className="secondary"
-                              disabled={manualSpeakerDisabledReason !== null}
-                              onClick={() => void generateManualTurn(memberAgentId)}
-                              title={manualSpeakerDisabledReason ?? undefined}
-                              type="button"
-                            >
-                              {councilViewState.isGeneratingManualTurn
-                                ? "Generating..."
-                                : "Select to speak"}
-                            </button>
-                          ) : null}
-                          <button
-                            aria-describedby={
-                              removeDisabledReason === null ? undefined : removeReasonId
-                            }
-                            className="danger member-remove-button"
-                            disabled={removeDisabledReason !== null}
-                            onClick={() => requestCouncilViewMemberRemoval(memberAgentId)}
-                            title={removeDisabledReason ?? undefined}
-                            type="button"
-                          >
-                            Remove
-                          </button>
-                          {removeDisabledReason === null ? null : (
-                            <p className="meta member-remove-reason" id={removeReasonId}>
-                              {removeDisabledReason}
-                            </p>
-                          )}
-                        </div>
-                      </article>
-                    );
-                  })}
-                </div>
-              </section>
-            </aside>
-          </section>
-        ) : (
-          <section
-            aria-labelledby="council-view-tab-config"
-            className="settings-section"
-            id="council-view-panel-config"
-            role="tabpanel"
-          >
-            <h2>Config</h2>
-            <div className="config-grid">
-              <div className="config-row">
-                <p className="field">Topic</p>
-                {configEditField === "topic" ? (
-                  <div className="config-editor" ref={councilConfigEditContainerRef}>
-                    <textarea
-                      onChange={(event) =>
-                        setCouncilViewState((current) =>
-                          current.status !== "ready" || current.configEdit === null
-                            ? current
-                            : {
-                                ...current,
-                                configEdit: {
-                                  ...current.configEdit,
-                                  draftValue: event.target.value,
-                                },
-                              },
-                        )
-                      }
-                      onKeyDown={handleCouncilConfigEditorKeyDown}
-                      ref={(element) => {
-                        councilConfigEditInputRef.current = element;
-                      }}
-                      rows={4}
-                      value={configEditDraftValue}
-                    />
-                    <div className="button-row">
-                      <button
-                        className="cta"
-                        onClick={() => void saveCouncilConfigEdit()}
-                        type="button"
-                      >
-                        {councilViewState.isSavingConfigField ? "Saving..." : "Save"}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="config-value-row">
-                    <p className="meta config-value">{council.topic}</p>
-                    <button
-                      aria-label="Edit topic"
-                      className="icon-button"
-                      disabled={councilViewState.configEdit !== null || council.archived}
-                      onClick={() => openCouncilConfigEdit("topic")}
                       type="button"
                     >
-                      ✎
+                      {councilViewState.showAddMemberPanel ? "Close add" : "Add member"}
                     </button>
                   </div>
-                )}
-              </div>
-
-              <div className="config-row">
-                <p className="field">Goal</p>
-                {configEditField === "goal" ? (
-                  <div className="config-editor" ref={councilConfigEditContainerRef}>
-                    <textarea
-                      onChange={(event) =>
-                        setCouncilViewState((current) =>
-                          current.status !== "ready" || current.configEdit === null
-                            ? current
-                            : {
-                                ...current,
-                                configEdit: {
-                                  ...current.configEdit,
-                                  draftValue: event.target.value,
-                                },
-                              },
-                        )
-                      }
-                      onKeyDown={handleCouncilConfigEditorKeyDown}
-                      ref={(element) => {
-                        councilConfigEditInputRef.current = element;
-                      }}
-                      rows={3}
-                      value={configEditDraftValue}
-                    />
-                    <div className="button-row">
-                      <button
-                        className="cta"
-                        onClick={() => void saveCouncilConfigEdit()}
-                        type="button"
-                      >
-                        {councilViewState.isSavingConfigField ? "Saving..." : "Save"}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="config-value-row">
-                    <p className="meta config-value">{council.goal ?? "None"}</p>
-                    <button
-                      aria-label="Edit goal"
-                      className="icon-button"
-                      disabled={councilViewState.configEdit !== null || council.archived}
-                      onClick={() => openCouncilConfigEdit("goal")}
-                      type="button"
-                    >
-                      ✎
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="config-row">
-                <p className="field">Tags</p>
-                {configEditField === "tags" ? (
-                  <div className="config-editor" ref={councilConfigEditContainerRef}>
-                    {configEditTags.length > 0 ? (
-                      <ul className="config-tag-list">
-                        {configEditTags.map((tag) => (
-                          <li className="config-tag-chip" key={tag}>
-                            <span>{tag}</span>
-                            <button
-                              aria-label={`Remove tag ${tag}`}
-                              className="icon-button chip-remove-button"
-                              onClick={() => removeTagFromCouncilConfigEdit(tag)}
-                              type="button"
-                            >
-                              ×
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="meta">No tags yet.</p>
-                    )}
-                    <div className="button-row config-tag-editor-row">
+                  {councilViewState.showAddMemberPanel ? (
+                    <div className="status">
+                      <label className="field" htmlFor="council-view-add-member-search">
+                        Search agents
+                      </label>
                       <input
+                        id="council-view-add-member-search"
                         onChange={(event) =>
                           setCouncilViewState((current) =>
                             current.status !== "ready"
                               ? current
                               : {
                                   ...current,
-                                  configTagInput: event.target.value,
+                                  addMemberSearchText: event.target.value,
                                 },
                           )
                         }
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            addTagToCouncilConfigEdit();
-                            return;
-                          }
-                          if (event.key === "Escape") {
-                            event.preventDefault();
-                            closeCouncilConfigEdit(false);
-                          }
-                        }}
-                        placeholder="Add tag"
-                        type="text"
-                        value={councilViewState.configTagInput}
+                        placeholder="Search by name"
+                        value={councilViewState.addMemberSearchText}
                       />
-                      <button
-                        className="secondary"
-                        onClick={addTagToCouncilConfigEdit}
-                        type="button"
-                      >
-                        Add tag
-                      </button>
+                      <div className="list-grid">
+                        {addableAgents.map((agent) => (
+                          <article className="list-row" key={agent.id}>
+                            <div>
+                              <h3>{agent.name}</h3>
+                              <p className="meta">{agent.id}</p>
+                            </div>
+                            <button
+                              className="secondary"
+                              disabled={!canEditMembers || councilViewState.isSavingMembers}
+                              onClick={() => void addCouncilViewMember(agent.id)}
+                              type="button"
+                            >
+                              Add
+                            </button>
+                          </article>
+                        ))}
+                        {addableAgents.length === 0 ? (
+                          <p className="meta">No matching agents available.</p>
+                        ) : null}
+                      </div>
                     </div>
-                    <textarea
-                      onChange={(event) =>
-                        setCouncilViewState((current) =>
-                          current.status !== "ready" || current.configEdit === null
-                            ? current
-                            : {
-                                ...current,
-                                configEdit: {
-                                  ...current.configEdit,
-                                  draftValue: event.target.value,
-                                },
-                              },
-                        )
-                      }
-                      onKeyDown={handleCouncilConfigEditorKeyDown}
-                      ref={(element) => {
-                        councilConfigEditInputRef.current = element;
-                      }}
-                      aria-label="Tags draft"
-                      rows={3}
-                      value={configEditDraftValue}
-                    />
-                    <p className="meta">Use chips to add/remove tags. Max 3 tags.</p>
-                    <div className="button-row">
-                      <button
-                        className="cta"
-                        onClick={() => void saveCouncilConfigEdit()}
-                        type="button"
-                      >
-                        {councilViewState.isSavingConfigField ? "Saving..." : "Save"}
-                      </button>
-                    </div>
+                  ) : null}
+                  <div className="list-grid">
+                    {council.memberAgentIds.map((memberAgentId) => {
+                      const memberName = memberNameById.get(memberAgentId) ?? memberAgentId;
+                      const memberHasMessages = memberIdsWithMessages.has(memberAgentId);
+                      const memberColor =
+                        council.memberColorsByAgentId[memberAgentId] ??
+                        MEMBER_COLOR_PALETTE[0] ??
+                        "#0a5c66";
+                      const removeDisabledReason = resolveMemberRemoveDisabledReason({
+                        archived: council.archived,
+                        canEditMembers,
+                        memberHasMessages,
+                        memberCount: council.memberAgentIds.length,
+                        isSavingMembers: councilViewState.isSavingMembers,
+                        started: council.started,
+                        paused: council.paused,
+                        mode: council.mode,
+                      });
+                      const removeReasonId = `member-remove-reason-${memberAgentId}`;
+                      return (
+                        <article className="list-row member-row" key={memberAgentId}>
+                          <div>
+                            <h3>{memberName}</h3>
+                            <p className="meta">Agent id: {memberAgentId}</p>
+                          </div>
+                          <div className="member-row-actions">
+                            <span aria-hidden="true" className="member-avatar">
+                              {memberName.slice(0, 2).toUpperCase()}
+                            </span>
+                            <ColorPicker
+                              colors={MEMBER_COLOR_PALETTE}
+                              id={`member-color-${memberAgentId}`}
+                              label="Color"
+                              value={memberColor}
+                              disabled={!canEditMembers || councilViewState.isSavingMembers}
+                              onChange={(color) =>
+                                void setCouncilViewMemberColor({
+                                  memberAgentId,
+                                  color,
+                                })
+                              }
+                            />
+                            {council.mode === "manual" ? (
+                              <button
+                                aria-label={buildManualSpeakerSelectionAriaLabel(memberName)}
+                                className="secondary"
+                                disabled={manualSpeakerDisabledReason !== null}
+                                onClick={() => void generateManualTurn(memberAgentId)}
+                                title={manualSpeakerDisabledReason ?? undefined}
+                                type="button"
+                              >
+                                {councilViewState.isGeneratingManualTurn
+                                  ? "Generating..."
+                                  : "Select to speak"}
+                              </button>
+                            ) : null}
+                            <button
+                              aria-describedby={
+                                removeDisabledReason === null ? undefined : removeReasonId
+                              }
+                              className="danger member-remove-button"
+                              disabled={removeDisabledReason !== null}
+                              onClick={() => requestCouncilViewMemberRemoval(memberAgentId)}
+                              title={removeDisabledReason ?? undefined}
+                              type="button"
+                            >
+                              Remove
+                            </button>
+                            {removeDisabledReason === null ? null : (
+                              <p className="meta member-remove-reason" id={removeReasonId}>
+                                {removeDisabledReason}
+                              </p>
+                            )}
+                          </div>
+                        </article>
+                      );
+                    })}
                   </div>
-                ) : (
-                  <div className="config-value-row">
-                    <p className="meta config-value">
-                      {council.tags.length > 0 ? council.tags.join(", ") : "None"}
-                    </p>
-                    <button
-                      aria-label="Edit tags"
-                      className="icon-button"
-                      disabled={councilViewState.configEdit !== null || council.archived}
-                      onClick={() => openCouncilConfigEdit("tags")}
-                      type="button"
-                    >
-                      ✎
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              <div className="config-row">
-                <p className="field">Conductor model</p>
-                {configEditField === "conductorModel" ? (
-                  <div className="config-editor" ref={councilConfigEditContainerRef}>
-                    <div className="button-row">
-                      <select
+                </section>
+              </aside>
+            </section>
+          ) : (
+            <section
+              aria-labelledby="council-view-tab-config"
+              className="settings-section"
+              id="council-view-panel-config"
+              role="tabpanel"
+            >
+              <h2>Config</h2>
+              <div className="config-grid">
+                <div className="config-row">
+                  <p className="field">Topic</p>
+                  {configEditField === "topic" ? (
+                    <div className="config-editor" ref={councilConfigEditContainerRef}>
+                      <textarea
                         onChange={(event) =>
                           setCouncilViewState((current) =>
                             current.status !== "ready" || current.configEdit === null
@@ -3799,16 +3628,229 @@ export const App = (): JSX.Element => {
                         ref={(element) => {
                           councilConfigEditInputRef.current = element;
                         }}
+                        rows={4}
                         value={configEditDraftValue}
+                      />
+                      <div className="button-row">
+                        <button
+                          className="cta"
+                          onClick={() => void saveCouncilConfigEdit()}
+                          type="button"
+                        >
+                          {councilViewState.isSavingConfigField ? "Saving..." : "Save"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="config-value-row">
+                      <p className="meta config-value">{council.topic}</p>
+                      <button
+                        aria-label="Edit topic"
+                        className="icon-button"
+                        disabled={councilViewState.configEdit !== null || council.archived}
+                        onClick={() => openCouncilConfigEdit("topic")}
+                        type="button"
                       >
-                        {hasUnavailableConductorSelectionInView ? (
-                          <option value={configEditDraftValue}>
-                            Unavailable ({configEditDraftValue})
-                          </option>
-                        ) : null}
-                        <option value="">Global default</option>
-                        {Object.entries(councilViewState.source.modelCatalog.modelsByProvider).map(
-                          ([providerId, modelIds]) => (
+                        ✎
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="config-row">
+                  <p className="field">Goal</p>
+                  {configEditField === "goal" ? (
+                    <div className="config-editor" ref={councilConfigEditContainerRef}>
+                      <textarea
+                        onChange={(event) =>
+                          setCouncilViewState((current) =>
+                            current.status !== "ready" || current.configEdit === null
+                              ? current
+                              : {
+                                  ...current,
+                                  configEdit: {
+                                    ...current.configEdit,
+                                    draftValue: event.target.value,
+                                  },
+                                },
+                          )
+                        }
+                        onKeyDown={handleCouncilConfigEditorKeyDown}
+                        ref={(element) => {
+                          councilConfigEditInputRef.current = element;
+                        }}
+                        rows={3}
+                        value={configEditDraftValue}
+                      />
+                      <div className="button-row">
+                        <button
+                          className="cta"
+                          onClick={() => void saveCouncilConfigEdit()}
+                          type="button"
+                        >
+                          {councilViewState.isSavingConfigField ? "Saving..." : "Save"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="config-value-row">
+                      <p className="meta config-value">{council.goal ?? "None"}</p>
+                      <button
+                        aria-label="Edit goal"
+                        className="icon-button"
+                        disabled={councilViewState.configEdit !== null || council.archived}
+                        onClick={() => openCouncilConfigEdit("goal")}
+                        type="button"
+                      >
+                        ✎
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="config-row">
+                  <p className="field">Tags</p>
+                  {configEditField === "tags" ? (
+                    <div className="config-editor" ref={councilConfigEditContainerRef}>
+                      {configEditTags.length > 0 ? (
+                        <ul className="config-tag-list">
+                          {configEditTags.map((tag) => (
+                            <li className="config-tag-chip" key={tag}>
+                              <span>{tag}</span>
+                              <button
+                                aria-label={`Remove tag ${tag}`}
+                                className="icon-button chip-remove-button"
+                                onClick={() => removeTagFromCouncilConfigEdit(tag)}
+                                type="button"
+                              >
+                                ×
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="meta">No tags yet.</p>
+                      )}
+                      <div className="button-row config-tag-editor-row">
+                        <input
+                          onChange={(event) =>
+                            setCouncilViewState((current) =>
+                              current.status !== "ready"
+                                ? current
+                                : {
+                                    ...current,
+                                    configTagInput: event.target.value,
+                                  },
+                            )
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              addTagToCouncilConfigEdit();
+                              return;
+                            }
+                            if (event.key === "Escape") {
+                              event.preventDefault();
+                              closeCouncilConfigEdit(false);
+                            }
+                          }}
+                          placeholder="Add tag"
+                          type="text"
+                          value={councilViewState.configTagInput}
+                        />
+                        <button
+                          className="secondary"
+                          onClick={addTagToCouncilConfigEdit}
+                          type="button"
+                        >
+                          Add tag
+                        </button>
+                      </div>
+                      <textarea
+                        onChange={(event) =>
+                          setCouncilViewState((current) =>
+                            current.status !== "ready" || current.configEdit === null
+                              ? current
+                              : {
+                                  ...current,
+                                  configEdit: {
+                                    ...current.configEdit,
+                                    draftValue: event.target.value,
+                                  },
+                                },
+                          )
+                        }
+                        onKeyDown={handleCouncilConfigEditorKeyDown}
+                        ref={(element) => {
+                          councilConfigEditInputRef.current = element;
+                        }}
+                        aria-label="Tags draft"
+                        rows={3}
+                        value={configEditDraftValue}
+                      />
+                      <p className="meta">Use chips to add/remove tags. Max 3 tags.</p>
+                      <div className="button-row">
+                        <button
+                          className="cta"
+                          onClick={() => void saveCouncilConfigEdit()}
+                          type="button"
+                        >
+                          {councilViewState.isSavingConfigField ? "Saving..." : "Save"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="config-value-row">
+                      <p className="meta config-value">
+                        {council.tags.length > 0 ? council.tags.join(", ") : "None"}
+                      </p>
+                      <button
+                        aria-label="Edit tags"
+                        className="icon-button"
+                        disabled={councilViewState.configEdit !== null || council.archived}
+                        onClick={() => openCouncilConfigEdit("tags")}
+                        type="button"
+                      >
+                        ✎
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="config-row">
+                  <p className="field">Conductor model</p>
+                  {configEditField === "conductorModel" ? (
+                    <div className="config-editor" ref={councilConfigEditContainerRef}>
+                      <div className="button-row">
+                        <select
+                          onChange={(event) =>
+                            setCouncilViewState((current) =>
+                              current.status !== "ready" || current.configEdit === null
+                                ? current
+                                : {
+                                    ...current,
+                                    configEdit: {
+                                      ...current.configEdit,
+                                      draftValue: event.target.value,
+                                    },
+                                  },
+                            )
+                          }
+                          onKeyDown={handleCouncilConfigEditorKeyDown}
+                          ref={(element) => {
+                            councilConfigEditInputRef.current = element;
+                          }}
+                          value={configEditDraftValue}
+                        >
+                          {hasUnavailableConductorSelectionInView ? (
+                            <option value={configEditDraftValue}>
+                              Unavailable ({configEditDraftValue})
+                            </option>
+                          ) : null}
+                          <option value="">Global default</option>
+                          {Object.entries(
+                            councilViewState.source.modelCatalog.modelsByProvider,
+                          ).map(([providerId, modelIds]) => (
                             <optgroup key={providerId} label={providerId}>
                               {modelIds.map((modelId) => (
                                 <option
@@ -3819,274 +3861,277 @@ export const App = (): JSX.Element => {
                                 </option>
                               ))}
                             </optgroup>
-                          ),
-                        )}
-                      </select>
+                          ))}
+                        </select>
+                        <button
+                          className="secondary"
+                          disabled={
+                            councilViewState.isRefreshingConfigModels ||
+                            !councilViewState.source.canRefreshModels
+                          }
+                          onClick={() => void refreshCouncilViewConfigModels()}
+                          type="button"
+                        >
+                          {councilViewState.isRefreshingConfigModels
+                            ? "Refreshing..."
+                            : "Refresh models"}
+                        </button>
+                      </div>
+                      <div className="button-row">
+                        <button
+                          className="cta"
+                          onClick={() => void saveCouncilConfigEdit()}
+                          type="button"
+                        >
+                          {councilViewState.isSavingConfigField ? "Saving..." : "Save"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="config-value-row">
+                      <p className="meta config-value">
+                        {councilModelLabel(council, councilViewState.source.globalDefaultModelRef)}
+                      </p>
+                      {council.invalidConfig ? (
+                        <span
+                          aria-label="Invalid configuration"
+                          className="warning-badge"
+                          title="Resolved conductor model is unavailable in this view's model catalog snapshot."
+                        >
+                          Invalid config
+                        </span>
+                      ) : null}
                       <button
-                        className="secondary"
-                        disabled={
-                          councilViewState.isRefreshingConfigModels ||
-                          !councilViewState.source.canRefreshModels
-                        }
-                        onClick={() => void refreshCouncilViewConfigModels()}
+                        aria-label="Edit conductor model"
+                        className="icon-button"
+                        disabled={councilViewState.configEdit !== null || council.archived}
+                        onClick={() => openCouncilConfigEdit("conductorModel")}
                         type="button"
                       >
-                        {councilViewState.isRefreshingConfigModels
-                          ? "Refreshing..."
-                          : "Refresh models"}
+                        ✎
                       </button>
                     </div>
-                    <div className="button-row">
-                      <button
-                        className="cta"
-                        onClick={() => void saveCouncilConfigEdit()}
-                        type="button"
-                      >
-                        {councilViewState.isSavingConfigField ? "Saving..." : "Save"}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="config-value-row">
-                    <p className="meta config-value">
-                      {councilModelLabel(council, councilViewState.source.globalDefaultModelRef)}
-                    </p>
-                    {council.invalidConfig ? (
-                      <span
-                        aria-label="Invalid configuration"
-                        className="warning-badge"
-                        title="Resolved conductor model is unavailable in this view's model catalog snapshot."
-                      >
-                        Invalid config
-                      </span>
-                    ) : null}
-                    <button
-                      aria-label="Edit conductor model"
-                      className="icon-button"
-                      disabled={councilViewState.configEdit !== null || council.archived}
-                      onClick={() => openCouncilConfigEdit("conductorModel")}
-                      type="button"
-                    >
-                      ✎
-                    </button>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
 
-            <div className="button-row">
-              <button
-                className="secondary"
-                disabled={
-                  councilViewState.configEdit !== null || councilViewState.isExportingTranscript
-                }
-                onClick={() =>
-                  void exportCouncilTranscript({
-                    viewKind: "councilView",
-                    councilId: council.id,
-                  })
-                }
-                type="button"
-              >
-                {councilViewState.isExportingTranscript ? "Exporting..." : "Export"}
-              </button>
-              <button
-                className="secondary"
-                disabled={
-                  councilViewState.configEdit !== null ||
-                  (!council.archived &&
+              <div className="button-row">
+                <button
+                  className="secondary"
+                  disabled={
+                    councilViewState.configEdit !== null || councilViewState.isExportingTranscript
+                  }
+                  onClick={() =>
+                    void exportCouncilTranscript({
+                      viewKind: "councilView",
+                      councilId: council.id,
+                    })
+                  }
+                  type="button"
+                >
+                  {councilViewState.isExportingTranscript ? "Exporting..." : "Export"}
+                </button>
+                <button
+                  className="secondary"
+                  disabled={
+                    councilViewState.configEdit !== null ||
+                    (!council.archived &&
+                      council.mode === "autopilot" &&
+                      council.started &&
+                      !council.paused)
+                  }
+                  onClick={() => void setCouncilArchivedFromView(council, !council.archived)}
+                  title={
+                    !council.archived &&
                     council.mode === "autopilot" &&
                     council.started &&
-                    !council.paused)
-                }
-                onClick={() => void setCouncilArchivedFromView(council, !council.archived)}
-                title={
-                  !council.archived &&
-                  council.mode === "autopilot" &&
-                  council.started &&
-                  !council.paused
-                    ? "Pause Autopilot before archiving this council."
-                    : undefined
-                }
-                type="button"
-              >
-                {council.archived ? "Restore" : "Archive"}
-              </button>
-              <button
-                className="danger"
-                disabled={councilViewState.configEdit !== null}
-                onClick={() =>
-                  setCouncilViewState((current) =>
-                    current.status !== "ready"
-                      ? current
-                      : {
-                          ...current,
-                          showConfigDeleteDialog: true,
-                        },
-                  )
-                }
-                type="button"
-              >
-                Delete
-              </button>
-            </div>
-          </section>
-        )}
-
-        <ConfirmDialog
-          cancelLabel="Stay"
-          confirmLabel="Leave"
-          confirmTone="danger"
-          message={COUNCIL_VIEW_EXIT_CONFIRMATION_MESSAGE}
-          onCancel={() =>
-            setCouncilViewState((current) =>
-              current.status !== "ready"
-                ? current
-                : {
-                    ...current,
-                    showLeaveDialog: false,
-                  },
-            )
-          }
-          onConfirm={() => {
-            void confirmLeaveCouncilView();
-          }}
-          open={councilViewState.showLeaveDialog}
-          title="Leave Council View?"
-        />
-
-        <ConfirmDialog
-          cancelLabel="Keep editing"
-          confirmLabel="Discard"
-          confirmTone="danger"
-          message="Your changes will be lost."
-          onCancel={() => {
-            setCouncilViewState((current) =>
-              current.status !== "ready"
-                ? current
-                : {
-                    ...current,
-                    showConfigDiscardDialog: false,
-                  },
-            );
-            window.setTimeout(() => {
-              councilConfigEditInputRef.current?.focus();
-            }, 0);
-          }}
-          onConfirm={() => {
-            closeCouncilConfigEdit(true);
-          }}
-          open={councilViewState.showConfigDiscardDialog}
-          title="Discard changes?"
-        />
-
-        <ConfirmDialog
-          confirmLabel="Remove"
-          confirmTone="danger"
-          message={
-            councilViewState.pendingMemberRemovalId === null
-              ? ""
-              : `Remove ${memberNameById.get(councilViewState.pendingMemberRemovalId) ?? "this member"}? You can add them again later.`
-          }
-          onCancel={cancelCouncilViewMemberRemoval}
-          onConfirm={() => {
-            void confirmCouncilViewMemberRemoval();
-          }}
-          open={councilViewState.showMemberRemoveDialog}
-          title="Remove member?"
-        />
-
-        <ConfirmDialog
-          confirmLabel="Delete"
-          confirmTone="danger"
-          message={`Delete council "${council.title}" permanently?`}
-          onCancel={() =>
-            setCouncilViewState((current) =>
-              current.status !== "ready"
-                ? current
-                : {
-                    ...current,
-                    showConfigDeleteDialog: false,
-                  },
-            )
-          }
-          onConfirm={() => {
-            void deleteCouncilFromView(council);
-          }}
-          open={councilViewState.showConfigDeleteDialog}
-          title="Delete council?"
-        />
-
-        <Dialog open={autopilotLimitModal !== null} onOpenChange={() => closeAutopilotLimitModal()}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{autopilotDialogTitle}</DialogTitle>
-              <DialogDescription>Set an optional turn limit for this run.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="autopilot-limit-toggle"
-                  checked={autopilotLimitModal?.limitTurns ?? false}
-                  onChange={(event) =>
-                    setAutopilotLimitModal((current) =>
-                      current === null
+                    !council.paused
+                      ? "Pause Autopilot before archiving this council."
+                      : undefined
+                  }
+                  type="button"
+                >
+                  {council.archived ? "Restore" : "Archive"}
+                </button>
+                <button
+                  className="danger"
+                  disabled={councilViewState.configEdit !== null}
+                  onClick={() =>
+                    setCouncilViewState((current) =>
+                      current.status !== "ready"
                         ? current
                         : {
                             ...current,
-                            limitTurns: event.target.checked,
-                            validationMessage: "",
+                            showConfigDeleteDialog: true,
                           },
                     )
                   }
-                  className="h-4 w-4 rounded border-gray-300"
-                />
-                <Label htmlFor="autopilot-limit-toggle">Limit turns</Label>
+                  type="button"
+                >
+                  Delete
+                </button>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="autopilot-max-turns-input">
-                  Max turns ({AUTOPILOT_MAX_TURNS_MIN}-{AUTOPILOT_MAX_TURNS_MAX})
-                </Label>
-                <Input
-                  id="autopilot-max-turns-input"
-                  type="number"
-                  disabled={!(autopilotLimitModal?.limitTurns ?? false)}
-                  min={AUTOPILOT_MAX_TURNS_MIN}
-                  placeholder="e.g. 12"
-                  value={autopilotLimitModal?.maxTurnsInput ?? ""}
-                  onChange={(event) =>
-                    setAutopilotLimitModal((current) =>
-                      current === null
-                        ? current
-                        : {
-                            ...current,
-                            maxTurnsInput: event.target.value,
-                            validationMessage: "",
-                          },
-                    )
-                  }
-                />
-              </div>
-              {autopilotLimitModal?.validationMessage &&
-              autopilotLimitModal.validationMessage.length > 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  {autopilotLimitModal.validationMessage}
-                </p>
-              ) : null}
-            </div>
-            <DialogFooter className="flex gap-2">
-              <Button variant="secondary" onClick={closeAutopilotLimitModal}>
-                Cancel
-              </Button>
-              <Button onClick={() => void submitAutopilotLimitModal()}>
-                {autopilotSubmitLabel}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </section>
+          )}
 
-        <ToastStack toasts={toasts} />
+          <ConfirmDialog
+            cancelLabel="Stay"
+            confirmLabel="Leave"
+            confirmTone="danger"
+            message={COUNCIL_VIEW_EXIT_CONFIRMATION_MESSAGE}
+            onCancel={() =>
+              setCouncilViewState((current) =>
+                current.status !== "ready"
+                  ? current
+                  : {
+                      ...current,
+                      showLeaveDialog: false,
+                    },
+              )
+            }
+            onConfirm={() => {
+              void confirmLeaveCouncilView();
+            }}
+            open={councilViewState.showLeaveDialog}
+            title="Leave Council View?"
+          />
+
+          <ConfirmDialog
+            cancelLabel="Keep editing"
+            confirmLabel="Discard"
+            confirmTone="danger"
+            message="Your changes will be lost."
+            onCancel={() => {
+              setCouncilViewState((current) =>
+                current.status !== "ready"
+                  ? current
+                  : {
+                      ...current,
+                      showConfigDiscardDialog: false,
+                    },
+              );
+              window.setTimeout(() => {
+                councilConfigEditInputRef.current?.focus();
+              }, 0);
+            }}
+            onConfirm={() => {
+              closeCouncilConfigEdit(true);
+            }}
+            open={councilViewState.showConfigDiscardDialog}
+            title="Discard changes?"
+          />
+
+          <ConfirmDialog
+            confirmLabel="Remove"
+            confirmTone="danger"
+            message={
+              councilViewState.pendingMemberRemovalId === null
+                ? ""
+                : `Remove ${memberNameById.get(councilViewState.pendingMemberRemovalId) ?? "this member"}? You can add them again later.`
+            }
+            onCancel={cancelCouncilViewMemberRemoval}
+            onConfirm={() => {
+              void confirmCouncilViewMemberRemoval();
+            }}
+            open={councilViewState.showMemberRemoveDialog}
+            title="Remove member?"
+          />
+
+          <ConfirmDialog
+            confirmLabel="Delete"
+            confirmTone="danger"
+            message={`Delete council "${council.title}" permanently?`}
+            onCancel={() =>
+              setCouncilViewState((current) =>
+                current.status !== "ready"
+                  ? current
+                  : {
+                      ...current,
+                      showConfigDeleteDialog: false,
+                    },
+              )
+            }
+            onConfirm={() => {
+              void deleteCouncilFromView(council);
+            }}
+            open={councilViewState.showConfigDeleteDialog}
+            title="Delete council?"
+          />
+
+          <Dialog
+            open={autopilotLimitModal !== null}
+            onOpenChange={() => closeAutopilotLimitModal()}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{autopilotDialogTitle}</DialogTitle>
+                <DialogDescription>Set an optional turn limit for this run.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="autopilot-limit-toggle"
+                    checked={autopilotLimitModal?.limitTurns ?? false}
+                    onChange={(event) =>
+                      setAutopilotLimitModal((current) =>
+                        current === null
+                          ? current
+                          : {
+                              ...current,
+                              limitTurns: event.target.checked,
+                              validationMessage: "",
+                            },
+                      )
+                    }
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <Label htmlFor="autopilot-limit-toggle">Limit turns</Label>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="autopilot-max-turns-input">
+                    Max turns ({AUTOPILOT_MAX_TURNS_MIN}-{AUTOPILOT_MAX_TURNS_MAX})
+                  </Label>
+                  <Input
+                    id="autopilot-max-turns-input"
+                    type="number"
+                    disabled={!(autopilotLimitModal?.limitTurns ?? false)}
+                    min={AUTOPILOT_MAX_TURNS_MIN}
+                    placeholder="e.g. 12"
+                    value={autopilotLimitModal?.maxTurnsInput ?? ""}
+                    onChange={(event) =>
+                      setAutopilotLimitModal((current) =>
+                        current === null
+                          ? current
+                          : {
+                              ...current,
+                              maxTurnsInput: event.target.value,
+                              validationMessage: "",
+                            },
+                      )
+                    }
+                  />
+                </div>
+                {autopilotLimitModal?.validationMessage &&
+                autopilotLimitModal.validationMessage.length > 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    {autopilotLimitModal.validationMessage}
+                  </p>
+                ) : null}
+              </div>
+              <DialogFooter className="flex gap-2">
+                <Button variant="secondary" onClick={closeAutopilotLimitModal}>
+                  Cancel
+                </Button>
+                <Button onClick={() => void submitAutopilotLimitModal()}>
+                  {autopilotSubmitLabel}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <ToastStack toasts={toasts} />
+        </div>
       </main>
     );
   }
@@ -4621,84 +4666,91 @@ export const App = (): JSX.Element => {
       return (
         <section
           aria-labelledby="home-tab-councils"
-          className="settings-section"
           id="home-panel-councils"
           role="tabpanel"
+          className="space-y-6"
         >
-          <header className="section-header compact council-header">
-            <div className="council-header-main">
-              <div>
-                <h2>Councils</h2>
-                <p className="council-count">{councilsTotal} total</p>
-              </div>
-              <button
-                className="cta new-council-btn"
-                onClick={() => void openCouncilEditor(null)}
-                type="button"
-              >
-                <span className="new-council-icon">+</span>
-                New Council
-              </button>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-serif text-2xl font-medium">Councils</h2>
+              <p className="text-sm text-muted-foreground mt-1">{councilsTotal} total councils</p>
             </div>
-          </header>
-          <div className="councils-toolbar">
-            <div className="councils-search-group">
-              <input
-                aria-label="Search councils"
-                className="councils-search-input"
-                onChange={(event) => setCouncilsSearchText(event.target.value)}
-                placeholder="Search title or topic"
-                type="text"
-                value={councilsSearchText}
-              />
-              <input
-                aria-label="Filter councils by tag"
-                className="councils-tag-input"
-                onChange={(event) => setCouncilsTagFilter(event.target.value)}
-                placeholder="Filter by tag"
-                type="text"
-                value={councilsTagFilter}
-              />
-            </div>
-            <div className="councils-filter-group">
-              <select
-                className="councils-filter-select"
-                value={councilsArchivedFilter}
-                onChange={(event) =>
-                  setCouncilsArchivedFilter(event.target.value as CouncilArchivedFilter)
-                }
-              >
-                <option value="all">All councils</option>
-                <option value="active">Active only</option>
-                <option value="archived">Archived only</option>
-              </select>
-              <select
-                className="councils-filter-select"
-                value={councilsSortBy}
-                onChange={(event) => setCouncilsSortBy(event.target.value as CouncilSortField)}
-              >
-                <option value="updatedAt">Last modified</option>
-                <option value="createdAt">Date created</option>
-              </select>
-              <select
-                className="councils-filter-select"
-                value={councilsSortDirection}
-                onChange={(event) => setCouncilsSortDirection(event.target.value as SortDirection)}
-              >
-                <option value="desc">Newest first</option>
-                <option value="asc">Oldest first</option>
-              </select>
-            </div>
+            <Button onClick={() => void openCouncilEditor(null)} className="gap-2">
+              <Plus className="h-4 w-4" />
+              New Council
+            </Button>
           </div>
 
-          {councilsError !== null ? <p className="status">Error: {councilsError}</p> : null}
-          {councilsLoading ? <p className="status">Loading councils...</p> : null}
+          <div className="flex flex-wrap items-center gap-3">
+            <Input
+              aria-label="Search councils"
+              placeholder="Search title or topic"
+              value={councilsSearchText}
+              onChange={(event) => setCouncilsSearchText(event.target.value)}
+              className="max-w-xs"
+            />
+            <Input
+              aria-label="Filter by tag"
+              placeholder="Filter by tag"
+              value={councilsTagFilter}
+              onChange={(event) => setCouncilsTagFilter(event.target.value)}
+              className="max-w-[180px]"
+            />
+            <Select
+              value={councilsArchivedFilter}
+              onValueChange={(value) => setCouncilsArchivedFilter(value as CouncilArchivedFilter)}
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Filter status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All councils</SelectItem>
+                <SelectItem value="active">Active only</SelectItem>
+                <SelectItem value="archived">Archived only</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={councilsSortBy}
+              onValueChange={(value) => setCouncilsSortBy(value as CouncilSortField)}
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="updatedAt">Last modified</SelectItem>
+                <SelectItem value="createdAt">Date created</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
+              value={councilsSortDirection}
+              onValueChange={(value) => setCouncilsSortDirection(value as SortDirection)}
+            >
+              <SelectTrigger className="w-[130px]">
+                <SelectValue placeholder="Order" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="desc">Newest first</SelectItem>
+                <SelectItem value="asc">Oldest first</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-          {!councilsLoading && councils.length === 0 ? (
-            <p className="status">No councils yet. Create your first council.</p>
+          {councilsError !== null ? (
+            <p className="text-muted-foreground italic">Error: {councilsError}</p>
+          ) : null}
+          {councilsLoading ? (
+            <p className="text-muted-foreground italic">Loading councils...</p>
           ) : null}
 
-          <div className="councils-grid">
+          {!councilsLoading && councils.length === 0 ? (
+            <Card className="p-8 text-center">
+              <p className="text-muted-foreground">
+                No councils yet. Create your first council to get started.
+              </p>
+            </Card>
+          ) : null}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {councils.map((council) => {
               const runtimeStatus = council.started
                 ? council.paused
@@ -4706,189 +4758,154 @@ export const App = (): JSX.Element => {
                   : "running"
                 : "stopped";
               return (
-                <article
-                  className={`council-card ${council.archived ? "council-card-archived" : ""}`}
+                <Card
                   key={council.id}
+                  className={`group overflow-hidden ${council.archived ? "opacity-60" : ""}`}
                 >
-                  <div className="council-card-header">
-                    <div className="council-card-title-row">
-                      <h3 className="council-card-title">{council.title}</h3>
-                      <div className="council-card-badges">
-                        {council.archived ? (
-                          <span className="council-badge council-badge-archived">Archived</span>
-                        ) : null}
-                        {council.invalidConfig ? (
-                          <span className="council-badge council-badge-error">Config Error</span>
-                        ) : null}
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="font-semibold text-lg leading-tight">{council.title}</h3>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {council.archived && <Badge variant="secondary">Archived</Badge>}
+                        {council.invalidConfig && <Badge variant="destructive">Config Error</Badge>}
                         <span
-                          className={`council-badge council-badge-status council-status-${runtimeStatus}`}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${runtimeStatus === "running" ? "bg-green-100 text-green-700" : runtimeStatus === "paused" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600"}`}
                         >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${runtimeStatus === "running" ? "bg-green-500 animate-pulse" : runtimeStatus === "paused" ? "bg-amber-500" : "bg-slate-400"}`}
+                          />
                           {runtimeStatus === "running"
-                            ? "● Running"
+                            ? "Running"
                             : runtimeStatus === "paused"
-                              ? "⏸ Paused"
-                              : "○ Stopped"}
+                              ? "Paused"
+                              : "Stopped"}
                         </span>
                       </div>
                     </div>
-                    <p className="council-card-topic" title={council.topic}>
+                    <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
                       {council.topic}
                     </p>
-                  </div>
-
-                  <div className="council-card-stats">
-                    <div className="council-stat">
-                      <span className="council-stat-value">{council.memberAgentIds.length}</span>
-                      <span className="council-stat-label">
-                        {council.memberAgentIds.length === 1 ? "member" : "members"}
-                      </span>
-                    </div>
-                    <div className="council-stat-divider" />
-                    <div className="council-stat">
-                      <span className="council-stat-value">{council.turnCount}</span>
-                      <span className="council-stat-label">
-                        {council.turnCount === 1 ? "turn" : "turns"}
-                      </span>
-                    </div>
-                    <div className="council-stat-divider" />
-                    <div className="council-stat">
-                      <span className="council-stat-value council-mode-badge">{council.mode}</span>
-                    </div>
-                  </div>
-
-                  {council.tags.length > 0 ? (
-                    <div className="council-card-tags">
-                      {council.tags.slice(0, 3).map((tag) => (
-                        <span className="council-tag" key={tag}>
-                          {tag}
+                  </CardHeader>
+                  <CardContent className="pb-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-4">
+                        <span className="text-muted-foreground">
+                          <span className="font-medium text-foreground">
+                            {council.memberAgentIds.length}
+                          </span>{" "}
+                          {council.memberAgentIds.length === 1 ? "member" : "members"}
                         </span>
-                      ))}
-                      {council.tags.length > 3 ? (
-                        <span className="council-tag council-tag-more">
-                          +{council.tags.length - 3}
+                        <span className="text-muted-foreground">
+                          <span className="font-medium text-foreground">{council.turnCount}</span>{" "}
+                          {council.turnCount === 1 ? "turn" : "turns"}
                         </span>
-                      ) : null}
+                      </div>
+                      <Badge variant="outline" className="capitalize">
+                        {council.mode}
+                      </Badge>
                     </div>
-                  ) : null}
 
-                  <div className="council-card-actions">
-                    <button
-                      className="council-btn-open"
+                    {council.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-3">
+                        {council.tags.slice(0, 3).map((tag) => (
+                          <span
+                            key={tag}
+                            className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-secondary text-secondary-foreground"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                        {council.tags.length > 3 && (
+                          <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-secondary text-secondary-foreground">
+                            +{council.tags.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                  <div className="px-6 pb-4 flex items-center gap-2">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="flex-1"
                       onClick={() => void openCouncilView(council.id)}
-                      type="button"
                     >
                       Open Council
-                    </button>
-                    <details
-                      aria-label={`Actions menu for council ${council.title}`}
-                      className="council-actions-menu"
-                      onKeyDown={handleCouncilRowMenuKeyDown}
-                      onToggle={handleCouncilMenuToggle}
-                    >
-                      <summary
-                        aria-label={`Toggle actions for council ${council.title}`}
-                        className="council-btn-more"
-                        onKeyDown={handleCouncilRowMenuSummaryKeyDown}
-                      >
-                        <svg
-                          aria-hidden="true"
-                          fill="none"
-                          height="16"
-                          stroke="currentColor"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          viewBox="0 0 24 24"
-                          width="16"
-                        >
-                          <circle cx="12" cy="12" r="1" />
-                          <circle cx="19" cy="12" r="1" />
-                          <circle cx="5" cy="12" r="1" />
-                        </svg>
-                      </summary>
-                      <div
-                        aria-label={`Council actions for ${council.title}`}
-                        className="council-menu-dropdown"
-                      >
-                        <button
-                          className="council-menu-item"
-                          disabled={exportingCouncilId === council.id}
-                          onClick={(event) => {
-                            const details = event.currentTarget.closest("details");
-                            if (details) {
-                              details.open = false;
+                    </Button>
+                    <Sheet>
+                      <SheetTrigger asChild>
+                        <Button variant="outline" size="icon" className="h-9 w-9">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </SheetTrigger>
+                      <SheetContent>
+                        <SheetHeader>
+                          <SheetTitle>{council.title}</SheetTitle>
+                        </SheetHeader>
+                        <div className="flex flex-col gap-2 mt-6">
+                          <Button
+                            variant="outline"
+                            disabled={exportingCouncilId === council.id}
+                            onClick={() =>
+                              void exportCouncilTranscript({
+                                viewKind: "councilsList",
+                                councilId: council.id,
+                              })
                             }
-                            void exportCouncilTranscript({
-                              viewKind: "councilsList",
-                              councilId: council.id,
-                            });
-                          }}
-                          type="button"
-                        >
-                          {exportingCouncilId === council.id ? "Exporting..." : "Export transcript"}
-                        </button>
-                        <button
-                          className="council-menu-item"
-                          disabled={
-                            !council.archived &&
-                            council.mode === "autopilot" &&
-                            council.started &&
-                            !council.paused
-                          }
-                          onClick={(event) => {
-                            const details = event.currentTarget.closest("details");
-                            if (details) {
-                              details.open = false;
+                          >
+                            {exportingCouncilId === council.id
+                              ? "Exporting..."
+                              : "Export transcript"}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            disabled={
+                              !council.archived &&
+                              council.mode === "autopilot" &&
+                              council.started &&
+                              !council.paused
                             }
-                            void setCouncilArchivedFromList({
-                              councilId: council.id,
-                              archived: !council.archived,
-                            });
-                          }}
-                          title={
-                            !council.archived &&
-                            council.mode === "autopilot" &&
-                            council.started &&
-                            !council.paused
-                              ? "Pause Autopilot before archiving"
-                              : undefined
-                          }
-                          type="button"
-                        >
-                          {council.archived ? "Restore council" : "Archive council"}
-                        </button>
-                        <hr className="council-menu-divider" />
-                        <button
-                          className="council-menu-item council-menu-item-danger"
-                          onClick={(event) => {
-                            const details = event.currentTarget.closest("details");
-                            if (details) {
-                              details.open = false;
+                            onClick={() =>
+                              void setCouncilArchivedFromList({
+                                councilId: council.id,
+                                archived: !council.archived,
+                              })
                             }
-                            void deleteCouncilFromList(council);
-                          }}
-                          type="button"
-                        >
-                          Delete council
-                        </button>
-                      </div>
-                    </details>
+                            title={
+                              !council.archived &&
+                              council.mode === "autopilot" &&
+                              council.started &&
+                              !council.paused
+                                ? "Pause Autopilot before archiving"
+                                : undefined
+                            }
+                          >
+                            {council.archived ? "Restore council" : "Archive council"}
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            onClick={() => void deleteCouncilFromList(council)}
+                          >
+                            Delete council
+                          </Button>
+                        </div>
+                      </SheetContent>
+                    </Sheet>
                   </div>
-                </article>
+                </Card>
               );
             })}
-            {councilsHasMore ? (
-              <div className="councils-load-more">
-                <button
-                  className="secondary"
+            {councilsHasMore && (
+              <div className="col-span-full flex justify-center pt-4">
+                <Button
+                  variant="outline"
                   disabled={councilsLoadingMore}
                   onClick={() => void loadCouncils({ page: councilsPage + 1, append: true })}
-                  type="button"
                 >
-                  {councilsLoadingMore ? "Loading..." : "Load more"}
-                </button>
+                  {councilsLoadingMore ? "Loading..." : "Load more councils"}
+                </Button>
               </div>
-            ) : null}
+            )}
           </div>
         </section>
       );
@@ -5318,97 +5335,81 @@ export const App = (): JSX.Element => {
     );
   };
 
+  const renderSidebar = () => (
+    <aside className="sidebar">
+      <div className="sidebar-header">
+        <h1 className="sidebar-title">Council</h1>
+      </div>
+      <nav className="sidebar-nav">
+        <button
+          className={homeTab === "councils" ? "sidebar-nav-item active" : "sidebar-nav-item"}
+          onClick={() => setHomeTab("councils")}
+          type="button"
+        >
+          <LayoutDashboard />
+          <span>Councils</span>
+        </button>
+        <button
+          className={homeTab === "agents" ? "sidebar-nav-item active" : "sidebar-nav-item"}
+          onClick={() => setHomeTab("agents")}
+          type="button"
+        >
+          <Users />
+          <span>Agents</span>
+        </button>
+        <button
+          className={homeTab === "settings" ? "sidebar-nav-item active" : "sidebar-nav-item"}
+          onClick={() => setHomeTab("settings")}
+          type="button"
+        >
+          <Settings />
+          <span>Settings</span>
+        </button>
+      </nav>
+    </aside>
+  );
+
   return (
-    <main className="shell">
-      <header className="section-header">
-        <h1>Council</h1>
-        <p>Home tabs: Councils, Agents, Settings.</p>
-        <div aria-label="Home tabs" className="tabs" role="tablist">
-          <button
-            aria-controls="home-panel-councils"
-            aria-selected={homeTab === "councils"}
-            className={homeTab === "councils" ? "tab tab-active" : "tab"}
-            id="home-tab-councils"
-            onKeyDown={(event) => handleHomeTabKeyDown(event, "councils")}
-            onClick={() => setHomeTab("councils")}
-            ref={(element) => {
-              homeTabButtonRefs.current.councils = element;
+    <div className="app-shell">
+      {renderSidebar()}
+      <main className="main-content">
+        <div className="main-content-inner">
+          {renderHomeContent()}
+
+          <ConfirmDialog
+            confirmLabel="Delete"
+            confirmTone="danger"
+            message={
+              pendingCouncilListDelete === null
+                ? ""
+                : `Delete council "${pendingCouncilListDelete.title}" permanently?`
+            }
+            onCancel={() => setPendingCouncilListDelete(null)}
+            onConfirm={() => {
+              void confirmDeleteCouncilFromList();
             }}
-            role="tab"
-            tabIndex={homeTab === "councils" ? 0 : -1}
-            type="button"
-          >
-            Councils
-          </button>
-          <button
-            aria-controls="home-panel-agents"
-            aria-selected={homeTab === "agents"}
-            className={homeTab === "agents" ? "tab tab-active" : "tab"}
-            id="home-tab-agents"
-            onKeyDown={(event) => handleHomeTabKeyDown(event, "agents")}
-            onClick={() => setHomeTab("agents")}
-            ref={(element) => {
-              homeTabButtonRefs.current.agents = element;
+            open={pendingCouncilListDelete !== null}
+            title="Delete council?"
+          />
+
+          <ConfirmDialog
+            confirmLabel="Delete"
+            message={
+              pendingAgentListDelete === null
+                ? ""
+                : `Delete agent "${pendingAgentListDelete.name}" permanently?`
+            }
+            onCancel={() => setPendingAgentListDelete(null)}
+            onConfirm={() => {
+              void confirmDeleteAgentFromList();
             }}
-            role="tab"
-            tabIndex={homeTab === "agents" ? 0 : -1}
-            type="button"
-          >
-            Agents
-          </button>
-          <button
-            aria-controls="home-panel-settings"
-            aria-selected={homeTab === "settings"}
-            className={homeTab === "settings" ? "tab tab-active" : "tab"}
-            id="home-tab-settings"
-            onKeyDown={(event) => handleHomeTabKeyDown(event, "settings")}
-            onClick={() => setHomeTab("settings")}
-            ref={(element) => {
-              homeTabButtonRefs.current.settings = element;
-            }}
-            role="tab"
-            tabIndex={homeTab === "settings" ? 0 : -1}
-            type="button"
-          >
-            Settings
-          </button>
+            open={pendingAgentListDelete !== null}
+            title="Delete agent?"
+          />
+
+          <ToastStack toasts={toasts} />
         </div>
-      </header>
-
-      {renderHomeContent()}
-
-      <ConfirmDialog
-        confirmLabel="Delete"
-        confirmTone="danger"
-        message={
-          pendingCouncilListDelete === null
-            ? ""
-            : `Delete council "${pendingCouncilListDelete.title}" permanently?`
-        }
-        onCancel={() => setPendingCouncilListDelete(null)}
-        onConfirm={() => {
-          void confirmDeleteCouncilFromList();
-        }}
-        open={pendingCouncilListDelete !== null}
-        title="Delete council?"
-      />
-
-      <ConfirmDialog
-        confirmLabel="Delete"
-        message={
-          pendingAgentListDelete === null
-            ? ""
-            : `Delete agent "${pendingAgentListDelete.name}" permanently?`
-        }
-        onCancel={() => setPendingAgentListDelete(null)}
-        onConfirm={() => {
-          void confirmDeleteAgentFromList();
-        }}
-        open={pendingAgentListDelete !== null}
-        title="Delete agent?"
-      />
-
-      <ToastStack toasts={toasts} />
-    </main>
+      </main>
+    </div>
   );
 };
