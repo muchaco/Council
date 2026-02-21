@@ -3255,49 +3255,51 @@ export const App = (): JSX.Element => {
           {councilViewState.activeTab === "discussion" ? (
             <section
               aria-labelledby="council-view-tab-discussion"
-              className="council-view-grid"
+              className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6"
               id="council-view-panel-discussion"
               role="tabpanel"
             >
-              <div className="council-view-left-column">
-                <section className="settings-section council-view-section">
-                  <h2>Transcript</h2>
+              {/* Left Column */}
+              <div className="space-y-6">
+                {/* Transcript */}
+                <Card className="p-6">
+                  <h2 className="font-serif text-xl font-medium mb-4">Transcript</h2>
                   {autopilotRecoveryNotice !== null ? (
-                    <p className="status status-error">{autopilotRecoveryNotice}</p>
+                    <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 mb-4">
+                      <p className="text-sm text-destructive">{autopilotRecoveryNotice}</p>
+                    </div>
                   ) : null}
                   {manualRetryNotice !== null ? (
-                    <p className="status status-error">{manualRetryNotice}</p>
+                    <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 mb-4">
+                      <p className="text-sm text-destructive">{manualRetryNotice}</p>
+                    </div>
                   ) : null}
                   {councilViewState.source.messages.length === 0 && thinkingSpeakerName === null ? (
-                    <div className="status">
-                      <p>
+                    <div className="text-center py-12 bg-muted/50 rounded-lg">
+                      <p className="text-muted-foreground mb-4">
                         {council.mode === "manual"
                           ? "No messages yet. Choose the next speaker from Members."
                           : "No messages yet."}
                       </p>
                       {showEmptyStateStart ? (
-                        <div className="button-row">
-                          <button
-                            className="cta"
-                            disabled={startDisabled}
-                            onClick={() => void startCouncilRuntime()}
-                            title={startDisabledReason}
-                            type="button"
-                          >
-                            {councilViewState.isStarting ? "Starting..." : "Start"}
-                          </button>
-                        </div>
+                        <Button
+                          disabled={startDisabled}
+                          onClick={() => void startCouncilRuntime()}
+                          title={startDisabledReason}
+                        >
+                          {councilViewState.isStarting ? "Starting..." : "Start Discussion"}
+                        </Button>
                       ) : null}
                     </div>
                   ) : (
-                    <div className="list-grid transcript-scroll-panel">
+                    <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
                       {councilViewState.source.messages.map((message, index) => (
                         <button
                           aria-label={buildTranscriptMessageAriaLabel(message)}
-                          className={`transcript-row ${
+                          className={`w-full text-left transition-colors hover:bg-muted/50 rounded-lg p-3 ${
                             resolveTranscriptMessageAlignment(message) === "right"
-                              ? "transcript-row-conductor"
-                              : "transcript-row-member"
+                              ? "bg-muted/30"
+                              : ""
                           }`}
                           data-transcript-row-index={index}
                           key={message.id}
@@ -3309,94 +3311,100 @@ export const App = (): JSX.Element => {
                           }}
                           type="button"
                         >
-                          <div
-                            className="transcript-message"
-                            style={
-                              {
-                                "--transcript-accent": resolveTranscriptAccentColor(
+                          <div className="flex gap-3">
+                            <Avatar
+                              className="flex-shrink-0"
+                              style={{
+                                backgroundColor: resolveTranscriptAccentColor(
                                   message,
                                   councilViewState.source.council.memberColorsByAgentId,
                                 ),
-                              } as CSSProperties
-                            }
-                          >
-                            <span aria-hidden="true" className="transcript-avatar">
-                              {resolveTranscriptAvatarInitials(message.senderName)}
-                            </span>
-                            <div className="transcript-bubble">
-                              <p className="meta transcript-sender-name">
-                                {message.senderName}
-                                {message.senderKind === "conductor" ? " (Conductor)" : ""}
+                              }}
+                            >
+                              <AvatarFallback className="text-white text-sm font-medium">
+                                {resolveTranscriptAvatarInitials(message.senderName)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-medium text-sm">
+                                  {message.senderName}
+                                  {message.senderKind === "conductor" ? (
+                                    <Badge variant="secondary" className="ml-2 text-xs">
+                                      Conductor
+                                    </Badge>
+                                  ) : null}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  #{message.sequenceNumber}
+                                </span>
+                              </div>
+                              <p className="text-sm text-foreground whitespace-pre-wrap">
+                                {message.content}
                               </p>
-                              <p className="transcript-content">{message.content}</p>
-                              <p className="meta transcript-timestamp" title={message.createdAtUtc}>
-                                #{message.sequenceNumber} at {message.createdAtUtc}
+                              <p
+                                className="text-xs text-muted-foreground mt-1"
+                                title={message.createdAtUtc}
+                              >
+                                {message.createdAtUtc}
                               </p>
                             </div>
                           </div>
                         </button>
                       ))}
                       {thinkingSpeakerName !== null ? (
-                        <div className="thinking-row-group">
-                          <button
-                            aria-label={`${thinkingSpeakerName}, member, thinking placeholder.`}
-                            className="thinking-row transcript-row transcript-row-member"
-                            data-transcript-row-index={councilViewState.source.messages.length}
-                            onKeyDown={(event) =>
-                              handleTranscriptRowKeyDown(
-                                event,
-                                councilViewState.source.messages.length,
-                                transcriptRowCount,
-                              )
-                            }
-                            ref={(element) => {
-                              transcriptRowRefs.current[councilViewState.source.messages.length] =
-                                element;
+                        <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
+                          <Avatar
+                            className="flex-shrink-0"
+                            style={{
+                              backgroundColor: thinkingSpeakerColor ?? "#0a5c66",
                             }}
-                            type="button"
                           >
-                            <div
-                              className="transcript-message"
-                              style={
-                                {
-                                  "--transcript-accent": thinkingSpeakerColor ?? "#0a5c66",
-                                } as CSSProperties
-                              }
-                            >
-                              <span aria-hidden="true" className="transcript-avatar">
-                                {resolveTranscriptAvatarInitials(thinkingSpeakerName)}
-                              </span>
-                              <div className="transcript-bubble">
-                                <p className="meta transcript-sender-name">{thinkingSpeakerName}</p>
-                                <p className="transcript-content">...</p>
-                                <p className="meta transcript-timestamp">Thinking...</p>
-                              </div>
+                            <AvatarFallback className="text-white text-sm font-medium">
+                              {resolveTranscriptAvatarInitials(thinkingSpeakerName)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium text-sm">{thinkingSpeakerName}</span>
+                              <span className="text-xs text-muted-foreground">Thinking</span>
                             </div>
-                          </button>
+                            <div className="flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce" />
+                              <span
+                                className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce"
+                                style={{ animationDelay: "0.1s" }}
+                              />
+                              <span
+                                className="w-1.5 h-1.5 bg-muted-foreground rounded-full animate-bounce"
+                                style={{ animationDelay: "0.2s" }}
+                              />
+                            </div>
+                          </div>
                           {showInlineThinkingCancel ? (
-                            <button
-                              className="secondary thinking-cancel-button"
+                            <Button
+                              variant="outline"
+                              size="sm"
                               disabled={
                                 councilViewState.isCancellingGeneration ||
                                 councilViewState.configEdit !== null
                               }
                               onClick={() => void cancelCouncilGeneration()}
-                              type="button"
                             >
-                              {councilViewState.isCancellingGeneration
-                                ? "Cancelling..."
-                                : "Cancel generation"}
-                            </button>
+                              {councilViewState.isCancellingGeneration ? "Cancelling..." : "Cancel"}
+                            </Button>
                           ) : null}
                         </div>
                       ) : null}
                     </div>
                   )}
-                </section>
+                </Card>
 
-                <section className="settings-section council-view-section">
-                  <h2>Conductor message</h2>
-                  <textarea
+                {/* Conductor Message */}
+                <Card className="p-6">
+                  <h2 className="font-serif text-xl font-medium mb-4">Conductor Message</h2>
+                  <Textarea
+                    placeholder="Type your message as conductor..."
                     onChange={(event) =>
                       setCouncilViewState((current) =>
                         current.status !== "ready"
@@ -3409,54 +3417,71 @@ export const App = (): JSX.Element => {
                     }
                     rows={4}
                     value={councilViewState.conductorDraft}
+                    disabled={council.archived}
                   />
-                  <div className="button-row">
-                    <button
-                      className="secondary"
+                  <div className="flex justify-end mt-4">
+                    <Button
                       disabled={
                         councilViewState.isInjectingConductor ||
                         generationRunning ||
-                        council.archived
+                        council.archived ||
+                        !councilViewState.conductorDraft.trim()
                       }
                       onClick={() => void injectConductorMessage()}
-                      type="button"
                     >
                       {councilViewState.isInjectingConductor ? "Sending..." : "Send as Conductor"}
-                    </button>
+                    </Button>
                   </div>
-                </section>
+                </Card>
               </div>
 
-              <aside className="council-view-right-column">
-                <section className="settings-section council-view-section">
-                  <h2>Briefing</h2>
+              {/* Right Column */}
+              <div className="space-y-6">
+                {/* Briefing */}
+                <Card className="p-6">
+                  <h2 className="font-serif text-xl font-medium mb-4">Briefing</h2>
                   {runtimeBriefing === null ? (
-                    <p className="meta">Briefing not generated yet.</p>
+                    <p className="text-sm text-muted-foreground italic">
+                      Briefing not generated yet.
+                    </p>
                   ) : (
-                    <>
-                      <p className="meta">TLDR</p>
-                      <p className="status-line">{runtimeBriefing.briefing}</p>
-                      <p className="meta">
-                        Goal status: {runtimeBriefing.goalReached ? "Reached" : "In progress"}
-                      </p>
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+                          Summary
+                        </p>
+                        <p className="text-sm">{runtimeBriefing.briefing}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Goal status:</span>
+                        <Badge variant={runtimeBriefing.goalReached ? "default" : "secondary"}>
+                          {runtimeBriefing.goalReached ? "Reached" : "In progress"}
+                        </Badge>
+                      </div>
                       {runtimeBriefing.goalReached ? (
-                        <div className="briefing-goal-callout">
-                          <p className="briefing-goal-callout-title">Goal reached</p>
-                          <p className="briefing-goal-callout-body">
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                          <p className="text-sm font-medium text-green-800 mb-1">Goal reached</p>
+                          <p className="text-xs text-green-700">
                             The latest briefing reports this council has reached its stated goal.
                           </p>
                         </div>
                       ) : null}
-                      <p className="meta">Last updated: {runtimeBriefing.updatedAtUtc}</p>
-                    </>
+                      <p className="text-xs text-muted-foreground">
+                        Updated: {runtimeBriefing.updatedAtUtc}
+                      </p>
+                    </div>
                   )}
-                </section>
+                </Card>
 
-                <section className="settings-section council-view-section">
-                  <div className="button-row">
-                    <h2>Members</h2>
-                    <button
-                      className="secondary"
+                {/* Members */}
+                <Card className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="font-serif text-xl font-medium">
+                      Members ({council.memberAgentIds.length})
+                    </h2>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       disabled={!canEditMembers || councilViewState.isSavingMembers}
                       onClick={() =>
                         setCouncilViewState((current) =>
@@ -3468,18 +3493,20 @@ export const App = (): JSX.Element => {
                               },
                         )
                       }
-                      type="button"
                     >
-                      {councilViewState.showAddMemberPanel ? "Close add" : "Add member"}
-                    </button>
+                      {councilViewState.showAddMemberPanel ? "Close" : "Add Member"}
+                    </Button>
                   </div>
+
                   {councilViewState.showAddMemberPanel ? (
-                    <div className="status">
-                      <label className="field" htmlFor="council-view-add-member-search">
+                    <div className="mb-4 p-4 bg-muted/50 rounded-lg">
+                      <Label htmlFor="council-view-add-member-search" className="mb-2 block">
                         Search agents
-                      </label>
-                      <input
+                      </Label>
+                      <Input
                         id="council-view-add-member-search"
+                        placeholder="Search by name"
+                        value={councilViewState.addMemberSearchText}
                         onChange={(event) =>
                           setCouncilViewState((current) =>
                             current.status !== "ready"
@@ -3490,33 +3517,38 @@ export const App = (): JSX.Element => {
                                 },
                           )
                         }
-                        placeholder="Search by name"
-                        value={councilViewState.addMemberSearchText}
+                        className="mb-3"
                       />
-                      <div className="list-grid">
+                      <div className="space-y-2 max-h-[200px] overflow-y-auto">
                         {addableAgents.map((agent) => (
-                          <article className="list-row" key={agent.id}>
+                          <div
+                            key={agent.id}
+                            className="flex items-center justify-between p-2 bg-background rounded border"
+                          >
                             <div>
-                              <h3>{agent.name}</h3>
-                              <p className="meta">{agent.id}</p>
+                              <p className="font-medium text-sm">{agent.name}</p>
+                              <p className="text-xs text-muted-foreground">{agent.id}</p>
                             </div>
-                            <button
-                              className="secondary"
+                            <Button
+                              variant="outline"
+                              size="sm"
                               disabled={!canEditMembers || councilViewState.isSavingMembers}
                               onClick={() => void addCouncilViewMember(agent.id)}
-                              type="button"
                             >
                               Add
-                            </button>
-                          </article>
+                            </Button>
+                          </div>
                         ))}
                         {addableAgents.length === 0 ? (
-                          <p className="meta">No matching agents available.</p>
+                          <p className="text-sm text-muted-foreground text-center py-4">
+                            No matching agents available.
+                          </p>
                         ) : null}
                       </div>
                     </div>
                   ) : null}
-                  <div className="list-grid">
+
+                  <div className="space-y-3">
                     {council.memberAgentIds.map((memberAgentId) => {
                       const memberName = memberNameById.get(memberAgentId) ?? memberAgentId;
                       const memberHasMessages = memberIdsWithMessages.has(memberAgentId);
@@ -3536,15 +3568,22 @@ export const App = (): JSX.Element => {
                       });
                       const removeReasonId = `member-remove-reason-${memberAgentId}`;
                       return (
-                        <article className="list-row member-row" key={memberAgentId}>
-                          <div>
-                            <h3>{memberName}</h3>
-                            <p className="meta">Agent id: {memberAgentId}</p>
-                          </div>
-                          <div className="member-row-actions">
-                            <span aria-hidden="true" className="member-avatar">
+                        <div
+                          key={memberAgentId}
+                          className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg"
+                        >
+                          <Avatar style={{ backgroundColor: memberColor }}>
+                            <AvatarFallback className="text-white text-xs font-medium">
                               {memberName.slice(0, 2).toUpperCase()}
-                            </span>
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">{memberName}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {memberAgentId}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
                             <ColorPicker
                               colors={MEMBER_COLOR_PALETTE}
                               id={`member-color-${memberAgentId}`}
@@ -3559,270 +3598,61 @@ export const App = (): JSX.Element => {
                               }
                             />
                             {council.mode === "manual" ? (
-                              <button
+                              <Button
+                                variant="outline"
+                                size="sm"
                                 aria-label={buildManualSpeakerSelectionAriaLabel(memberName)}
-                                className="secondary"
                                 disabled={manualSpeakerDisabledReason !== null}
                                 onClick={() => void generateManualTurn(memberAgentId)}
                                 title={manualSpeakerDisabledReason ?? undefined}
-                                type="button"
                               >
                                 {councilViewState.isGeneratingManualTurn
                                   ? "Generating..."
-                                  : "Select to speak"}
-                              </button>
+                                  : "Speak"}
+                              </Button>
                             ) : null}
-                            <button
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               aria-describedby={
                                 removeDisabledReason === null ? undefined : removeReasonId
                               }
-                              className="danger member-remove-button"
                               disabled={removeDisabledReason !== null}
                               onClick={() => requestCouncilViewMemberRemoval(memberAgentId)}
                               title={removeDisabledReason ?? undefined}
-                              type="button"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
                             >
                               Remove
-                            </button>
+                            </Button>
                             {removeDisabledReason === null ? null : (
-                              <p className="meta member-remove-reason" id={removeReasonId}>
+                              <p className="sr-only" id={removeReasonId}>
                                 {removeDisabledReason}
                               </p>
                             )}
                           </div>
-                        </article>
+                        </div>
                       );
                     })}
                   </div>
-                </section>
-              </aside>
+                </Card>
+              </div>
             </section>
           ) : (
             <section
               aria-labelledby="council-view-tab-config"
-              className="settings-section"
+              className="space-y-6"
               id="council-view-panel-config"
               role="tabpanel"
             >
-              <h2>Config</h2>
-              <div className="config-grid">
-                <div className="config-row">
-                  <p className="field">Topic</p>
-                  {configEditField === "topic" ? (
-                    <div className="config-editor" ref={councilConfigEditContainerRef}>
-                      <textarea
-                        onChange={(event) =>
-                          setCouncilViewState((current) =>
-                            current.status !== "ready" || current.configEdit === null
-                              ? current
-                              : {
-                                  ...current,
-                                  configEdit: {
-                                    ...current.configEdit,
-                                    draftValue: event.target.value,
-                                  },
-                                },
-                          )
-                        }
-                        onKeyDown={handleCouncilConfigEditorKeyDown}
-                        ref={(element) => {
-                          councilConfigEditInputRef.current = element;
-                        }}
-                        rows={4}
-                        value={configEditDraftValue}
-                      />
-                      <div className="button-row">
-                        <button
-                          className="cta"
-                          onClick={() => void saveCouncilConfigEdit()}
-                          type="button"
-                        >
-                          {councilViewState.isSavingConfigField ? "Saving..." : "Save"}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="config-value-row">
-                      <p className="meta config-value">{council.topic}</p>
-                      <button
-                        aria-label="Edit topic"
-                        className="icon-button"
-                        disabled={councilViewState.configEdit !== null || council.archived}
-                        onClick={() => openCouncilConfigEdit("topic")}
-                        type="button"
-                      >
-                        ✎
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <div className="config-row">
-                  <p className="field">Goal</p>
-                  {configEditField === "goal" ? (
-                    <div className="config-editor" ref={councilConfigEditContainerRef}>
-                      <textarea
-                        onChange={(event) =>
-                          setCouncilViewState((current) =>
-                            current.status !== "ready" || current.configEdit === null
-                              ? current
-                              : {
-                                  ...current,
-                                  configEdit: {
-                                    ...current.configEdit,
-                                    draftValue: event.target.value,
-                                  },
-                                },
-                          )
-                        }
-                        onKeyDown={handleCouncilConfigEditorKeyDown}
-                        ref={(element) => {
-                          councilConfigEditInputRef.current = element;
-                        }}
-                        rows={3}
-                        value={configEditDraftValue}
-                      />
-                      <div className="button-row">
-                        <button
-                          className="cta"
-                          onClick={() => void saveCouncilConfigEdit()}
-                          type="button"
-                        >
-                          {councilViewState.isSavingConfigField ? "Saving..." : "Save"}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="config-value-row">
-                      <p className="meta config-value">{council.goal ?? "None"}</p>
-                      <button
-                        aria-label="Edit goal"
-                        className="icon-button"
-                        disabled={councilViewState.configEdit !== null || council.archived}
-                        onClick={() => openCouncilConfigEdit("goal")}
-                        type="button"
-                      >
-                        ✎
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <div className="config-row">
-                  <p className="field">Tags</p>
-                  {configEditField === "tags" ? (
-                    <div className="config-editor" ref={councilConfigEditContainerRef}>
-                      {configEditTags.length > 0 ? (
-                        <ul className="config-tag-list">
-                          {configEditTags.map((tag) => (
-                            <li className="config-tag-chip" key={tag}>
-                              <span>{tag}</span>
-                              <button
-                                aria-label={`Remove tag ${tag}`}
-                                className="icon-button chip-remove-button"
-                                onClick={() => removeTagFromCouncilConfigEdit(tag)}
-                                type="button"
-                              >
-                                ×
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p className="meta">No tags yet.</p>
-                      )}
-                      <div className="button-row config-tag-editor-row">
-                        <input
-                          onChange={(event) =>
-                            setCouncilViewState((current) =>
-                              current.status !== "ready"
-                                ? current
-                                : {
-                                    ...current,
-                                    configTagInput: event.target.value,
-                                  },
-                            )
-                          }
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") {
-                              event.preventDefault();
-                              addTagToCouncilConfigEdit();
-                              return;
-                            }
-                            if (event.key === "Escape") {
-                              event.preventDefault();
-                              closeCouncilConfigEdit(false);
-                            }
-                          }}
-                          placeholder="Add tag"
-                          type="text"
-                          value={councilViewState.configTagInput}
-                        />
-                        <button
-                          className="secondary"
-                          onClick={addTagToCouncilConfigEdit}
-                          type="button"
-                        >
-                          Add tag
-                        </button>
-                      </div>
-                      <textarea
-                        onChange={(event) =>
-                          setCouncilViewState((current) =>
-                            current.status !== "ready" || current.configEdit === null
-                              ? current
-                              : {
-                                  ...current,
-                                  configEdit: {
-                                    ...current.configEdit,
-                                    draftValue: event.target.value,
-                                  },
-                                },
-                          )
-                        }
-                        onKeyDown={handleCouncilConfigEditorKeyDown}
-                        ref={(element) => {
-                          councilConfigEditInputRef.current = element;
-                        }}
-                        aria-label="Tags draft"
-                        rows={3}
-                        value={configEditDraftValue}
-                      />
-                      <p className="meta">Use chips to add/remove tags. Max 3 tags.</p>
-                      <div className="button-row">
-                        <button
-                          className="cta"
-                          onClick={() => void saveCouncilConfigEdit()}
-                          type="button"
-                        >
-                          {councilViewState.isSavingConfigField ? "Saving..." : "Save"}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="config-value-row">
-                      <p className="meta config-value">
-                        {council.tags.length > 0 ? council.tags.join(", ") : "None"}
-                      </p>
-                      <button
-                        aria-label="Edit tags"
-                        className="icon-button"
-                        disabled={councilViewState.configEdit !== null || council.archived}
-                        onClick={() => openCouncilConfigEdit("tags")}
-                        type="button"
-                      >
-                        ✎
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <div className="config-row">
-                  <p className="field">Conductor model</p>
-                  {configEditField === "conductorModel" ? (
-                    <div className="config-editor" ref={councilConfigEditContainerRef}>
-                      <div className="button-row">
-                        <select
+              <Card className="p-6">
+                <h2 className="font-serif text-xl font-medium mb-6">Configuration</h2>
+                <div className="space-y-6">
+                  {/* Topic */}
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">Topic</Label>
+                    {configEditField === "topic" ? (
+                      <div className="space-y-3">
+                        <Textarea
                           onChange={(event) =>
                             setCouncilViewState((current) =>
                               current.status !== "ready" || current.configEdit === null
@@ -3840,137 +3670,361 @@ export const App = (): JSX.Element => {
                           ref={(element) => {
                             councilConfigEditInputRef.current = element;
                           }}
+                          rows={4}
                           value={configEditDraftValue}
-                        >
-                          {hasUnavailableConductorSelectionInView ? (
-                            <option value={configEditDraftValue}>
-                              Unavailable ({configEditDraftValue})
-                            </option>
-                          ) : null}
-                          <option value="">Global default</option>
-                          {Object.entries(
-                            councilViewState.source.modelCatalog.modelsByProvider,
-                          ).map(([providerId, modelIds]) => (
-                            <optgroup key={providerId} label={providerId}>
-                              {modelIds.map((modelId) => (
-                                <option
-                                  key={`${providerId}:${modelId}`}
-                                  value={`${providerId}:${modelId}`}
-                                >
-                                  {modelId}
-                                </option>
-                              ))}
-                            </optgroup>
-                          ))}
-                        </select>
-                        <button
-                          className="secondary"
-                          disabled={
-                            councilViewState.isRefreshingConfigModels ||
-                            !councilViewState.source.canRefreshModels
-                          }
-                          onClick={() => void refreshCouncilViewConfigModels()}
-                          type="button"
-                        >
-                          {councilViewState.isRefreshingConfigModels
-                            ? "Refreshing..."
-                            : "Refresh models"}
-                        </button>
+                        />
+                        <div className="flex justify-end">
+                          <Button
+                            onClick={() => void saveCouncilConfigEdit()}
+                            disabled={councilViewState.isSavingConfigField}
+                          >
+                            {councilViewState.isSavingConfigField ? "Saving..." : "Save"}
+                          </Button>
+                        </div>
                       </div>
-                      <div className="button-row">
-                        <button
-                          className="cta"
-                          onClick={() => void saveCouncilConfigEdit()}
-                          type="button"
+                    ) : (
+                      <div className="flex items-start justify-between gap-4 p-3 bg-muted/50 rounded-lg">
+                        <p className="text-sm flex-1">{council.topic}</p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label="Edit topic"
+                          disabled={councilViewState.configEdit !== null || council.archived}
+                          onClick={() => openCouncilConfigEdit("topic")}
                         >
-                          {councilViewState.isSavingConfigField ? "Saving..." : "Save"}
-                        </button>
+                          ✎
+                        </Button>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="config-value-row">
-                      <p className="meta config-value">
-                        {councilModelLabel(council, councilViewState.source.globalDefaultModelRef)}
-                      </p>
-                      {council.invalidConfig ? (
-                        <span
-                          aria-label="Invalid configuration"
-                          className="warning-badge"
-                          title="Resolved conductor model is unavailable in this view's model catalog snapshot."
-                        >
-                          Invalid config
-                        </span>
-                      ) : null}
-                      <button
-                        aria-label="Edit conductor model"
-                        className="icon-button"
-                        disabled={councilViewState.configEdit !== null || council.archived}
-                        onClick={() => openCouncilConfigEdit("conductorModel")}
-                        type="button"
-                      >
-                        ✎
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
+                    )}
+                  </div>
 
-              <div className="button-row">
-                <button
-                  className="secondary"
-                  disabled={
-                    councilViewState.configEdit !== null || councilViewState.isExportingTranscript
-                  }
-                  onClick={() =>
-                    void exportCouncilTranscript({
-                      viewKind: "councilView",
-                      councilId: council.id,
-                    })
-                  }
-                  type="button"
-                >
-                  {councilViewState.isExportingTranscript ? "Exporting..." : "Export"}
-                </button>
-                <button
-                  className="secondary"
-                  disabled={
-                    councilViewState.configEdit !== null ||
-                    (!council.archived &&
+                  {/* Goal */}
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">Goal</Label>
+                    {configEditField === "goal" ? (
+                      <div className="space-y-3">
+                        <Textarea
+                          onChange={(event) =>
+                            setCouncilViewState((current) =>
+                              current.status !== "ready" || current.configEdit === null
+                                ? current
+                                : {
+                                    ...current,
+                                    configEdit: {
+                                      ...current.configEdit,
+                                      draftValue: event.target.value,
+                                    },
+                                  },
+                            )
+                          }
+                          onKeyDown={handleCouncilConfigEditorKeyDown}
+                          ref={(element) => {
+                            councilConfigEditInputRef.current = element;
+                          }}
+                          rows={3}
+                          value={configEditDraftValue}
+                          placeholder="What should this council achieve?"
+                        />
+                        <div className="flex justify-end">
+                          <Button
+                            onClick={() => void saveCouncilConfigEdit()}
+                            disabled={councilViewState.isSavingConfigField}
+                          >
+                            {councilViewState.isSavingConfigField ? "Saving..." : "Save"}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-start justify-between gap-4 p-3 bg-muted/50 rounded-lg">
+                        <p className="text-sm flex-1">{council.goal ?? "None set"}</p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label="Edit goal"
+                          disabled={councilViewState.configEdit !== null || council.archived}
+                          onClick={() => openCouncilConfigEdit("goal")}
+                        >
+                          ✎
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Tags */}
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">Tags</Label>
+                    {configEditField === "tags" ? (
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap gap-2">
+                          {configEditTags.map((tag) => (
+                            <Badge key={tag} variant="secondary" className="gap-1">
+                              {tag}
+                              <button
+                                type="button"
+                                aria-label={`Remove tag ${tag}`}
+                                onClick={() => removeTagFromCouncilConfigEdit(tag)}
+                                className="ml-1 hover:text-destructive"
+                              >
+                                ×
+                              </button>
+                            </Badge>
+                          ))}
+                          {configEditTags.length === 0 && (
+                            <span className="text-sm text-muted-foreground italic">
+                              No tags yet
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Add tag"
+                            value={councilViewState.configTagInput}
+                            onChange={(event) =>
+                              setCouncilViewState((current) =>
+                                current.status !== "ready"
+                                  ? current
+                                  : {
+                                      ...current,
+                                      configTagInput: event.target.value,
+                                    },
+                              )
+                            }
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                                addTagToCouncilConfigEdit();
+                              }
+                              if (event.key === "Escape") {
+                                event.preventDefault();
+                                closeCouncilConfigEdit(false);
+                              }
+                            }}
+                          />
+                          <Button
+                            variant="outline"
+                            onClick={addTagToCouncilConfigEdit}
+                            disabled={!councilViewState.configTagInput.trim()}
+                          >
+                            Add
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Press Enter to add. Max {COUNCIL_CONFIG_MAX_TAGS} tags.
+                        </p>
+                        <Textarea
+                          onChange={(event) =>
+                            setCouncilViewState((current) =>
+                              current.status !== "ready" || current.configEdit === null
+                                ? current
+                                : {
+                                    ...current,
+                                    configEdit: {
+                                      ...current.configEdit,
+                                      draftValue: event.target.value,
+                                    },
+                                  },
+                            )
+                          }
+                          onKeyDown={handleCouncilConfigEditorKeyDown}
+                          ref={(element) => {
+                            councilConfigEditInputRef.current = element;
+                          }}
+                          aria-label="Tags draft"
+                          rows={2}
+                          value={configEditDraftValue}
+                          className="hidden"
+                        />
+                        <div className="flex justify-end">
+                          <Button
+                            onClick={() => void saveCouncilConfigEdit()}
+                            disabled={councilViewState.isSavingConfigField}
+                          >
+                            {councilViewState.isSavingConfigField ? "Saving..." : "Save"}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-start justify-between gap-4 p-3 bg-muted/50 rounded-lg">
+                        <div className="flex flex-wrap gap-2 flex-1">
+                          {council.tags.length > 0 ? (
+                            council.tags.map((tag) => (
+                              <Badge key={tag} variant="secondary">
+                                {tag}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-sm text-muted-foreground italic">None</span>
+                          )}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label="Edit tags"
+                          disabled={councilViewState.configEdit !== null || council.archived}
+                          onClick={() => openCouncilConfigEdit("tags")}
+                        >
+                          ✎
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Conductor Model */}
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">Conductor Model</Label>
+                    {configEditField === "conductorModel" ? (
+                      <div className="space-y-3">
+                        <div className="flex gap-2">
+                          <Select
+                            value={configEditDraftValue}
+                            onValueChange={(value) =>
+                              setCouncilViewState((current) =>
+                                current.status !== "ready" || current.configEdit === null
+                                  ? current
+                                  : {
+                                      ...current,
+                                      configEdit: {
+                                        ...current.configEdit,
+                                        draftValue: value,
+                                      },
+                                    },
+                              )
+                            }
+                          >
+                            <SelectTrigger className="flex-1">
+                              <SelectValue placeholder="Select model" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {hasUnavailableConductorSelectionInView && (
+                                <SelectItem value={configEditDraftValue}>
+                                  Unavailable ({configEditDraftValue})
+                                </SelectItem>
+                              )}
+                              <SelectItem value="">Global default</SelectItem>
+                              {Object.entries(
+                                councilViewState.source.modelCatalog.modelsByProvider,
+                              ).map(([providerId, modelIds]) => (
+                                <SelectGroup key={providerId}>
+                                  <SelectLabel>{providerId}</SelectLabel>
+                                  {modelIds.map((modelId) => (
+                                    <SelectItem
+                                      key={`${providerId}:${modelId}`}
+                                      value={`${providerId}:${modelId}`}
+                                    >
+                                      {modelId}
+                                    </SelectItem>
+                                  ))}
+                                </SelectGroup>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            variant="outline"
+                            disabled={
+                              councilViewState.isRefreshingConfigModels ||
+                              !councilViewState.source.canRefreshModels
+                            }
+                            onClick={() => void refreshCouncilViewConfigModels()}
+                          >
+                            {councilViewState.isRefreshingConfigModels
+                              ? "Refreshing..."
+                              : "Refresh"}
+                          </Button>
+                        </div>
+                        <div className="flex justify-end">
+                          <Button
+                            onClick={() => void saveCouncilConfigEdit()}
+                            disabled={councilViewState.isSavingConfigField}
+                          >
+                            {councilViewState.isSavingConfigField ? "Saving..." : "Save"}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-4 p-3 bg-muted/50 rounded-lg">
+                        <div className="flex items-center gap-2 flex-1">
+                          <p className="text-sm">
+                            {councilModelLabel(
+                              council,
+                              councilViewState.source.globalDefaultModelRef,
+                            )}
+                          </p>
+                          {council.invalidConfig ? (
+                            <Badge variant="destructive">Invalid config</Badge>
+                          ) : null}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label="Edit conductor model"
+                          disabled={councilViewState.configEdit !== null || council.archived}
+                          onClick={() => openCouncilConfigEdit("conductorModel")}
+                        >
+                          ✎
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Card>
+
+              {/* Actions */}
+              <Card className="p-6">
+                <h3 className="font-medium mb-4">Actions</h3>
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    variant="outline"
+                    disabled={
+                      councilViewState.configEdit !== null || councilViewState.isExportingTranscript
+                    }
+                    onClick={() =>
+                      void exportCouncilTranscript({
+                        viewKind: "councilView",
+                        councilId: council.id,
+                      })
+                    }
+                  >
+                    {councilViewState.isExportingTranscript ? "Exporting..." : "Export Transcript"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    disabled={
+                      councilViewState.configEdit !== null ||
+                      (!council.archived &&
+                        council.mode === "autopilot" &&
+                        council.started &&
+                        !council.paused)
+                    }
+                    onClick={() => void setCouncilArchivedFromView(council, !council.archived)}
+                    title={
+                      !council.archived &&
                       council.mode === "autopilot" &&
                       council.started &&
-                      !council.paused)
-                  }
-                  onClick={() => void setCouncilArchivedFromView(council, !council.archived)}
-                  title={
-                    !council.archived &&
-                    council.mode === "autopilot" &&
-                    council.started &&
-                    !council.paused
-                      ? "Pause Autopilot before archiving this council."
-                      : undefined
-                  }
-                  type="button"
-                >
-                  {council.archived ? "Restore" : "Archive"}
-                </button>
-                <button
-                  className="danger"
-                  disabled={councilViewState.configEdit !== null}
-                  onClick={() =>
-                    setCouncilViewState((current) =>
-                      current.status !== "ready"
-                        ? current
-                        : {
-                            ...current,
-                            showConfigDeleteDialog: true,
-                          },
-                    )
-                  }
-                  type="button"
-                >
-                  Delete
-                </button>
-              </div>
+                      !council.paused
+                        ? "Pause Autopilot before archiving this council."
+                        : undefined
+                    }
+                  >
+                    {council.archived ? "Restore Council" : "Archive Council"}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    disabled={councilViewState.configEdit !== null}
+                    onClick={() =>
+                      setCouncilViewState((current) =>
+                        current.status !== "ready"
+                          ? current
+                          : {
+                              ...current,
+                              showConfigDeleteDialog: true,
+                            },
+                      )
+                    }
+                  >
+                    Delete Council
+                  </Button>
+                </div>
+              </Card>
             </section>
           )}
 

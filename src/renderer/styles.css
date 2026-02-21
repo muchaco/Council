@@ -413,3 +413,275 @@ select:focus {
     grid-template-columns: 1fr;
   }
 }
+
+/* Agents list styles */
+.agents-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.agent-card {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border) / 0.5);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  transition: all 200ms ease-in-out;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.agent-card:hover {
+  box-shadow: 0 4px 12px 0 rgb(0 0 0 / 0.08);
+  border-color: hsl(var(--border) / 0.8);
+}
+
+.agent-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.agent-card-title {
+  font-family: "Geist", sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+  flex: 1;
+}
+
+.agent-card-badges {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.agent-card-prompt {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.875rem;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0;
+}
+
+.agent-card-stats {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.875rem;
+}
+
+.agent-stat {
+  display: flex;
+  gap: 0.375rem;
+}
+
+.agent-stat-label {
+  color: hsl(var(--muted-foreground));
+}
+
+.agent-stat-value {
+  font-weight: 500;
+}
+
+.agent-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.agent-tag {
+  display: inline-flex;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+}
+
+.agent-card-actions {
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.agent-actions-menu {
+  position: relative;
+}
+
+.agent-btn-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: calc(var(--radius) - 2px);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  color: hsl(var(--muted-foreground));
+  transition: all 200ms ease-in-out;
+}
+
+.agent-btn-more:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+.agent-menu-dropdown {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 0.25rem;
+  background: hsl(var(--popover));
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.15);
+  min-width: 160px;
+  z-index: 50;
+  overflow: hidden;
+}
+
+.agent-menu-item {
+  display: block;
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  text-align: left;
+  font-size: 0.875rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: hsl(var(--popover-foreground));
+  transition: background 200ms ease-in-out;
+}
+
+.agent-menu-item:hover {
+  background: hsl(var(--accent));
+}
+
+.agent-menu-item-danger {
+  color: hsl(var(--destructive));
+}
+
+.agent-menu-item-danger:hover {
+  background: hsl(var(--destructive) / 0.1);
+}
+
+.agent-menu-divider {
+  border: none;
+  border-top: 1px solid hsl(var(--border));
+  margin: 0.25rem 0;
+}
+
+/* Agents toolbar */
+.agents-toolbar {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: hsl(var(--muted) / 0.3);
+  border-radius: var(--radius);
+}
+
+.agents-search-group {
+  display: flex;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 300px;
+}
+
+.agents-filter-group {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.agents-search-input,
+.agents-tag-input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
+  font-size: 0.875rem;
+  background: hsl(var(--background));
+}
+
+.agents-filter-select {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: calc(var(--radius) - 2px);
+  font-size: 0.875rem;
+  background: hsl(var(--background));
+  cursor: pointer;
+}
+
+.agents-load-more {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  padding-top: 1rem;
+}
+
+/* Council/agents header styles */
+.council-header-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.council-count {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+}
+
+.new-council-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border: none;
+  border-radius: calc(var(--radius) - 2px);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 200ms ease-in-out;
+}
+
+.new-council-btn:hover {
+  background: hsl(var(--primary) / 0.9);
+}
+
+.new-council-icon {
+  font-size: 1.125rem;
+  line-height: 1;
+}
+
+/* Badge styles */
+.council-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.council-badge-error {
+  background: hsl(var(--destructive) / 0.1);
+  color: hsl(var(--destructive));
+}
+
+.council-tag-more {
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
