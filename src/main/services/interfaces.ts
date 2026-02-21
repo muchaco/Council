@@ -24,11 +24,18 @@ export type AiServiceGenerateTextRequest = {
   temperature?: number;
 };
 
+export type AiServiceError = {
+  kind: "ProviderError";
+  message: string;
+  providerId: string;
+  modelId: string;
+};
+
 export type AiService = {
   generateText: (
     request: AiServiceGenerateTextRequest,
     abortSignal: AbortSignal,
-  ) => ResultAsync<{ text: string }, "ProviderError">;
+  ) => ResultAsync<{ text: string }, AiServiceError>;
 };
 
 export type ModelCatalogService = {

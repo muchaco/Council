@@ -2,6 +2,7 @@ import { ResultAsync, errAsync, okAsync } from "neverthrow";
 import { describe, expect } from "vitest";
 import { createCouncilsIpcHandlers } from "../../src/main/features/councils/ipc-handlers";
 import { createCouncilsSlice } from "../../src/main/features/councils/slice";
+import type { AiServiceError } from "../../src/main/services/interfaces";
 import { asCouncilId } from "../../src/shared/domain/ids";
 import { itReq } from "../helpers/requirement-trace";
 
@@ -87,7 +88,7 @@ const createHandlers = (options?: {
       return okAsync(undefined);
     },
     aiService: {
-      generateText: (_request, abortSignal) =>
+      generateText: (request, abortSignal) =>
         ResultAsync.fromPromise(
           new Promise<{ text: string }>((resolve, reject) => {
             const timer = setTimeout(() => {
@@ -106,7 +107,12 @@ const createHandlers = (options?: {
               { once: true },
             );
           }),
-          () => "ProviderError",
+          (): AiServiceError => ({
+            kind: "ProviderError",
+            message: "provider failure",
+            providerId: request.providerId,
+            modelId: request.modelId,
+          }),
         ),
     },
     createMessageId: () => `message-${++messageId}`,

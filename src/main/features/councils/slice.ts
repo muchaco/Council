@@ -110,6 +110,15 @@ type CouncilsSliceDependencies = {
   nowUtc: () => string;
   createCouncilId: () => CouncilId;
   pageSize: number;
+  logger?: {
+    info: (component: string, operation: string, context?: Record<string, unknown>) => void;
+    error: (
+      component: string,
+      operation: string,
+      error: Error | string,
+      context?: Record<string, unknown>,
+    ) => void;
+  };
   getModelContext: (params: {
     webContentsId: number;
     viewKind: "councilsList" | "councilCreate" | "councilView";
@@ -548,6 +557,19 @@ export const createCouncilsSlice = (
       params.council.conductorModelRefOrNull ?? params.modelContext.globalDefaultModelRef;
     if (resolvedModelRef === null) {
       inFlightGenerationByCouncilId.delete(params.council.id);
+      dependencies.logger?.error(
+        "council-generation",
+        "generateTextForCouncil",
+        "No resolved model",
+        {
+          councilId: params.council.id,
+          kind: params.kind,
+          memberAgentId: params.memberAgentId,
+          promptRole: params.promptRole,
+          hasConductorModel: params.council.conductorModelRefOrNull !== null,
+          hasGlobalDefault: params.modelContext.globalDefaultModelRef !== null,
+        },
+      );
       return errAsync(
         stateError(
           `Council ${params.council.id} has no resolved model for generation`,
@@ -555,6 +577,17 @@ export const createCouncilsSlice = (
         ),
       );
     }
+
+    dependencies.logger?.info("council-generation", "generateTextForCouncilStart", {
+      councilId: params.council.id,
+      requestId,
+      kind: params.kind,
+      memberAgentId: params.memberAgentId,
+      promptRole: params.promptRole,
+      providerId: resolvedModelRef.providerId,
+      modelId: resolvedModelRef.modelId,
+      promptLength: params.promptContent.length,
+    });
 
     return dependencies.aiService
       .generateText(
@@ -575,19 +608,38 @@ export const createCouncilsSlice = (
         },
         controller.signal,
       )
-      .mapErr((errorKind) => {
+      .mapErr((providerError) => {
         const inFlight = inFlightGenerationByCouncilId.get(params.council.id);
         if (inFlight?.requestId === requestId) {
           inFlightGenerationByCouncilId.delete(params.council.id);
         }
+
+        dependencies.logger?.error(
+          "council-generation",
+          "generateTextForCouncilError",
+          providerError.message,
+          {
+            councilId: params.council.id,
+            requestId,
+            kind: params.kind,
+            memberAgentId: params.memberAgentId,
+            promptRole: params.promptRole,
+            providerId: providerError.providerId,
+            modelId: providerError.modelId,
+            errorMessage: providerError.message,
+            wasAborted: controller.signal.aborted,
+          },
+        );
 
         return controller.signal.aborted
           ? stateError(
               `Council ${params.council.id} generation cancelled`,
               "Generation was cancelled.",
             )
-          : mapProviderError(
-              `Generation failed with ${errorKind} for council ${params.council.id}`,
+          : domainError(
+              "ProviderError",
+              `Generation failed for council ${params.council.id}: ${providerError.message}`,
+              `Generation failed (${providerError.providerId}/${providerError.modelId}): ${providerError.message}`,
             );
       })
       .andThen((response) => {
@@ -606,10 +658,35 @@ export const createCouncilsSlice = (
         inFlightGenerationByCouncilId.delete(params.council.id);
         const text = response.text.trim();
         if (text.length === 0) {
+          dependencies.logger?.error(
+            "council-generation",
+            "generateTextForCouncilError",
+            "Generation returned empty text",
+            {
+              councilId: params.council.id,
+              requestId,
+              kind: params.kind,
+              memberAgentId: params.memberAgentId,
+              promptRole: params.promptRole,
+              providerId: resolvedModelRef.providerId,
+              modelId: resolvedModelRef.modelId,
+            },
+          );
           return errAsync(
             mapProviderError(`Generation returned empty text for council ${params.council.id}`),
           );
         }
+
+        dependencies.logger?.info("council-generation", "generateTextForCouncilSuccess", {
+          councilId: params.council.id,
+          requestId,
+          kind: params.kind,
+          memberAgentId: params.memberAgentId,
+          promptRole: params.promptRole,
+          providerId: resolvedModelRef.providerId,
+          modelId: resolvedModelRef.modelId,
+          textLength: text.length,
+        });
 
         return okAsync(text);
       });
@@ -1747,12 +1824,31 @@ export const createCouncilsSlice = (
       );
     });
 
-  const advanceAutopilotTurn: CouncilsSlice["advanceAutopilotTurn"] = ({ webContentsId, id }) =>
-    loadCouncilWithModelContext({
+  const advanceAutopilotTurn: CouncilsSlice["advanceAutopilotTurn"] = ({ webContentsId, id }) => {
+    const startTime = Date.now();
+    const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    dependencies.logger?.info("autopilot", "advanceTurnStart", {
+      requestId,
+      councilId: id,
+    });
+
+    return loadCouncilWithModelContext({
       webContentsId,
       councilId: id,
       viewKind: "councilView",
     }).andThen(({ council, modelContext, availableModelKeys }) => {
+      dependencies.logger?.info("autopilot", "advanceTurnCouncilState", {
+        requestId,
+        councilId: id,
+        mode: council.mode,
+        started: council.startedAtUtc !== null,
+        paused: council.autopilotPaused,
+        archived: council.archivedAtUtc !== null,
+        turnsCompleted: council.autopilotTurnsCompleted,
+        maxTurns: council.autopilotMaxTurns,
+      });
+
       if (council.mode !== "autopilot") {
         return errAsync(
           stateError(
@@ -1925,6 +2021,16 @@ export const createCouncilsSlice = (
                         }).andThen(() =>
                           persistCouncil(nextCouncil).map(() => {
                             records.set(nextCouncil.id, nextCouncil);
+                            const durationMs = Date.now() - startTime;
+                            dependencies.logger?.info("autopilot", "advanceTurnSuccess", {
+                              requestId,
+                              councilId: id,
+                              durationMs,
+                              outcome: "success",
+                              turnsCompleted: nextAutopilotTurnsCompleted,
+                              goalReached: decision.goalReached,
+                              reachedTurnLimit,
+                            });
                             return {
                               council: toCouncilDto({
                                 record: nextCouncil,
@@ -1943,12 +2049,22 @@ export const createCouncilsSlice = (
               });
           }),
         )
-        .orElse((error) =>
-          pauseAutopilotAfterError({ council, error }).andThen((pausedError) =>
+        .orElse((error) => {
+          const durationMs = Date.now() - startTime;
+          dependencies.logger?.error("autopilot", "advanceTurnError", error.devMessage, {
+            requestId,
+            councilId: id,
+            durationMs,
+            outcome: "error",
+            errorKind: error.kind,
+            errorMessage: error.userMessage,
+          });
+          return pauseAutopilotAfterError({ council, error }).andThen((pausedError) =>
             errAsync(pausedError),
-          ),
-        );
+          );
+        });
     });
+  };
 
   const cancelGeneration: CouncilsSlice["cancelGeneration"] = ({ id }) =>
     hydrate().map(() => ({ cancelled: cancelInFlightGeneration(asCouncilId(id)) }));

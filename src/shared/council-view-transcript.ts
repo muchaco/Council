@@ -35,15 +35,21 @@ export const shouldRenderInlineThinkingCancel = (params: {
 }): boolean => params.generationActive && params.thinkingSpeakerId !== null;
 
 export const resolveTranscriptAccentColor = (
-  message: Pick<CouncilMessageDto, "senderKind" | "senderColor">,
+  message: Pick<CouncilMessageDto, "senderKind" | "senderAgentId">,
+  memberColorsByAgentId: Readonly<Record<string, string>>,
 ): string => {
-  if (message.senderColor !== null && HEX_COLOR_PATTERN.test(message.senderColor)) {
-    return message.senderColor;
+  if (message.senderKind === "conductor") {
+    return DEFAULT_CONDUCTOR_ACCENT_COLOR;
   }
 
-  return message.senderKind === "conductor"
-    ? DEFAULT_CONDUCTOR_ACCENT_COLOR
-    : DEFAULT_MEMBER_ACCENT_COLOR;
+  if (message.senderAgentId !== null) {
+    const color = memberColorsByAgentId[message.senderAgentId];
+    if (color !== undefined && HEX_COLOR_PATTERN.test(color)) {
+      return color;
+    }
+  }
+
+  return DEFAULT_MEMBER_ACCENT_COLOR;
 };
 
 export const resolveTranscriptAvatarInitials = (senderName: string): string => {

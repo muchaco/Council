@@ -38,7 +38,12 @@
     "trace:generate": "bun run scripts/generate-requirement-traceability.ts",
     "check:traceability": "bun run scripts/check-requirement-traceability.ts",
     "db:migrate:verify": "bun run scripts/verify-migrations.ts",
-    "check:required-scripts": "bun run scripts/verify-required-scripts.ts"
+    "check:required-scripts": "bun run scripts/verify-required-scripts.ts",
+    "logs:tail": "bun run scripts/logs.ts tail",
+    "logs:search": "bun run scripts/logs.ts search",
+    "logs:filter": "bun run scripts/logs.ts filter",
+    "logs:files": "bun run scripts/logs.ts files",
+    "logs:path": "bun run scripts/logs.ts path"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.3.3",

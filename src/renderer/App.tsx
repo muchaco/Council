@@ -211,7 +211,6 @@ type CouncilViewState =
       isGeneratingManualTurn: boolean;
       pendingManualMemberAgentId: string | null;
       isInjectingConductor: boolean;
-      isAdvancingAutopilot: boolean;
       isCancellingGeneration: boolean;
       isExportingTranscript: boolean;
       isLeavingView: boolean;
@@ -792,6 +791,67 @@ export const App = (): JSX.Element => {
     };
   }, [hasUnsavedSettingsChanges, hasUnsavedAgentDraft, hasUnsavedCouncilDraft]);
 
+  // Autopilot auto-advance loop: automatically advance to next turn when running
+  useEffect(() => {
+    // Guard: only run when in council view with ready state
+    if (screen.kind !== "councilView") {
+      console.log("[Autopilot Loop] Not in council view");
+      return;
+    }
+    if (councilViewState.status !== "ready") {
+      console.log("[Autopilot Loop] Council view not ready:", councilViewState.status);
+      return;
+    }
+
+    const council = councilViewState.source.council;
+    const generation = councilViewState.source.generation;
+
+    console.log("[Autopilot Loop] Checking conditions:", {
+      mode: council.mode,
+      started: council.started,
+      paused: council.paused,
+      archived: council.archived,
+      generationStatus: generation.status,
+      configEdit: councilViewState.configEdit !== null,
+    });
+
+    // Guard: only advance when conditions are met
+    if (
+      council.mode !== "autopilot" ||
+      !council.started ||
+      council.paused ||
+      council.archived ||
+      generation.status === "running" ||
+      councilViewState.configEdit !== null
+    ) {
+      console.log("[Autopilot Loop] Conditions not met, skipping");
+      return;
+    }
+
+    console.log("[Autopilot Loop] Triggering advance");
+
+    // Auto-advance - the main process will handle speaker selection
+    // even if plannedNextSpeakerAgentId is null (e.g., after resume)
+    window.api.councils
+      .advanceAutopilotTurn({
+        viewKind: "councilView",
+        id: screen.councilId,
+      })
+      .then((result) => {
+        console.log("[Autopilot Loop] Advance result:", result.ok ? "success" : "error");
+        if (!result.ok) {
+          pushToast("error", result.error.userMessage);
+        }
+        // Always reload to get updated state (success or error)
+        return loadCouncilView(screen.councilId);
+      })
+      .catch((error) => {
+        console.error("[Autopilot Loop] Advance error:", error);
+        pushToast("error", "Autopilot encountered an error. Check console for details.");
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, councilViewState, pushToast]);
+
   const updateProviderDraft = (
     providerId: ProviderId,
     updates: Partial<Pick<ProviderDraftState, "endpointUrl" | "apiKey">>,
@@ -1312,7 +1372,6 @@ export const App = (): JSX.Element => {
         isGeneratingManualTurn: false,
         pendingManualMemberAgentId: null,
         isInjectingConductor: false,
-        isAdvancingAutopilot: false,
         isCancellingGeneration: false,
         isExportingTranscript: false,
         isLeavingView: false,
@@ -2290,43 +2349,6 @@ export const App = (): JSX.Element => {
     await loadCouncilView(screen.councilId);
   };
 
-  const advanceAutopilotTurn = async (): Promise<void> => {
-    if (screen.kind !== "councilView" || councilViewState.status !== "ready") {
-      return;
-    }
-
-    setCouncilViewState((current) =>
-      current.status !== "ready"
-        ? current
-        : {
-            ...current,
-            isAdvancingAutopilot: true,
-            message: "",
-          },
-    );
-
-    const result = await window.api.councils.advanceAutopilotTurn({
-      viewKind: "councilView",
-      id: screen.councilId,
-    });
-    if (!result.ok) {
-      pushToast("error", result.error.userMessage);
-      setCouncilViewState((current) =>
-        current.status !== "ready"
-          ? current
-          : {
-              ...current,
-              isAdvancingAutopilot: false,
-              message: result.error.userMessage,
-            },
-      );
-      return;
-    }
-
-    pushToast("info", "Autopilot turn advanced.");
-    await loadCouncilView(screen.councilId);
-  };
-
   const cancelCouncilGeneration = async (): Promise<void> => {
     if (screen.kind !== "councilView" || councilViewState.status !== "ready") {
       return;
@@ -2949,7 +2971,7 @@ export const App = (): JSX.Element => {
         : generationRunning || councilViewState.isGeneratingManualTurn
           ? "Wait for the current generation to finish."
           : null;
-    const canAdvanceAutopilot = council.mode === "autopilot" && council.started && !council.paused;
+
     const generation = councilViewState.source.generation;
     const pausedNextSpeakerId =
       council.mode === "autopilot" && council.paused ? generation.plannedNextSpeakerAgentId : null;
@@ -3096,20 +3118,7 @@ export const App = (): JSX.Element => {
                 {councilViewState.isResuming ? "Resuming..." : "Resume"}
               </button>
             ) : null}
-            {canAdvanceAutopilot ? (
-              <button
-                className="secondary"
-                disabled={
-                  councilViewState.isAdvancingAutopilot ||
-                  generationRunning ||
-                  councilViewState.configEdit !== null
-                }
-                onClick={() => void advanceAutopilotTurn()}
-                type="button"
-              >
-                {councilViewState.isAdvancingAutopilot ? "Generating..." : "Next turn"}
-              </button>
-            ) : null}
+
             {(canStart || canResume) && council.invalidConfig ? (
               <span
                 aria-label="Invalid configuration"
@@ -3265,7 +3274,10 @@ export const App = (): JSX.Element => {
                           className="transcript-message"
                           style={
                             {
-                              "--transcript-accent": resolveTranscriptAccentColor(message),
+                              "--transcript-accent": resolveTranscriptAccentColor(
+                                message,
+                                councilViewState.source.council.memberColorsByAgentId,
+                              ),
                             } as CSSProperties
                           }
                         >

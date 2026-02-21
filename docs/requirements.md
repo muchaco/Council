@@ -110,6 +110,7 @@ Confidence scale: **1.00** = fully specified and testable, **0.85** = minor deta
   Added Members may speak on the next turn when allowed by the current state. **[0.95]**
 - **R2.18** A Member cannot be removed if that Agent has already sent at least one message in that Council. **[0.95]**
 - **R2.19** Conductor Model can be edited after creation (unless archived). **[0.95]**
+- **IMPL-R2.14-1** Member color changes must apply retroactively to all existing messages from that Member; colors are resolved dynamically from `memberColorsByAgentId` at render time, not stored per-message. **[0.95]**
 
 ### 2.4 Tags on Councils
 - **R2.20** User can add tags to a Council and remove tags; max 3. **[0.95]**
@@ -139,6 +140,7 @@ Confidence scale: **1.00** = fully specified and testable, **0.85** = minor deta
 - **R3.3** User can view full message history. **[0.95]**
 - **R3.4** Each message shows: sender name, timestamp, avatar (initials), and sender color in UI. **[0.95]**
 - **R3.5** Messages cannot be edited or deleted. **[0.95]**
+- **R3.35** When Member colors are changed, all existing messages from that Member must render with the new color immediately (colors are dynamic, not stored per-message). **[0.95]**
 
 ### 3.2 Start, Pause, Resume (No Background Execution)
 - **R3.6** Council does not auto-start after creation. **[0.95]**

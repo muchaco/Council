@@ -1,3 +1,4 @@
+import type { Logger } from "./logging/index.js";
 import type {
   AiService,
   DbService,
@@ -12,8 +13,5 @@ export type AppEnv = {
   modelCatalog: ModelCatalogService;
   clock: () => Date;
   uuid: () => string;
-  logger: {
-    info: (message: string, context?: Record<string, unknown>) => void;
-    error: (message: string, context?: Record<string, unknown>) => void;
-  };
+  logger: Logger;
 };

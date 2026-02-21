@@ -14,20 +14,47 @@ describe("council view transcript helpers", () => {
     expect(resolveTranscriptMessageAlignment({ senderKind: "conductor" })).toBe("right");
   });
 
-  itReq(["U8.4"], "uses sender color accents with stable fallbacks", () => {
+  itReq(["U8.4", "R3.35"], "uses sender color accents with stable fallbacks", () => {
+    const memberColors = { "agent-1": "#be123c", "agent-2": "#2563eb" };
+
+    // Member with color in memberColorsByAgentId
     expect(
-      resolveTranscriptAccentColor({
-        senderKind: "member",
-        senderColor: "#be123c",
-      }),
+      resolveTranscriptAccentColor(
+        { senderKind: "member", senderAgentId: "agent-1" },
+        memberColors,
+      ),
     ).toBe("#be123c");
 
+    // Member with different color
     expect(
-      resolveTranscriptAccentColor({
-        senderKind: "conductor",
-        senderColor: "not-a-color",
-      }),
+      resolveTranscriptAccentColor(
+        { senderKind: "member", senderAgentId: "agent-2" },
+        memberColors,
+      ),
+    ).toBe("#2563eb");
+
+    // Member without color falls back to default
+    expect(
+      resolveTranscriptAccentColor(
+        { senderKind: "member", senderAgentId: "agent-unknown" },
+        memberColors,
+      ),
+    ).toBe("#0f766e");
+
+    // Conductor always uses conductor color, ignores memberColors
+    expect(
+      resolveTranscriptAccentColor({ senderKind: "conductor", senderAgentId: null }, memberColors),
     ).toBe("#1d4ed8");
+  });
+
+  itReq(["R3.35"], "color changes apply retroactively to existing messages", () => {
+    const message = { senderKind: "member" as const, senderAgentId: "agent-1" };
+
+    // Original color
+    expect(resolveTranscriptAccentColor(message, { "agent-1": "#be123c" })).toBe("#be123c");
+
+    // After color change - message renders with new color
+    expect(resolveTranscriptAccentColor(message, { "agent-1": "#2563eb" })).toBe("#2563eb");
   });
 
   itReq(["U8.4"], "builds avatar initials from sender names", () => {

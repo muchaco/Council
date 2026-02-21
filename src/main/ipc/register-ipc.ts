@@ -15,6 +15,7 @@ import { createCouncilsIpcHandlers } from "../features/councils/ipc-handlers.js"
 import { createCouncilsSlice } from "../features/councils/slice.js";
 import { createSettingsIpcHandlers } from "../features/settings/ipc-handlers.js";
 import { createSettingsSlice } from "../features/settings/slice.js";
+import { createLogger } from "../logging/index.js";
 import { createProviderAiService } from "../services/ai/provider-ai-service.js";
 import { createSqlitePersistenceService } from "../services/db/sqlite-persistence-service.js";
 import { createElectronExportService } from "../services/export/electron-export-service.js";
@@ -28,6 +29,7 @@ const toValidationFailure = (devMessage: string): IpcResult<never> => ({
 export const registerIpcHandlers = (): {
   releaseWebContentsResources: (webContentsId: number) => void;
 } => {
+  const logger = createLogger();
   const dbFilePath = path.join(app.getPath("userData"), "council3.sqlite3");
   const migrationsDirPath = path.join(process.cwd(), "src", "main", "services", "db", "migrations");
   const persistence = createSqlitePersistenceService({
@@ -44,6 +46,7 @@ export const registerIpcHandlers = (): {
 
   const keychain = createKeytarKeychainService();
   const aiService = createProviderAiService({
+    logger,
     loadProviderConfig: (providerId) => {
       const stateResult = persistence.loadSettingsState();
       if (stateResult.isErr()) {
@@ -104,6 +107,7 @@ export const registerIpcHandlers = (): {
     nowUtc: () => new Date().toISOString(),
     createCouncilId: () => asCouncilId(randomUUID()),
     pageSize: 10,
+    logger,
     getModelContext: ({ webContentsId, viewKind }) =>
       settingsSlice
         .getSettingsView({
