@@ -3,3 +3,5 @@ dist/
 .DS_Store
 coverage/
 *.log
+.agents/
+localhost_5173_*.png
