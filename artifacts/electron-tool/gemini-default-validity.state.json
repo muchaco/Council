@@ -1,0 +1,15 @@
+{
+  "probe": {
+    "refreshOk": true,
+    "settingsOk": true,
+    "globalDefaultModelRef": {
+      "providerId": "gemini",
+      "modelId": "gemini-flash-lite-latest"
+    },
+    "globalDefaultInvalid": false,
+    "geminiModelsCount": 29,
+    "saveOk": true,
+    "savedAgentId": "45e1e5b1-637c-44ad-93f2-58906949a053",
+    "deleteOk": true
+  }
+}

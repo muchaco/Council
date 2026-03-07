@@ -1,0 +1,65 @@
+{
+  "probe": {
+    "ok": true,
+    "total": 16,
+    "invalidCount": 7,
+    "invalid": [
+      {
+        "id": "239c6a4d-7e8f-429b-a7dd-4725a77eb165",
+        "name": "Council Member 1771458569618",
+        "modelRefOrNull": {
+          "providerId": "gemini",
+          "modelId": "gemini-1.5-flash"
+        }
+      },
+      {
+        "id": "4fa33edf-955d-4815-8f0a-f31efd34fa95",
+        "name": "Council Member 1771458504190",
+        "modelRefOrNull": {
+          "providerId": "gemini",
+          "modelId": "gemini-1.5-flash"
+        }
+      },
+      {
+        "id": "51ca5513-2260-4726-ad8f-df0160080f97",
+        "name": "Council Member 1771450937344",
+        "modelRefOrNull": {
+          "providerId": "gemini",
+          "modelId": "gemini-1.5-flash"
+        }
+      },
+      {
+        "id": "6c9b1532-7098-41a7-87dc-3d0e8ccc4cbd",
+        "name": "Council Member 1771449976927",
+        "modelRefOrNull": {
+          "providerId": "gemini",
+          "modelId": "gemini-1.5-flash"
+        }
+      },
+      {
+        "id": "a868cbdd-5ccb-49db-972d-21fb463ad0a6",
+        "name": "Council Member 1771449943508",
+        "modelRefOrNull": {
+          "providerId": "gemini",
+          "modelId": "gemini-1.5-flash"
+        }
+      },
+      {
+        "id": "68b24374-3185-43b2-a5e4-d63ead9a9b4a",
+        "name": "Council Member 1771449907730",
+        "modelRefOrNull": {
+          "providerId": "gemini",
+          "modelId": "gemini-1.5-flash"
+        }
+      },
+      {
+        "id": "ba9cce28-12ff-484b-b0ed-3b313e5ce724",
+        "name": "Council Member 1771442816360",
+        "modelRefOrNull": {
+          "providerId": "gemini",
+          "modelId": "gemini-1.5-flash"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,115 @@
+{
+  "seedAgent": {
+    "ok": true,
+    "value": {
+      "agent": {
+        "id": "de45b273-8363-469e-869d-fc7cacef1f73",
+        "name": "Smoke Agent 1771434254684",
+        "systemPrompt": "You are a helpful planner.",
+        "verbosity": null,
+        "temperature": null,
+        "tags": ["smoke"],
+        "modelRefOrNull": {
+          "providerId": "gemini",
+          "modelId": "gemini-1.5-flash"
+        },
+        "invalidConfig": false,
+        "createdAtUtc": "2026-02-18T17:04:14.690Z",
+        "updatedAtUtc": "2026-02-18T17:04:14.690Z"
+      }
+    }
+  },
+  "agentsList": {
+    "ok": true,
+    "value": {
+      "items": [
+        {
+          "id": "de45b273-8363-469e-869d-fc7cacef1f73",
+          "name": "Smoke Agent 1771434254684",
+          "systemPrompt": "You are a helpful planner.",
+          "verbosity": null,
+          "temperature": null,
+          "tags": ["smoke"],
+          "modelRefOrNull": {
+            "providerId": "gemini",
+            "modelId": "gemini-1.5-flash"
+          },
+          "invalidConfig": false,
+          "createdAtUtc": "2026-02-18T17:04:14.690Z",
+          "updatedAtUtc": "2026-02-18T17:04:14.690Z"
+        },
+        {
+          "id": "6c46d25a-26a0-42ac-a0f1-31b794c4497c",
+          "name": "Smoke Agent 1771434144671",
+          "systemPrompt": "You are a helpful planner.",
+          "verbosity": null,
+          "temperature": null,
+          "tags": ["smoke"],
+          "modelRefOrNull": {
+            "providerId": "gemini",
+            "modelId": "gemini-1.5-flash"
+          },
+          "invalidConfig": false,
+          "createdAtUtc": "2026-02-18T17:02:24.675Z",
+          "updatedAtUtc": "2026-02-18T17:02:24.675Z"
+        },
+        {
+          "id": "4f57a672-3158-41d3-8873-5550e1670919",
+          "name": "Council Member 1771433993732",
+          "systemPrompt": "You are a focused contributor.",
+          "verbosity": null,
+          "temperature": null,
+          "tags": ["diag"],
+          "modelRefOrNull": {
+            "providerId": "gemini",
+            "modelId": "gemini-1.5-flash"
+          },
+          "invalidConfig": false,
+          "createdAtUtc": "2026-02-18T16:59:53.738Z",
+          "updatedAtUtc": "2026-02-18T16:59:53.738Z"
+        },
+        {
+          "id": "0dbbf130-336e-493d-827a-f088575f1694",
+          "name": "Council Member",
+          "systemPrompt": "You are a focused contributor.",
+          "verbosity": null,
+          "temperature": null,
+          "tags": [],
+          "modelRefOrNull": {
+            "providerId": "gemini",
+            "modelId": "gemini-1.5-flash"
+          },
+          "invalidConfig": false,
+          "createdAtUtc": "2026-02-18T16:58:31.348Z",
+          "updatedAtUtc": "2026-02-18T16:58:31.348Z"
+        },
+        {
+          "id": "eca06387-4309-4417-ab56-f8f2980d37ea",
+          "name": "Smoke Agent",
+          "systemPrompt": "You are a helpful planner.",
+          "verbosity": null,
+          "temperature": null,
+          "tags": [],
+          "modelRefOrNull": {
+            "providerId": "gemini",
+            "modelId": "gemini-1.5-flash"
+          },
+          "invalidConfig": false,
+          "createdAtUtc": "2026-02-18T16:15:12.104Z",
+          "updatedAtUtc": "2026-02-18T16:15:12.104Z"
+        }
+      ],
+      "page": 1,
+      "pageSize": 10,
+      "total": 5,
+      "hasMore": false,
+      "modelCatalog": {
+        "snapshotId": "ba95eae2-e45a-4fb6-8e83-e554594c7a86",
+        "modelsByProvider": {
+          "gemini": ["gemini-1.5-flash", "gemini-1.5-pro"]
+        }
+      },
+      "globalDefaultModelRef": null
+    }
+  }
+}

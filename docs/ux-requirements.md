@@ -28,7 +28,7 @@ This document defines user-facing UX behavior for Council. It complements the Fu
 
 ### 1.1 Home screen and tabs
 - **U1.1** The app opens to a **Home screen** with top tabs: **Councils**, **Agents**, **Settings**. **[1.00]**
-- **U1.2** Tabs are presented in a compact top bar. There is no persistent sidebar. **[1.00]**
+- **U1.2** Tabs are presented in a compact, full-width top bar. There is no persistent sidebar. **[1.00]**
 - **U1.3** The default active tab on launch is **Councils** list. **[1.00]**
 - **U1.4** Switching tabs does not discard data; list state (search text, filters, sort) is preserved per tab in the current app session. **[0.85]**
 
@@ -123,7 +123,7 @@ This document defines user-facing UX behavior for Council. It complements the Fu
 ## 4. Agents List (Home: Agents tab)
 
 ### 4.1 Layout and content
-- **U4.1** Agents list uses rows. Each row displays:
+- **U4.1** Agents list uses cards in a responsive grid. Each card displays:
   - Agent Name
   - Tags chips (0..3)
   - Model label (specific model, or "Global default" if null)

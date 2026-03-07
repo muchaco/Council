@@ -474,6 +474,7 @@ export const App = (): JSX.Element => {
     agents: null,
     settings: null,
   });
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
   const councilConfigEditContainerRef = useRef<HTMLDivElement | null>(null);
   const councilConfigEditInputRef = useRef<HTMLTextAreaElement | HTMLSelectElement | null>(null);
   const homeTabAtDetailOpenRef = useRef<HomeTab>("councils");
@@ -481,6 +482,32 @@ export const App = (): JSX.Element => {
   useEffect(() => {
     draftsRef.current = drafts;
   }, [drafts]);
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    const root = document.documentElement;
+
+    const applyTheme = (isDark: boolean): void => {
+      root.classList.toggle("dark", isDark);
+      root.style.colorScheme = isDark ? "dark" : "light";
+    };
+
+    applyTheme(mediaQuery.matches);
+
+    const handleChange = (event: MediaQueryListEvent): void => {
+      applyTheme(event.matches);
+    };
+
+    mediaQuery.addEventListener("change", handleChange);
+
+    return () => {
+      mediaQuery.removeEventListener("change", handleChange);
+    };
+  }, []);
 
   useEffect(() => {
     if (autopilotLimitModal === null) {
@@ -725,6 +752,13 @@ export const App = (): JSX.Element => {
       void loadCouncils({ page: 1, append: false });
     }
   }, [homeTab, screen.kind, loadCouncils]);
+
+  // Auto-scroll transcript to bottom
+  useEffect(() => {
+    if (screen.kind === "councilView" && councilViewState.status === "ready") {
+      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [screen.kind, councilViewState]);
 
   // Close council menu dropdowns when clicking outside
   useEffect(() => {
@@ -3396,6 +3430,7 @@ export const App = (): JSX.Element => {
                           ) : null}
                         </div>
                       ) : null}
+                      <div ref={chatEndRef} />
                     </div>
                   )}
                 </Card>
@@ -4329,7 +4364,7 @@ export const App = (): JSX.Element => {
             <option value="autopilot">Autopilot</option>
           </select>
           {councilEditorState.draft.id !== null ? (
-            <p className="meta">Mode is locked after creation.</p>
+            <p className="text-sm text-muted-foreground">Mode is locked after creation.</p>
           ) : null}
 
           <label className="field" htmlFor="council-tags">
@@ -4349,7 +4384,9 @@ export const App = (): JSX.Element => {
                 <div>
                   <strong>{agent.name}</strong>
                   {agent.invalidConfig ? (
-                    <p className="meta">Invalid config (can still be selected)</p>
+                    <p className="text-sm text-muted-foreground">
+                      Invalid config (can still be selected)
+                    </p>
                   ) : null}
                 </div>
                 <input
@@ -4722,33 +4759,22 @@ export const App = (): JSX.Element => {
           aria-labelledby="home-tab-councils"
           id="home-panel-councils"
           role="tabpanel"
-          className="space-y-6"
+          className="space-y-5"
         >
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="font-serif text-2xl font-medium">Councils</h2>
-              <p className="text-sm text-muted-foreground mt-1">{councilsTotal} total councils</p>
-            </div>
-            <Button onClick={() => void openCouncilEditor(null)} className="gap-2">
-              <Plus className="h-4 w-4" />
-              New Council
-            </Button>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="agents-toolbar council-toolbar">
             <Input
               aria-label="Search councils"
               placeholder="Search title or topic"
               value={councilsSearchText}
               onChange={(event) => setCouncilsSearchText(event.target.value)}
-              className="max-w-xs"
+              className="max-w-xs council-toolbar-search"
             />
             <Input
               aria-label="Filter by tag"
               placeholder="Filter by tag"
               value={councilsTagFilter}
               onChange={(event) => setCouncilsTagFilter(event.target.value)}
-              className="max-w-[180px]"
+              className="max-w-[180px] council-toolbar-tag"
             />
             <Select
               value={councilsArchivedFilter}
@@ -4787,6 +4813,10 @@ export const App = (): JSX.Element => {
                 <SelectItem value="asc">Oldest first</SelectItem>
               </SelectContent>
             </Select>
+            <Button onClick={() => void openCouncilEditor(null)} className="ml-auto gap-2">
+              <Plus className="h-4 w-4" />
+              New Council
+            </Button>
           </div>
 
           {councilsError !== null ? (
@@ -4973,25 +5003,6 @@ export const App = (): JSX.Element => {
           id="home-panel-agents"
           role="tabpanel"
         >
-          <header className="section-header compact">
-            <div className="council-header-main">
-              <div>
-                <h2>Agents</h2>
-                <p className="council-count">{agentsTotal} total</p>
-              </div>
-              <button
-                className="cta new-council-btn"
-                onClick={() => void openAgentEditor(null)}
-                type="button"
-              >
-                <span className="new-council-icon" aria-hidden="true">
-                  +
-                </span>
-                New Agent
-              </button>
-            </div>
-          </header>
-
           <div className="agents-toolbar">
             <div className="agents-search-group">
               <input
@@ -5029,6 +5040,16 @@ export const App = (): JSX.Element => {
                 <option value="asc">Asc</option>
               </select>
             </div>
+            <button
+              className="cta new-council-btn agents-toolbar-action"
+              onClick={() => void openAgentEditor(null)}
+              type="button"
+            >
+              <span className="new-council-icon" aria-hidden="true">
+                +
+              </span>
+              New Agent
+            </button>
           </div>
 
           {agentsError !== null ? <p className="status">Error: {agentsError}</p> : null}
@@ -5198,8 +5219,10 @@ export const App = (): JSX.Element => {
           id="home-panel-settings"
           role="tabpanel"
         >
-          <h2>Providers</h2>
-          <div className="provider-grid">
+          <div className="settings-section-header">
+            <h2>Providers</h2>
+          </div>
+          <div className="settings-provider-grid">
             {providerOrder.map((providerId) => {
               const provider = drafts[providerId];
               const savedProvider = settingsViewState.data.providers.find(
@@ -5215,11 +5238,12 @@ export const App = (): JSX.Element => {
                 savedProvider !== undefined && isProviderConfigured(savedProvider);
               const showOllamaNote = providerId === "ollama";
               const providerLabel = PROVIDER_LABELS[providerId];
+              const shouldShowStatusText = provider.testStatusText !== "Not tested";
 
               return (
-                <Card key={providerId} className="provider-card">
-                  <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
+                <Card key={providerId} className="settings-provider-card">
+                  <CardHeader className="settings-provider-card-header">
+                    <div className="flex items-center justify-between gap-3">
                       <CardTitle className="text-lg">{providerLabel}</CardTitle>
                       <Badge
                         aria-label={buildProviderConfiguredBadgeAriaLabel({
@@ -5231,9 +5255,6 @@ export const App = (): JSX.Element => {
                         {providerConfigured ? "Configured" : "Not configured"}
                       </Badge>
                     </div>
-                    <CardDescription>
-                      Last saved: {savedProvider?.lastSavedAtUtc ?? "Not saved yet"}
-                    </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
@@ -5268,11 +5289,7 @@ export const App = (): JSX.Element => {
                       ) : null}
                     </div>
 
-                    <p className="text-sm text-muted-foreground">
-                      Credential in keychain: {savedProvider?.hasCredential ? "Saved" : "Not saved"}
-                    </p>
-
-                    <div className="flex gap-2 pt-2">
+                    <div className="settings-provider-actions">
                       <Button
                         aria-label={buildProviderConnectionTestButtonAriaLabel({
                           providerLabel,
@@ -5297,11 +5314,13 @@ export const App = (): JSX.Element => {
                       </Button>
                     </div>
 
-                    <p aria-live="polite" className="text-sm text-muted-foreground">
-                      Status: {provider.testStatusText}
-                    </p>
+                    {shouldShowStatusText ? (
+                      <p aria-live="polite" className="settings-provider-feedback">
+                        {provider.testStatusText}
+                      </p>
+                    ) : null}
                     {provider.message.length > 0 ? (
-                      <p aria-live="polite" className="text-sm text-muted-foreground">
+                      <p aria-live="polite" className="settings-provider-feedback">
                         {provider.message}
                       </p>
                     ) : null}
@@ -5312,122 +5331,191 @@ export const App = (): JSX.Element => {
           </div>
         </section>
 
-        <section className="settings-section">
-          <h2>Global Default Model</h2>
-          <label className="field" htmlFor="global-default-model">
-            Model
-          </label>
-          <select
-            id="global-default-model"
-            onChange={(event) => setGlobalDefaultSelection(event.target.value)}
-            value={globalDefaultSelection}
-          >
-            <option value="">Unselected</option>
-            {Object.entries(settingsViewState.data.modelCatalog.modelsByProvider).map(
-              ([providerId, models]) => (
-                <optgroup key={providerId} label={providerId}>
-                  {models.map((modelId) => (
-                    <option key={`${providerId}:${modelId}`} value={`${providerId}:${modelId}`}>
-                      {modelId}
-                    </option>
-                  ))}
-                </optgroup>
-              ),
-            )}
-          </select>
-          <div className="button-row">
-            <button className="secondary" onClick={() => void onSaveGlobalDefault()} type="button">
-              Save global default
-            </button>
-            {settingsViewState.data.globalDefaultModelInvalidConfig ? (
-              <span
-                aria-label={buildInvalidConfigBadgeAriaLabel("Global default model")}
-                className="warning-badge"
-                title="Invalid config"
-              >
-                Invalid config
-              </span>
-            ) : null}
-          </div>
-        </section>
+        <section className="settings-section settings-secondary-grid">
+          <Card className="settings-secondary-card settings-secondary-card-wide">
+            <CardHeader className="settings-secondary-card-header">
+              <div>
+                <CardTitle>Global Default Model</CardTitle>
+                <CardDescription>
+                  Choose the fallback model used when an item does not set one explicitly.
+                </CardDescription>
+              </div>
+              {settingsViewState.data.globalDefaultModelInvalidConfig ? (
+                <Badge
+                  aria-label={buildInvalidConfigBadgeAriaLabel("Global default model")}
+                  title="Invalid config"
+                  variant="destructive"
+                >
+                  Invalid config
+                </Badge>
+              ) : null}
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="global-default-model">Model</Label>
+                <Select
+                  onValueChange={(value) =>
+                    setGlobalDefaultSelection(value === "__none__" ? "" : value)
+                  }
+                  value={globalDefaultSelection.length > 0 ? globalDefaultSelection : "__none__"}
+                >
+                  <SelectTrigger id="global-default-model">
+                    <SelectValue placeholder="Unselected" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Unselected</SelectItem>
+                    {Object.entries(settingsViewState.data.modelCatalog.modelsByProvider).map(
+                      ([providerId, models]) => (
+                        <SelectGroup key={providerId}>
+                          <SelectLabel>{providerId}</SelectLabel>
+                          {models.map((modelId) => (
+                            <SelectItem
+                              key={`${providerId}:${modelId}`}
+                              value={`${providerId}:${modelId}`}
+                            >
+                              {modelId}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      ),
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="settings-card-actions">
+                <Button
+                  onClick={() => void onSaveGlobalDefault()}
+                  type="button"
+                  variant="secondary"
+                >
+                  Save global default
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
-        <section className="settings-section">
-          <h2>Context Window</h2>
-          <label className="field" htmlFor="context-last-n">
-            Last N messages
-          </label>
-          <input
-            id="context-last-n"
-            min={1}
-            onChange={(event) => setContextLastNInput(event.target.value)}
-            step={1}
-            type="number"
-            value={contextLastNInput}
-          />
-          <p className="meta">Runtime prompts include briefing + last N transcript messages.</p>
-          <div className="button-row">
-            <button className="secondary" onClick={() => void onSaveContextLastN()} type="button">
-              Save context window
-            </button>
-          </div>
-        </section>
+          <Card className="settings-secondary-card">
+            <CardHeader className="settings-secondary-card-header">
+              <div>
+                <CardTitle>Context Window</CardTitle>
+                <CardDescription>
+                  Choose how many recent transcript messages are included in runtime prompts.
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="context-last-n">Last N messages</Label>
+                <Input
+                  id="context-last-n"
+                  min={1}
+                  onChange={(event) => setContextLastNInput(event.target.value)}
+                  step={1}
+                  type="number"
+                  value={contextLastNInput}
+                />
+              </div>
+              <div className="settings-card-actions">
+                <Button onClick={() => void onSaveContextLastN()} type="button" variant="secondary">
+                  Save context window
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
-        <section className="settings-section">
-          <h2>Model Catalog</h2>
-          <p className="meta">Snapshot ID: {settingsViewState.data.modelCatalog.snapshotId}</p>
-          <button
-            className="secondary"
-            disabled={!settingsViewState.data.canRefreshModels || isRefreshingModels}
-            onClick={() => void onRefreshModels()}
-            type="button"
-          >
-            {isRefreshingModels ? "Refreshing..." : "Refresh models"}
-          </button>
-          <p className="status-line">{refreshStatus}</p>
+          <Card className="settings-secondary-card">
+            <CardHeader className="settings-secondary-card-header">
+              <div>
+                <CardTitle>Model Catalog</CardTitle>
+                <CardDescription>
+                  Refresh the shared provider model snapshot used across the app.
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="text-sm text-muted-foreground">
+                Snapshot ID: {settingsViewState.data.modelCatalog.snapshotId}
+              </div>
+              <div className="settings-card-actions">
+                <Button
+                  disabled={!settingsViewState.data.canRefreshModels || isRefreshingModels}
+                  onClick={() => void onRefreshModels()}
+                  type="button"
+                  variant="secondary"
+                >
+                  {isRefreshingModels ? "Refreshing..." : "Refresh models"}
+                </Button>
+              </div>
+              {refreshStatus.length > 0 ? (
+                <p className="settings-provider-feedback">{refreshStatus}</p>
+              ) : null}
+            </CardContent>
+          </Card>
         </section>
       </>
     );
   };
 
-  const renderSidebar = () => (
-    <aside className="sidebar">
-      <div className="sidebar-header">
-        <h1 className="sidebar-title">Council</h1>
-      </div>
-      <nav className="sidebar-nav">
+  const renderHomeTopBar = () => (
+    <header className="home-topbar">
+      <nav aria-label="Home sections" className="home-tabs" role="tablist">
         <button
-          className={homeTab === "councils" ? "sidebar-nav-item active" : "sidebar-nav-item"}
+          aria-controls="home-panel-councils"
+          aria-selected={homeTab === "councils"}
+          className={homeTab === "councils" ? "home-tab-button active" : "home-tab-button"}
+          id="home-tab-councils"
           onClick={() => setHomeTab("councils")}
+          onKeyDown={(event) => handleHomeTabKeyDown(event, "councils")}
+          ref={(node) => {
+            homeTabButtonRefs.current.councils = node;
+          }}
+          role="tab"
           type="button"
         >
           <LayoutDashboard />
           <span>Councils</span>
         </button>
         <button
-          className={homeTab === "agents" ? "sidebar-nav-item active" : "sidebar-nav-item"}
+          aria-controls="home-panel-agents"
+          aria-selected={homeTab === "agents"}
+          className={homeTab === "agents" ? "home-tab-button active" : "home-tab-button"}
+          id="home-tab-agents"
           onClick={() => setHomeTab("agents")}
+          onKeyDown={(event) => handleHomeTabKeyDown(event, "agents")}
+          ref={(node) => {
+            homeTabButtonRefs.current.agents = node;
+          }}
+          role="tab"
           type="button"
         >
           <Users />
           <span>Agents</span>
         </button>
         <button
-          className={homeTab === "settings" ? "sidebar-nav-item active" : "sidebar-nav-item"}
+          aria-controls="home-panel-settings"
+          aria-selected={homeTab === "settings"}
+          className={homeTab === "settings" ? "home-tab-button active" : "home-tab-button"}
+          id="home-tab-settings"
           onClick={() => setHomeTab("settings")}
+          onKeyDown={(event) => handleHomeTabKeyDown(event, "settings")}
+          ref={(node) => {
+            homeTabButtonRefs.current.settings = node;
+          }}
+          role="tab"
           type="button"
         >
           <Settings />
           <span>Settings</span>
         </button>
       </nav>
-    </aside>
+    </header>
   );
 
   return (
     <div className="app-shell">
-      {renderSidebar()}
       <main className="main-content">
         <div className="main-content-inner">
+          {renderHomeTopBar()}
           {renderHomeContent()}
 
           <ConfirmDialog

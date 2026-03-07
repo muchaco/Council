@@ -1,0 +1,15 @@
+{
+  "councilCardCount": 10,
+  "hasCards": true,
+  "menuIsOpen": true,
+  "dropdownVisible": true,
+  "zIndexCheck": {
+    "firstZ": 100,
+    "secondZ": 1,
+    "openZ": 100,
+    "dropdownAboveSecondCard": false,
+    "dropdownTop": 682.171875,
+    "secondCardTop": 437.890625
+  },
+  "menuClosed": true
+}

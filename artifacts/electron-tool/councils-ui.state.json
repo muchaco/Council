@@ -1,0 +1,6 @@
+{
+  "activeTabAfterArrowRight": "Agents",
+  "activeTabAfterArrowLeft": "Councils",
+  "testDisabledInitially": true,
+  "testEnabledAfterDraftChange": false
+}

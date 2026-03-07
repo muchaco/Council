@@ -1,0 +1,7 @@
+{
+  "seedCouncilOk": true,
+  "noTranscriptRowsInitially": true,
+  "transcriptActionAffordancesHidden": true,
+  "emptyStateHiddenAfterFirstMessage": true,
+  "transcriptStartHiddenAfterFirstMessage": true
+}

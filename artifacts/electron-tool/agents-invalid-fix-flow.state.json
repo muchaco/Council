@@ -1,0 +1,33 @@
+{
+  "settingsPrep": {
+    "ok": true,
+    "modelId": "gemini-2.5-flash",
+    "globalDefaultInvalid": false
+  },
+  "targetInvalid": {
+    "ok": true,
+    "id": "8c1f7c7a-9dd4-4795-a79d-ec05bf386969",
+    "name": "Council Member 1771458688827",
+    "modelRefOrNull": {
+      "providerId": "gemini",
+      "modelId": "gemini-1.5-flash"
+    }
+  },
+  "editorBefore": {
+    "ok": true,
+    "value": "gemini:gemini-1.5-flash",
+    "selectedLabel": "Unavailable (gemini:gemini-1.5-flash)",
+    "hasUnavailableOption": true
+  },
+  "afterSave": {
+    "ok": true,
+    "targetName": "Council Member 1771458688827",
+    "total": 1,
+    "target": {
+      "id": "8c1f7c7a-9dd4-4795-a79d-ec05bf386969",
+      "name": "Council Member 1771458688827",
+      "invalidConfig": false,
+      "modelRefOrNull": null
+    }
+  }
+}
