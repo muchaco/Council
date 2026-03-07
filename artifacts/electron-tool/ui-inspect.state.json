@@ -1,1 +1,15 @@
-{}
+{
+  "seedVisualInspectData": true,
+  "settingsRefreshButtonPresent": true,
+  "agentsLoadingCopyHidden": true,
+  "agentMenuInHeader": true,
+  "agentEditorRefreshButtonPresent": true,
+  "agentEditorStyledShellPresent": true,
+  "councilsLoadingCopyHidden": true,
+  "archivedCardOpacity": "1",
+  "archivedBadgeHasIcon": true,
+  "openCouncilButtonRemoved": true,
+  "councilEditorRefreshButtonPresent": true,
+  "councilEditorStyledShellPresent": true,
+  "councilViewRefreshButtonPresent": true
+}

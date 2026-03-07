@@ -1,15 +1,17 @@
 {
+  "seedCouncilCards": true,
   "councilCardCount": 10,
   "hasCards": true,
   "menuIsOpen": true,
   "dropdownVisible": true,
+  "menuLabelsVisible": true,
   "zIndexCheck": {
-    "firstZ": 100,
-    "secondZ": 1,
-    "openZ": 100,
+    "firstZ": null,
+    "secondZ": null,
+    "openZ": null,
     "dropdownAboveSecondCard": false,
-    "dropdownTop": 682.171875,
-    "secondCardTop": 437.890625
+    "dropdownTop": 284.578125,
+    "secondCardTop": 223.578125
   },
   "menuClosed": true
 }
