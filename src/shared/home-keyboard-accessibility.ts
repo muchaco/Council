@@ -1,5 +1,20 @@
 type HomeTabNavigationKey = "ArrowRight" | "ArrowLeft" | "Home" | "End";
 
+type ClosestCapableTarget = EventTarget & {
+  closest?: (selector: string) => unknown;
+};
+
+const CARD_OPEN_IGNORE_SELECTOR = [
+  "button",
+  "summary",
+  "details",
+  "input",
+  "select",
+  "textarea",
+  "a",
+  "[data-card-open-ignore='true']",
+].join(", ");
+
 const isHomeTabNavigationKey = (key: string): key is HomeTabNavigationKey =>
   key === "ArrowRight" || key === "ArrowLeft" || key === "Home" || key === "End";
 
@@ -35,3 +50,16 @@ export const resolveHomeTabFocusIndex = (params: {
 
 export const isListRowOpenKey = (key: string): boolean =>
   key === "Enter" || key === " " || key === "Spacebar";
+
+export const isCardOpenInteractionTarget = (target: EventTarget | null): boolean => {
+  if (target === null || typeof target !== "object") {
+    return false;
+  }
+
+  const maybeElement = target as ClosestCapableTarget;
+  if (typeof maybeElement.closest !== "function") {
+    return true;
+  }
+
+  return maybeElement.closest(CARD_OPEN_IGNORE_SELECTOR) === null;
+};

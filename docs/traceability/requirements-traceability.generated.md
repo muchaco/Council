@@ -1,14 +1,14 @@
 # Test-to-Requirement Index (Generated)
 
-Generated at: 2026-03-07T20:09:46.947Z
+Generated at: 2026-03-07T21:44:34.985Z
 
 ## Summary
 
 - Spec files tracked: 31
-- Test cases tracked: 167
-- Annotated test cases: 167
+- Test cases tracked: 169
+- Annotated test cases: 169
 - Unmapped test cases: 0
-- Unique mapped requirement IDs: 168
+- Unique mapped requirement IDs: 169
 
 ## Index
 
@@ -91,6 +91,7 @@ Generated at: 2026-03-07T20:09:46.947Z
   - [itReq] `checks whether selected model exists in catalog` -> U5.3
   - [itReq] `validates autopilot turn limits` -> U10.8
   - [itReq] `deduplicates and bounds toast queue entries` -> U2.6
+  - [itReq] `maps toast levels to renderer toast variants` -> U2.6
   - [itReq] `normalizes council config tags from draft text` -> U10.11
   - [itReq] `appends council config tags with ui-friendly validation` -> U10.11
   - [itReq] `normalizes renderer tag drafts with shared tag rules` -> R5.3, R5.6
@@ -150,6 +151,7 @@ Generated at: 2026-03-07T20:09:46.947Z
   - [itReq] `returns null for unsupported tab navigation keys` -> U15.2
   - [itReq] `returns null when current tab index is out of bounds` -> U15.2
   - [itReq] `recognizes Enter and Space list-row open keys` -> U15.2
+  - [itReq] `opens council cards from the card surface while ignoring nested menu controls` -> U15.2, U3.7
 - `tests/unit/ids.spec.ts`
   - [itReq] `preserves raw values while branding` -> I1
 - `tests/unit/in-memory-keychain-service.spec.ts`

@@ -1,14 +1,24 @@
 import {
+  AlertTriangle,
+  Archive,
   ChevronLeft,
   LayoutDashboard,
   MessageSquare,
   MoreVertical,
+  Pause,
+  Play,
   Plus,
+  RefreshCw,
   Settings,
+  Square,
   Users,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type {
+  CSSProperties,
+  KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent as ReactMouseEvent,
+} from "react";
 import {
   AUTOPILOT_MAX_TURNS_MAX,
   AUTOPILOT_MAX_TURNS_MIN,
@@ -55,7 +65,11 @@ import {
   shouldRenderInlineThinkingCancel,
 } from "../shared/council-view-transcript.js";
 import type { ModelRef } from "../shared/domain/model-ref";
-import { resolveHomeTabFocusIndex } from "../shared/home-keyboard-accessibility.js";
+import {
+  isCardOpenInteractionTarget,
+  isListRowOpenKey,
+  resolveHomeTabFocusIndex,
+} from "../shared/home-keyboard-accessibility.js";
 import type {
   AgentDto,
   AgentSortField,
@@ -78,7 +92,6 @@ import {
   isProviderDraftChanged,
 } from "../shared/provider-settings-ui.js";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { ToastStack } from "./ToastStack";
 import { ColorPicker } from "./components/ColorPicker";
 import {
   Accordion,
@@ -109,7 +122,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./components/ui/select";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "./components/ui/sheet";
 import { Textarea } from "./components/ui/textarea";
 import { useToastQueue } from "./use-toast-queue";
 
@@ -150,8 +162,10 @@ type ProviderDraftState = {
   isSaving: boolean;
 };
 
+type SettingsAccordionSection = "providers" | "general";
+
 type SettingsViewState =
-  | { status: "loading" }
+  | { status: "idle" }
   | { status: "ready"; data: GetSettingsViewResponse }
   | { status: "error"; message: string };
 
@@ -256,6 +270,8 @@ const PROVIDER_LABELS: Record<ProviderId, string> = {
   openrouter: "OpenRouter",
 };
 
+const DEFAULT_SETTINGS_ACCORDION_SECTIONS: Array<SettingsAccordionSection> = ["providers"];
+
 const MEMBER_COLOR_PALETTE: ReadonlyArray<string> = [
   "#0a5c66",
   "#2563eb",
@@ -277,6 +293,36 @@ const toInitialDraftState = (provider: ProviderConfigDto): ProviderDraftState =>
   isTesting: false,
   isSaving: false,
 });
+
+const toProviderDraftMap = (
+  providers: ReadonlyArray<ProviderConfigDto>,
+): Record<ProviderId, ProviderDraftState> =>
+  providers.reduce<Record<ProviderId, ProviderDraftState>>(
+    (acc, provider) => {
+      acc[provider.providerId] = toInitialDraftState(provider);
+      return acc;
+    },
+    {
+      gemini: toInitialDraftState({
+        providerId: "gemini",
+        endpointUrl: null,
+        hasCredential: false,
+        lastSavedAtUtc: null,
+      }),
+      ollama: toInitialDraftState({
+        providerId: "ollama",
+        endpointUrl: null,
+        hasCredential: false,
+        lastSavedAtUtc: null,
+      }),
+      openrouter: toInitialDraftState({
+        providerId: "openrouter",
+        endpointUrl: null,
+        hasCredential: false,
+        lastSavedAtUtc: null,
+      }),
+    },
+  );
 
 const toProviderDraftDto = (provider: ProviderDraftState): ProviderDraftDto => ({
   providerId: provider.providerId,
@@ -408,13 +454,14 @@ export const App = (): JSX.Element => {
   const [homeTab, setHomeTab] = useState<HomeTab>("councils");
   const [screen, setScreen] = useState<ScreenState>({ kind: "home" });
 
-  const [settingsViewState, setSettingsViewState] = useState<SettingsViewState>({
-    status: "loading",
-  });
+  const [settingsViewState, setSettingsViewState] = useState<SettingsViewState>({ status: "idle" });
   const [drafts, setDrafts] = useState<Record<ProviderId, ProviderDraftState> | null>(null);
   const [globalDefaultSelection, setGlobalDefaultSelection] = useState<string>("");
-  const [refreshStatus, setRefreshStatus] = useState("Ready");
+  const [, setRefreshStatus] = useState("Ready");
   const [isRefreshingModels, setIsRefreshingModels] = useState(false);
+  const [settingsAccordionSections, setSettingsAccordionSections] = useState<
+    Array<SettingsAccordionSection>
+  >(DEFAULT_SETTINGS_ACCORDION_SECTIONS);
   const [savedDraftFingerprints, setSavedDraftFingerprints] = useState<Record<
     ProviderId,
     string
@@ -465,7 +512,7 @@ export const App = (): JSX.Element => {
     null,
   );
 
-  const { toasts, pushToast } = useToastQueue();
+  const { pushToast } = useToastQueue();
   const draftsRef = useRef<Record<ProviderId, ProviderDraftState> | null>(null);
   const autopilotModalDialogRef = useRef<HTMLDialogElement | null>(null);
   const transcriptRowRefs = useRef<Array<HTMLElement | null>>([]);
@@ -603,53 +650,41 @@ export const App = (): JSX.Element => {
     };
   }, [councilViewState]);
 
-  const loadSettingsView = useCallback(async (): Promise<void> => {
-    setSettingsViewState({ status: "loading" });
-    const result = await window.api.settings.getView({ viewKind: "settings" });
-    if (!result.ok) {
-      setSettingsViewState({ status: "error", message: result.error.userMessage });
-      pushToast("error", result.error.userMessage);
-      return;
-    }
+  const loadSettingsView = useCallback(
+    async (options?: {
+      preserveDraftInputs?: boolean;
+      preserveVisibleStateOnError?: boolean;
+    }): Promise<boolean> => {
+      const preserveDraftInputs = options?.preserveDraftInputs ?? false;
+      const preserveVisibleStateOnError = options?.preserveVisibleStateOnError ?? false;
 
-    const draftMap = result.value.providers.reduce<Record<ProviderId, ProviderDraftState>>(
-      (acc, provider) => {
-        acc[provider.providerId] = toInitialDraftState(provider);
-        return acc;
-      },
-      {
-        gemini: toInitialDraftState({
-          providerId: "gemini",
-          endpointUrl: null,
-          hasCredential: false,
-          lastSavedAtUtc: null,
-        }),
-        ollama: toInitialDraftState({
-          providerId: "ollama",
-          endpointUrl: null,
-          hasCredential: false,
-          lastSavedAtUtc: null,
-        }),
-        openrouter: toInitialDraftState({
-          providerId: "openrouter",
-          endpointUrl: null,
-          hasCredential: false,
-          lastSavedAtUtc: null,
-        }),
-      },
-    );
+      const result = await window.api.settings.getView({ viewKind: "settings" });
+      if (!result.ok) {
+        if (!preserveVisibleStateOnError) {
+          setSettingsViewState({ status: "error", message: result.error.userMessage });
+        }
+        pushToast("error", result.error.userMessage);
+        return false;
+      }
 
-    setDrafts(draftMap);
-    const nextSelection = toModelSelectionValue(result.value.globalDefaultModelRef);
-    setGlobalDefaultSelection(nextSelection);
-    setSavedGlobalDefaultSelection(nextSelection);
-    const nextContextLastN = String(result.value.contextLastN);
-    setContextLastNInput(nextContextLastN);
-    setSavedContextLastNInput(nextContextLastN);
-    setSavedDraftFingerprints(buildSavedFingerprints(draftMap));
-    setRefreshStatus("Ready");
-    setSettingsViewState({ status: "ready", data: result.value });
-  }, [pushToast]);
+      const draftMap = toProviderDraftMap(result.value.providers);
+      if (!preserveDraftInputs || drafts === null) {
+        setDrafts(draftMap);
+        setGlobalDefaultSelection(toModelSelectionValue(result.value.globalDefaultModelRef));
+        setContextLastNInput(String(result.value.contextLastN));
+      }
+
+      const nextSelection = toModelSelectionValue(result.value.globalDefaultModelRef);
+      setSavedGlobalDefaultSelection(nextSelection);
+      const nextContextLastN = String(result.value.contextLastN);
+      setSavedContextLastNInput(nextContextLastN);
+      setSavedDraftFingerprints(buildSavedFingerprints(draftMap));
+      setRefreshStatus("Ready");
+      setSettingsViewState({ status: "ready", data: result.value });
+      return true;
+    },
+    [drafts, pushToast],
+  );
 
   const loadAgents = useCallback(
     async (params: { page: number; append: boolean }): Promise<void> => {
@@ -754,10 +789,12 @@ export const App = (): JSX.Element => {
   }, [homeTab, screen.kind, loadCouncils]);
 
   // Auto-scroll transcript to bottom
-  useEffect(() => {
-    if (screen.kind === "councilView" && councilViewState.status === "ready") {
-      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  useLayoutEffect(() => {
+    if (screen.kind !== "councilView" || councilViewState.status !== "ready") {
+      return;
     }
+
+    chatEndRef.current?.scrollIntoView({ behavior: "auto" });
   }, [screen.kind, councilViewState]);
 
   // Close council menu dropdowns when clicking outside
@@ -775,6 +812,32 @@ export const App = (): JSX.Element => {
       const openMenus = document.querySelectorAll<HTMLDetailsElement>(
         ".council-actions-menu[open]",
       );
+
+      for (const menu of openMenus) {
+        if (!menu.contains(target)) {
+          menu.open = false;
+        }
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [screen.kind, homeTab]);
+
+  useEffect(() => {
+    if (screen.kind !== "home" || homeTab !== "agents") {
+      return;
+    }
+
+    const handleClickOutside = (event: MouseEvent): void => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      const openMenus = document.querySelectorAll<HTMLDetailsElement>(".agent-actions-menu[open]");
 
       for (const menu of openMenus) {
         if (!menu.contains(target)) {
@@ -1084,7 +1147,14 @@ export const App = (): JSX.Element => {
       return;
     }
 
-    await loadSettingsView();
+    const loaded = await loadSettingsView({
+      preserveDraftInputs: true,
+      preserveVisibleStateOnError: true,
+    });
+    if (!loaded) {
+      setIsRefreshingModels(false);
+      return;
+    }
     setRefreshStatus("Model catalog refreshed.");
     pushToast("info", "Model catalog refreshed.");
     setIsRefreshingModels(false);
@@ -1897,6 +1967,26 @@ export const App = (): JSX.Element => {
     event.preventDefault();
     detailsElement.open = true;
     focusCouncilRowMenuAction(detailsElement, action === "openFirstItem" ? "first" : "last");
+  };
+
+  const handleCouncilCardClick = (event: ReactMouseEvent<HTMLElement>, councilId: string): void => {
+    if (!isCardOpenInteractionTarget(event.target)) {
+      return;
+    }
+
+    void openCouncilView(councilId);
+  };
+
+  const handleCouncilCardKeyDown = (
+    event: ReactKeyboardEvent<HTMLElement>,
+    councilId: string,
+  ): void => {
+    if (event.target !== event.currentTarget || !isListRowOpenKey(event.key)) {
+      return;
+    }
+
+    event.preventDefault();
+    void openCouncilView(councilId);
   };
 
   const openCouncilConfigEdit = (field: CouncilConfigField): void => {
@@ -3085,6 +3175,8 @@ export const App = (): JSX.Element => {
       councilViewState.source.messages.length + (thinkingSpeakerName === null ? 0 : 1);
     const configEditField = councilViewState.configEdit?.field ?? null;
     const configEditDraftValue = councilViewState.configEdit?.draftValue ?? "";
+    const councilViewConductorSelectValue =
+      configEditDraftValue.length > 0 ? configEditDraftValue : "__global_default__";
     const configEditTags =
       configEditField === "tags" ? parseCouncilConfigTags(configEditDraftValue) : [];
     const hasUnavailableConductorSelectionInView = !isModelSelectionInCatalog({
@@ -3911,7 +4003,7 @@ export const App = (): JSX.Element => {
                       <div className="space-y-3">
                         <div className="flex gap-2">
                           <Select
-                            value={configEditDraftValue}
+                            value={councilViewConductorSelectValue}
                             onValueChange={(value) =>
                               setCouncilViewState((current) =>
                                 current.status !== "ready" || current.configEdit === null
@@ -3920,7 +4012,7 @@ export const App = (): JSX.Element => {
                                       ...current,
                                       configEdit: {
                                         ...current.configEdit,
-                                        draftValue: value,
+                                        draftValue: value === "__global_default__" ? "" : value,
                                       },
                                     },
                               )
@@ -3935,7 +4027,7 @@ export const App = (): JSX.Element => {
                                   Unavailable ({configEditDraftValue})
                                 </SelectItem>
                               )}
-                              <SelectItem value="">Global default</SelectItem>
+                              <SelectItem value="__global_default__">Global default</SelectItem>
                               {Object.entries(
                                 councilViewState.source.modelCatalog.modelsByProvider,
                               ).map(([providerId, modelIds]) => (
@@ -3954,16 +4046,25 @@ export const App = (): JSX.Element => {
                             </SelectContent>
                           </Select>
                           <Button
-                            variant="outline"
+                            aria-label="Refresh council conductor model options"
+                            className="shrink-0"
                             disabled={
                               councilViewState.isRefreshingConfigModels ||
                               !councilViewState.source.canRefreshModels
                             }
                             onClick={() => void refreshCouncilViewConfigModels()}
+                            size="icon"
+                            title="Refresh models"
+                            type="button"
+                            variant="ghost"
                           >
-                            {councilViewState.isRefreshingConfigModels
-                              ? "Refreshing..."
-                              : "Refresh"}
+                            <RefreshCw
+                              className={
+                                councilViewState.isRefreshingConfigModels
+                                  ? "h-4 w-4 animate-spin"
+                                  : "h-4 w-4"
+                              }
+                            />
                           </Button>
                         </div>
                         <div className="flex justify-end">
@@ -4218,8 +4319,6 @@ export const App = (): JSX.Element => {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-
-          <ToastStack toasts={toasts} />
         </div>
       </main>
     );
@@ -4399,9 +4498,29 @@ export const App = (): JSX.Element => {
             ))}
           </div>
 
-          <label className="field" htmlFor="council-conductor-model">
-            Conductor model
-          </label>
+          <div className="field-with-action">
+            <label className="field" htmlFor="council-conductor-model">
+              Conductor model
+            </label>
+            <Button
+              aria-label="Refresh council conductor model options"
+              className="field-action-button"
+              disabled={
+                !councilEditorState.source.canRefreshModels || councilEditorState.isRefreshingModels
+              }
+              onClick={() => void refreshCouncilModels()}
+              size="icon"
+              title="Refresh models"
+              type="button"
+              variant="ghost"
+            >
+              <RefreshCw
+                className={
+                  councilEditorState.isRefreshingModels ? "h-4 w-4 animate-spin" : "h-4 w-4"
+                }
+              />
+            </Button>
+          </div>
           <div className="button-row">
             <select
               id="council-conductor-model"
@@ -4428,16 +4547,6 @@ export const App = (): JSX.Element => {
                 ),
               )}
             </select>
-            <button
-              className="secondary"
-              disabled={
-                !councilEditorState.source.canRefreshModels || councilEditorState.isRefreshingModels
-              }
-              onClick={() => void refreshCouncilModels()}
-              type="button"
-            >
-              {councilEditorState.isRefreshingModels ? "Refreshing..." : "Refresh models"}
-            </button>
             {invalidConfig ? (
               <span
                 aria-label={buildInvalidConfigBadgeAriaLabel("Council editor conductor model")}
@@ -4515,8 +4624,6 @@ export const App = (): JSX.Element => {
           open={councilEditorState.showRemoveMemberDialog}
           title="Remove member?"
         />
-
-        <ToastStack toasts={toasts} />
       </main>
     );
   }
@@ -4651,9 +4758,27 @@ export const App = (): JSX.Element => {
             value={agentEditorState.draft.tagsInput}
           />
 
-          <label className="field" htmlFor="agent-model">
-            Model
-          </label>
+          <div className="field-with-action">
+            <label className="field" htmlFor="agent-model">
+              Model
+            </label>
+            <Button
+              aria-label="Refresh agent model options"
+              className="field-action-button"
+              disabled={
+                !agentEditorState.source.canRefreshModels || agentEditorState.isRefreshingModels
+              }
+              onClick={() => void refreshAgentModels()}
+              size="icon"
+              title="Refresh models"
+              type="button"
+              variant="ghost"
+            >
+              <RefreshCw
+                className={agentEditorState.isRefreshingModels ? "h-4 w-4 animate-spin" : "h-4 w-4"}
+              />
+            </Button>
+          </div>
           <div className="button-row">
             <select
               id="agent-model"
@@ -4678,16 +4803,6 @@ export const App = (): JSX.Element => {
                 ),
               )}
             </select>
-            <button
-              className="secondary"
-              disabled={
-                !agentEditorState.source.canRefreshModels || agentEditorState.isRefreshingModels
-              }
-              onClick={() => void refreshAgentModels()}
-              type="button"
-            >
-              {agentEditorState.isRefreshingModels ? "Refreshing..." : "Refresh models"}
-            </button>
             {invalidConfig ? (
               <span
                 aria-label={buildInvalidConfigBadgeAriaLabel("Agent editor model")}
@@ -4746,8 +4861,6 @@ export const App = (): JSX.Element => {
           open={agentEditorState.showDeleteDialog}
           title="Delete agent?"
         />
-
-        <ToastStack toasts={toasts} />
       </main>
     );
   }
@@ -4761,59 +4874,66 @@ export const App = (): JSX.Element => {
           role="tabpanel"
           className="space-y-5"
         >
-          <div className="agents-toolbar council-toolbar">
-            <Input
-              aria-label="Search councils"
-              placeholder="Search title or topic"
-              value={councilsSearchText}
-              onChange={(event) => setCouncilsSearchText(event.target.value)}
-              className="max-w-xs council-toolbar-search"
-            />
-            <Input
-              aria-label="Filter by tag"
-              placeholder="Filter by tag"
-              value={councilsTagFilter}
-              onChange={(event) => setCouncilsTagFilter(event.target.value)}
-              className="max-w-[180px] council-toolbar-tag"
-            />
-            <Select
-              value={councilsArchivedFilter}
-              onValueChange={(value) => setCouncilsArchivedFilter(value as CouncilArchivedFilter)}
+          <div className="home-list-toolbar home-list-toolbar-councils">
+            <div className="home-list-toolbar-fields home-list-toolbar-fields-wide">
+              <Input
+                aria-label="Search councils"
+                placeholder="Search title or topic"
+                value={councilsSearchText}
+                onChange={(event) => setCouncilsSearchText(event.target.value)}
+                className="home-list-toolbar-search"
+              />
+              <Input
+                aria-label="Filter by tag"
+                placeholder="Filter by tag"
+                value={councilsTagFilter}
+                onChange={(event) => setCouncilsTagFilter(event.target.value)}
+                className="home-list-toolbar-tag"
+              />
+            </div>
+            <div className="home-list-toolbar-fields">
+              <Select
+                value={councilsArchivedFilter}
+                onValueChange={(value) => setCouncilsArchivedFilter(value as CouncilArchivedFilter)}
+              >
+                <SelectTrigger className="home-list-toolbar-select">
+                  <SelectValue placeholder="Filter status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All councils</SelectItem>
+                  <SelectItem value="active">Active only</SelectItem>
+                  <SelectItem value="archived">Archived only</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={councilsSortBy}
+                onValueChange={(value) => setCouncilsSortBy(value as CouncilSortField)}
+              >
+                <SelectTrigger className="home-list-toolbar-select">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="updatedAt">Last modified</SelectItem>
+                  <SelectItem value="createdAt">Date created</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={councilsSortDirection}
+                onValueChange={(value) => setCouncilsSortDirection(value as SortDirection)}
+              >
+                <SelectTrigger className="home-list-toolbar-select home-list-toolbar-select-sm">
+                  <SelectValue placeholder="Order" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="desc">Newest first</SelectItem>
+                  <SelectItem value="asc">Oldest first</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              onClick={() => void openCouncilEditor(null)}
+              className="home-list-toolbar-action gap-2"
             >
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Filter status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All councils</SelectItem>
-                <SelectItem value="active">Active only</SelectItem>
-                <SelectItem value="archived">Archived only</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={councilsSortBy}
-              onValueChange={(value) => setCouncilsSortBy(value as CouncilSortField)}
-            >
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="Sort by" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="updatedAt">Last modified</SelectItem>
-                <SelectItem value="createdAt">Date created</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={councilsSortDirection}
-              onValueChange={(value) => setCouncilsSortDirection(value as SortDirection)}
-            >
-              <SelectTrigger className="w-[130px]">
-                <SelectValue placeholder="Order" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="desc">Newest first</SelectItem>
-                <SelectItem value="asc">Oldest first</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button onClick={() => void openCouncilEditor(null)} className="ml-auto gap-2">
               <Plus className="h-4 w-4" />
               New Council
             </Button>
@@ -4822,10 +4942,6 @@ export const App = (): JSX.Element => {
           {councilsError !== null ? (
             <p className="text-muted-foreground italic">Error: {councilsError}</p>
           ) : null}
-          {councilsLoading ? (
-            <p className="text-muted-foreground italic">Loading councils...</p>
-          ) : null}
-
           {!councilsLoading && councils.length === 0 ? (
             <Card className="p-8 text-center">
               <p className="text-muted-foreground">
@@ -4843,34 +4959,111 @@ export const App = (): JSX.Element => {
                 : "stopped";
               return (
                 <Card
+                  aria-label={`Open council ${council.title}`}
+                  data-council-card-id={council.id}
                   key={council.id}
-                  className={`group overflow-hidden ${council.archived ? "opacity-60" : ""}`}
+                  className="council-card home-list-card group overflow-visible"
+                  onClick={(event) => handleCouncilCardClick(event, council.id)}
+                  onKeyDown={(event) => handleCouncilCardKeyDown(event, council.id)}
+                  tabIndex={0}
                 >
                   <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-semibold text-lg leading-tight">{council.title}</h3>
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        {council.archived && <Badge variant="secondary">Archived</Badge>}
-                        {council.invalidConfig && <Badge variant="destructive">Config Error</Badge>}
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${runtimeStatus === "running" ? "bg-green-100 text-green-700" : runtimeStatus === "paused" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600"}`}
-                        >
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full ${runtimeStatus === "running" ? "bg-green-500 animate-pulse" : runtimeStatus === "paused" ? "bg-amber-500" : "bg-slate-400"}`}
-                          />
-                          {runtimeStatus === "running"
-                            ? "Running"
-                            : runtimeStatus === "paused"
-                              ? "Paused"
-                              : "Stopped"}
-                        </span>
+                    <div className="home-list-card-header">
+                      <div className="home-list-card-heading">
+                        <h3 className="home-list-card-title font-semibold text-lg leading-tight">
+                          {council.title}
+                        </h3>
+                        <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
+                          {council.topic}
+                        </p>
                       </div>
+                      <details
+                        aria-label={`Actions menu for council ${council.title}`}
+                        className="council-actions-menu"
+                        data-card-open-ignore="true"
+                        onKeyDown={handleCouncilRowMenuKeyDown}
+                        onToggle={handleCouncilMenuToggle}
+                      >
+                        <summary
+                          aria-label={`Toggle actions for council ${council.title}`}
+                          className="council-btn-more"
+                          onKeyDown={handleCouncilRowMenuSummaryKeyDown}
+                        >
+                          <MoreVertical aria-hidden="true" className="h-4 w-4" />
+                        </summary>
+                        <div
+                          aria-label={`Council actions for ${council.title}`}
+                          className="council-menu-dropdown row-menu-items"
+                        >
+                          <button
+                            className="council-menu-item"
+                            disabled={exportingCouncilId === council.id}
+                            onClick={(event) => {
+                              const details = event.currentTarget.closest("details");
+                              if (details) {
+                                details.open = false;
+                              }
+                              void exportCouncilTranscript({
+                                viewKind: "councilsList",
+                                councilId: council.id,
+                              });
+                            }}
+                            type="button"
+                          >
+                            {exportingCouncilId === council.id
+                              ? "Exporting..."
+                              : "Export transcript"}
+                          </button>
+                          <hr className="council-menu-divider" />
+                          <button
+                            className="council-menu-item"
+                            disabled={
+                              !council.archived &&
+                              council.mode === "autopilot" &&
+                              council.started &&
+                              !council.paused
+                            }
+                            onClick={(event) => {
+                              const details = event.currentTarget.closest("details");
+                              if (details) {
+                                details.open = false;
+                              }
+                              void setCouncilArchivedFromList({
+                                councilId: council.id,
+                                archived: !council.archived,
+                              });
+                            }}
+                            title={
+                              !council.archived &&
+                              council.mode === "autopilot" &&
+                              council.started &&
+                              !council.paused
+                                ? "Pause Autopilot before archiving"
+                                : undefined
+                            }
+                            type="button"
+                          >
+                            {council.archived ? "Restore council" : "Archive council"}
+                          </button>
+                          <hr className="council-menu-divider" />
+                          <button
+                            className="council-menu-item council-menu-item-danger"
+                            onClick={(event) => {
+                              const details = event.currentTarget.closest("details");
+                              if (details) {
+                                details.open = false;
+                              }
+                              void deleteCouncilFromList(council);
+                            }}
+                            type="button"
+                          >
+                            Delete council
+                          </button>
+                        </div>
+                      </details>
                     </div>
-                    <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                      {council.topic}
-                    </p>
                   </CardHeader>
-                  <CardContent className="pb-3">
+                  <CardContent className="council-card-content pb-3">
                     <div className="flex items-center justify-between text-sm">
                       <div className="flex items-center gap-4">
                         <span className="text-muted-foreground">
@@ -4906,76 +5099,40 @@ export const App = (): JSX.Element => {
                         )}
                       </div>
                     )}
+
+                    <div className="council-card-footer">
+                      <div className="council-card-status-badges">
+                        {council.archived && (
+                          <span className="council-card-status-badge council-card-status-badge-archived">
+                            <Archive aria-hidden="true" className="h-3 w-3" />
+                            Archived
+                          </span>
+                        )}
+                        {council.invalidConfig && (
+                          <span className="council-card-status-badge council-card-status-badge-invalid">
+                            <AlertTriangle aria-hidden="true" className="h-3 w-3" />
+                            Config Error
+                          </span>
+                        )}
+                        <span
+                          className={`council-card-status-badge ${runtimeStatus === "running" ? "council-card-status-badge-running" : runtimeStatus === "paused" ? "council-card-status-badge-paused" : "council-card-status-badge-stopped"}`}
+                        >
+                          {runtimeStatus === "running" ? (
+                            <Play aria-hidden="true" className="h-3 w-3" />
+                          ) : runtimeStatus === "paused" ? (
+                            <Pause aria-hidden="true" className="h-3 w-3" />
+                          ) : (
+                            <Square aria-hidden="true" className="h-3 w-3" />
+                          )}
+                          {runtimeStatus === "running"
+                            ? "Running"
+                            : runtimeStatus === "paused"
+                              ? "Paused"
+                              : "Stopped"}
+                        </span>
+                      </div>
+                    </div>
                   </CardContent>
-                  <div className="px-6 pb-4 flex items-center gap-2">
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="flex-1"
-                      onClick={() => void openCouncilView(council.id)}
-                    >
-                      Open Council
-                    </Button>
-                    <Sheet>
-                      <SheetTrigger asChild>
-                        <Button variant="outline" size="icon" className="h-9 w-9">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </SheetTrigger>
-                      <SheetContent>
-                        <SheetHeader>
-                          <SheetTitle>{council.title}</SheetTitle>
-                        </SheetHeader>
-                        <div className="flex flex-col gap-2 mt-6">
-                          <Button
-                            variant="outline"
-                            disabled={exportingCouncilId === council.id}
-                            onClick={() =>
-                              void exportCouncilTranscript({
-                                viewKind: "councilsList",
-                                councilId: council.id,
-                              })
-                            }
-                          >
-                            {exportingCouncilId === council.id
-                              ? "Exporting..."
-                              : "Export transcript"}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            disabled={
-                              !council.archived &&
-                              council.mode === "autopilot" &&
-                              council.started &&
-                              !council.paused
-                            }
-                            onClick={() =>
-                              void setCouncilArchivedFromList({
-                                councilId: council.id,
-                                archived: !council.archived,
-                              })
-                            }
-                            title={
-                              !council.archived &&
-                              council.mode === "autopilot" &&
-                              council.started &&
-                              !council.paused
-                                ? "Pause Autopilot before archiving"
-                                : undefined
-                            }
-                          >
-                            {council.archived ? "Restore council" : "Archive council"}
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            onClick={() => void deleteCouncilFromList(council)}
-                          >
-                            Delete council
-                          </Button>
-                        </div>
-                      </SheetContent>
-                    </Sheet>
-                  </div>
                 </Card>
               );
             })}
@@ -5003,105 +5160,85 @@ export const App = (): JSX.Element => {
           id="home-panel-agents"
           role="tabpanel"
         >
-          <div className="agents-toolbar">
-            <div className="agents-search-group">
-              <input
+          <div className="home-list-toolbar home-list-toolbar-agents">
+            <div className="home-list-toolbar-fields home-list-toolbar-fields-wide">
+              <Input
                 aria-label="Search agents"
-                className="agents-search-input"
+                className="home-list-toolbar-search"
                 onChange={(event) => setAgentsSearchText(event.target.value)}
                 placeholder="Search name or prompt"
-                type="text"
                 value={agentsSearchText}
               />
-              <input
+              <Input
                 aria-label="Filter by tag"
-                className="agents-tag-input"
+                className="home-list-toolbar-tag"
                 onChange={(event) => setAgentsTagFilter(event.target.value)}
                 placeholder="Filter by tag"
-                type="text"
                 value={agentsTagFilter}
               />
             </div>
-            <div className="agents-filter-group">
-              <select
-                className="agents-filter-select"
+            <div className="home-list-toolbar-fields">
+              <Select
                 value={agentsSortBy}
-                onChange={(event) => setAgentsSortBy(event.target.value as AgentSortField)}
+                onValueChange={(value) => setAgentsSortBy(value as AgentSortField)}
               >
-                <option value="updatedAt">Sort: Modified</option>
-                <option value="createdAt">Sort: Created</option>
-              </select>
-              <select
-                className="agents-filter-select"
+                <SelectTrigger className="home-list-toolbar-select">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="updatedAt">Last modified</SelectItem>
+                  <SelectItem value="createdAt">Date created</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
                 value={agentsSortDirection}
-                onChange={(event) => setAgentsSortDirection(event.target.value as SortDirection)}
+                onValueChange={(value) => setAgentsSortDirection(value as SortDirection)}
               >
-                <option value="desc">Desc</option>
-                <option value="asc">Asc</option>
-              </select>
+                <SelectTrigger className="home-list-toolbar-select home-list-toolbar-select-sm">
+                  <SelectValue placeholder="Order" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="desc">Newest first</SelectItem>
+                  <SelectItem value="asc">Oldest first</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <button
-              className="cta new-council-btn agents-toolbar-action"
+            <Button
+              className="home-list-toolbar-action gap-2"
               onClick={() => void openAgentEditor(null)}
               type="button"
             >
-              <span className="new-council-icon" aria-hidden="true">
-                +
-              </span>
+              <Plus className="h-4 w-4" />
               New Agent
-            </button>
+            </Button>
           </div>
 
           {agentsError !== null ? <p className="status">Error: {agentsError}</p> : null}
-          {agentsLoading ? <p className="status">Loading agents...</p> : null}
 
           {!agentsLoading && agents.length === 0 ? (
-            <p className="status">No agents yet. Create your first agent.</p>
+            <Card className="p-8 text-center">
+              <p className="text-muted-foreground">No agents yet. Create your first agent.</p>
+            </Card>
           ) : null}
 
           <div className="agents-grid">
             {agents.map((agent) => (
-              <article className="agent-card" key={agent.id}>
+              <article className="agent-card home-list-card" key={agent.id}>
                 <div className="agent-card-header">
-                  <h3 className="agent-card-title">{agent.name}</h3>
-                  <div className="agent-card-badges">
-                    {agent.invalidConfig ? (
-                      <span
-                        aria-label="Invalid configuration"
-                        className="council-badge council-badge-error"
-                        title="Invalid config"
-                      >
-                        Invalid config
-                      </span>
-                    ) : null}
+                  <div className="agent-card-header-main">
+                    <h3 className="agent-card-title">{agent.name}</h3>
+                    <div className="agent-card-badges">
+                      {agent.invalidConfig ? (
+                        <span
+                          aria-label="Invalid configuration"
+                          className="council-badge council-badge-error"
+                          title="Invalid config"
+                        >
+                          Invalid config
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-
-                <p className="agent-card-prompt">{agent.systemPrompt}</p>
-
-                <div className="agent-card-stats">
-                  <div className="agent-stat">
-                    <span className="agent-stat-label">Model:</span>
-                    <span className="agent-stat-value">
-                      {modelLabel(agent, agentsGlobalDefaultModel)}
-                    </span>
-                  </div>
-                </div>
-
-                {agent.tags.length > 0 ? (
-                  <div className="agent-card-tags">
-                    {agent.tags.slice(0, 3).map((tag) => (
-                      <span key={tag} className="agent-tag">
-                        {tag}
-                      </span>
-                    ))}
-                    {agent.tags.length > 3 ? (
-                      <span className="agent-tag council-tag-more">+{agent.tags.length - 3}</span>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                <div className="agent-card-actions">
                   <details
                     aria-label={`Actions menu for agent ${agent.name}`}
                     className="agent-actions-menu"
@@ -5111,21 +5248,7 @@ export const App = (): JSX.Element => {
                       aria-label={`Toggle actions for agent ${agent.name}`}
                       className="agent-btn-more"
                     >
-                      <svg
-                        aria-hidden="true"
-                        fill="none"
-                        height="16"
-                        stroke="currentColor"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        viewBox="0 0 24 24"
-                        width="16"
-                      >
-                        <circle cx="12" cy="12" r="1" />
-                        <circle cx="19" cy="12" r="1" />
-                        <circle cx="5" cy="12" r="1" />
-                      </svg>
+                      <MoreVertical aria-hidden="true" className="h-4 w-4" />
                     </summary>
                     <div
                       aria-label={`Agent actions for ${agent.name}`}
@@ -5161,6 +5284,30 @@ export const App = (): JSX.Element => {
                     </div>
                   </details>
                 </div>
+
+                <p className="agent-card-prompt">{agent.systemPrompt}</p>
+
+                <div className="agent-card-stats">
+                  <div className="agent-stat">
+                    <span className="agent-stat-label">Model:</span>
+                    <span className="agent-stat-value">
+                      {modelLabel(agent, agentsGlobalDefaultModel)}
+                    </span>
+                  </div>
+                </div>
+
+                {agent.tags.length > 0 ? (
+                  <div className="agent-card-tags">
+                    {agent.tags.slice(0, 3).map((tag) => (
+                      <span key={tag} className="agent-tag">
+                        {tag}
+                      </span>
+                    ))}
+                    {agent.tags.length > 3 ? (
+                      <span className="agent-tag council-tag-more">+{agent.tags.length - 3}</span>
+                    ) : null}
+                  </div>
+                ) : null}
               </article>
             ))}
             {agentsHasMore ? (
@@ -5180,17 +5327,14 @@ export const App = (): JSX.Element => {
       );
     }
 
-    if (settingsViewState.status === "loading" || drafts === null) {
+    if (settingsViewState.status === "idle" || drafts === null) {
       return (
         <section
           aria-labelledby="home-tab-settings"
           className="settings-section"
           id="home-panel-settings"
           role="tabpanel"
-        >
-          <h2>Settings</h2>
-          <p className="status">Loading settings...</p>
-        </section>
+        />
       );
     }
 
@@ -5219,238 +5363,276 @@ export const App = (): JSX.Element => {
           id="home-panel-settings"
           role="tabpanel"
         >
-          <div className="settings-section-header">
-            <h2>Providers</h2>
-          </div>
-          <div className="settings-provider-grid">
-            {providerOrder.map((providerId) => {
-              const provider = drafts[providerId];
-              const savedProvider = settingsViewState.data.providers.find(
-                (item) => item.providerId === providerId,
-              );
-              const savedFingerprint =
-                savedDraftFingerprints === null ? null : savedDraftFingerprints[providerId];
-              const connectionTestAllowed = isConnectionTestAllowed({
-                provider,
-                savedFingerprint,
-              });
-              const providerConfigured =
-                savedProvider !== undefined && isProviderConfigured(savedProvider);
-              const showOllamaNote = providerId === "ollama";
-              const providerLabel = PROVIDER_LABELS[providerId];
-              const shouldShowStatusText = provider.testStatusText !== "Not tested";
+          <Accordion
+            className="settings-accordion"
+            onValueChange={(value) =>
+              setSettingsAccordionSections(value as Array<SettingsAccordionSection>)
+            }
+            type="multiple"
+            value={settingsAccordionSections}
+          >
+            <AccordionItem className="settings-accordion-item" value="providers">
+              <AccordionTrigger className="settings-accordion-trigger">
+                <div className="settings-accordion-copy">
+                  <span className="settings-accordion-title">Providers</span>
+                  <span className="settings-accordion-subtitle">
+                    Manage provider connections and credentials.
+                  </span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="settings-accordion-content">
+                <div className="settings-provider-grid">
+                  {providerOrder.map((providerId) => {
+                    const provider = drafts[providerId];
+                    const savedProvider = settingsViewState.data.providers.find(
+                      (item) => item.providerId === providerId,
+                    );
+                    const savedFingerprint =
+                      savedDraftFingerprints === null ? null : savedDraftFingerprints[providerId];
+                    const connectionTestAllowed = isConnectionTestAllowed({
+                      provider,
+                      savedFingerprint,
+                    });
+                    const providerConfigured =
+                      savedProvider !== undefined && isProviderConfigured(savedProvider);
+                    const showOllamaNote = providerId === "ollama";
+                    const providerLabel = PROVIDER_LABELS[providerId];
+                    const shouldShowStatusText = provider.testStatusText !== "Not tested";
 
-              return (
-                <Card key={providerId} className="settings-provider-card">
-                  <CardHeader className="settings-provider-card-header">
-                    <div className="flex items-center justify-between gap-3">
-                      <CardTitle className="text-lg">{providerLabel}</CardTitle>
-                      <Badge
-                        aria-label={buildProviderConfiguredBadgeAriaLabel({
-                          providerLabel,
-                          configured: providerConfigured,
-                        })}
-                        variant={providerConfigured ? "default" : "secondary"}
-                      >
-                        {providerConfigured ? "Configured" : "Not configured"}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor={`${providerId}-endpoint`}>Endpoint URL</Label>
-                      <Input
-                        id={`${providerId}-endpoint`}
-                        onChange={(event) =>
-                          updateProviderDraft(providerId, { endpointUrl: event.target.value })
-                        }
-                        placeholder={
-                          providerId === "ollama" ? "http://127.0.0.1:11434" : "Optional endpoint"
-                        }
-                        value={provider.endpointUrl}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor={`${providerId}-key`}>API key</Label>
-                      <Input
-                        id={`${providerId}-key`}
-                        type="password"
-                        onChange={(event) =>
-                          updateProviderDraft(providerId, { apiKey: event.target.value })
-                        }
-                        placeholder={showOllamaNote ? "Optional for local Ollama" : "Enter API key"}
-                        value={provider.apiKey}
-                      />
-                      {showOllamaNote ? (
-                        <p className="text-xs text-muted-foreground">
-                          Local Ollama usually does not need an API key.
-                        </p>
-                      ) : null}
-                    </div>
-
-                    <div className="settings-provider-actions">
-                      <Button
-                        aria-label={buildProviderConnectionTestButtonAriaLabel({
-                          providerLabel,
-                          connectionTestAllowed,
-                        })}
-                        disabled={!connectionTestAllowed}
-                        onClick={() => void runConnectionTest(providerId)}
-                        title={
-                          connectionTestAllowed
-                            ? "Test updated provider settings"
-                            : "Edit endpoint or key before running a new test"
-                        }
-                      >
-                        {provider.isTesting ? "Testing..." : "Test connection"}
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        disabled={!isSaveAllowed(provider)}
-                        onClick={() => void saveProvider(providerId)}
-                      >
-                        {provider.isSaving ? "Saving..." : "Save"}
-                      </Button>
-                    </div>
-
-                    {shouldShowStatusText ? (
-                      <p aria-live="polite" className="settings-provider-feedback">
-                        {provider.testStatusText}
-                      </p>
-                    ) : null}
-                    {provider.message.length > 0 ? (
-                      <p aria-live="polite" className="settings-provider-feedback">
-                        {provider.message}
-                      </p>
-                    ) : null}
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </section>
-
-        <section className="settings-section settings-secondary-grid">
-          <Card className="settings-secondary-card settings-secondary-card-wide">
-            <CardHeader className="settings-secondary-card-header">
-              <div>
-                <CardTitle>Global Default Model</CardTitle>
-                <CardDescription>
-                  Choose the fallback model used when an item does not set one explicitly.
-                </CardDescription>
-              </div>
-              {settingsViewState.data.globalDefaultModelInvalidConfig ? (
-                <Badge
-                  aria-label={buildInvalidConfigBadgeAriaLabel("Global default model")}
-                  title="Invalid config"
-                  variant="destructive"
-                >
-                  Invalid config
-                </Badge>
-              ) : null}
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="global-default-model">Model</Label>
-                <Select
-                  onValueChange={(value) =>
-                    setGlobalDefaultSelection(value === "__none__" ? "" : value)
-                  }
-                  value={globalDefaultSelection.length > 0 ? globalDefaultSelection : "__none__"}
-                >
-                  <SelectTrigger id="global-default-model">
-                    <SelectValue placeholder="Unselected" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Unselected</SelectItem>
-                    {Object.entries(settingsViewState.data.modelCatalog.modelsByProvider).map(
-                      ([providerId, models]) => (
-                        <SelectGroup key={providerId}>
-                          <SelectLabel>{providerId}</SelectLabel>
-                          {models.map((modelId) => (
-                            <SelectItem
-                              key={`${providerId}:${modelId}`}
-                              value={`${providerId}:${modelId}`}
+                    return (
+                      <Card key={providerId} className="settings-provider-card">
+                        <CardHeader className="settings-provider-card-header">
+                          <div className="flex items-center justify-between gap-3">
+                            <CardTitle className="text-lg">{providerLabel}</CardTitle>
+                            <Badge
+                              aria-label={buildProviderConfiguredBadgeAriaLabel({
+                                providerLabel,
+                                configured: providerConfigured,
+                              })}
+                              variant={providerConfigured ? "default" : "secondary"}
                             >
-                              {modelId}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      ),
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="settings-card-actions">
-                <Button
-                  onClick={() => void onSaveGlobalDefault()}
-                  type="button"
-                  variant="secondary"
-                >
-                  Save global default
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+                              {providerConfigured ? "Configured" : "Not configured"}
+                            </Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor={`${providerId}-endpoint`}>Endpoint URL</Label>
+                            <Input
+                              id={`${providerId}-endpoint`}
+                              onChange={(event) =>
+                                updateProviderDraft(providerId, { endpointUrl: event.target.value })
+                              }
+                              placeholder={
+                                providerId === "ollama"
+                                  ? "http://127.0.0.1:11434"
+                                  : "Optional endpoint"
+                              }
+                              value={provider.endpointUrl}
+                            />
+                          </div>
 
-          <Card className="settings-secondary-card">
-            <CardHeader className="settings-secondary-card-header">
-              <div>
-                <CardTitle>Context Window</CardTitle>
-                <CardDescription>
-                  Choose how many recent transcript messages are included in runtime prompts.
-                </CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="context-last-n">Last N messages</Label>
-                <Input
-                  id="context-last-n"
-                  min={1}
-                  onChange={(event) => setContextLastNInput(event.target.value)}
-                  step={1}
-                  type="number"
-                  value={contextLastNInput}
-                />
-              </div>
-              <div className="settings-card-actions">
-                <Button onClick={() => void onSaveContextLastN()} type="button" variant="secondary">
-                  Save context window
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+                          <div className="space-y-2">
+                            <Label htmlFor={`${providerId}-key`}>API key</Label>
+                            <Input
+                              id={`${providerId}-key`}
+                              type="password"
+                              onChange={(event) =>
+                                updateProviderDraft(providerId, { apiKey: event.target.value })
+                              }
+                              placeholder={
+                                showOllamaNote ? "Optional for local Ollama" : "Enter API key"
+                              }
+                              value={provider.apiKey}
+                            />
+                            {showOllamaNote ? (
+                              <p className="text-xs text-muted-foreground">
+                                Local Ollama usually does not need an API key.
+                              </p>
+                            ) : null}
+                          </div>
 
-          <Card className="settings-secondary-card">
-            <CardHeader className="settings-secondary-card-header">
-              <div>
-                <CardTitle>Model Catalog</CardTitle>
-                <CardDescription>
-                  Refresh the shared provider model snapshot used across the app.
-                </CardDescription>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="text-sm text-muted-foreground">
-                Snapshot ID: {settingsViewState.data.modelCatalog.snapshotId}
-              </div>
-              <div className="settings-card-actions">
-                <Button
-                  disabled={!settingsViewState.data.canRefreshModels || isRefreshingModels}
-                  onClick={() => void onRefreshModels()}
-                  type="button"
-                  variant="secondary"
-                >
-                  {isRefreshingModels ? "Refreshing..." : "Refresh models"}
-                </Button>
-              </div>
-              {refreshStatus.length > 0 ? (
-                <p className="settings-provider-feedback">{refreshStatus}</p>
-              ) : null}
-            </CardContent>
-          </Card>
+                          <div className="settings-provider-actions">
+                            <Button
+                              aria-label={buildProviderConnectionTestButtonAriaLabel({
+                                providerLabel,
+                                connectionTestAllowed,
+                              })}
+                              disabled={!connectionTestAllowed}
+                              onClick={() => void runConnectionTest(providerId)}
+                              title={
+                                connectionTestAllowed
+                                  ? "Test updated provider settings"
+                                  : "Edit endpoint or key before running a new test"
+                              }
+                            >
+                              {provider.isTesting ? "Testing..." : "Test connection"}
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              disabled={!isSaveAllowed(provider)}
+                              onClick={() => void saveProvider(providerId)}
+                            >
+                              {provider.isSaving ? "Saving..." : "Save"}
+                            </Button>
+                          </div>
+
+                          {shouldShowStatusText ? (
+                            <p aria-live="polite" className="settings-provider-feedback">
+                              {provider.testStatusText}
+                            </p>
+                          ) : null}
+                          {provider.message.length > 0 ? (
+                            <p aria-live="polite" className="settings-provider-feedback">
+                              {provider.message}
+                            </p>
+                          ) : null}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            <AccordionItem className="settings-accordion-item" value="general">
+              <AccordionTrigger className="settings-accordion-trigger">
+                <div className="settings-accordion-copy">
+                  <span className="settings-accordion-title">General</span>
+                  <span className="settings-accordion-subtitle">
+                    Configure fallback model and runtime prompt window.
+                  </span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="settings-accordion-content">
+                <section className="settings-section settings-secondary-grid">
+                  <Card className="settings-secondary-card">
+                    <CardHeader className="settings-secondary-card-header">
+                      <div>
+                        <CardTitle>Global Default Model</CardTitle>
+                        <CardDescription>
+                          Choose the fallback model used when an item does not set one explicitly.
+                        </CardDescription>
+                      </div>
+                      {settingsViewState.data.globalDefaultModelInvalidConfig ? (
+                        <Badge
+                          aria-label={buildInvalidConfigBadgeAriaLabel("Global default model")}
+                          title="Invalid config"
+                          variant="destructive"
+                        >
+                          Invalid config
+                        </Badge>
+                      ) : null}
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <div className="settings-inline-label-row">
+                          <Label htmlFor="global-default-model">Model</Label>
+                          <Button
+                            aria-label="Refresh global model options"
+                            disabled={
+                              !settingsViewState.data.canRefreshModels || isRefreshingModels
+                            }
+                            onClick={() => void onRefreshModels()}
+                            size="icon"
+                            title="Refresh models"
+                            type="button"
+                            variant="ghost"
+                          >
+                            <RefreshCw
+                              className={isRefreshingModels ? "h-4 w-4 animate-spin" : "h-4 w-4"}
+                            />
+                          </Button>
+                        </div>
+                        <Select
+                          onValueChange={(value) =>
+                            setGlobalDefaultSelection(value === "__none__" ? "" : value)
+                          }
+                          value={
+                            globalDefaultSelection.length > 0 ? globalDefaultSelection : "__none__"
+                          }
+                        >
+                          <SelectTrigger id="global-default-model">
+                            <SelectValue placeholder="Unselected" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {globalDefaultSelection.length > 0 &&
+                            !isModelSelectionInCatalog({
+                              modelSelection: globalDefaultSelection,
+                              modelCatalog: settingsViewState.data.modelCatalog,
+                            }) ? (
+                              <SelectItem value={globalDefaultSelection}>
+                                Unavailable ({globalDefaultSelection})
+                              </SelectItem>
+                            ) : null}
+                            <SelectItem value="__none__">Unselected</SelectItem>
+                            {Object.entries(
+                              settingsViewState.data.modelCatalog.modelsByProvider,
+                            ).map(([providerId, models]) => (
+                              <SelectGroup key={providerId}>
+                                <SelectLabel>{providerId}</SelectLabel>
+                                {models.map((modelId) => (
+                                  <SelectItem
+                                    key={`${providerId}:${modelId}`}
+                                    value={`${providerId}:${modelId}`}
+                                  >
+                                    {modelId}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="settings-card-actions">
+                        <Button
+                          onClick={() => void onSaveGlobalDefault()}
+                          type="button"
+                          variant="secondary"
+                        >
+                          Save global default
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="settings-secondary-card">
+                    <CardHeader className="settings-secondary-card-header">
+                      <div>
+                        <CardTitle>Context Window</CardTitle>
+                        <CardDescription>
+                          Choose how many recent transcript messages are included in runtime
+                          prompts.
+                        </CardDescription>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="context-last-n">Last N messages</Label>
+                        <Input
+                          id="context-last-n"
+                          min={1}
+                          onChange={(event) => setContextLastNInput(event.target.value)}
+                          step={1}
+                          type="number"
+                          value={contextLastNInput}
+                        />
+                      </div>
+                      <div className="settings-card-actions">
+                        <Button
+                          onClick={() => void onSaveContextLastN()}
+                          type="button"
+                          variant="secondary"
+                        >
+                          Save context window
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </section>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </section>
       </>
     );
@@ -5548,8 +5730,6 @@ export const App = (): JSX.Element => {
             open={pendingAgentListDelete !== null}
             title="Delete agent?"
           />
-
-          <ToastStack toasts={toasts} />
         </div>
       </main>
     </div>

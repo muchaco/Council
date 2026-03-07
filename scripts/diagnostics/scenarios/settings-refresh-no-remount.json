@@ -1,0 +1,34 @@
+{
+  "name": "settings-refresh-no-remount",
+  "steps": [
+    { "action": "waitForText", "text": "Council" },
+    { "action": "click", "selector": "button:has-text('Settings')" },
+    {
+      "action": "evaluate",
+      "saveAs": "settingsOpenHasNoLoadingFlicker",
+      "expression": "async () => { const startedAt = Date.now(); while (Date.now() - startedAt < 1500) { if (document.body.textContent?.includes('Loading settings...') === true) { return false; } const providersTitle = Array.from(document.querySelectorAll('.settings-accordion-title')).some((element) => element.textContent?.trim() === 'Providers'); if (providersTitle) { return true; } await new Promise((resolve) => window.setTimeout(resolve, 25)); } return false; }"
+    },
+    { "action": "assertSaved", "key": "settingsOpenHasNoLoadingFlicker", "equals": true },
+    { "action": "waitForText", "text": "Providers" },
+    {
+      "action": "evaluate",
+      "saveAs": "settingsRefreshPatchReady",
+      "expression": "async () => { const originalGetView = window.api.settings.getView; const originalRefresh = window.api.providers.refreshModelCatalog; const initial = await originalGetView({ viewKind: 'settings' }); if (!initial.ok) { return false; } const injectedModelId = `diag-refresh-${Date.now()}`; let refreshed = false; window.api.providers.refreshModelCatalog = async (request) => { refreshed = true; return { ok: true, value: { modelCatalog: { ...initial.value.modelCatalog, snapshotId: `diag-snapshot-${Date.now()}`, modelsByProvider: { ...initial.value.modelCatalog.modelsByProvider, gemini: [...(initial.value.modelCatalog.modelsByProvider.gemini ?? []), injectedModelId] } } } }; }; window.api.settings.getView = async (request) => { const result = await originalGetView(request); if (!result.ok || !refreshed) { return result; } return { ok: true, value: { ...result.value, canRefreshModels: true, modelCatalog: { ...result.value.modelCatalog, snapshotId: `diag-snapshot-${Date.now()}`, modelsByProvider: { ...result.value.modelCatalog.modelsByProvider, gemini: [...(result.value.modelCatalog.modelsByProvider.gemini ?? []), injectedModelId] } } } }; }; localStorage.setItem('diagInjectedSettingsModelId', injectedModelId); return true; }"
+    },
+    { "action": "assertSaved", "key": "settingsRefreshPatchReady", "equals": true },
+    {
+      "action": "evaluate",
+      "saveAs": "openedGeneralAccordion",
+      "expression": "async () => { const title = Array.from(document.querySelectorAll('.settings-accordion-title')).find((element) => element.textContent?.trim() === 'General'); const generalTrigger = title?.closest('button'); if (!(generalTrigger instanceof HTMLButtonElement)) { return false; } generalTrigger.click(); await new Promise((resolve) => window.setTimeout(resolve, 50)); return true; }"
+    },
+    { "action": "assertSaved", "key": "openedGeneralAccordion", "equals": true },
+    { "action": "waitForText", "text": "Global Default Model" },
+    {
+      "action": "evaluate",
+      "saveAs": "settingsRefreshStayedInPlace",
+      "expression": "async () => { const resolveTrigger = () => { const title = Array.from(document.querySelectorAll('.settings-accordion-title')).find((element) => element.textContent?.trim() === 'General'); const trigger = title?.closest('button'); return trigger instanceof HTMLButtonElement ? trigger : null; }; const isOpen = () => resolveTrigger()?.closest('[data-state]')?.getAttribute('data-state') === 'open'; if (!isOpen()) { return false; } const refreshButton = document.querySelector('button[aria-label=\"Refresh global model options\"]'); if (!(refreshButton instanceof HTMLButtonElement)) { return false; } refreshButton.disabled = false; refreshButton.click(); const startedAt = Date.now(); while (Date.now() - startedAt < 2000) { const stillOpen = isOpen(); const loadingVisible = document.body.textContent?.includes('Loading settings...') ?? false; if (stillOpen && !loadingVisible) { await new Promise((resolve) => window.setTimeout(resolve, 50)); return true; } await new Promise((resolve) => window.setTimeout(resolve, 50)); } return false; }"
+    },
+    { "action": "assertSaved", "key": "settingsRefreshStayedInPlace", "equals": true },
+    { "action": "screenshot", "file": "settings-refresh-no-remount.png", "fullPage": true }
+  ]
+}

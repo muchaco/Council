@@ -78,8 +78,8 @@ This document defines user-facing UX behavior for Council. It complements the Fu
 ## 3. Councils List (Home: Councils tab)
 
 ### 3.1 Layout and content
-- **U3.1** Councils list uses **rows**. **[1.00]**
-- **U3.2** Each row displays:
+- **U3.1** Councils list uses cards in a responsive grid. **[1.00]**
+- **U3.2** Each card displays:
   - Title (single line, ellipsized)
   - Topic preview (max 2 lines)
   - Tags (0..3 chips)
@@ -87,7 +87,7 @@ This document defines user-facing UX behavior for Council. It complements the Fu
   - Archived indicator (icon + text "Archived")
   - Turn count (if available)
   - Invalid config badge when required (per functional spec)
-  - Overflow menu button (…)
+  - Overflow menu button (`...`) in the card header
   **[1.00]**
 
 ### 3.2 Controls
@@ -103,10 +103,10 @@ This document defines user-facing UX behavior for Council. It complements the Fu
 ### 3.3 Pagination and load more
 - **U3.4** List uses constant page size with "Load more" when more results exist. **[1.00]**
 - **U3.5** Applying search or filters resets to page 1. **[1.00]**
-- **U3.6** While loading more, show row skeletons or a loading spinner below the list. **[0.85]**
+- **U3.6** While loading more, show card skeletons or a loading spinner below the grid. **[0.85]**
 
-### 3.4 Row actions
-- **U3.7** Clicking the row opens Council View. **[1.00]**
+### 3.4 Card actions
+- **U3.7** Each card opens Council View from the card surface itself; click/tap anywhere on the card except the overflow menu (`...`). Keyboard users can focus the card and press Enter/Space. **[1.00]**
 - **U3.8** Overflow menu items:
   - Export
   - Archive or Restore (depending on state)
@@ -128,6 +128,7 @@ This document defines user-facing UX behavior for Council. It complements the Fu
   - Tags chips (0..3)
   - Model label (specific model, or "Global default" if null)
   - Invalid config badge when applicable
+  - Overflow menu button (`...`) in the card header
   **[1.00]**
 
 ### 4.2 Controls
@@ -150,10 +151,10 @@ This document defines user-facing UX behavior for Council. It complements the Fu
 ## 5. Settings (Home: Settings tab)
 
 ### 5.1 Layout
-- **U5.1** Settings is a single page with sections:
+- **U5.1** Settings is a single page organized into collapsible groups:
   1) Providers
-  2) Global Default Model
-  3) Model Catalog actions
+  2) General
+  Providers is expanded by default; General is collapsed by default.
   **[1.00]**
 
 ### 5.2 Providers section
@@ -167,20 +168,21 @@ This document defines user-facing UX behavior for Council. It complements the Fu
   - API key field where applicable (Gemini, OpenRouter)
   - Test connection button
   - Save button
-  - Status text for last test
+  - Configured/not-configured badge
+  - Inline status text only when the user has run a meaningful action (for example test/save outcome)
   **[1.00]**
 - **U5.4** Save is disabled until the most recent test succeeds (per functional requirement). **[1.00]**
 - **U5.5** For Ollama, API key field is hidden or disabled with note "Not required for local Ollama". **[1.00]**
 - **U5.6** If OS keychain is unavailable and saving credentials fails, show blocking error message on the provider card. **[0.95]**
 
 ### 5.3 Global Default Model
-- **U5.7** Global Default Model is selected via a model picker grouped by provider. **[1.00]**
+- **U5.7** Global Default Model is selected via a model picker grouped by provider inside the `General` group. A compact icon refresh action is shown adjacent to that picker so the available model list can be refreshed in place. **[1.00]**
 - **U5.8** If Global Default is unavailable in the current Model Catalog snapshot, show Invalid config badge and block Council start/resume where relevant. **[1.00]**
 
 ### 5.4 Refresh models
-- **U5.9** Provide a "Refresh models" action in Settings. **[1.00]**
+- **U5.9** Provide a model-refresh action in Settings adjacent to the Global Default Model picker. **[1.00]**
 - **U5.10** Refresh updates model lists in the current Settings view without reload. **[0.90]**
-- **U5.11** Show progress indicator while refreshing. On completion, show toast. **[0.85]**
+- **U5.11** Show progress indicator while refreshing. On completion, show toast. Do not persist snapshot IDs or long-lived refresh-status text in the visible Settings layout. **[0.85]**
 
 ---
 
@@ -213,7 +215,7 @@ This document defines user-facing UX behavior for Council. It complements the Fu
 - **U6.7** Delete action is available from Agent edit view (not create). **[0.85]**
 - **U6.8** If Agent is referenced by any Council, delete is blocked and a warning is shown instead of confirmation dialog. **[1.00]**
 - **U6.9** Otherwise, delete requires confirmation dialog. **[1.00]**
-- **U6.10** Agent create/edit shows a "Refresh models" action adjacent to the Model selector so users can refresh that view's model options in place. **[0.90]**
+- **U6.10** Agent create/edit shows the same compact icon "Refresh models" action adjacent to the Model selector so users can refresh that view's model options in place. **[0.90]**
 
 ---
 
@@ -364,7 +366,7 @@ This document defines user-facing UX behavior for Council. It complements the Fu
   **[1.00]**
 
 ### 10.4 Conductor model picker behavior
-- **U10.12** Model picker groups models by provider. **[1.00]**
+- **U10.12** Model picker groups models by provider and includes the same compact icon refresh action adjacent to the control. **[1.00]**
 - **U10.13** Null selection is allowed and labeled "Global default". **[1.00]**
 - **U10.14** If resolved Conductor model is unavailable in the current Model Catalog snapshot, show invalid config badge and block start/resume. **[1.00]**
 

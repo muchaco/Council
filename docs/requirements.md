@@ -207,7 +207,7 @@ Confidence scale: **1.00** = fully specified and testable, **0.85** = minor deta
 - **R4.8** User must test provider connection before saving; successful test enables Save. **[0.90]**
 - **R4.9** After saving a provider, system fetches available models and updates the model list without reload. **[0.90]**
 - **R4.10** User can refresh model list manually when at least one provider is configured. **[0.95]**
-- **R4.11** Any view that contains a model picker/selector provides a "Refresh models" action next to that control. List views that only show model labels or invalid-config status do not include this action. **[0.95]**
+- **R4.11** Any view that contains a model picker/selector provides the same compact refresh action adjacent to that control. List views that only show model labels or invalid-config status do not include this action. **[0.95]**
 - **R4.12** Model selection UI groups models by provider sections. **[0.95]**
 
 ### 4.3 Model Catalog Caching and Availability

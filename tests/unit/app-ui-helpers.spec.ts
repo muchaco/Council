@@ -10,6 +10,7 @@ import {
   resolveAutopilotMaxTurns,
   resolveConfirmDialogKeyboardAction,
   resolveDisclosureKeyboardAction,
+  resolveToastVariant,
   toModelRef,
   toModelSelectionValue,
   upsertToast,
@@ -160,6 +161,12 @@ describe("app ui helpers", () => {
         message: "Export failed.",
       },
     ]);
+  });
+
+  itReq(["U2.6"], "maps toast levels to renderer toast variants", () => {
+    expect(resolveToastVariant("info")).toBe("default");
+    expect(resolveToastVariant("warning")).toBe("warning");
+    expect(resolveToastVariant("error")).toBe("error");
   });
 
   itReq(["U10.11"], "normalizes council config tags from draft text", () => {

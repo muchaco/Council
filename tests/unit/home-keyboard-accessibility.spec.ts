@@ -1,9 +1,22 @@
 import { describe, expect } from "vitest";
 import {
+  isCardOpenInteractionTarget,
   isListRowOpenKey,
   resolveHomeTabFocusIndex,
 } from "../../src/shared/home-keyboard-accessibility.js";
 import { itReq } from "../helpers/requirement-trace";
+
+const createClosestTarget = (blockedSelectors: ReadonlyArray<string>) =>
+  ({
+    closest: (selector: string) =>
+      blockedSelectors.includes(selector) ||
+      selector
+        .split(",")
+        .map((part) => part.trim())
+        .some((part) => blockedSelectors.includes(part))
+        ? {}
+        : null,
+  }) as unknown as EventTarget;
 
 describe("home keyboard accessibility helpers", () => {
   itReq(["U15.2"], "cycles tab focus index with ArrowRight and ArrowLeft", () => {
@@ -37,4 +50,16 @@ describe("home keyboard accessibility helpers", () => {
     expect(isListRowOpenKey("Spacebar")).toBe(true);
     expect(isListRowOpenKey("ArrowDown")).toBe(false);
   });
+
+  itReq(
+    ["U3.7", "U15.2"],
+    "opens council cards from the card surface while ignoring nested menu controls",
+    () => {
+      expect(isCardOpenInteractionTarget(createClosestTarget([]))).toBe(true);
+      expect(isCardOpenInteractionTarget(createClosestTarget(["button"]))).toBe(false);
+      expect(isCardOpenInteractionTarget(createClosestTarget(["summary"]))).toBe(false);
+      expect(isCardOpenInteractionTarget(createClosestTarget(["details"]))).toBe(false);
+      expect(isCardOpenInteractionTarget(null)).toBe(false);
+    },
+  );
 });

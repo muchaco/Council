@@ -1,11 +1,11 @@
 {
-  "generatedAtUtc": "2026-03-07T20:09:46.947Z",
+  "generatedAtUtc": "2026-03-07T21:44:34.985Z",
   "summary": {
     "specFilesTracked": 31,
-    "testCasesTracked": 167,
-    "annotatedTestCases": 167,
+    "testCasesTracked": 169,
+    "annotatedTestCases": 169,
     "unmappedTestCases": 0,
-    "mappedRequirementIds": 168
+    "mappedRequirementIds": 169
   },
   "entries": [
     {
@@ -2648,6 +2648,13 @@
           "source": "itReq"
         },
         {
+          "name": "maps toast levels to renderer toast variants",
+          "requirementIds": [
+            "U2.6"
+          ],
+          "source": "itReq"
+        },
+        {
           "name": "normalizes council config tags from draft text",
           "requirementIds": [
             "U10.11"
@@ -2693,8 +2700,8 @@
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 11,
-      "totalTestCount": 11
+      "itReqInvocationCount": 12,
+      "totalTestCount": 12
     },
     {
       "filePath": "tests/unit/council-runtime-conductor.spec.ts",
@@ -3139,11 +3146,19 @@
             "U15.2"
           ],
           "source": "itReq"
+        },
+        {
+          "name": "opens council cards from the card surface while ignoring nested menu controls",
+          "requirementIds": [
+            "U15.2",
+            "U3.7"
+          ],
+          "source": "itReq"
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 5,
-      "totalTestCount": 5
+      "itReqInvocationCount": 6,
+      "totalTestCount": 6
     },
     {
       "filePath": "tests/unit/ids.spec.ts",

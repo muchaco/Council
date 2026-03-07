@@ -99,7 +99,12 @@ describe("provider ai service", () => {
     );
 
     expect(result.isErr()).toBe(true);
-    expect(result._unsafeUnwrapErr()).toBe("ProviderError");
+    expect(result._unsafeUnwrapErr()).toEqual({
+      kind: "ProviderError",
+      message: "Failed to load API key from keychain",
+      providerId: "gemini",
+      modelId: "gemini-1.5-flash",
+    });
   });
 
   itReq(

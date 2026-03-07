@@ -1,76 +1,109 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { type ToastLevel, type ToastState, upsertToast } from "../shared/app-ui-helpers";
+import { useCallback, useEffect, useRef } from "react";
+import { toast } from "sonner";
+import {
+  type ToastLevel,
+  type ToastState,
+  resolveToastVariant,
+  upsertToast,
+} from "../shared/app-ui-helpers";
 
-export type { ToastLevel, ToastState } from "../shared/app-ui-helpers";
+export type { ToastLevel } from "../shared/app-ui-helpers";
 
 const TOAST_TIMEOUT_MS = 4200;
 const MAX_TOASTS = 4;
 
+const dismissToast = (id: string): void => {
+  toast.dismiss(id);
+};
+
+const showToast = (toastState: ToastState): void => {
+  const options = {
+    id: toastState.id,
+    duration: TOAST_TIMEOUT_MS,
+  } as const;
+
+  switch (resolveToastVariant(toastState.level)) {
+    case "warning":
+      toast.warning(toastState.message, options);
+      return;
+    case "error":
+      toast.error(toastState.message, options);
+      return;
+    case "default":
+      toast(toastState.message, options);
+  }
+};
+
 export const useToastQueue = (): {
-  toasts: ReadonlyArray<ToastState>;
   pushToast: (level: ToastLevel, message: string) => void;
 } => {
-  const [toasts, setToasts] = useState<ReadonlyArray<ToastState>>([]);
+  const activeToasts = useRef<ReadonlyArray<ToastState>>([]);
   const toastTimers = useRef(new Map<string, number>());
   const nextToastId = useRef(0);
 
-  const pushToast = useCallback((level: ToastLevel, message: string): void => {
-    const id = `toast-${nextToastId.current}`;
-    nextToastId.current += 1;
+  const removeToast = useCallback((id: string): void => {
+    const timer = toastTimers.current.get(id);
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+      toastTimers.current.delete(id);
+    }
 
-    setToasts((current) => {
-      const existingToast = current.find(
-        (toast) => toast.level === level && toast.message === message,
+    activeToasts.current = activeToasts.current.filter((toastState) => toastState.id !== id);
+    dismissToast(id);
+  }, []);
+
+  const pushToast = useCallback(
+    (level: ToastLevel, message: string): void => {
+      const id = `toast-${nextToastId.current}`;
+      nextToastId.current += 1;
+
+      const existingToast = activeToasts.current.find(
+        (toastState) => toastState.level === level && toastState.message === message.trim(),
       );
       if (existingToast !== undefined) {
-        const existingTimer = toastTimers.current.get(existingToast.id);
-        if (existingTimer !== undefined) {
-          window.clearTimeout(existingTimer);
-          toastTimers.current.delete(existingToast.id);
-        }
+        removeToast(existingToast.id);
       }
 
       const nextToasts = upsertToast({
-        toasts: current,
+        toasts: activeToasts.current,
         level,
         message,
         id,
         maxToasts: MAX_TOASTS,
       });
 
-      const retainedIds = new Set(nextToasts.map((toast) => toast.id));
-      for (const [toastId, timer] of toastTimers.current.entries()) {
-        if (!retainedIds.has(toastId)) {
-          window.clearTimeout(timer);
-          toastTimers.current.delete(toastId);
+      const retainedIds = new Set(nextToasts.map((toastState) => toastState.id));
+      for (const toastState of activeToasts.current) {
+        if (!retainedIds.has(toastState.id)) {
+          removeToast(toastState.id);
         }
       }
 
-      const insertedToast = nextToasts.find((toast) => toast.id === id);
+      const insertedToast = nextToasts.find((toastState) => toastState.id === id);
+      activeToasts.current = nextToasts;
       if (insertedToast === undefined) {
-        return nextToasts;
+        return;
       }
 
+      showToast(insertedToast);
+
       const timer = window.setTimeout(() => {
-        setToasts((latest) => latest.filter((toast) => toast.id !== id));
-        toastTimers.current.delete(id);
+        removeToast(id);
       }, TOAST_TIMEOUT_MS);
       toastTimers.current.set(id, timer);
-      return nextToasts;
-    });
-  }, []);
+    },
+    [removeToast],
+  );
 
   useEffect(() => {
     return () => {
-      for (const timer of toastTimers.current.values()) {
-        window.clearTimeout(timer);
+      for (const id of toastTimers.current.keys()) {
+        removeToast(id);
       }
-      toastTimers.current.clear();
     };
-  }, []);
+  }, [removeToast]);
 
   return {
-    toasts,
     pushToast,
   };
 };

@@ -17,6 +17,8 @@ export type ToastState = {
   message: string;
 };
 
+export type ToastVariant = "default" | "warning" | "error";
+
 export type AutopilotLimitModalState = {
   action: AutopilotLimitModalAction;
   limitTurns: boolean;
@@ -196,6 +198,17 @@ export const upsertToast = (params: {
   }
 
   return withInserted.slice(withInserted.length - params.maxToasts);
+};
+
+export const resolveToastVariant = (level: ToastLevel): ToastVariant => {
+  switch (level) {
+    case "warning":
+      return "warning";
+    case "error":
+      return "error";
+    case "info":
+      return "default";
+  }
 };
 
 export const parseCouncilConfigTags = (draftValue: string): ReadonlyArray<string> =>

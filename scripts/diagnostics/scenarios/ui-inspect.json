@@ -2,11 +2,108 @@
   "name": "ui-inspect",
   "steps": [
     { "action": "waitForText", "text": "Council" },
+    {
+      "action": "evaluate",
+      "saveAs": "seedVisualInspectData",
+      "expression": "async () => { const settings = await window.api.settings.getView({ viewKind: 'settings' }); const modelEntry = settings.ok ? Object.entries(settings.value.modelCatalog.modelsByProvider).find(([, models]) => Array.isArray(models) && models.length > 0) : undefined; const modelRefOrNull = modelEntry === undefined ? null : { providerId: modelEntry[0], modelId: modelEntry[1][0] }; const agentSave = await window.api.agents.save({ viewKind: 'agentEdit', id: null, name: `UI Inspect Agent ${Date.now()}`, systemPrompt: 'Scenario helper agent.', verbosity: null, temperature: null, tags: ['inspect'], modelRefOrNull }); if (!agentSave.ok) { return false; } const archivedCouncil = await window.api.councils.save({ viewKind: 'councilCreate', id: null, title: `UI Inspect Archived Council ${Date.now()}`, topic: 'Validate archived visual treatment', goal: 'Check archived cards stay interactive-looking', mode: 'manual', tags: ['inspect'], memberAgentIds: [agentSave.value.agent.id], memberColorsByAgentId: {}, conductorModelRefOrNull: null }); if (!archivedCouncil.ok) { return false; } const archiveResult = await window.api.councils.setArchived({ id: archivedCouncil.value.council.id, archived: true }); if (!archiveResult.ok) { return false; } const activeCouncil = await window.api.councils.save({ viewKind: 'councilCreate', id: null, title: `UI Inspect Active Council ${Date.now()}`, topic: 'Validate council view refresh controls', goal: 'Check shared compact refresh button styling', mode: 'manual', tags: ['inspect'], memberAgentIds: [agentSave.value.agent.id], memberColorsByAgentId: {}, conductorModelRefOrNull: null }); return activeCouncil.ok; }"
+    },
+    { "action": "assertSaved", "key": "seedVisualInspectData", "equals": true },
+    { "action": "click", "selector": "button:has-text('Settings')" },
+    { "action": "waitForText", "text": "Providers" },
+    { "action": "click", "selector": "button:has-text('General')" },
+    {
+      "action": "evaluate",
+      "saveAs": "settingsRefreshButtonPresent",
+      "expression": "() => document.querySelector('button[aria-label=\"Refresh global model options\"]') instanceof HTMLButtonElement"
+    },
+    { "action": "assertSaved", "key": "settingsRefreshButtonPresent", "equals": true },
     { "action": "click", "selector": "button:has-text('Agents')" },
     { "action": "waitForText", "text": "New Agent" },
+    {
+      "action": "evaluate",
+      "saveAs": "agentsLoadingCopyHidden",
+      "expression": "() => !document.body.textContent?.includes('Loading agents...')"
+    },
+    { "action": "assertSaved", "key": "agentsLoadingCopyHidden", "equals": true },
+    {
+      "action": "evaluate",
+      "saveAs": "agentMenuInHeader",
+      "expression": "() => document.querySelector('.agent-card-header .agent-actions-menu') instanceof HTMLDetailsElement"
+    },
+    { "action": "assertSaved", "key": "agentMenuInHeader", "equals": true },
     { "action": "screenshot", "file": "agents-list.png", "fullPage": true },
+    { "action": "click", "selector": "button:has-text('New Agent')" },
+    {
+      "action": "evaluate",
+      "saveAs": "agentEditorRefreshButtonPresent",
+      "expression": "() => document.querySelector('button[aria-label=\"Refresh agent model options\"]') instanceof HTMLButtonElement"
+    },
+    { "action": "assertSaved", "key": "agentEditorRefreshButtonPresent", "equals": true },
+    {
+      "action": "evaluate",
+      "saveAs": "agentEditorStyledShellPresent",
+      "expression": "() => document.querySelector('main.shell .settings-section') instanceof HTMLElement"
+    },
+    { "action": "assertSaved", "key": "agentEditorStyledShellPresent", "equals": true },
+    { "action": "screenshot", "file": "agent-editor.png", "fullPage": true },
+    { "action": "click", "selector": "button:has-text('Back')" },
     { "action": "click", "selector": "button:has-text('Councils')" },
     { "action": "waitForText", "text": "New Council" },
-    { "action": "screenshot", "file": "councils-list.png", "fullPage": true }
+    {
+      "action": "evaluate",
+      "saveAs": "councilsLoadingCopyHidden",
+      "expression": "() => !document.body.textContent?.includes('Loading councils...')"
+    },
+    { "action": "assertSaved", "key": "councilsLoadingCopyHidden", "equals": true },
+    {
+      "action": "evaluate",
+      "saveAs": "archivedCardOpacity",
+      "expression": "() => { const archivedBadge = Array.from(document.querySelectorAll('*')).find((node) => node.textContent?.trim() === 'Archived'); const card = archivedBadge instanceof HTMLElement ? archivedBadge.closest('.home-list-card') : null; return card instanceof HTMLElement ? getComputedStyle(card).opacity : null; }"
+    },
+    { "action": "assertSaved", "key": "archivedCardOpacity", "equals": "1" },
+    {
+      "action": "evaluate",
+      "saveAs": "archivedBadgeHasIcon",
+      "expression": "() => { const archivedBadge = document.querySelector('.council-card-status-badge-archived'); return archivedBadge instanceof HTMLElement ? archivedBadge.querySelector('svg') instanceof SVGElement : false; }"
+    },
+    { "action": "assertSaved", "key": "archivedBadgeHasIcon", "equals": true },
+    {
+      "action": "evaluate",
+      "saveAs": "openCouncilButtonRemoved",
+      "expression": "() => !Array.from(document.querySelectorAll('button')).some((node) => node.textContent?.trim() === 'Open Council')"
+    },
+    { "action": "assertSaved", "key": "openCouncilButtonRemoved", "equals": true },
+    { "action": "screenshot", "file": "councils-list.png", "fullPage": true },
+    { "action": "click", "selector": "button:has-text('New Council')" },
+    {
+      "action": "evaluate",
+      "saveAs": "councilEditorRefreshButtonPresent",
+      "expression": "() => document.querySelector('button[aria-label=\"Refresh council conductor model options\"]') instanceof HTMLButtonElement"
+    },
+    { "action": "assertSaved", "key": "councilEditorRefreshButtonPresent", "equals": true },
+    {
+      "action": "evaluate",
+      "saveAs": "councilEditorStyledShellPresent",
+      "expression": "() => document.querySelector('main.shell .settings-section') instanceof HTMLElement"
+    },
+    { "action": "assertSaved", "key": "councilEditorStyledShellPresent", "equals": true },
+    { "action": "screenshot", "file": "council-editor.png", "fullPage": true },
+    { "action": "click", "selector": "button:has-text('Back')" },
+    {
+      "action": "evaluate",
+      "expression": "() => { const card = Array.from(document.querySelectorAll('.council-card')).find((node) => node.textContent?.includes('UI Inspect Active Council')); if (card instanceof HTMLElement) { card.click(); } }"
+    },
+    { "action": "waitForText", "text": "Discussion" },
+    { "action": "click", "selector": "button:has-text('Config')" },
+    {
+      "action": "click",
+      "selector": "button[aria-label='Edit conductor model']"
+    },
+    {
+      "action": "evaluate",
+      "saveAs": "councilViewRefreshButtonPresent",
+      "expression": "() => document.querySelector('button[aria-label=\"Refresh council conductor model options\"]') instanceof HTMLButtonElement"
+    },
+    { "action": "assertSaved", "key": "councilViewRefreshButtonPresent", "equals": true }
   ]
 }

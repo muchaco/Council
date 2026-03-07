@@ -4,7 +4,10 @@
     { "action": "waitForText", "text": "Council" },
     { "action": "click", "selector": "button:has-text('Councils')" },
     { "action": "waitForText", "text": "New Council" },
-    { "action": "click", "selector": "button:has-text('Open Council')" },
+    {
+      "action": "evaluate",
+      "expression": "() => { const card = document.querySelector('.council-card'); if (card instanceof HTMLElement) { card.click(); } }"
+    },
     { "action": "waitForText", "text": "Back" },
     { "action": "screenshot", "file": "council-view-color-picker.png", "fullPage": true }
   ]
