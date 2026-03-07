@@ -7,6 +7,7 @@ import type {
   ListAgentsResponse,
   RefreshModelCatalogResponse,
   SaveAgentResponse,
+  SetAgentArchivedResponse,
 } from "../../../shared/ipc/dto.js";
 import {
   DELETE_AGENT_REQUEST_SCHEMA,
@@ -14,6 +15,7 @@ import {
   LIST_AGENTS_REQUEST_SCHEMA,
   REFRESH_MODEL_CATALOG_REQUEST_SCHEMA,
   SAVE_AGENT_REQUEST_SCHEMA,
+  SET_AGENT_ARCHIVED_REQUEST_SCHEMA,
 } from "../../../shared/ipc/validators.js";
 import type { AgentsSlice } from "./slice.js";
 
@@ -57,6 +59,7 @@ export const createAgentsIpcHandlers = (slice: AgentsSlice) => ({
         webContentsId,
         searchText: parsed.data.searchText,
         tagFilter: parsed.data.tagFilter,
+        archivedFilter: parsed.data.archivedFilter,
         sortBy: parsed.data.sortBy,
         sortDirection: parsed.data.sortDirection,
         page: parsed.data.page,
@@ -105,6 +108,24 @@ export const createAgentsIpcHandlers = (slice: AgentsSlice) => ({
     }
 
     return toIpcResult(slice.deleteAgent({ id: parsed.data.id }));
+  },
+
+  setArchived: async (
+    payload: unknown,
+    webContentsId: number,
+  ): Promise<IpcResult<SetAgentArchivedResponse>> => {
+    const parsed = SET_AGENT_ARCHIVED_REQUEST_SCHEMA.safeParse(payload);
+    if (!parsed.success) {
+      return toValidationFailure("Invalid setAgentArchived payload.");
+    }
+
+    return toIpcResult(
+      slice.setArchived({
+        webContentsId,
+        id: parsed.data.id,
+        archived: parsed.data.archived,
+      }),
+    );
   },
 
   refreshModelCatalog: async (

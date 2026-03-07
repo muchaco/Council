@@ -3,19 +3,22 @@
     "ok": true,
     "value": {
       "agent": {
-        "id": "de45b273-8363-469e-869d-fc7cacef1f73",
-        "name": "Smoke Agent 1771434254684",
+        "id": "90dbba0b-eec7-4382-a064-2a664804bcdc",
+        "name": "Smoke Agent 1772927695776",
         "systemPrompt": "You are a helpful planner.",
         "verbosity": null,
         "temperature": null,
-        "tags": ["smoke"],
+        "tags": [
+          "smoke"
+        ],
         "modelRefOrNull": {
           "providerId": "gemini",
-          "modelId": "gemini-1.5-flash"
+          "modelId": "gemini-2.5-flash"
         },
         "invalidConfig": false,
-        "createdAtUtc": "2026-02-18T17:04:14.690Z",
-        "updatedAtUtc": "2026-02-18T17:04:14.690Z"
+        "archived": false,
+        "createdAtUtc": "2026-03-07T23:54:55.786Z",
+        "updatedAtUtc": "2026-03-07T23:54:55.786Z"
       }
     }
   },
@@ -24,92 +27,231 @@
     "value": {
       "items": [
         {
-          "id": "de45b273-8363-469e-869d-fc7cacef1f73",
-          "name": "Smoke Agent 1771434254684",
+          "id": "90dbba0b-eec7-4382-a064-2a664804bcdc",
+          "name": "Smoke Agent 1772927695776",
           "systemPrompt": "You are a helpful planner.",
           "verbosity": null,
           "temperature": null,
-          "tags": ["smoke"],
+          "tags": [
+            "smoke"
+          ],
           "modelRefOrNull": {
             "providerId": "gemini",
-            "modelId": "gemini-1.5-flash"
+            "modelId": "gemini-2.5-flash"
           },
           "invalidConfig": false,
-          "createdAtUtc": "2026-02-18T17:04:14.690Z",
-          "updatedAtUtc": "2026-02-18T17:04:14.690Z"
+          "archived": false,
+          "createdAtUtc": "2026-03-07T23:54:55.786Z",
+          "updatedAtUtc": "2026-03-07T23:54:55.786Z"
         },
         {
-          "id": "6c46d25a-26a0-42ac-a0f1-31b794c4497c",
-          "name": "Smoke Agent 1771434144671",
-          "systemPrompt": "You are a helpful planner.",
+          "id": "ecded0fa-3fa7-4232-b4fe-728d900d1244",
+          "name": "UI Inspect Agent 1772918595870",
+          "systemPrompt": "Scenario helper agent.",
           "verbosity": null,
           "temperature": null,
-          "tags": ["smoke"],
+          "tags": [
+            "inspect"
+          ],
           "modelRefOrNull": {
             "providerId": "gemini",
-            "modelId": "gemini-1.5-flash"
+            "modelId": "gemini-2.5-flash"
           },
           "invalidConfig": false,
-          "createdAtUtc": "2026-02-18T17:02:24.675Z",
-          "updatedAtUtc": "2026-02-18T17:02:24.675Z"
+          "archived": false,
+          "createdAtUtc": "2026-03-07T21:23:15.897Z",
+          "updatedAtUtc": "2026-03-07T21:23:15.897Z"
         },
         {
-          "id": "4f57a672-3158-41d3-8873-5550e1670919",
-          "name": "Council Member 1771433993732",
-          "systemPrompt": "You are a focused contributor.",
+          "id": "50015b0f-f5e2-4805-92e9-847c7c495ba8",
+          "name": "UI Inspect Agent 1772916859993",
+          "systemPrompt": "Scenario helper agent.",
           "verbosity": null,
           "temperature": null,
-          "tags": ["diag"],
+          "tags": [
+            "inspect"
+          ],
           "modelRefOrNull": {
             "providerId": "gemini",
-            "modelId": "gemini-1.5-flash"
+            "modelId": "gemini-2.5-flash"
           },
           "invalidConfig": false,
-          "createdAtUtc": "2026-02-18T16:59:53.738Z",
-          "updatedAtUtc": "2026-02-18T16:59:53.738Z"
+          "archived": false,
+          "createdAtUtc": "2026-03-07T20:54:20.006Z",
+          "updatedAtUtc": "2026-03-07T20:54:20.006Z"
         },
         {
-          "id": "0dbbf130-336e-493d-827a-f088575f1694",
-          "name": "Council Member",
-          "systemPrompt": "You are a focused contributor.",
+          "id": "111f718e-23b1-4549-8e16-04884e04a16b",
+          "name": "UI Inspect Agent 1772916780715",
+          "systemPrompt": "Scenario helper agent.",
           "verbosity": null,
           "temperature": null,
-          "tags": [],
+          "tags": [
+            "inspect"
+          ],
           "modelRefOrNull": {
             "providerId": "gemini",
-            "modelId": "gemini-1.5-flash"
+            "modelId": "gemini-2.5-flash"
           },
           "invalidConfig": false,
-          "createdAtUtc": "2026-02-18T16:58:31.348Z",
-          "updatedAtUtc": "2026-02-18T16:58:31.348Z"
+          "archived": false,
+          "createdAtUtc": "2026-03-07T20:53:00.724Z",
+          "updatedAtUtc": "2026-03-07T20:53:00.724Z"
         },
         {
-          "id": "eca06387-4309-4417-ab56-f8f2980d37ea",
-          "name": "Smoke Agent",
-          "systemPrompt": "You are a helpful planner.",
+          "id": "de11d814-c1eb-4442-aaae-dc9cc5ade595",
+          "name": "UI Inspect Agent 1772916726109",
+          "systemPrompt": "Scenario helper agent.",
           "verbosity": null,
           "temperature": null,
-          "tags": [],
+          "tags": [
+            "inspect"
+          ],
           "modelRefOrNull": {
             "providerId": "gemini",
-            "modelId": "gemini-1.5-flash"
+            "modelId": "gemini-2.5-flash"
           },
           "invalidConfig": false,
-          "createdAtUtc": "2026-02-18T16:15:12.104Z",
-          "updatedAtUtc": "2026-02-18T16:15:12.104Z"
+          "archived": false,
+          "createdAtUtc": "2026-03-07T20:52:06.121Z",
+          "updatedAtUtc": "2026-03-07T20:52:06.121Z"
+        },
+        {
+          "id": "18bb33c0-5837-4d3b-9272-4dcf8b047ba6",
+          "name": "UI Inspect Agent 1772916636097",
+          "systemPrompt": "Scenario helper agent.",
+          "verbosity": null,
+          "temperature": null,
+          "tags": [
+            "inspect"
+          ],
+          "modelRefOrNull": {
+            "providerId": "gemini",
+            "modelId": "gemini-2.5-flash"
+          },
+          "invalidConfig": false,
+          "archived": false,
+          "createdAtUtc": "2026-03-07T20:50:36.105Z",
+          "updatedAtUtc": "2026-03-07T20:50:36.105Z"
+        },
+        {
+          "id": "326a5a8c-3d2c-462d-b30e-a4b42f07760e",
+          "name": "UI Inspect Agent 1772916596148",
+          "systemPrompt": "Scenario helper agent.",
+          "verbosity": null,
+          "temperature": null,
+          "tags": [
+            "inspect"
+          ],
+          "modelRefOrNull": {
+            "providerId": "gemini",
+            "modelId": "gemini-2.5-flash"
+          },
+          "invalidConfig": false,
+          "archived": false,
+          "createdAtUtc": "2026-03-07T20:49:56.166Z",
+          "updatedAtUtc": "2026-03-07T20:49:56.166Z"
+        },
+        {
+          "id": "040d4c4d-4538-4b3b-bb53-777c4174836b",
+          "name": "Garrett Lisi",
+          "systemPrompt": "You are Garrett Lisi, a theoretical physicist who proposed the E8 Theory of Everything based on an exceptional Lie group. You believe the universe has a deep geometric structure and that all forces and particles emerge from a single beautiful mathematical object. You prefer 4-8 medium-length sentences. Be thoughtful and geometric in your reasoning. You see connections between algebra, geometry, and physics, and believe simplicity and mathematical beauty point toward truth.",
+          "verbosity": null,
+          "temperature": 0.7,
+          "tags": [
+            "physicist",
+            "geometry",
+            "e8-theory"
+          ],
+          "modelRefOrNull": null,
+          "invalidConfig": false,
+          "archived": false,
+          "createdAtUtc": "2026-02-20T10:59:24.675Z",
+          "updatedAtUtc": "2026-02-20T10:59:24.675Z"
+        },
+        {
+          "id": "5618fd6c-6f26-4d6b-8a1a-f896b52b8cde",
+          "name": "Brian Cox",
+          "systemPrompt": "You are Brian Cox, a physicist and science communicator known for making complex concepts accessible. You focus on observable phenomena and the connection between theory and experiment. You are enthusiastic but grounded, emphasizing what we actually know versus what we speculate. You prefer 4-8 medium-length sentences. Be approachable and explain clearly. You often bridge the gap between abstract mathematics and physical reality, asking how we might test these ideas.",
+          "verbosity": null,
+          "temperature": 0.6,
+          "tags": [
+            "physicist",
+            "communicator",
+            "phenomenology"
+          ],
+          "modelRefOrNull": null,
+          "invalidConfig": false,
+          "archived": false,
+          "createdAtUtc": "2026-02-20T10:59:24.144Z",
+          "updatedAtUtc": "2026-02-20T10:59:24.144Z"
+        },
+        {
+          "id": "14df1d6c-6af0-4d47-8c19-b226dece5a10",
+          "name": "Michio Kaku",
+          "systemPrompt": "You are Michio Kaku, a theoretical physicist and futurist known for enthusiasm about string theory and the multiverse. You are optimistic, visionary, and speak about the grand unification of forces and higher dimensions. You see beauty in mathematical elegance and believe deeper symmetries reveal nature. You prefer 4-8 medium-length sentences. Be warm and engaging while defending theoretical frameworks. You often reference the music of strings vibrating in higher dimensions. You believe mathematics is the language of the universe.",
+          "verbosity": null,
+          "temperature": 0.8,
+          "tags": [
+            "physicist",
+            "string-theory",
+            "visionary"
+          ],
+          "modelRefOrNull": null,
+          "invalidConfig": false,
+          "archived": false,
+          "createdAtUtc": "2026-02-20T10:59:23.609Z",
+          "updatedAtUtc": "2026-02-20T10:59:23.609Z"
         }
       ],
       "page": 1,
       "pageSize": 10,
-      "total": 5,
-      "hasMore": false,
+      "total": 11,
+      "hasMore": true,
       "modelCatalog": {
-        "snapshotId": "ba95eae2-e45a-4fb6-8e83-e554594c7a86",
+        "snapshotId": "461fbbab-7a71-47e3-8ca0-d5b6372d5c62",
         "modelsByProvider": {
-          "gemini": ["gemini-1.5-flash", "gemini-1.5-pro"]
+          "gemini": [
+            "gemini-2.5-flash",
+            "gemini-2.5-pro",
+            "gemini-2.0-flash",
+            "gemini-2.0-flash-001",
+            "gemini-2.0-flash-lite-001",
+            "gemini-2.0-flash-lite",
+            "gemini-exp-1206",
+            "gemini-2.5-flash-preview-tts",
+            "gemini-2.5-pro-preview-tts",
+            "gemma-3-1b-it",
+            "gemma-3-4b-it",
+            "gemma-3-12b-it",
+            "gemma-3-27b-it",
+            "gemma-3n-e4b-it",
+            "gemma-3n-e2b-it",
+            "gemini-flash-latest",
+            "gemini-flash-lite-latest",
+            "gemini-pro-latest",
+            "gemini-2.5-flash-lite",
+            "gemini-2.5-flash-image",
+            "gemini-2.5-flash-preview-09-2025",
+            "gemini-2.5-flash-lite-preview-09-2025",
+            "gemini-3-pro-preview",
+            "gemini-3-flash-preview",
+            "gemini-3-pro-image-preview",
+            "nano-banana-pro-preview",
+            "gemini-robotics-er-1.5-preview",
+            "gemini-2.5-computer-use-preview-10-2025",
+            "deep-research-pro-preview-12-2025"
+          ],
+          "ollama": [
+            "smollm:135m",
+            "all-minilm:latest"
+          ]
         }
       },
-      "globalDefaultModelRef": null
+      "globalDefaultModelRef": {
+        "providerId": "gemini",
+        "modelId": "gemini-2.5-flash"
+      }
     }
   }
 }

@@ -64,6 +64,19 @@ Confidence scale: **1.00** = fully specified and testable, **0.85** = minor deta
 - **R1.18** Free-text search is case-insensitive substring match across: Name, System Prompt. **[0.95]**
 - **R1.19** User can sort Agents by creation date and modification date, asc/desc. **[0.95]**
 
+### 1.7 Archive and Read-Only Semantics (Agents)
+- **R1.20** User can archive an Agent. **[0.95]**
+- **R1.21** Archived Agents remain visible in the Agents list by default, with a clear Archived indicator. **[0.95]**
+- **R1.22** User can filter Agents by archived status: Active only, Archived only, All. **[0.95]**
+- **R1.23** Archived Agents are fully read-only:
+  - Cannot modify Agent fields
+  - Cannot be newly added to Councils
+  **[0.95]**
+- **R1.24** User can restore an archived Agent, making it active and editable again. **[0.95]**
+- **R1.25** Archive/Restore for Agents does not require confirmation. **[0.95]**
+- **R1.26** Councils that reference archived Agents remain visible and historically intact, but runtime actions that require archived members to participate must be blocked until those Agents are restored or removed when allowed. **[0.95]**
+- **R1.27** Agent list filtering supports tags, free-text search, and archived status together. **[0.95]**
+
 ---
 
 ## 2. Councils

@@ -135,6 +135,7 @@ This document defines user-facing UX behavior for Council. It complements the Fu
 - **U4.2** Controls at the top:
   - Search input (Name + System Prompt substring match)
   - Tag filter input (exact match, case-insensitive)
+  - Archived status filter (Active only, Archived only, All)
   - Sort (Created, Modified asc/desc)
   - Primary CTA: "New Agent"
   - No "Refresh models" action in Agents list top controls
@@ -145,6 +146,10 @@ This document defines user-facing UX behavior for Council. It complements the Fu
 
 ### 4.4 Empty state
 - **U4.4** Empty state shows message + primary CTA "Create Agent". No templates. **[1.00]**
+
+### 4.5 Archived behavior
+- **U4.5** Archived Agents remain in the list with a visible Archived badge and are not visually dimmed into looking disabled or deleted. **[1.00]**
+- **U4.6** Agent card overflow menu (`...`) includes Archive/Restore action in addition to Edit and Delete. **[1.00]**
 
 ---
 
@@ -216,6 +221,11 @@ This document defines user-facing UX behavior for Council. It complements the Fu
 - **U6.8** If Agent is referenced by any Council, delete is blocked and a warning is shown instead of confirmation dialog. **[1.00]**
 - **U6.9** Otherwise, delete requires confirmation dialog. **[1.00]**
 - **U6.10** Agent create/edit shows the same compact icon "Refresh models" action adjacent to the Model selector so users can refresh that view's model options in place. **[0.90]**
+
+### 6.5 Archived behavior
+- **U6.11** Agent edit view exposes Archive/Restore action for existing Agents without a confirmation dialog. **[1.00]**
+- **U6.12** When an Agent is archived, the form remains visible but read-only, and a clear archived message is shown. **[1.00]**
+- **U6.13** Restoring an archived Agent re-enables editing immediately in the same view. **[1.00]**
 
 ---
 

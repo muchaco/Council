@@ -19,6 +19,13 @@ const FILE_REQUIREMENT_IDS = [
   "R1.17",
   "R1.18",
   "R1.19",
+  "R1.20",
+  "R1.21",
+  "R1.22",
+  "R1.23",
+  "R1.24",
+  "R1.25",
+  "R1.27",
   "R6.1",
   "R6.2",
   "R6.3",
@@ -27,10 +34,15 @@ const FILE_REQUIREMENT_IDS = [
   "U4.2",
   "U4.3",
   "U4.4",
+  "U4.5",
+  "U4.6",
   "U6.1",
   "U6.2",
   "U6.4",
   "U6.6",
+  "U6.11",
+  "U6.12",
+  "U6.13",
 ] as const;
 
 const createSlice = () => {
@@ -93,6 +105,7 @@ describe("agents handlers", () => {
       webContentsId: 10,
       searchText: "",
       tagFilter: "",
+      archivedFilter: "all",
       sortBy: "createdAt",
       sortDirection: "asc",
       page: 1,
@@ -105,6 +118,7 @@ describe("agents handlers", () => {
       webContentsId: 10,
       searchText: "",
       tagFilter: "",
+      archivedFilter: "all",
       sortBy: "createdAt",
       sortDirection: "asc",
       page: 2,
@@ -147,6 +161,7 @@ describe("agents handlers", () => {
       webContentsId: 11,
       searchText: "plan",
       tagFilter: "",
+      archivedFilter: "all",
       sortBy: "updatedAt",
       sortDirection: "desc",
       page: 1,
@@ -159,6 +174,7 @@ describe("agents handlers", () => {
       webContentsId: 11,
       searchText: "",
       tagFilter: "RESEARCH",
+      archivedFilter: "all",
       sortBy: "updatedAt",
       sortDirection: "desc",
       page: 1,
@@ -245,6 +261,7 @@ describe("agents handlers", () => {
       webContentsId: 13,
       searchText: "",
       tagFilter: "",
+      archivedFilter: "all",
       sortBy: "updatedAt",
       sortDirection: "desc",
       page: 1,
@@ -305,5 +322,113 @@ describe("agents handlers", () => {
     const deleted = await slice.deleteAgent({ id: saved.value.agent.id });
     expect(deleted.isErr()).toBe(true);
     expect(deleted._unsafeUnwrapErr().kind).toBe("ConflictError");
+  });
+
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "archives and restores agent while preserving list visibility and filtering",
+    async () => {
+      const slice = createSlice();
+      const saved = await slice.saveAgent({
+        webContentsId: 15,
+        draft: {
+          viewKind: "agentEdit",
+          id: null,
+          name: "Archivist",
+          systemPrompt: "Keeps records",
+          verbosity: null,
+          temperature: null,
+          tags: ["ops"],
+          modelRefOrNull: null,
+        },
+      });
+      expect(saved.isOk()).toBe(true);
+      if (saved.isErr()) {
+        return;
+      }
+
+      const archived = await slice.setArchived({
+        webContentsId: 15,
+        id: saved.value.agent.id,
+        archived: true,
+      });
+      expect(archived.isOk()).toBe(true);
+      expect(archived._unsafeUnwrap().agent.archived).toBe(true);
+
+      const archivedOnly = await slice.listAgents({
+        webContentsId: 15,
+        searchText: "",
+        tagFilter: "",
+        archivedFilter: "archived",
+        sortBy: "updatedAt",
+        sortDirection: "desc",
+        page: 1,
+      });
+      expect(archivedOnly.isOk()).toBe(true);
+      expect(archivedOnly._unsafeUnwrap().items).toHaveLength(1);
+
+      const activeOnly = await slice.listAgents({
+        webContentsId: 15,
+        searchText: "",
+        tagFilter: "",
+        archivedFilter: "active",
+        sortBy: "updatedAt",
+        sortDirection: "desc",
+        page: 1,
+      });
+      expect(activeOnly.isOk()).toBe(true);
+      expect(activeOnly._unsafeUnwrap().items).toHaveLength(0);
+
+      const restored = await slice.setArchived({
+        webContentsId: 15,
+        id: saved.value.agent.id,
+        archived: false,
+      });
+      expect(restored.isOk()).toBe(true);
+      expect(restored._unsafeUnwrap().agent.archived).toBe(false);
+    },
+  );
+
+  itReq(FILE_REQUIREMENT_IDS, "blocks editing archived agent until restored", async () => {
+    const slice = createSlice();
+    const saved = await slice.saveAgent({
+      webContentsId: 16,
+      draft: {
+        viewKind: "agentEdit",
+        id: null,
+        name: "Readonly",
+        systemPrompt: "Original",
+        verbosity: null,
+        temperature: null,
+        tags: [],
+        modelRefOrNull: null,
+      },
+    });
+    expect(saved.isOk()).toBe(true);
+    if (saved.isErr()) {
+      return;
+    }
+
+    await slice.setArchived({
+      webContentsId: 16,
+      id: saved.value.agent.id,
+      archived: true,
+    });
+
+    const edited = await slice.saveAgent({
+      webContentsId: 16,
+      draft: {
+        viewKind: "agentEdit",
+        id: saved.value.agent.id,
+        name: "Readonly",
+        systemPrompt: "Changed",
+        verbosity: null,
+        temperature: null,
+        tags: [],
+        modelRefOrNull: null,
+      },
+    });
+    expect(edited.isErr()).toBe(true);
+    expect(edited._unsafeUnwrapErr().kind).toBe("StateViolationError");
   });
 });

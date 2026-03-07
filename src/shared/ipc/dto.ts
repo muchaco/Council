@@ -116,6 +116,9 @@ export type SetContextLastNResponse = {
 export const AGENT_SORT_FIELDS = ["createdAt", "updatedAt"] as const;
 export type AgentSortField = (typeof AGENT_SORT_FIELDS)[number];
 
+export const AGENT_ARCHIVED_FILTERS = ["active", "archived", "all"] as const;
+export type AgentArchivedFilter = (typeof AGENT_ARCHIVED_FILTERS)[number];
+
 export const SORT_DIRECTIONS = ["asc", "desc"] as const;
 export type SortDirection = (typeof SORT_DIRECTIONS)[number];
 
@@ -128,6 +131,7 @@ export type AgentDto = {
   tags: ReadonlyArray<string>;
   modelRefOrNull: ModelRef | null;
   invalidConfig: boolean;
+  archived: boolean;
   createdAtUtc: string;
   updatedAtUtc: string;
 };
@@ -136,6 +140,7 @@ export type ListAgentsRequest = {
   viewKind: "agentsList";
   searchText: string;
   tagFilter: string;
+  archivedFilter: AgentArchivedFilter;
   sortBy: AgentSortField;
   sortDirection: SortDirection;
   page: number;
@@ -186,6 +191,15 @@ export type DeleteAgentResponse = {
   deletedId: string;
 };
 
+export type SetAgentArchivedRequest = {
+  id: string;
+  archived: boolean;
+};
+
+export type SetAgentArchivedResponse = {
+  agent: AgentDto;
+};
+
 export const COUNCIL_MODES = ["autopilot", "manual"] as const;
 export type CouncilMode = (typeof COUNCIL_MODES)[number];
 
@@ -199,6 +213,7 @@ export type CouncilAgentOptionDto = {
   id: string;
   name: string;
   invalidConfig: boolean;
+  archived: boolean;
 };
 
 export type CouncilDto = {

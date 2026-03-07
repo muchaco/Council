@@ -33,7 +33,7 @@
       "globalDefaultModelInvalidConfig": false,
       "contextLastN": 20,
       "modelCatalog": {
-        "snapshotId": "4d442506-a0ef-4d6c-9670-a7df7f9417b7",
+        "snapshotId": "e76e2b1c-c093-439f-b9ec-2aff168a37f6",
         "modelsByProvider": {
           "gemini": [
             "gemini-2.5-flash",
@@ -66,7 +66,10 @@
             "gemini-2.5-computer-use-preview-10-2025",
             "deep-research-pro-preview-12-2025"
           ],
-          "ollama": ["smollm:135m", "all-minilm:latest"]
+          "ollama": [
+            "smollm:135m",
+            "all-minilm:latest"
+          ]
         }
       },
       "canRefreshModels": true

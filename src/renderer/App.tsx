@@ -71,6 +71,7 @@ import {
   resolveHomeTabFocusIndex,
 } from "../shared/home-keyboard-accessibility.js";
 import type {
+  AgentArchivedFilter,
   AgentDto,
   AgentSortField,
   CouncilArchivedFilter,
@@ -178,6 +179,7 @@ type AgentEditorState =
       initialFingerprint: string;
       isSaving: boolean;
       isDeleting: boolean;
+      isArchiving: boolean;
       isRefreshingModels: boolean;
       showDiscardDialog: boolean;
       showDeleteDialog: boolean;
@@ -481,6 +483,7 @@ export const App = (): JSX.Element => {
   const [agentsSortDirection, setAgentsSortDirection] = useState<SortDirection>("desc");
   const [agentsSearchText, setAgentsSearchText] = useState("");
   const [agentsTagFilter, setAgentsTagFilter] = useState("");
+  const [agentsArchivedFilter, setAgentsArchivedFilter] = useState<AgentArchivedFilter>("all");
   const [agentsGlobalDefaultModel, setAgentsGlobalDefaultModel] = useState<ModelRef | null>(null);
 
   const [agentEditorState, setAgentEditorState] = useState<AgentEditorState>({ status: "loading" });
@@ -699,6 +702,7 @@ export const App = (): JSX.Element => {
         viewKind: "agentsList",
         searchText: agentsSearchText,
         tagFilter: agentsTagFilter,
+        archivedFilter: agentsArchivedFilter,
         sortBy: agentsSortBy,
         sortDirection: agentsSortDirection,
         page: params.page,
@@ -722,7 +726,14 @@ export const App = (): JSX.Element => {
       setAgentsLoading(false);
       setAgentsLoadingMore(false);
     },
-    [agentsSearchText, agentsTagFilter, agentsSortBy, agentsSortDirection, pushToast],
+    [
+      agentsSearchText,
+      agentsTagFilter,
+      agentsArchivedFilter,
+      agentsSortBy,
+      agentsSortDirection,
+      pushToast,
+    ],
   );
 
   const loadCouncils = useCallback(
@@ -1230,6 +1241,7 @@ export const App = (): JSX.Element => {
       initialFingerprint: JSON.stringify(draft),
       isSaving: false,
       isDeleting: false,
+      isArchiving: false,
       isRefreshingModels: false,
       showDiscardDialog: false,
       showDeleteDialog: false,
@@ -1378,6 +1390,66 @@ export const App = (): JSX.Element => {
 
     pushToast("info", "Agent deleted.");
     closeAgentEditor(true);
+  };
+
+  const setAgentArchived = async (archived: boolean): Promise<void> => {
+    if (agentEditorState.status !== "ready" || agentEditorState.draft.id === null) {
+      return;
+    }
+
+    setAgentEditorState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            isArchiving: true,
+            message: "",
+          },
+    );
+
+    const result = await window.api.agents.setArchived({
+      id: agentEditorState.draft.id,
+      archived,
+    });
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      setAgentEditorState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              isArchiving: false,
+              message: result.error.userMessage,
+            },
+      );
+      return;
+    }
+
+    const refreshed = await window.api.agents.getEditorView({
+      viewKind: "agentEdit",
+      agentId: agentEditorState.draft.id,
+    });
+    if (!refreshed.ok) {
+      pushToast("error", refreshed.error.userMessage);
+      return;
+    }
+
+    setAgentEditorState((current) => {
+      if (current.status !== "ready") {
+        return current;
+      }
+
+      const draft = toAgentEditorDraft(refreshed.value.agent);
+      return {
+        ...current,
+        source: refreshed.value,
+        draft,
+        initialFingerprint: JSON.stringify(draft),
+        isArchiving: false,
+        message: archived ? "Agent archived." : "Agent restored.",
+      };
+    });
+    pushToast("info", archived ? "Agent archived." : "Agent restored.");
   };
 
   const refreshAgentModels = async (): Promise<void> => {
@@ -2646,6 +2718,23 @@ export const App = (): JSX.Element => {
     await loadAgents({ page: 1, append: false });
   };
 
+  const setAgentArchivedFromList = async (params: {
+    agentId: string;
+    archived: boolean;
+  }): Promise<void> => {
+    const result = await window.api.agents.setArchived({
+      id: params.agentId,
+      archived: params.archived,
+    });
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      return;
+    }
+
+    pushToast("info", params.archived ? "Agent archived." : "Agent restored.");
+    await loadAgents({ page: 1, append: false });
+  };
+
   const setCouncilArchivedFromView = async (
     council: CouncilDto,
     archived: boolean,
@@ -3087,8 +3176,18 @@ export const App = (): JSX.Element => {
     }
 
     const council = councilViewState.source.council;
+    const availableAgentById = new Map(
+      councilViewState.source.availableAgents.map((agent) => [agent.id, agent]),
+    );
     const memberNameById = new Map(
       councilViewState.source.availableAgents.map((agent) => [agent.id, agent.name]),
+    );
+    const archivedMemberIds = council.memberAgentIds.filter(
+      (memberAgentId) => availableAgentById.get(memberAgentId)?.archived === true,
+    );
+    const hasArchivedMembers = archivedMemberIds.length > 0;
+    const archivedMemberNames = archivedMemberIds.map(
+      (memberAgentId) => memberNameById.get(memberAgentId) ?? memberAgentId,
     );
     const runtimeControls = resolveCouncilViewRuntimeControls({
       mode: council.mode,
@@ -3107,11 +3206,13 @@ export const App = (): JSX.Element => {
     const canManualGenerate = council.mode === "manual" && council.started && !council.archived;
     const manualSpeakerDisabledReason = council.archived
       ? "Archived councils are read-only."
-      : !council.started
-        ? "Start the council before selecting the next speaker."
-        : generationRunning || councilViewState.isGeneratingManualTurn
-          ? "Wait for the current generation to finish."
-          : null;
+      : hasArchivedMembers
+        ? "Restore or remove archived members before selecting the next speaker."
+        : !council.started
+          ? "Start the council before selecting the next speaker."
+          : generationRunning || councilViewState.isGeneratingManualTurn
+            ? "Wait for the current generation to finish."
+            : null;
 
     const generation = councilViewState.source.generation;
     const pausedNextSpeakerId =
@@ -3166,11 +3267,14 @@ export const App = (): JSX.Element => {
     const startDisabled =
       councilViewState.isStarting ||
       council.invalidConfig ||
+      hasArchivedMembers ||
       isAutopilotModalOpen ||
       councilViewState.configEdit !== null;
     const startDisabledReason = council.invalidConfig
       ? "Start is disabled until model config is fixed."
-      : undefined;
+      : hasArchivedMembers
+        ? "Start is disabled until archived members are restored or removed."
+        : undefined;
     const transcriptRowCount =
       councilViewState.source.messages.length + (thinkingSpeakerName === null ? 0 : 1);
     const configEditField = councilViewState.configEdit?.field ?? null;
@@ -3197,6 +3301,9 @@ export const App = (): JSX.Element => {
     const addMemberSearch = councilViewState.addMemberSearchText.trim().toLowerCase();
     const addableAgents = councilViewState.source.availableAgents.filter((agent) => {
       if (council.memberAgentIds.includes(agent.id)) {
+        return false;
+      }
+      if (agent.archived) {
         return false;
       }
       if (addMemberSearch.length === 0) {
@@ -3246,6 +3353,7 @@ export const App = (): JSX.Element => {
                     disabled={
                       councilViewState.isResuming ||
                       council.invalidConfig ||
+                      hasArchivedMembers ||
                       isAutopilotModalOpen ||
                       councilViewState.configEdit !== null
                     }
@@ -3253,18 +3361,24 @@ export const App = (): JSX.Element => {
                     title={
                       council.invalidConfig
                         ? "Resume is disabled until model config is fixed."
-                        : undefined
+                        : hasArchivedMembers
+                          ? "Resume is disabled until archived members are restored or removed."
+                          : undefined
                     }
                   >
                     {councilViewState.isResuming ? "Resuming..." : "Resume"}
                   </Button>
                 ) : null}
-                {(canStart || canResume) && council.invalidConfig ? (
+                {(canStart || canResume) && (council.invalidConfig || hasArchivedMembers) ? (
                   <Badge
-                    variant="destructive"
-                    title="Resolved conductor model is unavailable in this view's model catalog snapshot."
+                    variant={council.invalidConfig ? "destructive" : "outline"}
+                    title={
+                      council.invalidConfig
+                        ? "Resolved conductor model is unavailable in this view's model catalog snapshot."
+                        : "One or more council members are archived."
+                    }
                   >
-                    Invalid config
+                    {council.invalidConfig ? "Invalid config" : "Archived members"}
                   </Badge>
                 ) : null}
                 {generationActive && !showInlineThinkingCancel ? (
@@ -3362,6 +3476,14 @@ export const App = (): JSX.Element => {
           {council.archived ? (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
               <p className="text-sm text-amber-800">Archived councils are read-only.</p>
+            </div>
+          ) : null}
+          {hasArchivedMembers ? (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+              <p className="text-sm text-amber-800">
+                Archived members in this council: {archivedMemberNames.join(", ")}. Restore or
+                remove them before runtime actions.
+              </p>
             </div>
           ) : null}
           {council.invalidConfig ? (
@@ -3668,7 +3790,7 @@ export const App = (): JSX.Element => {
                         ))}
                         {addableAgents.length === 0 ? (
                           <p className="text-sm text-muted-foreground text-center py-4">
-                            No matching agents available.
+                            No matching active agents available.
                           </p>
                         ) : null}
                       </div>
@@ -3678,6 +3800,8 @@ export const App = (): JSX.Element => {
                   <div className="space-y-3">
                     {council.memberAgentIds.map((memberAgentId) => {
                       const memberName = memberNameById.get(memberAgentId) ?? memberAgentId;
+                      const memberAgent = availableAgentById.get(memberAgentId);
+                      const memberArchived = memberAgent?.archived === true;
                       const memberHasMessages = memberIdsWithMessages.has(memberAgentId);
                       const memberColor =
                         council.memberColorsByAgentId[memberAgentId] ??
@@ -3709,6 +3833,9 @@ export const App = (): JSX.Element => {
                             <p className="text-xs text-muted-foreground truncate">
                               {memberAgentId}
                             </p>
+                            {memberArchived ? (
+                              <p className="text-xs text-amber-700">Archived member</p>
+                            ) : null}
                           </div>
                           <div className="flex items-center gap-2">
                             <ColorPicker
@@ -4482,6 +4609,9 @@ export const App = (): JSX.Element => {
               <label className="list-row" key={agent.id}>
                 <div>
                   <strong>{agent.name}</strong>
+                  {agent.archived ? (
+                    <p className="text-sm text-amber-700">Archived (cannot be newly selected)</p>
+                  ) : null}
                   {agent.invalidConfig ? (
                     <p className="text-sm text-muted-foreground">
                       Invalid config (can still be selected)
@@ -4490,7 +4620,11 @@ export const App = (): JSX.Element => {
                 </div>
                 <input
                   checked={councilEditorState.draft.selectedMemberIds.includes(agent.id)}
-                  disabled={councilEditorState.showRemoveMemberDialog}
+                  disabled={
+                    councilEditorState.showRemoveMemberDialog ||
+                    (agent.archived &&
+                      !councilEditorState.draft.selectedMemberIds.includes(agent.id))
+                  }
                   onChange={() => toggleCouncilMember(agent.id)}
                   type="checkbox"
                 />
@@ -4662,6 +4796,7 @@ export const App = (): JSX.Element => {
       modelCatalog: agentEditorState.source.modelCatalog,
       globalDefaultModelRef: agentEditorState.source.globalDefaultModelRef,
     });
+    const archived = agentEditorState.source.agent?.archived === true;
     const hasUnavailableAgentSelection = !isModelSelectionInCatalog({
       modelSelection: agentEditorState.draft.modelSelection,
       modelCatalog: agentEditorState.source.modelCatalog,
@@ -4676,35 +4811,49 @@ export const App = (): JSX.Element => {
             </button>
             <button
               className="cta"
-              disabled={agentEditorState.isSaving}
+              disabled={agentEditorState.isSaving || archived}
               onClick={() => void saveAgent()}
               type="button"
             >
               {agentEditorState.isSaving ? "Saving..." : "Save"}
             </button>
             {agentEditorState.draft.id !== null ? (
-              <button
-                className="danger"
-                disabled={agentEditorState.isDeleting}
-                onClick={() =>
-                  setAgentEditorState((current) =>
-                    current.status !== "ready"
-                      ? current
-                      : {
-                          ...current,
-                          showDeleteDialog: true,
-                        },
-                  )
-                }
-                type="button"
-              >
-                {agentEditorState.isDeleting ? "Deleting..." : "Delete"}
-              </button>
+              <>
+                <button
+                  className="secondary"
+                  disabled={agentEditorState.isArchiving}
+                  onClick={() => void setAgentArchived(!archived)}
+                  type="button"
+                >
+                  {archived ? "Restore" : "Archive"}
+                </button>
+                <button
+                  className="danger"
+                  disabled={agentEditorState.isDeleting}
+                  onClick={() =>
+                    setAgentEditorState((current) =>
+                      current.status !== "ready"
+                        ? current
+                        : {
+                            ...current,
+                            showDeleteDialog: true,
+                          },
+                    )
+                  }
+                  type="button"
+                >
+                  {agentEditorState.isDeleting ? "Deleting..." : "Delete"}
+                </button>
+              </>
             ) : null}
           </div>
           <h1>{agentEditorState.draft.id === null ? "New Agent" : "Edit Agent"}</h1>
           <p>Fields marked required must be completed before save.</p>
         </header>
+
+        {archived ? (
+          <p className="status-line">Archived agents are read-only. Restore to edit.</p>
+        ) : null}
 
         <section className="settings-section">
           <label className="field" htmlFor="agent-name">
@@ -4712,6 +4861,7 @@ export const App = (): JSX.Element => {
           </label>
           <input
             id="agent-name"
+            disabled={archived}
             onChange={(event) => updateAgentDraft({ name: event.target.value })}
             type="text"
             value={agentEditorState.draft.name}
@@ -4722,6 +4872,7 @@ export const App = (): JSX.Element => {
           </label>
           <textarea
             id="agent-system-prompt"
+            disabled={archived}
             onChange={(event) => updateAgentDraft({ systemPrompt: event.target.value })}
             rows={8}
             value={agentEditorState.draft.systemPrompt}
@@ -4732,6 +4883,7 @@ export const App = (): JSX.Element => {
           </label>
           <input
             id="agent-verbosity"
+            disabled={archived}
             onChange={(event) => updateAgentDraft({ verbosity: event.target.value })}
             type="text"
             value={agentEditorState.draft.verbosity}
@@ -4742,6 +4894,7 @@ export const App = (): JSX.Element => {
           </label>
           <input
             id="agent-temperature"
+            disabled={archived}
             onChange={(event) => updateAgentDraft({ temperature: event.target.value })}
             placeholder="0.0 - 2.0"
             type="text"
@@ -4753,6 +4906,7 @@ export const App = (): JSX.Element => {
           </label>
           <input
             id="agent-tags"
+            disabled={archived}
             onChange={(event) => updateAgentDraft({ tagsInput: event.target.value })}
             type="text"
             value={agentEditorState.draft.tagsInput}
@@ -4766,7 +4920,9 @@ export const App = (): JSX.Element => {
               aria-label="Refresh agent model options"
               className="field-action-button"
               disabled={
-                !agentEditorState.source.canRefreshModels || agentEditorState.isRefreshingModels
+                archived ||
+                !agentEditorState.source.canRefreshModels ||
+                agentEditorState.isRefreshingModels
               }
               onClick={() => void refreshAgentModels()}
               size="icon"
@@ -4782,6 +4938,7 @@ export const App = (): JSX.Element => {
           <div className="button-row">
             <select
               id="agent-model"
+              disabled={archived}
               onChange={(event) => updateAgentDraft({ modelSelection: event.target.value })}
               value={agentEditorState.draft.modelSelection}
             >
@@ -5179,6 +5336,19 @@ export const App = (): JSX.Element => {
             </div>
             <div className="home-list-toolbar-fields">
               <Select
+                value={agentsArchivedFilter}
+                onValueChange={(value) => setAgentsArchivedFilter(value as AgentArchivedFilter)}
+              >
+                <SelectTrigger className="home-list-toolbar-select">
+                  <SelectValue placeholder="Filter status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All agents</SelectItem>
+                  <SelectItem value="active">Active only</SelectItem>
+                  <SelectItem value="archived">Archived only</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
                 value={agentsSortBy}
                 onValueChange={(value) => setAgentsSortBy(value as AgentSortField)}
               >
@@ -5228,6 +5398,12 @@ export const App = (): JSX.Element => {
                   <div className="agent-card-header-main">
                     <h3 className="agent-card-title">{agent.name}</h3>
                     <div className="agent-card-badges">
+                      {agent.archived ? (
+                        <span className="council-badge council-badge-muted">
+                          <Archive aria-hidden="true" className="h-3 w-3" />
+                          Archived
+                        </span>
+                      ) : null}
                       {agent.invalidConfig ? (
                         <span
                           aria-label="Invalid configuration"
@@ -5266,6 +5442,23 @@ export const App = (): JSX.Element => {
                         type="button"
                       >
                         Edit agent
+                      </button>
+                      <hr className="agent-menu-divider" />
+                      <button
+                        className="agent-menu-item"
+                        onClick={(event) => {
+                          const details = event.currentTarget.closest("details");
+                          if (details) {
+                            details.open = false;
+                          }
+                          void setAgentArchivedFromList({
+                            agentId: agent.id,
+                            archived: !agent.archived,
+                          });
+                        }}
+                        type="button"
+                      >
+                        {agent.archived ? "Restore agent" : "Archive agent"}
                       </button>
                       <hr className="agent-menu-divider" />
                       <button

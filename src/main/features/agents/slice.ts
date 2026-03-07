@@ -16,6 +16,7 @@ import type {
   RefreshModelCatalogResponse,
   SaveAgentRequest,
   SaveAgentResponse,
+  SetAgentArchivedResponse,
 } from "../../../shared/ipc/dto.js";
 
 type AgentRecord = {
@@ -26,6 +27,7 @@ type AgentRecord = {
   temperature: number | null;
   tags: ReadonlyArray<Tag>;
   modelRefOrNull: ModelRef | null;
+  archivedAtUtc: string | null;
   createdAtUtc: string;
   updatedAtUtc: string;
 };
@@ -59,6 +61,7 @@ type AgentsSlice = {
     webContentsId: number;
     searchText: string;
     tagFilter: string;
+    archivedFilter: "active" | "archived" | "all";
     sortBy: "createdAt" | "updatedAt";
     sortDirection: "asc" | "desc";
     page: number;
@@ -72,6 +75,11 @@ type AgentsSlice = {
     draft: SaveAgentRequest;
   }) => ResultAsync<SaveAgentResponse, DomainError>;
   deleteAgent: (params: { id: string }) => ResultAsync<DeleteAgentResponse, DomainError>;
+  setArchived: (params: {
+    webContentsId: number;
+    id: string;
+    archived: boolean;
+  }) => ResultAsync<SetAgentArchivedResponse, DomainError>;
   refreshModelCatalog: (params: {
     webContentsId: number;
     viewKind: "agentsList" | "agentEdit";
@@ -89,6 +97,9 @@ const conflictError = (devMessage: string, userMessage: string): DomainError =>
 
 const invalidConfigError = (devMessage: string, userMessage: string): DomainError =>
   domainError("InvalidConfigError", devMessage, userMessage);
+
+const stateError = (devMessage: string, userMessage: string): DomainError =>
+  domainError("StateViolationError", devMessage, userMessage);
 
 const normalizeNullable = (value: string | null): string | null => {
   if (value === null) {
@@ -140,6 +151,7 @@ const toAgentDto = (params: {
     globalDefaultModelRef: params.globalDefaultModelRef,
     availableModelKeys: params.availableModelKeys,
   }),
+  archived: params.record.archivedAtUtc !== null,
   createdAtUtc: params.record.createdAtUtc,
   updatedAtUtc: params.record.updatedAtUtc,
 });
@@ -194,6 +206,7 @@ export const createAgentsSlice = (
     webContentsId,
     searchText,
     tagFilter,
+    archivedFilter,
     sortBy,
     sortDirection,
     page,
@@ -214,6 +227,14 @@ export const createAgentsSlice = (
         );
         const filtered = Array.from(records.values())
           .filter((agent) => {
+            if (archivedFilter === "active" && agent.archivedAtUtc !== null) {
+              return false;
+            }
+
+            if (archivedFilter === "archived" && agent.archivedAtUtc === null) {
+              return false;
+            }
+
             const matchesSearch =
               normalizedSearch.length === 0 ||
               includesInsensitive(agent.name, normalizedSearch) ||
@@ -310,6 +331,15 @@ export const createAgentsSlice = (
         return errAsync(notFoundError(`Agent ${draft.id} not found`, "Agent not found."));
       }
 
+      if (existingRecord !== undefined && existingRecord.archivedAtUtc !== null) {
+        return errAsync(
+          stateError(
+            `Agent ${draft.id} is archived and read-only`,
+            "Archived agents are read-only. Restore it before editing.",
+          ),
+        );
+      }
+
       return normalizeTags(draft.tags)
         .andThen((tags) =>
           assertUniqueName(normalizedName, existingId).map(() => ({
@@ -353,6 +383,7 @@ export const createAgentsSlice = (
                 temperature: draft.temperature,
                 tags,
                 modelRefOrNull: draft.modelRefOrNull,
+                archivedAtUtc: existingRecord?.archivedAtUtc ?? null,
                 createdAtUtc: existingRecord?.createdAtUtc ?? now,
                 updatedAtUtc: now,
               };
@@ -399,11 +430,50 @@ export const createAgentsSlice = (
     });
   };
 
+  const setArchived: AgentsSlice["setArchived"] = ({ webContentsId, id, archived }) =>
+    hydrate().andThen(() => {
+      const agentId = asAgentId(id);
+      const existing = records.get(agentId);
+      if (existing === undefined) {
+        return errAsync(notFoundError(`Agent ${id} not found`, "Agent not found."));
+      }
+
+      return dependencies
+        .getModelContext({
+          webContentsId,
+          viewKind: "agentsList",
+        })
+        .andThen((modelContext) => {
+          const availableModelKeys = buildAvailableModelKeys(
+            modelContext.modelCatalog.modelsByProvider,
+          );
+          const now = nowUtc();
+          const next: AgentRecord = {
+            ...existing,
+            archivedAtUtc: archived ? (existing.archivedAtUtc ?? now) : null,
+            updatedAtUtc: now,
+          };
+
+          return persistAgent(next).andThen(() => {
+            records.set(agentId, next);
+
+            return okAsync({
+              agent: toAgentDto({
+                record: next,
+                availableModelKeys,
+                globalDefaultModelRef: modelContext.globalDefaultModelRef,
+              }),
+            } satisfies SetAgentArchivedResponse);
+          });
+        });
+    });
+
   return {
     listAgents,
     getEditorView,
     saveAgent,
     deleteAgent,
+    setArchived,
     refreshModelCatalog: dependencies.refreshModelCatalog,
   };
 };

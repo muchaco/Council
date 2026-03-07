@@ -22,6 +22,7 @@ const windowApi: WindowApi = {
     getEditorView: async (request) => ipcRenderer.invoke("agents:get-editor-view", request),
     save: async (request) => ipcRenderer.invoke("agents:save", request),
     delete: async (request) => ipcRenderer.invoke("agents:delete", request),
+    setArchived: async (request) => ipcRenderer.invoke("agents:set-archived", request),
     refreshModelCatalog: async (request) =>
       ipcRenderer.invoke("agents:refresh-model-catalog", request),
   },

@@ -26,6 +26,7 @@ type PersistedAgent = {
   temperature: number | null;
   tags: ReadonlyArray<string>;
   modelRefOrNull: ModelRef | null;
+  archivedAtUtc: string | null;
   createdAtUtc: string;
   updatedAtUtc: string;
 };
@@ -125,6 +126,7 @@ type AgentRow = {
   temperature: number | null;
   tags_json: string;
   model_ref_json: string | null;
+  archived_at_utc: string | null;
   created_at_utc: string;
   updated_at_utc: string;
 };
@@ -386,7 +388,7 @@ export const createSqlitePersistenceService = (
     try {
       const rows = db
         .prepare(
-          "SELECT id, name, system_prompt, verbosity, temperature, tags_json, model_ref_json, created_at_utc, updated_at_utc FROM agents",
+          "SELECT id, name, system_prompt, verbosity, temperature, tags_json, model_ref_json, archived_at_utc, created_at_utc, updated_at_utc FROM agents",
         )
         .all() as Array<AgentRow>;
 
@@ -399,6 +401,7 @@ export const createSqlitePersistenceService = (
           temperature: row.temperature,
           tags: parseJson<ReadonlyArray<string>>(row.tags_json, []),
           modelRefOrNull: parseJson<ModelRef | null>(row.model_ref_json, null),
+          archivedAtUtc: row.archived_at_utc,
           createdAtUtc: row.created_at_utc,
           updatedAtUtc: row.updated_at_utc,
         })),
@@ -416,8 +419,8 @@ export const createSqlitePersistenceService = (
   const saveAgent = (agent: PersistedAgent): Result<void, DbError> => {
     try {
       db.prepare(
-        `INSERT INTO agents(id, name, system_prompt, verbosity, temperature, tags_json, model_ref_json, created_at_utc, updated_at_utc)
-         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO agents(id, name, system_prompt, verbosity, temperature, tags_json, model_ref_json, archived_at_utc, created_at_utc, updated_at_utc)
+         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            name = excluded.name,
            system_prompt = excluded.system_prompt,
@@ -425,6 +428,7 @@ export const createSqlitePersistenceService = (
            temperature = excluded.temperature,
            tags_json = excluded.tags_json,
            model_ref_json = excluded.model_ref_json,
+           archived_at_utc = excluded.archived_at_utc,
            updated_at_utc = excluded.updated_at_utc`,
       ).run(
         agent.id,
@@ -434,6 +438,7 @@ export const createSqlitePersistenceService = (
         agent.temperature,
         JSON.stringify(agent.tags),
         agent.modelRefOrNull === null ? null : JSON.stringify(agent.modelRefOrNull),
+        agent.archivedAtUtc,
         agent.createdAtUtc,
         agent.updatedAtUtc,
       );

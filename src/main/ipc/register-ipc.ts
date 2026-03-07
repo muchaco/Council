@@ -142,6 +142,7 @@ export const registerIpcHandlers = (): {
                 globalDefaultModelRef: view.globalDefaultModelRef,
                 availableModelKeys,
               }),
+              archived: agent.archivedAtUtc !== null,
             }))
             .sort((left, right) => left.name.localeCompare(right.name)),
         );
@@ -330,6 +331,7 @@ export const registerIpcHandlers = (): {
             return parsed.isOk() ? [parsed.value] : [];
           }),
           modelRefOrNull: agent.modelRefOrNull,
+          archivedAtUtc: agent.archivedAtUtc,
           createdAtUtc: agent.createdAtUtc,
           updatedAtUtc: agent.updatedAtUtc,
         })),
@@ -344,6 +346,7 @@ export const registerIpcHandlers = (): {
         temperature: agent.temperature,
         tags: agent.tags,
         modelRefOrNull: agent.modelRefOrNull,
+        archivedAtUtc: agent.archivedAtUtc,
         createdAtUtc: agent.createdAtUtc,
         updatedAtUtc: agent.updatedAtUtc,
       });
@@ -409,6 +412,9 @@ export const registerIpcHandlers = (): {
     agentsHandlers.saveAgent(payload, event.sender.id),
   );
   ipcMain.handle("agents:delete", async (_event, payload) => agentsHandlers.deleteAgent(payload));
+  ipcMain.handle("agents:set-archived", async (event, payload) =>
+    agentsHandlers.setArchived(payload, event.sender.id),
+  );
   ipcMain.handle("agents:refresh-model-catalog", async (event, payload) =>
     agentsHandlers.refreshModelCatalog(payload, event.sender.id),
   );

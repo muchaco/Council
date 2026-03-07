@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  AGENT_ARCHIVED_FILTERS,
   AGENT_SORT_FIELDS,
   COUNCIL_ARCHIVED_FILTERS,
   COUNCIL_MODES,
@@ -62,6 +63,7 @@ export const SET_CONTEXT_LAST_N_REQUEST_SCHEMA = z.object({
 
 const SORT_DIRECTION_SCHEMA = z.enum(SORT_DIRECTIONS);
 const AGENT_SORT_FIELD_SCHEMA = z.enum(AGENT_SORT_FIELDS);
+const AGENT_ARCHIVED_FILTER_SCHEMA = z.enum(AGENT_ARCHIVED_FILTERS);
 const COUNCIL_SORT_FIELD_SCHEMA = z.enum(COUNCIL_SORT_FIELDS);
 const COUNCIL_MODE_SCHEMA = z.enum(COUNCIL_MODES);
 const COUNCIL_ARCHIVED_FILTER_SCHEMA = z.enum(COUNCIL_ARCHIVED_FILTERS);
@@ -70,6 +72,7 @@ export const LIST_AGENTS_REQUEST_SCHEMA = z.object({
   viewKind: z.literal("agentsList"),
   searchText: z.string().max(200),
   tagFilter: z.string().max(20),
+  archivedFilter: AGENT_ARCHIVED_FILTER_SCHEMA,
   sortBy: AGENT_SORT_FIELD_SCHEMA,
   sortDirection: SORT_DIRECTION_SCHEMA,
   page: z.number().int().min(1).max(200),
@@ -93,6 +96,11 @@ export const SAVE_AGENT_REQUEST_SCHEMA = z.object({
 
 export const DELETE_AGENT_REQUEST_SCHEMA = z.object({
   id: z.string().uuid(),
+});
+
+export const SET_AGENT_ARCHIVED_REQUEST_SCHEMA = z.object({
+  id: z.string().uuid(),
+  archived: z.boolean(),
 });
 
 export const LIST_COUNCILS_REQUEST_SCHEMA = z.object({

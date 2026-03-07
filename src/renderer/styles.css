@@ -1174,10 +1174,16 @@ select:focus {
 .council-badge {
   display: inline-flex;
   align-items: center;
+  gap: 0.25rem;
   padding: 0.25rem 0.625rem;
   border-radius: 9999px;
   font-size: 0.75rem;
   font-weight: 600;
+}
+
+.council-badge-muted {
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
 }
 
 .council-badge-error {

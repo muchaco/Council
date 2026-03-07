@@ -3,6 +3,7 @@
   "settingsRefreshButtonPresent": true,
   "agentsLoadingCopyHidden": true,
   "agentMenuInHeader": true,
+  "agentArchivedBadgePresent": true,
   "agentEditorRefreshButtonPresent": true,
   "agentEditorStyledShellPresent": true,
   "councilsLoadingCopyHidden": true,

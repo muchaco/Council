@@ -18,6 +18,7 @@ import {
   SAVE_AGENT_REQUEST_SCHEMA,
   SAVE_COUNCIL_REQUEST_SCHEMA,
   SAVE_PROVIDER_CONFIG_REQUEST_SCHEMA,
+  SET_AGENT_ARCHIVED_REQUEST_SCHEMA,
   SET_CONTEXT_LAST_N_REQUEST_SCHEMA,
   SET_COUNCIL_ARCHIVED_REQUEST_SCHEMA,
   SET_GLOBAL_DEFAULT_MODEL_REQUEST_SCHEMA,
@@ -35,6 +36,8 @@ const FILE_REQUIREMENT_IDS = [
   "F1",
   "R1.1",
   "R1.2",
+  "R1.20",
+  "R1.22",
   "R2.1",
   "R2.3",
   "R2.7",
@@ -117,6 +120,7 @@ describe("ipc validators", () => {
       viewKind: "agentsList",
       searchText: "planner",
       tagFilter: "research",
+      archivedFilter: "all",
       sortBy: "updatedAt",
       sortDirection: "desc",
       page: 1,
@@ -129,6 +133,7 @@ describe("ipc validators", () => {
       viewKind: "agentsList",
       searchText: "",
       tagFilter: "",
+      archivedFilter: "all",
       sortBy: "updatedAt",
       sortDirection: "desc",
       page: 0,
@@ -160,6 +165,14 @@ describe("ipc validators", () => {
 
   itReq(FILE_REQUIREMENT_IDS, "rejects delete payload with non-uuid id", () => {
     const parsed = DELETE_AGENT_REQUEST_SCHEMA.safeParse({ id: "agent-1" });
+    expect(parsed.success).toBe(false);
+  });
+
+  itReq(FILE_REQUIREMENT_IDS, "rejects invalid set archived agent payload", () => {
+    const parsed = SET_AGENT_ARCHIVED_REQUEST_SCHEMA.safeParse({
+      id: "not-a-uuid",
+      archived: true,
+    });
     expect(parsed.success).toBe(false);
   });
 

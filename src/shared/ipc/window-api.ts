@@ -40,6 +40,8 @@ import type {
   SaveCouncilResponse,
   SaveProviderConfigRequest,
   SaveProviderConfigResponse,
+  SetAgentArchivedRequest,
+  SetAgentArchivedResponse,
   SetContextLastNRequest,
   SetContextLastNResponse,
   SetCouncilArchivedRequest,
@@ -83,6 +85,7 @@ export interface WindowApi {
     ) => Promise<IpcResult<GetAgentEditorViewResponse>>;
     save: (request: SaveAgentRequest) => Promise<IpcResult<SaveAgentResponse>>;
     delete: (request: DeleteAgentRequest) => Promise<IpcResult<DeleteAgentResponse>>;
+    setArchived: (request: SetAgentArchivedRequest) => Promise<IpcResult<SetAgentArchivedResponse>>;
     refreshModelCatalog: (
       request: RefreshModelCatalogRequest,
     ) => Promise<IpcResult<RefreshModelCatalogResponse>>;

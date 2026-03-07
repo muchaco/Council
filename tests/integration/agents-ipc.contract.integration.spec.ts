@@ -5,7 +5,7 @@ import { createAgentsSlice } from "../../src/main/features/agents/slice";
 import { asAgentId } from "../../src/shared/domain/ids";
 import { itReq } from "../helpers/requirement-trace";
 
-const FILE_REQUIREMENT_IDS = ["A3", "R1.1", "R1.2"] as const;
+const FILE_REQUIREMENT_IDS = ["A3", "R1.1", "R1.2", "R1.20", "R1.22", "U4.6"] as const;
 
 const createHandlers = () => {
   let sequence = 0;
@@ -49,6 +49,7 @@ describe("agents ipc contract", () => {
         viewKind: "agentsList",
         searchText: "",
         tagFilter: "",
+        archivedFilter: "all",
         sortBy: "updatedAt",
         sortDirection: "desc",
         page: 0,
@@ -96,5 +97,40 @@ describe("agents ipc contract", () => {
 
     expect(editor.value.agent?.name).toBe("Planner");
     expect(editor.value.modelCatalog.snapshotId).toContain("agentEdit");
+  });
+
+  itReq(FILE_REQUIREMENT_IDS, "archives agent through ipc handler", async () => {
+    const handlers = createHandlers();
+    const save = await handlers.saveAgent(
+      {
+        viewKind: "agentEdit",
+        id: null,
+        name: "Archivist",
+        systemPrompt: "Build a plan",
+        verbosity: null,
+        temperature: null,
+        tags: ["plan"],
+        modelRefOrNull: null,
+      },
+      8,
+    );
+    expect(save.ok).toBe(true);
+    if (!save.ok) {
+      return;
+    }
+
+    const archived = await handlers.setArchived(
+      {
+        id: save.value.agent.id,
+        archived: true,
+      },
+      8,
+    );
+    expect(archived.ok).toBe(true);
+    if (!archived.ok) {
+      return;
+    }
+
+    expect(archived.value.agent.archived).toBe(true);
   });
 });

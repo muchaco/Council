@@ -7,6 +7,9 @@ import { itReq } from "../helpers/requirement-trace";
 
 const FILE_REQUIREMENT_IDS = [
   "R1.11",
+  "R1.23",
+  "R1.24",
+  "R1.26",
   "R2.1",
   "R2.2",
   "R2.3",
@@ -91,11 +94,13 @@ const AVAILABLE_AGENTS = [
     id: "00000000-0000-4000-8000-000000000101",
     name: "Planner",
     invalidConfig: false,
+    archived: false,
   },
   {
     id: "00000000-0000-4000-8000-000000000102",
     name: "Researcher",
     invalidConfig: false,
+    archived: false,
   },
 ];
 const PRIMARY_AGENT_ID = "00000000-0000-4000-8000-000000000101";
@@ -130,6 +135,7 @@ const createSlice = (options?: {
     id: string;
     name: string;
     invalidConfig: boolean;
+    archived: boolean;
   }>;
   initialCouncils?: ReadonlyArray<CouncilRecord>;
 }) => {
@@ -685,6 +691,7 @@ describe("councils handlers", () => {
           id: INVALID_AGENT_ID,
           name: "Legacy Member",
           invalidConfig: true,
+          archived: false,
         },
       ];
 
@@ -1558,6 +1565,74 @@ describe("councils handlers", () => {
       expect(request.markdown).toContain("- Timestamp: 2026-02-18T10:00:");
       expect(request.markdown).toContain("Kickoff note");
       expect(request.markdown).not.toContain("#2d6cdf");
+    },
+  );
+
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "blocks adding archived agents and blocks runtime when a council still references them",
+    async () => {
+      const archivedAgents = [
+        ...AVAILABLE_AGENTS,
+        {
+          id: INVALID_AGENT_ID,
+          name: "Archived Member",
+          invalidConfig: false,
+          archived: true,
+        },
+      ];
+
+      const createBlockedSlice = createSlice({ availableAgents: archivedAgents });
+      const createBlocked = await createBlockedSlice.saveCouncil({
+        webContentsId: 225,
+        draft: {
+          viewKind: "councilCreate",
+          id: null,
+          title: "Archived Member Create Block",
+          topic: "Archived members",
+          goal: null,
+          mode: "manual",
+          tags: [],
+          memberAgentIds: [INVALID_AGENT_ID],
+          memberColorsByAgentId: {},
+          conductorModelRefOrNull: null,
+        },
+      });
+      expect(createBlocked.isErr()).toBe(true);
+      expect(createBlocked._unsafeUnwrapErr().kind).toBe("StateViolationError");
+
+      const runtimeBlockedSlice = createSlice({
+        availableAgents: archivedAgents,
+        initialCouncils: [
+          {
+            id: asCouncilId("00000000-0000-4000-8000-999999999903"),
+            title: "Archived Member Runtime Council",
+            topic: "Runtime gating",
+            goal: null,
+            mode: "autopilot",
+            tags: [],
+            memberAgentIds: [asAgentId(INVALID_AGENT_ID)],
+            memberColorsByAgentId: {},
+            conductorModelRefOrNull: null,
+            archivedAtUtc: null,
+            startedAtUtc: null,
+            autopilotPaused: true,
+            autopilotMaxTurns: null,
+            autopilotTurnsCompleted: 0,
+            turnCount: 0,
+            createdAtUtc: "2026-02-18T10:00:00.000Z",
+            updatedAtUtc: "2026-02-18T10:00:00.000Z",
+          },
+        ],
+      });
+
+      const startBlocked = await runtimeBlockedSlice.startCouncil({
+        webContentsId: 225,
+        id: "00000000-0000-4000-8000-999999999903",
+        maxTurns: null,
+      });
+      expect(startBlocked.isErr()).toBe(true);
+      expect(startBlocked._unsafeUnwrapErr().kind).toBe("StateViolationError");
     },
   );
 });

@@ -99,6 +99,7 @@ describe("sqlite persistence service", () => {
         providerId: "gemini",
         modelId: "gemini-1.5-flash",
       },
+      archivedAtUtc: null,
       createdAtUtc: "2026-02-18T10:00:00.000Z",
       updatedAtUtc: "2026-02-18T10:00:00.000Z",
     });
@@ -140,6 +141,7 @@ describe("sqlite persistence service", () => {
           temperature: null,
           tags: [],
           modelRefOrNull: null,
+          archivedAtUtc: null,
           createdAtUtc: "2026-02-18T10:00:00.000Z",
           updatedAtUtc: "2026-02-18T10:00:00.000Z",
         })
@@ -211,6 +213,7 @@ describe("sqlite persistence service", () => {
           temperature: null,
           tags: [],
           modelRefOrNull: null,
+          archivedAtUtc: null,
           createdAtUtc: "2026-02-18T10:00:00.000Z",
           updatedAtUtc: "2026-02-18T10:00:00.000Z",
         })
