@@ -3,6 +3,8 @@ import {
   fingerprintProviderDraft,
   isProviderConfigured,
   isProviderDraftChanged,
+  requiresProviderDisconnect,
+  shouldShowProviderTestAndSaveActions,
 } from "../../src/shared/provider-settings-ui.js";
 import { itReq } from "../helpers/requirement-trace";
 
@@ -74,4 +76,72 @@ describe("provider settings ui helpers", () => {
       }),
     ).toBe(false);
   });
+
+  itReq(["U5.12"], "requires disconnect before testing replacement provider settings", () => {
+    const savedFingerprint = fingerprintProviderDraft({
+      providerId: "gemini",
+      endpointUrl: "",
+      apiKey: "",
+    });
+
+    expect(
+      requiresProviderDisconnect({
+        provider: {
+          providerId: "gemini",
+          endpointUrl: "",
+          apiKey: "new-key",
+        },
+        savedFingerprint,
+        configured: true,
+      }),
+    ).toBe(true);
+
+    expect(
+      requiresProviderDisconnect({
+        provider: {
+          providerId: "gemini",
+          endpointUrl: "",
+          apiKey: "new-key",
+        },
+        savedFingerprint,
+        configured: false,
+      }),
+    ).toBe(false);
+  });
+
+  itReq(
+    ["U5.12"],
+    "hides test and save when disconnect is the only available provider action",
+    () => {
+      expect(
+        shouldShowProviderTestAndSaveActions({
+          provider: {
+            providerId: "gemini",
+            endpointUrl: "",
+            apiKey: "",
+            testToken: null,
+            isTesting: false,
+            isSaving: false,
+          },
+          configured: true,
+          requiresDisconnect: false,
+        }),
+      ).toBe(false);
+
+      expect(
+        shouldShowProviderTestAndSaveActions({
+          provider: {
+            providerId: "gemini",
+            endpointUrl: "",
+            apiKey: "new-key",
+            testToken: null,
+            isTesting: false,
+            isSaving: false,
+          },
+          configured: true,
+          requiresDisconnect: true,
+        }),
+      ).toBe(true);
+    },
+  );
 });

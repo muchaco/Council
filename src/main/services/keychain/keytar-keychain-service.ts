@@ -3,6 +3,7 @@ import type { KeychainService } from "../interfaces.js";
 
 type KeytarClient = {
   setPassword: (service: string, account: string, password: string) => Promise<void>;
+  deletePassword: (service: string, account: string) => Promise<boolean>;
   getPassword: (service: string, account: string) => Promise<string | null>;
 };
 
@@ -35,7 +36,9 @@ const asObjectRecord = (value: unknown): Record<string, unknown> | null => {
 const hasKeytarFunctions = (value: unknown): value is KeytarClient => {
   const candidate = asObjectRecord(value);
   return (
-    typeof candidate?.setPassword === "function" && typeof candidate?.getPassword === "function"
+    typeof candidate?.setPassword === "function" &&
+    typeof candidate?.deletePassword === "function" &&
+    typeof candidate?.getPassword === "function"
   );
 };
 
@@ -111,6 +114,14 @@ export const createKeytarKeychainService = (
         (async () => {
           const keytar = dependencies.keytarClient ?? (await loadClient());
           await keytar.setPassword(serviceName, account, secret);
+        })(),
+        toSaveErrorKind,
+      ),
+    deleteSecret: ({ account }) =>
+      ResultAsync.fromPromise(
+        (async () => {
+          const keytar = dependencies.keytarClient ?? (await loadClient());
+          await keytar.deletePassword(serviceName, account);
         })(),
         toSaveErrorKind,
       ),

@@ -862,6 +862,7 @@ select:focus {
   transition: all 200ms ease-in-out;
   display: flex;
   flex-direction: column;
+  cursor: pointer;
   gap: 0.75rem;
 }
 
@@ -883,12 +884,6 @@ select:focus {
   font-weight: 600;
   margin: 0;
   flex: 1;
-}
-
-.agent-card-badges {
-  display: flex;
-  gap: 0.5rem;
-  flex-shrink: 0;
 }
 
 .agent-card-prompt {

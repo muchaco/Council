@@ -1,6 +1,7 @@
 import type { ResultAsync } from "neverthrow";
 import { type DomainError, domainError } from "../../../shared/domain/errors.js";
 import type {
+  DisconnectProviderResponse,
   GetSettingsViewResponse,
   IpcResult,
   RefreshModelCatalogResponse,
@@ -10,6 +11,7 @@ import type {
   TestProviderConnectionResponse,
 } from "../../../shared/ipc/dto.js";
 import {
+  DISCONNECT_PROVIDER_REQUEST_SCHEMA,
   GET_SETTINGS_VIEW_REQUEST_SCHEMA,
   REFRESH_MODEL_CATALOG_REQUEST_SCHEMA,
   SAVE_PROVIDER_CONFIG_REQUEST_SCHEMA,
@@ -87,6 +89,24 @@ export const createSettingsIpcHandlers = (slice: SettingsSlice) => ({
         webContentsId,
         provider: parsed.data.provider,
         testToken: parsed.data.testToken,
+      }),
+    );
+  },
+
+  disconnectProvider: async (
+    payload: unknown,
+    webContentsId: number,
+  ): Promise<IpcResult<DisconnectProviderResponse>> => {
+    const parsed = DISCONNECT_PROVIDER_REQUEST_SCHEMA.safeParse(payload);
+    if (!parsed.success) {
+      return toValidationFailure("Invalid disconnectProvider payload.");
+    }
+
+    return toIpcResult(
+      slice.disconnectProvider({
+        webContentsId,
+        providerId: parsed.data.providerId,
+        viewKind: parsed.data.viewKind,
       }),
     );
   },

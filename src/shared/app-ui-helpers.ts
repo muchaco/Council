@@ -1,6 +1,7 @@
 import type { ModelRef } from "./domain/model-ref.js";
 import { type Tag, addTag } from "./domain/tag.js";
 import type {
+  AgentArchivedFilter,
   AgentDto,
   CouncilDto,
   GetAgentEditorViewResponse,
@@ -109,6 +110,29 @@ export const modelLabel = (agent: AgentDto, globalDefaultModelRef: ModelRef | nu
   }
 
   return "Global default (unselected)";
+};
+
+export const applyAgentArchivedListUpdate = (params: {
+  agents: ReadonlyArray<AgentDto>;
+  agentId: string;
+  archived: boolean;
+  archivedFilter: AgentArchivedFilter;
+}): ReadonlyArray<AgentDto> => {
+  return params.agents.flatMap((agent) => {
+    if (agent.id !== params.agentId) {
+      return [agent];
+    }
+
+    if (params.archivedFilter === "active" && params.archived) {
+      return [];
+    }
+
+    if (params.archivedFilter === "archived" && !params.archived) {
+      return [];
+    }
+
+    return [{ ...agent, archived: params.archived } satisfies AgentDto];
+  });
 };
 
 export const councilModelLabel = (
@@ -378,7 +402,13 @@ export const buildProviderConfiguredBadgeAriaLabel = (params: {
 export const buildProviderConnectionTestButtonAriaLabel = (params: {
   providerLabel: string;
   connectionTestAllowed: boolean;
+  requiresDisconnect?: boolean;
 }): string =>
   params.connectionTestAllowed
     ? `Test ${params.providerLabel} connection`
-    : `Test ${params.providerLabel} connection disabled until endpoint or API key changes`;
+    : params.requiresDisconnect
+      ? `Test ${params.providerLabel} connection disabled until the provider is disconnected`
+      : `Test ${params.providerLabel} connection disabled until endpoint or API key changes`;
+
+export const buildProviderDisconnectButtonAriaLabel = (providerLabel: string): string =>
+  `Disconnect ${providerLabel} provider`;

@@ -14,6 +14,7 @@ const windowApi: WindowApi = {
   providers: {
     testConnection: async (request) => ipcRenderer.invoke("providers:test-connection", request),
     saveConfig: async (request) => ipcRenderer.invoke("providers:save-config", request),
+    disconnect: async (request) => ipcRenderer.invoke("providers:disconnect", request),
     refreshModelCatalog: async (request) =>
       ipcRenderer.invoke("providers:refresh-model-catalog", request),
   },

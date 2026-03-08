@@ -5,7 +5,17 @@ import { createAgentsSlice } from "../../src/main/features/agents/slice";
 import { asAgentId } from "../../src/shared/domain/ids";
 import { itReq } from "../helpers/requirement-trace";
 
-const FILE_REQUIREMENT_IDS = ["A3", "R1.1", "R1.2", "R1.20", "R1.22", "U4.6"] as const;
+const FILE_REQUIREMENT_IDS = [
+  "A3",
+  "R1.1",
+  "R1.2",
+  "R1.20",
+  "R1.22",
+  "R6.1",
+  "R6.2",
+  "U4.3",
+  "U4.6",
+] as const;
 
 const createHandlers = () => {
   let sequence = 0;
@@ -13,7 +23,7 @@ const createHandlers = () => {
     nowUtc: () => "2026-02-18T10:00:00.000Z",
     createAgentId: () =>
       asAgentId(`00000000-0000-4000-8000-${String(++sequence).padStart(12, "0")}`),
-    pageSize: 10,
+    pageSize: 12,
     getModelContext: ({ viewKind }) =>
       okAsync({
         modelCatalog: {
@@ -98,6 +108,53 @@ describe("agents ipc contract", () => {
     expect(editor.value.agent?.name).toBe("Planner");
     expect(editor.value.modelCatalog.snapshotId).toContain("agentEdit");
   });
+
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "returns the configured default agents page size through ipc",
+    async () => {
+      const handlers = createHandlers();
+
+      for (let index = 0; index < 13; index += 1) {
+        const save = await handlers.saveAgent(
+          {
+            viewKind: "agentEdit",
+            id: null,
+            name: `Page Fill Agent ${index}`,
+            systemPrompt: `Prompt ${index}`,
+            verbosity: null,
+            temperature: null,
+            tags: ["pagefill"],
+            modelRefOrNull: null,
+          },
+          9,
+        );
+        expect(save.ok).toBe(true);
+      }
+
+      const list = await handlers.listAgents(
+        {
+          viewKind: "agentsList",
+          searchText: "Page Fill Agent",
+          tagFilter: "",
+          archivedFilter: "all",
+          sortBy: "createdAt",
+          sortDirection: "asc",
+          page: 1,
+        },
+        9,
+      );
+
+      expect(list.ok).toBe(true);
+      if (!list.ok) {
+        return;
+      }
+
+      expect(list.value.pageSize).toBe(12);
+      expect(list.value.items).toHaveLength(12);
+      expect(list.value.hasMore).toBe(true);
+    },
+  );
 
   itReq(FILE_REQUIREMENT_IDS, "archives agent through ipc handler", async () => {
     const handlers = createHandlers();

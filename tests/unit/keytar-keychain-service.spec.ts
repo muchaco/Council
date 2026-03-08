@@ -15,9 +15,13 @@ describe("keytar keychain service", () => {
     const getPassword = vi.fn<(service: string, account: string) => Promise<string | null>>(() =>
       Promise.resolve("super-secret"),
     );
+    const deletePassword = vi.fn<(service: string, account: string) => Promise<boolean>>(() =>
+      Promise.resolve(true),
+    );
 
     const keytarClient: KeytarClient = {
       setPassword,
+      deletePassword,
       getPassword,
     };
 
@@ -44,6 +48,10 @@ describe("keytar keychain service", () => {
     expect(loaded.isOk()).toBe(true);
     expect(loaded._unsafeUnwrap()).toBe("super-secret");
     expect(getPassword).toHaveBeenCalledWith("council3-test", "provider/openrouter");
+
+    const deleted = await service.deleteSecret({ account: "provider/openrouter" });
+    expect(deleted.isOk()).toBe(true);
+    expect(deletePassword).toHaveBeenCalledWith("council3-test", "provider/openrouter");
   });
 
   itReq(
@@ -69,6 +77,7 @@ describe("keytar keychain service", () => {
       loadClient: () =>
         Promise.resolve({
           setPassword: () => Promise.reject(new Error("Permission denied while writing secret")),
+          deletePassword: () => Promise.resolve(true),
           getPassword: () => Promise.resolve(null),
         }),
     });
@@ -87,6 +96,7 @@ describe("keytar keychain service", () => {
       loadClient: () =>
         Promise.resolve({
           setPassword: () => Promise.resolve(),
+          deletePassword: () => Promise.resolve(true),
           getPassword: () => Promise.reject(new Error("Permission denied while reading secret")),
         }),
     });

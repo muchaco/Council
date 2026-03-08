@@ -5,7 +5,7 @@ import { createSettingsSlice } from "../../src/main/features/settings/slice";
 import { domainError } from "../../src/shared/domain/errors";
 import { itReq } from "../helpers/requirement-trace";
 
-const FILE_REQUIREMENT_IDS = ["A3", "C1", "C2", "D5", "F1", "IMPL-005"] as const;
+const FILE_REQUIREMENT_IDS = ["A3", "C1", "C2", "D5", "F1", "R4.22", "R7.1", "IMPL-005"] as const;
 
 const createHandlers = () => {
   let tokenCounter = 0;
@@ -102,6 +102,58 @@ describe("providers ipc contract", () => {
     expect(openrouter?.hasCredential).toBe(true);
     expect(JSON.stringify(viewResult.value).includes("super-secret-token")).toBe(false);
   });
+
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "disconnect removes provider config without leaking secrets",
+    async () => {
+      const handlers = createHandlers();
+      const testResult = await handlers.testProviderConnection({
+        provider: {
+          providerId: "gemini",
+          endpointUrl: null,
+          apiKey: "super-secret-token",
+        },
+      });
+      expect(testResult.ok).toBe(true);
+      if (!testResult.ok) {
+        return;
+      }
+
+      const saveResult = await handlers.saveProviderConfig(
+        {
+          provider: {
+            providerId: "gemini",
+            endpointUrl: null,
+            apiKey: "super-secret-token",
+          },
+          testToken: testResult.value.testToken,
+        },
+        7,
+      );
+      expect(saveResult.ok).toBe(true);
+      if (!saveResult.ok) {
+        return;
+      }
+
+      const disconnectResult = await handlers.disconnectProvider(
+        {
+          providerId: "gemini",
+          viewKind: "settings",
+        },
+        7,
+      );
+      expect(disconnectResult.ok).toBe(true);
+      if (!disconnectResult.ok) {
+        return;
+      }
+
+      expect(disconnectResult.value.provider.hasCredential).toBe(false);
+      expect(disconnectResult.value.provider.lastSavedAtUtc).toBeNull();
+      expect(disconnectResult.value.modelCatalog.modelsByProvider.gemini).toBeUndefined();
+      expect(JSON.stringify(disconnectResult.value).includes("super-secret-token")).toBe(false);
+    },
+  );
 
   itReq(
     FILE_REQUIREMENT_IDS,

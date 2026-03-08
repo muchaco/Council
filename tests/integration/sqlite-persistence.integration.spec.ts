@@ -9,6 +9,7 @@ const FILE_REQUIREMENT_IDS = [
   "B1",
   "B2",
   "B3",
+  "R4.22",
   "R7.1",
   "R2.1",
   "R3.3",
@@ -80,6 +81,33 @@ describe("sqlite persistence service", () => {
     expect(loaded.value.contextLastN).toBe(14);
     expect(loaded.value.providerConfigs).toHaveLength(1);
     expect(loaded.value.providerConfigs[0]?.providerId).toBe("gemini");
+
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  itReq(FILE_REQUIREMENT_IDS, "deletes persisted provider configs", () => {
+    const { tempDir, persistence } = createTempPersistence();
+
+    expect(persistence.initialize().isOk()).toBe(true);
+    expect(
+      persistence
+        .saveProviderConfig({
+          providerId: "gemini",
+          endpointUrl: null,
+          credentialRef: "provider/gemini",
+          lastSavedAtUtc: "2026-02-18T10:00:00.000Z",
+          models: ["gemini-1.5-flash"],
+        })
+        .isOk(),
+    ).toBe(true);
+
+    expect(persistence.deleteProviderConfig("gemini").isOk()).toBe(true);
+
+    const loaded = persistence.loadSettingsState();
+    expect(loaded.isOk()).toBe(true);
+    if (loaded.isOk()) {
+      expect(loaded.value.providerConfigs).toHaveLength(0);
+    }
 
     rmSync(tempDir, { recursive: true, force: true });
   });

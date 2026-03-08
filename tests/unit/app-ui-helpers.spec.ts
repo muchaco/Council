@@ -1,6 +1,7 @@
 import { describe, expect } from "vitest";
 import {
   appendCouncilConfigTag,
+  applyAgentArchivedListUpdate,
   buildInvalidConfigBadgeAriaLabel,
   buildProviderConfiguredBadgeAriaLabel,
   buildProviderConnectionTestButtonAriaLabel,
@@ -15,6 +16,7 @@ import {
   toModelSelectionValue,
   upsertToast,
 } from "../../src/shared/app-ui-helpers.js";
+import * as appUiHelpers from "../../src/shared/app-ui-helpers.js";
 import { itReq } from "../helpers/requirement-trace";
 
 describe("app ui helpers", () => {
@@ -169,6 +171,74 @@ describe("app ui helpers", () => {
     expect(resolveToastVariant("error")).toBe("error");
   });
 
+  itReq(
+    ["R1.20", "R1.21", "R1.22", "R1.24", "R1.27", "U4.2", "U4.5", "U4.6"],
+    "applies immediate agent archive list updates for every archived filter state",
+    () => {
+      const agents = [
+        {
+          id: "agent-1",
+          name: "Archivist",
+          systemPrompt: "Prompt",
+          verbosity: null,
+          temperature: null,
+          tags: [],
+          modelRefOrNull: null,
+          invalidConfig: false,
+          archived: false,
+          createdAtUtc: "2026-01-01T00:00:00.000Z",
+          updatedAtUtc: "2026-01-01T00:00:00.000Z",
+        },
+        {
+          id: "agent-2",
+          name: "Partner",
+          systemPrompt: "Prompt",
+          verbosity: null,
+          temperature: null,
+          tags: [],
+          modelRefOrNull: null,
+          invalidConfig: false,
+          archived: false,
+          createdAtUtc: "2026-01-02T00:00:00.000Z",
+          updatedAtUtc: "2026-01-02T00:00:00.000Z",
+        },
+      ] as const;
+
+      expect(
+        applyAgentArchivedListUpdate({
+          agents,
+          agentId: "agent-1",
+          archived: true,
+          archivedFilter: "all",
+        }),
+      ).toEqual([
+        {
+          ...agents[0],
+          archived: true,
+        },
+        agents[1],
+      ]);
+
+      expect(
+        applyAgentArchivedListUpdate({
+          agents,
+          agentId: "agent-1",
+          archived: true,
+          archivedFilter: "active",
+        }),
+      ).toEqual([agents[1]]);
+
+      expect(
+        applyAgentArchivedListUpdate({
+          agents: [{ ...agents[0], archived: true }],
+          agentId: "agent-1",
+          archived: false,
+          archivedFilter: "archived",
+        }),
+      ).toEqual([]);
+    },
+  );
+
   itReq(["U10.11"], "normalizes council config tags from draft text", () => {
     expect(parseCouncilConfigTags(" strategy, planning ,, execution ")).toEqual([
       "strategy",
@@ -294,6 +364,16 @@ describe("app ui helpers", () => {
           connectionTestAllowed: false,
         }),
       ).toBe("Test Gemini connection disabled until endpoint or API key changes");
+      expect(appUiHelpers.buildProviderDisconnectButtonAriaLabel("Gemini")).toBe(
+        "Disconnect Gemini provider",
+      );
+      expect(
+        buildProviderConnectionTestButtonAriaLabel({
+          providerLabel: "Gemini",
+          connectionTestAllowed: false,
+          requiresDisconnect: true,
+        }),
+      ).toBe("Test Gemini connection disabled until the provider is disconnected");
     },
   );
 });

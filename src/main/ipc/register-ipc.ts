@@ -29,6 +29,7 @@ const toValidationFailure = (devMessage: string): IpcResult<never> => ({
 export const registerIpcHandlers = (): {
   releaseWebContentsResources: (webContentsId: number) => void;
 } => {
+  const HOME_LIST_PAGE_SIZE = 12;
   const logger = createLogger();
   const dbFilePath = path.join(app.getPath("userData"), "council3.sqlite3");
   const migrationsDirPath = path.join(process.cwd(), "src", "main", "services", "db", "migrations");
@@ -73,6 +74,7 @@ export const registerIpcHandlers = (): {
 
   const settingsSlice = createSettingsSlice({
     saveSecret: keychain.saveSecret,
+    deleteSecret: keychain.deleteSecret,
     loadSecret: ({ account }) => keychain.loadSecret({ account }),
     loadPersistedState: () => {
       const result = persistence.loadSettingsState();
@@ -83,6 +85,13 @@ export const registerIpcHandlers = (): {
     },
     persistProviderConfig: (params) => {
       const result = persistence.saveProviderConfig(params);
+      if (result.isErr()) {
+        return errAsync(toDomainPersistenceError(result.error.message));
+      }
+      return okAsync(undefined);
+    },
+    deleteProviderConfig: (providerId) => {
+      const result = persistence.deleteProviderConfig(providerId);
       if (result.isErr()) {
         return errAsync(toDomainPersistenceError(result.error.message));
       }
@@ -106,7 +115,7 @@ export const registerIpcHandlers = (): {
   const councilsSlice = createCouncilsSlice({
     nowUtc: () => new Date().toISOString(),
     createCouncilId: () => asCouncilId(randomUUID()),
-    pageSize: 10,
+    pageSize: HOME_LIST_PAGE_SIZE,
     logger,
     getModelContext: ({ webContentsId, viewKind }) =>
       settingsSlice
@@ -296,7 +305,7 @@ export const registerIpcHandlers = (): {
   const agentsSlice = createAgentsSlice({
     nowUtc: () => new Date().toISOString(),
     createAgentId: () => asAgentId(randomUUID()),
-    pageSize: 10,
+    pageSize: HOME_LIST_PAGE_SIZE,
     getModelContext: ({ webContentsId, viewKind }) =>
       settingsSlice
         .getSettingsView({
@@ -392,6 +401,9 @@ export const registerIpcHandlers = (): {
   );
   ipcMain.handle("providers:save-config", async (event, payload) =>
     settingsHandlers.saveProviderConfig(payload, event.sender.id),
+  );
+  ipcMain.handle("providers:disconnect", async (event, payload) =>
+    settingsHandlers.disconnectProvider(payload, event.sender.id),
   );
   ipcMain.handle("providers:refresh-model-catalog", async (event, payload) =>
     settingsHandlers.refreshModelCatalog(payload, event.sender.id),

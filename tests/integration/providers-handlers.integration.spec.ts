@@ -8,6 +8,7 @@ const FILE_REQUIREMENT_IDS = [
   "R4.8",
   "R4.9",
   "R4.10",
+  "R4.22",
   "R4.13",
   "R4.18",
   "F1",
@@ -18,6 +19,7 @@ const FILE_REQUIREMENT_IDS = [
   "U5.6",
   "U5.9",
   "U5.11",
+  "U5.12",
   "IMPL-007",
 ] as const;
 
@@ -249,6 +251,95 @@ describe("settings providers handlers", () => {
       firstView._unsafeUnwrap().modelCatalog.snapshotId,
     );
   });
+
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "disconnect removes provider models and refreshes cached snapshots",
+    async () => {
+      let tokenCounter = 0;
+      const deleteSecret = vi.fn(() => okAsync(undefined));
+      const slice = createSettingsSlice({
+        nowUtc: () => "2026-02-18T10:00:00.000Z",
+        randomToken: () => `token-${++tokenCounter}`,
+        deleteSecret,
+        fetchGeminiModels: () => okAsync(["gemini-1.5-flash"]),
+        fetchOpenRouterModels: () => okAsync(["openai/gpt-4o-mini"]),
+        fetchOllamaModels: () => okAsync(["llama3.1"]),
+      });
+
+      const testResult = await slice.testProviderConnection({
+        provider: {
+          providerId: "gemini",
+          endpointUrl: null,
+          apiKey: "gemini-key",
+        },
+      });
+      expect(testResult.isOk()).toBe(true);
+      if (testResult.isErr()) {
+        return;
+      }
+
+      const saveResult = await slice.saveProviderConfig({
+        webContentsId: 77,
+        provider: {
+          providerId: "gemini",
+          endpointUrl: null,
+          apiKey: "gemini-key",
+        },
+        testToken: testResult.value.testToken,
+      });
+      expect(saveResult.isOk()).toBe(true);
+
+      const cachedAgentEditView = await slice.getSettingsView({
+        webContentsId: 77,
+        viewKind: "agentEdit",
+      });
+      expect(cachedAgentEditView.isOk()).toBe(true);
+
+      const disconnectResult = await slice.disconnectProvider({
+        webContentsId: 77,
+        providerId: "gemini",
+        viewKind: "settings",
+      });
+      expect(disconnectResult.isOk()).toBe(true);
+      if (disconnectResult.isErr()) {
+        return;
+      }
+
+      expect(deleteSecret).toHaveBeenCalledWith({ account: "provider/gemini" });
+      expect(disconnectResult.value.provider.hasCredential).toBe(false);
+      expect(disconnectResult.value.provider.lastSavedAtUtc).toBeNull();
+      expect(disconnectResult.value.modelCatalog.modelsByProvider.gemini).toBeUndefined();
+
+      const refreshedAgentEditView = await slice.getSettingsView({
+        webContentsId: 77,
+        viewKind: "agentEdit",
+      });
+      expect(refreshedAgentEditView.isOk()).toBe(true);
+      if (refreshedAgentEditView.isErr()) {
+        return;
+      }
+
+      expect(refreshedAgentEditView.value.modelCatalog.modelsByProvider.gemini).toBeUndefined();
+    },
+  );
+
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "disconnect blocks when provider is already disconnected",
+    async () => {
+      const slice = createDeterministicSlice();
+
+      const result = await slice.disconnectProvider({
+        webContentsId: 78,
+        providerId: "openrouter",
+        viewKind: "settings",
+      });
+
+      expect(result.isErr()).toBe(true);
+      expect(result._unsafeUnwrapErr().kind).toBe("ValidationError");
+    },
+  );
 
   itReq(
     FILE_REQUIREMENT_IDS,

@@ -4,6 +4,7 @@ import {
   CANCEL_COUNCIL_GENERATION_REQUEST_SCHEMA,
   DELETE_AGENT_REQUEST_SCHEMA,
   DELETE_COUNCIL_REQUEST_SCHEMA,
+  DISCONNECT_PROVIDER_REQUEST_SCHEMA,
   EXPORT_COUNCIL_TRANSCRIPT_REQUEST_SCHEMA,
   GENERATE_MANUAL_COUNCIL_TURN_REQUEST_SCHEMA,
   GET_AGENT_EDITOR_VIEW_REQUEST_SCHEMA,
@@ -33,6 +34,7 @@ const FILE_REQUIREMENT_IDS = [
   "R4.6",
   "R4.8",
   "R4.17",
+  "R4.22",
   "F1",
   "R1.1",
   "R1.2",
@@ -84,6 +86,14 @@ describe("ipc validators", () => {
       testToken: "",
     });
     expect(parsed.success).toBe(false);
+  });
+
+  itReq(FILE_REQUIREMENT_IDS, "accepts disconnect provider payload", () => {
+    const parsed = DISCONNECT_PROVIDER_REQUEST_SCHEMA.safeParse({
+      providerId: "gemini",
+      viewKind: "settings",
+    });
+    expect(parsed.success).toBe(true);
   });
 
   itReq(FILE_REQUIREMENT_IDS, "rejects provider payload with unknown fields", () => {

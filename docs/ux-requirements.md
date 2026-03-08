@@ -149,7 +149,7 @@ This document defines user-facing UX behavior for Council. It complements the Fu
 
 ### 4.5 Archived behavior
 - **U4.5** Archived Agents remain in the list with a visible Archived badge and are not visually dimmed into looking disabled or deleted. **[1.00]**
-- **U4.6** Agent card overflow menu (`...`) includes Archive/Restore action in addition to Edit and Delete. **[1.00]**
+- **U4.6** Each Agent card opens Agent edit from the card surface itself; click/tap anywhere on the card except the overflow menu (`...`). Keyboard users can focus the card and press Enter/Space. The overflow menu is reserved for Archive/Restore and Delete actions. **[1.00]**
 
 ---
 
@@ -188,6 +188,7 @@ This document defines user-facing UX behavior for Council. It complements the Fu
 - **U5.9** Provide a model-refresh action in Settings adjacent to the Global Default Model picker. **[1.00]**
 - **U5.10** Refresh updates model lists in the current Settings view without reload. **[0.90]**
 - **U5.11** Show progress indicator while refreshing. On completion, show toast. Do not persist snapshot IDs or long-lived refresh-status text in the visible Settings layout. **[0.85]**
+- **U5.12** When a provider already has saved configuration, changing its draft credentials/settings requires an explicit Disconnect action before the user can run a replacement connection test; the Settings card should explain this state clearly and keep draft inputs visible. **[0.95]**
 
 ---
 

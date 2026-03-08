@@ -14,6 +14,7 @@ import {
   modelKey,
 } from "../../../shared/domain/model-ref.js";
 import type {
+  DisconnectProviderResponse,
   GetSettingsViewResponse,
   ModelCatalogSnapshotDto,
   ProviderConfigDto,
@@ -65,6 +66,9 @@ type SettingsSliceDependencies = {
     account: string;
     secret: string;
   }) => ResultAsync<void, "KeychainUnavailableError" | "KeychainWriteError">;
+  deleteSecret: (params: {
+    account: string;
+  }) => ResultAsync<void, "KeychainUnavailableError" | "KeychainWriteError">;
   loadSecret: (params: {
     account: string;
   }) => ResultAsync<string | null, "KeychainUnavailableError" | "KeychainReadError">;
@@ -89,6 +93,7 @@ type SettingsSliceDependencies = {
     lastSavedAtUtc: string;
     models: ReadonlyArray<string>;
   }) => ResultAsync<void, DomainError>;
+  deleteProviderConfig: (providerId: ProviderId) => ResultAsync<void, DomainError>;
   persistGlobalDefaultModel: (params: {
     modelRefOrNull: ModelRef | null;
     updatedAtUtc: string;
@@ -112,6 +117,11 @@ type SettingsSlice = {
     provider: ProviderDraftDto;
     testToken: string;
   }) => ResultAsync<SaveProviderConfigResponse, DomainError>;
+  disconnectProvider: (params: {
+    webContentsId: number;
+    providerId: ProviderId;
+    viewKind: ViewKind;
+  }) => ResultAsync<DisconnectProviderResponse, DomainError>;
   refreshModelCatalog: (params: {
     webContentsId: number;
     viewKind: ViewKind;
@@ -383,6 +393,12 @@ export const createSettingsSlice = (
       keychainSecrets.set(params.account, params.secret);
       return okAsync(undefined);
     });
+  const deleteSecret =
+    dependencies.deleteSecret ??
+    ((params: { account: string }) => {
+      keychainSecrets.delete(params.account);
+      return okAsync(undefined);
+    });
   const fetchOllamaModels =
     dependencies.fetchOllamaModels ?? createFetchOllamaModels(providerError);
   const fetchGeminiModels =
@@ -401,6 +417,7 @@ export const createSettingsSlice = (
         providerConfigs: [],
       }));
   const persistProviderConfig = dependencies.persistProviderConfig ?? (() => okAsync(undefined));
+  const deleteProviderConfig = dependencies.deleteProviderConfig ?? (() => okAsync(undefined));
   const persistGlobalDefaultModel =
     dependencies.persistGlobalDefaultModel ?? (() => okAsync(undefined));
   const persistContextLastN = dependencies.persistContextLastN ?? (() => okAsync(undefined));
@@ -759,6 +776,59 @@ export const createSettingsSlice = (
         });
       });
 
+  const disconnectProvider = ({
+    webContentsId,
+    providerId,
+    viewKind,
+  }: {
+    webContentsId: number;
+    providerId: ProviderId;
+    viewKind: ViewKind;
+  }) =>
+    hydrate().andThen(() => {
+      const persisted = persistedProviderConfigs.get(providerId);
+      if (persisted === undefined) {
+        return errAsync(
+          validationError(
+            `Disconnect blocked because provider ${providerId} is not configured`,
+            "Provider is already disconnected.",
+          ),
+        );
+      }
+
+      const deleteCredential =
+        persisted.credentialRef === null
+          ? okAsync(undefined)
+          : deleteSecret({ account: persisted.credentialRef }).mapErr((errorKind) => {
+              if (errorKind === "KeychainUnavailableError") {
+                return providerError(
+                  `Provider ${providerId} disconnect failed because OS keychain is unavailable`,
+                  "OS keychain is unavailable. Unable to disconnect provider credentials.",
+                );
+              }
+
+              return providerError(
+                `Provider ${providerId} disconnect failed due to keychain delete error`,
+                "Could not disconnect provider credentials. Try again.",
+              );
+            });
+
+      return deleteCredential.andThen(() =>
+        deleteProviderConfig(providerId).map(() => {
+          persistedProviderConfigs.delete(providerId);
+          providerModels.delete(providerId);
+          providerTests.delete(providerId);
+
+          clearSnapshotsForWebContents(webContentsId);
+          const modelCatalog = refreshSnapshot(webContentsId, viewKind);
+          return {
+            provider: toProviderConfigDto(providerId, undefined),
+            modelCatalog,
+          } satisfies DisconnectProviderResponse;
+        }),
+      );
+    });
+
   const refreshModelCatalog = ({
     webContentsId,
     viewKind,
@@ -877,6 +947,7 @@ export const createSettingsSlice = (
     getSettingsView,
     testProviderConnection,
     saveProviderConfig,
+    disconnectProvider,
     refreshModelCatalog,
     setGlobalDefaultModel,
     setContextLastN,

@@ -238,6 +238,9 @@ Confidence scale: **1.00** = fully specified and testable, **0.85** = minor deta
 - **R4.20** Conductor Model is configured per Council; it can be set explicitly or left null to use Global Default Model. **[0.95]**
 - **R4.21** If the resolved Conductor Model is unavailable, show "Invalid config" in Council list and Council View and block starting/resuming. **[0.95]**
 
+### 4.6 Provider Disconnect
+- **R4.22** User can explicitly disconnect a configured provider; disconnect removes the persisted provider configuration and stored credential secret, and the disconnected provider's models must disappear from refreshed view catalogs. **[0.95]**
+
 ---
 
 ## 5. Tags (Global Rules)

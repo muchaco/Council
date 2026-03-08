@@ -9,6 +9,12 @@ export const createInMemoryKeychainService = (): KeychainService => {
       secrets.set(params.account, params.secret);
       return okAsync(undefined);
     },
+    deleteSecret: (
+      params,
+    ): ResultAsync<void, "KeychainUnavailableError" | "KeychainWriteError"> => {
+      secrets.delete(params.account);
+      return okAsync(undefined);
+    },
     loadSecret: (
       params,
     ): ResultAsync<string | null, "KeychainUnavailableError" | "KeychainReadError"> =>

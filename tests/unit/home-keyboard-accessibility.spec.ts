@@ -52,13 +52,16 @@ describe("home keyboard accessibility helpers", () => {
   });
 
   itReq(
-    ["U3.7", "U15.2"],
-    "opens council cards from the card surface while ignoring nested menu controls",
+    ["U3.7", "U4.6", "U15.2"],
+    "opens home cards from the card surface while ignoring nested menu controls",
     () => {
       expect(isCardOpenInteractionTarget(createClosestTarget([]))).toBe(true);
       expect(isCardOpenInteractionTarget(createClosestTarget(["button"]))).toBe(false);
       expect(isCardOpenInteractionTarget(createClosestTarget(["summary"]))).toBe(false);
       expect(isCardOpenInteractionTarget(createClosestTarget(["details"]))).toBe(false);
+      expect(
+        isCardOpenInteractionTarget(createClosestTarget(["[data-card-open-ignore='true']"])),
+      ).toBe(false);
       expect(isCardOpenInteractionTarget(null)).toBe(false);
     },
   );

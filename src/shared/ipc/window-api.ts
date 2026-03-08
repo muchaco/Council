@@ -7,6 +7,8 @@ import type {
   DeleteAgentResponse,
   DeleteCouncilRequest,
   DeleteCouncilResponse,
+  DisconnectProviderRequest,
+  DisconnectProviderResponse,
   ExportCouncilTranscriptRequest,
   ExportCouncilTranscriptResponse,
   GenerateManualCouncilTurnRequest,
@@ -74,6 +76,9 @@ export interface WindowApi {
     saveConfig: (
       request: SaveProviderConfigRequest,
     ) => Promise<IpcResult<SaveProviderConfigResponse>>;
+    disconnect: (
+      request: DisconnectProviderRequest,
+    ) => Promise<IpcResult<DisconnectProviderResponse>>;
     refreshModelCatalog: (
       request: RefreshModelCatalogRequest,
     ) => Promise<IpcResult<RefreshModelCatalogResponse>>;

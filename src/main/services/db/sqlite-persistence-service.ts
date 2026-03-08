@@ -86,6 +86,7 @@ type SqlitePersistenceService = {
   ) => Result<void, DbError>;
   saveContextLastN: (contextLastN: number, updatedAtUtc: string) => Result<void, DbError>;
   saveProviderConfig: (params: PersistedProviderConfig) => Result<void, DbError>;
+  deleteProviderConfig: (providerId: ProviderId) => Result<void, DbError>;
   loadAgents: () => Result<ReadonlyArray<PersistedAgent>, DbError>;
   saveAgent: (agent: PersistedAgent) => Result<void, DbError>;
   deleteAgent: (agentId: string) => Result<void, DbError>;
@@ -379,6 +380,20 @@ export const createSqlitePersistenceService = (
         toDbError(
           "DbQueryError",
           `Failed saving provider config: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
+    }
+  };
+
+  const deleteProviderConfig = (providerId: ProviderId): Result<void, DbError> => {
+    try {
+      db.prepare("DELETE FROM provider_configs WHERE provider_id = ?").run(providerId);
+      return ok(undefined);
+    } catch (error) {
+      return err(
+        toDbError(
+          "DbQueryError",
+          `Failed deleting provider config: ${error instanceof Error ? error.message : String(error)}`,
         ),
       );
     }
@@ -755,6 +770,7 @@ export const createSqlitePersistenceService = (
     saveGlobalDefaultModel,
     saveContextLastN,
     saveProviderConfig,
+    deleteProviderConfig,
     loadAgents,
     saveAgent,
     deleteAgent,

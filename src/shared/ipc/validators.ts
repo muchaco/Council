@@ -47,6 +47,13 @@ export const SAVE_PROVIDER_CONFIG_REQUEST_SCHEMA = z
   })
   .strict();
 
+export const DISCONNECT_PROVIDER_REQUEST_SCHEMA = z
+  .object({
+    providerId: PROVIDER_ID_SCHEMA,
+    viewKind: VIEW_KIND_SCHEMA,
+  })
+  .strict();
+
 export const REFRESH_MODEL_CATALOG_REQUEST_SCHEMA = z.object({
   viewKind: VIEW_KIND_SCHEMA,
 });

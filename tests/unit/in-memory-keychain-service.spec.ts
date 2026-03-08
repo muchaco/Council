@@ -17,5 +17,12 @@ describe("in-memory keychain service", () => {
     const loaded = await service.loadSecret({ account: "provider/gemini" });
     expect(loaded.isOk()).toBe(true);
     expect(loaded._unsafeUnwrap()).toBe("top-secret");
+
+    const deleted = await service.deleteSecret({ account: "provider/gemini" });
+    expect(deleted.isOk()).toBe(true);
+
+    const missing = await service.loadSecret({ account: "provider/gemini" });
+    expect(missing.isOk()).toBe(true);
+    expect(missing._unsafeUnwrap()).toBeNull();
   });
 });

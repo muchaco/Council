@@ -26,9 +26,11 @@ import {
   type AutopilotLimitModalState,
   COUNCIL_CONFIG_MAX_TAGS,
   appendCouncilConfigTag,
+  applyAgentArchivedListUpdate,
   buildInvalidConfigBadgeAriaLabel,
   buildProviderConfiguredBadgeAriaLabel,
   buildProviderConnectionTestButtonAriaLabel,
+  buildProviderDisconnectButtonAriaLabel,
   councilModelLabel,
   createAutopilotLimitModalState,
   isAgentDraftInvalidConfig,
@@ -91,6 +93,8 @@ import {
   fingerprintProviderDraft,
   isProviderConfigured,
   isProviderDraftChanged,
+  requiresProviderDisconnect,
+  shouldShowProviderTestAndSaveActions,
 } from "../shared/provider-settings-ui.js";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ColorPicker } from "./components/ColorPicker";
@@ -161,6 +165,7 @@ type ProviderDraftState = {
   message: string;
   isTesting: boolean;
   isSaving: boolean;
+  isDisconnecting: boolean;
 };
 
 type SettingsAccordionSection = "providers" | "general";
@@ -294,6 +299,7 @@ const toInitialDraftState = (provider: ProviderConfigDto): ProviderDraftState =>
   message: "",
   isTesting: false,
   isSaving: false,
+  isDisconnecting: false,
 });
 
 const toProviderDraftMap = (
@@ -333,14 +339,18 @@ const toProviderDraftDto = (provider: ProviderDraftState): ProviderDraftDto => (
 });
 
 const isSaveAllowed = (provider: ProviderDraftState): boolean =>
-  provider.testToken !== null && !provider.isTesting && !provider.isSaving;
+  provider.testToken !== null &&
+  !provider.isTesting &&
+  !provider.isSaving &&
+  !provider.isDisconnecting;
 
 const isConnectionTestAllowed = (params: {
   provider: ProviderDraftState;
   savedFingerprint: string | null;
+  requiresDisconnect: boolean;
 }): boolean => {
-  const { provider, savedFingerprint } = params;
-  if (provider.isTesting || provider.isSaving) {
+  const { provider, savedFingerprint, requiresDisconnect } = params;
+  if (provider.isTesting || provider.isSaving || provider.isDisconnecting || requiresDisconnect) {
     return false;
   }
 
@@ -1018,6 +1028,7 @@ export const App = (): JSX.Element => {
         ...updates,
         testToken: null,
         message: "Connection must be tested again before save.",
+        testStatusText: "Not tested",
       };
       return { ...current, [providerId]: nextProvider };
     });
@@ -1031,6 +1042,36 @@ export const App = (): JSX.Element => {
 
     const provider = currentDrafts[providerId];
     const savedFingerprint = savedDraftFingerprints?.[providerId] ?? null;
+    const savedProvider =
+      settingsViewState.status === "ready"
+        ? settingsViewState.data.providers.find((item) => item.providerId === providerId)
+        : undefined;
+    const requiresDisconnect =
+      savedProvider !== undefined &&
+      requiresProviderDisconnect({
+        provider,
+        savedFingerprint,
+        configured: isProviderConfigured(savedProvider),
+      });
+    if (requiresDisconnect) {
+      const warningMessage = "Disconnect the saved provider before testing new settings.";
+      pushToast("warning", warningMessage);
+      setDrafts((current) =>
+        current === null
+          ? current
+          : {
+              ...current,
+              [providerId]: {
+                ...current[providerId],
+                testToken: null,
+                testStatusText: "Not tested",
+                message: warningMessage,
+              },
+            },
+      );
+      return;
+    }
+
     if (!isProviderDraftChanged({ provider, savedFingerprint })) {
       const infoMessage = "No provider changes to test. Edit endpoint or key first.";
       pushToast("info", infoMessage);
@@ -1057,6 +1098,7 @@ export const App = (): JSX.Element => {
             [providerId]: {
               ...current[providerId],
               isTesting: true,
+              isDisconnecting: false,
               message: "",
             },
           },
@@ -1092,6 +1134,7 @@ export const App = (): JSX.Element => {
           [providerId]: {
             ...currentProvider,
             isTesting: false,
+            isDisconnecting: false,
             testToken: draftChanged ? null : result.value.testToken,
             testStatusText: result.value.statusText,
             message,
@@ -1104,6 +1147,7 @@ export const App = (): JSX.Element => {
         [providerId]: {
           ...currentProvider,
           isTesting: false,
+          isDisconnecting: false,
           testToken: null,
           testStatusText: "Connection failed",
           message: result.error.userMessage,
@@ -1129,6 +1173,7 @@ export const App = (): JSX.Element => {
               ...current,
               [providerId]: {
                 ...current[providerId],
+                isDisconnecting: false,
                 message: warningMessage,
               },
             },
@@ -1144,6 +1189,7 @@ export const App = (): JSX.Element => {
             [providerId]: {
               ...current[providerId],
               isSaving: true,
+              isDisconnecting: false,
               message: "",
             },
           },
@@ -1163,6 +1209,7 @@ export const App = (): JSX.Element => {
               [providerId]: {
                 ...current[providerId],
                 isSaving: false,
+                isDisconnecting: false,
                 message: result.error.userMessage,
               },
             },
@@ -1172,6 +1219,73 @@ export const App = (): JSX.Element => {
 
     await loadSettingsView();
     pushToast("info", `${PROVIDER_LABELS[providerId]} provider saved.`);
+  };
+
+  const disconnectProvider = async (providerId: ProviderId): Promise<void> => {
+    setDrafts((current) =>
+      current === null
+        ? current
+        : {
+            ...current,
+            [providerId]: {
+              ...current[providerId],
+              isTesting: false,
+              isSaving: false,
+              isDisconnecting: true,
+              testToken: null,
+              testStatusText: "Not tested",
+              message: "",
+            },
+          },
+    );
+
+    const result = await window.api.providers.disconnect({
+      providerId,
+      viewKind: "settings",
+    });
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      setDrafts((current) =>
+        current === null
+          ? current
+          : {
+              ...current,
+              [providerId]: {
+                ...current[providerId],
+                isDisconnecting: false,
+                message: result.error.userMessage,
+              },
+            },
+      );
+      return;
+    }
+
+    setDrafts((current) =>
+      current === null
+        ? current
+        : {
+            ...current,
+            [providerId]: {
+              ...current[providerId],
+              isTesting: false,
+              isSaving: false,
+              isDisconnecting: false,
+              testToken: null,
+              testStatusText: "Not tested",
+              message: "Provider disconnected. Test connection before saving new settings.",
+            },
+          },
+    );
+
+    const loaded = await loadSettingsView({
+      preserveDraftInputs: true,
+      preserveVisibleStateOnError: true,
+    });
+    if (!loaded) {
+      return;
+    }
+
+    pushToast("info", `${PROVIDER_LABELS[providerId]} provider disconnected.`);
   };
 
   const onRefreshModels = async (): Promise<void> => {
@@ -2088,6 +2202,26 @@ export const App = (): JSX.Element => {
     void openCouncilView(councilId);
   };
 
+  const handleAgentCardClick = (event: ReactMouseEvent<HTMLElement>, agentId: string): void => {
+    if (!isCardOpenInteractionTarget(event.target)) {
+      return;
+    }
+
+    void openAgentEditor(agentId);
+  };
+
+  const handleAgentCardKeyDown = (
+    event: ReactKeyboardEvent<HTMLElement>,
+    agentId: string,
+  ): void => {
+    if (event.target !== event.currentTarget || !isListRowOpenKey(event.key)) {
+      return;
+    }
+
+    event.preventDefault();
+    void openAgentEditor(agentId);
+  };
+
   const openCouncilConfigEdit = (field: CouncilConfigField): void => {
     setCouncilViewState((current) => {
       if (current.status !== "ready") {
@@ -2749,12 +2883,21 @@ export const App = (): JSX.Element => {
     agentId: string;
     archived: boolean;
   }): Promise<void> => {
+    setAgents((current) =>
+      applyAgentArchivedListUpdate({
+        agents: current,
+        agentId: params.agentId,
+        archived: params.archived,
+        archivedFilter: agentsArchivedFilter,
+      }),
+    );
     const result = await window.api.agents.setArchived({
       id: params.agentId,
       archived: params.archived,
     });
     if (!result.ok) {
       pushToast("error", result.error.userMessage);
+      await loadAgents({ page: 1, append: false });
       return;
     }
 
@@ -5440,6 +5583,12 @@ export const App = (): JSX.Element => {
 
           {agentsError !== null ? <p className="status">Error: {agentsError}</p> : null}
 
+          {agentsLoading && agents.length > 0 ? (
+            <p aria-live="polite" className="status-line">
+              Refreshing agents...
+            </p>
+          ) : null}
+
           {!agentsLoading && agents.length === 0 ? (
             <Card className="p-8 text-center">
               <p className="text-muted-foreground">{agentsEmptyMessage}</p>
@@ -5448,31 +5597,23 @@ export const App = (): JSX.Element => {
 
           <div className="agents-grid">
             {agents.map((agent) => (
-              <article className="agent-card home-list-card" key={agent.id}>
+              <Card
+                aria-label={`Open agent ${agent.name}`}
+                className="agent-card home-list-card overflow-visible"
+                data-agent-card-id={agent.id}
+                key={agent.id}
+                onClick={(event) => handleAgentCardClick(event, agent.id)}
+                onKeyDown={(event) => handleAgentCardKeyDown(event, agent.id)}
+                tabIndex={0}
+              >
                 <div className="agent-card-header">
                   <div className="agent-card-header-main">
                     <h3 className="agent-card-title">{agent.name}</h3>
-                    <div className="agent-card-badges">
-                      {agent.archived ? (
-                        <span className="council-badge council-badge-muted">
-                          <Archive aria-hidden="true" className="h-3 w-3" />
-                          Archived
-                        </span>
-                      ) : null}
-                      {agent.invalidConfig ? (
-                        <span
-                          aria-label="Invalid configuration"
-                          className="council-badge council-badge-error"
-                          title="Invalid config"
-                        >
-                          Invalid config
-                        </span>
-                      ) : null}
-                    </div>
                   </div>
                   <details
                     aria-label={`Actions menu for agent ${agent.name}`}
                     className="agent-actions-menu"
+                    data-card-open-ignore="true"
                     onToggle={handleAgentMenuToggle}
                   >
                     <summary
@@ -5485,20 +5626,6 @@ export const App = (): JSX.Element => {
                       aria-label={`Agent actions for ${agent.name}`}
                       className="agent-menu-dropdown"
                     >
-                      <button
-                        className="agent-menu-item"
-                        onClick={(event) => {
-                          const details = event.currentTarget.closest("details");
-                          if (details) {
-                            details.open = false;
-                          }
-                          void openAgentEditor(agent.id);
-                        }}
-                        type="button"
-                      >
-                        Edit agent
-                      </button>
-                      <hr className="agent-menu-divider" />
                       <button
                         className="agent-menu-item"
                         onClick={(event) => {
@@ -5556,7 +5683,30 @@ export const App = (): JSX.Element => {
                     ) : null}
                   </div>
                 ) : null}
-              </article>
+
+                {agent.archived || agent.invalidConfig ? (
+                  <div className="council-card-footer">
+                    <div className="council-card-status-badges">
+                      {agent.archived ? (
+                        <span className="council-card-status-badge council-card-status-badge-archived">
+                          <Archive aria-hidden="true" className="h-3 w-3" />
+                          Archived
+                        </span>
+                      ) : null}
+                      {agent.invalidConfig ? (
+                        <span
+                          aria-label="Invalid configuration"
+                          className="council-card-status-badge council-card-status-badge-invalid"
+                          title="Invalid config"
+                        >
+                          <AlertTriangle aria-hidden="true" className="h-3 w-3" />
+                          Config Error
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+              </Card>
             ))}
             {agentsHasMore ? (
               <div className="agents-load-more">
@@ -5637,15 +5787,26 @@ export const App = (): JSX.Element => {
                     );
                     const savedFingerprint =
                       savedDraftFingerprints === null ? null : savedDraftFingerprints[providerId];
+                    const providerConfigured =
+                      savedProvider !== undefined && isProviderConfigured(savedProvider);
+                    const requiresDisconnect = requiresProviderDisconnect({
+                      provider,
+                      savedFingerprint,
+                      configured: providerConfigured,
+                    });
                     const connectionTestAllowed = isConnectionTestAllowed({
                       provider,
                       savedFingerprint,
+                      requiresDisconnect,
                     });
-                    const providerConfigured =
-                      savedProvider !== undefined && isProviderConfigured(savedProvider);
                     const showOllamaNote = providerId === "ollama";
                     const providerLabel = PROVIDER_LABELS[providerId];
                     const shouldShowStatusText = provider.testStatusText !== "Not tested";
+                    const shouldShowTestAndSaveActions = shouldShowProviderTestAndSaveActions({
+                      provider,
+                      configured: providerConfigured,
+                      requiresDisconnect,
+                    });
 
                     return (
                       <Card key={providerId} className="settings-provider-card">
@@ -5701,28 +5862,50 @@ export const App = (): JSX.Element => {
                           </div>
 
                           <div className="settings-provider-actions">
-                            <Button
-                              aria-label={buildProviderConnectionTestButtonAriaLabel({
-                                providerLabel,
-                                connectionTestAllowed,
-                              })}
-                              disabled={!connectionTestAllowed}
-                              onClick={() => void runConnectionTest(providerId)}
-                              title={
-                                connectionTestAllowed
-                                  ? "Test updated provider settings"
-                                  : "Edit endpoint or key before running a new test"
-                              }
-                            >
-                              {provider.isTesting ? "Testing..." : "Test connection"}
-                            </Button>
-                            <Button
-                              variant="secondary"
-                              disabled={!isSaveAllowed(provider)}
-                              onClick={() => void saveProvider(providerId)}
-                            >
-                              {provider.isSaving ? "Saving..." : "Save"}
-                            </Button>
+                            {shouldShowTestAndSaveActions ? (
+                              <>
+                                <Button
+                                  aria-label={buildProviderConnectionTestButtonAriaLabel({
+                                    providerLabel,
+                                    connectionTestAllowed,
+                                    requiresDisconnect,
+                                  })}
+                                  disabled={!connectionTestAllowed}
+                                  onClick={() => void runConnectionTest(providerId)}
+                                  title={
+                                    requiresDisconnect
+                                      ? "Disconnect the saved provider before testing new settings"
+                                      : connectionTestAllowed
+                                        ? "Test updated provider settings"
+                                        : "Edit endpoint or key before running a new test"
+                                  }
+                                >
+                                  {provider.isTesting ? "Testing..." : "Test connection"}
+                                </Button>
+                                <Button
+                                  variant="secondary"
+                                  disabled={!isSaveAllowed(provider)}
+                                  onClick={() => void saveProvider(providerId)}
+                                >
+                                  {provider.isSaving ? "Saving..." : "Save"}
+                                </Button>
+                              </>
+                            ) : null}
+                            {providerConfigured ? (
+                              <Button
+                                aria-label={buildProviderDisconnectButtonAriaLabel(providerLabel)}
+                                disabled={
+                                  provider.isDisconnecting ||
+                                  provider.isSaving ||
+                                  provider.isTesting
+                                }
+                                onClick={() => void disconnectProvider(providerId)}
+                                type="button"
+                                variant="outline"
+                              >
+                                {provider.isDisconnecting ? "Disconnecting..." : "Disconnect"}
+                              </Button>
+                            ) : null}
                           </div>
 
                           {shouldShowStatusText ? (

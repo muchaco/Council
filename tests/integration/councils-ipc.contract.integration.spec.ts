@@ -15,8 +15,11 @@ const FILE_REQUIREMENT_IDS = [
   "R3.23",
   "R3.25",
   "R3.26",
+  "R6.1",
+  "R6.2",
   "R3.32",
   "R8.1",
+  "U3.4",
   "U3.8",
   "U10.1",
   "U10.9",
@@ -38,7 +41,7 @@ const createHandlers = (options?: {
     nowUtc: () => "2026-02-18T10:00:00.000Z",
     createCouncilId: () =>
       asCouncilId(`00000000-0000-4000-8000-${String(++sequence).padStart(12, "0")}`),
-    pageSize: 10,
+    pageSize: 12,
     getModelContext: ({ viewKind }) =>
       okAsync({
         modelCatalog: {
@@ -243,6 +246,55 @@ describe("councils ipc contract", () => {
       expect(savedFromView.value.council.topic).toBe("Q3 planning");
     }
   });
+
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "returns the configured default councils page size through ipc",
+    async () => {
+      const handlers = createHandlers();
+
+      for (let index = 0; index < 13; index += 1) {
+        const save = await handlers.saveCouncil(
+          {
+            viewKind: "councilCreate",
+            id: null,
+            title: `Page Fill Council ${index}`,
+            topic: `Topic ${index}`,
+            goal: null,
+            mode: "manual",
+            tags: ["pagefill"],
+            memberAgentIds: ["00000000-0000-4000-8000-000000000101"],
+            memberColorsByAgentId: {},
+            conductorModelRefOrNull: null,
+          },
+          32,
+        );
+        expect(save.ok).toBe(true);
+      }
+
+      const list = await handlers.listCouncils(
+        {
+          viewKind: "councilsList",
+          searchText: "Page Fill Council",
+          tagFilter: "",
+          archivedFilter: "all",
+          sortBy: "createdAt",
+          sortDirection: "asc",
+          page: 1,
+        },
+        32,
+      );
+
+      expect(list.ok).toBe(true);
+      if (!list.ok) {
+        return;
+      }
+
+      expect(list.value.pageSize).toBe(12);
+      expect(list.value.items).toHaveLength(12);
+      expect(list.value.hasMore).toBe(true);
+    },
+  );
 
   itReq(FILE_REQUIREMENT_IDS, "validates runtime command payloads", async () => {
     const handlers = createHandlers();

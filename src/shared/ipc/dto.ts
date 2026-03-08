@@ -86,6 +86,16 @@ export type SaveProviderConfigResponse = {
   modelCatalog: ModelCatalogSnapshotDto;
 };
 
+export type DisconnectProviderRequest = {
+  providerId: ProviderId;
+  viewKind: ViewKind;
+};
+
+export type DisconnectProviderResponse = {
+  provider: ProviderConfigDto;
+  modelCatalog: ModelCatalogSnapshotDto;
+};
+
 export type RefreshModelCatalogRequest = {
   viewKind: ViewKind;
 };
