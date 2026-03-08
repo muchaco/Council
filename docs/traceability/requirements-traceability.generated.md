@@ -1,14 +1,14 @@
 # Test-to-Requirement Index (Generated)
 
-Generated at: 2026-03-07T23:52:59.360Z
+Generated at: 2026-03-08T01:17:13.651Z
 
 ## Summary
 
 - Spec files tracked: 31
-- Test cases tracked: 174
-- Annotated test cases: 174
+- Test cases tracked: 185
+- Annotated test cases: 185
 - Unmapped test cases: 0
-- Unique mapped requirement IDs: 182
+- Unique mapped requirement IDs: 186
 
 ## Index
 
@@ -21,9 +21,10 @@ Generated at: 2026-03-07T23:52:59.360Z
   - [itReq] `archives and restores agent while preserving list visibility and filtering` -> R1.1, R1.12, R1.13, R1.14, R1.15, R1.16, R1.17, R1.18, R1.19, R1.2, R1.20, R1.21, R1.22, R1.23, R1.24, R1.25, R1.27, R1.4, R1.5, R1.8, R1.9, R6.1, R6.2, R6.3, R6.4, U4.1, U4.2, U4.3, U4.4, U4.5, U4.6, U6.1, U6.11, U6.12, U6.13, U6.2, U6.4, U6.6
   - [itReq] `blocks editing archived agent until restored` -> R1.1, R1.12, R1.13, R1.14, R1.15, R1.16, R1.17, R1.18, R1.19, R1.2, R1.20, R1.21, R1.22, R1.23, R1.24, R1.25, R1.27, R1.4, R1.5, R1.8, R1.9, R6.1, R6.2, R6.3, R6.4, U4.1, U4.2, U4.3, U4.4, U4.5, U4.6, U6.1, U6.11, U6.12, U6.13, U6.2, U6.4, U6.6
 - `tests/integration/agents-ipc.contract.integration.spec.ts`
-  - [itReq] `validates list payload` -> A3, R1.1, R1.2, R1.20, R1.22, U4.6
-  - [itReq] `creates and retrieves editor view` -> A3, R1.1, R1.2, R1.20, R1.22, U4.6
-  - [itReq] `archives agent through ipc handler` -> A3, R1.1, R1.2, R1.20, R1.22, U4.6
+  - [itReq] `validates list payload` -> A3, R1.1, R1.2, R1.20, R1.22, R6.1, R6.2, U4.3, U4.6
+  - [itReq] `creates and retrieves editor view` -> A3, R1.1, R1.2, R1.20, R1.22, R6.1, R6.2, U4.3, U4.6
+  - [itReq] `returns the configured default agents page size through ipc` -> A3, R1.1, R1.2, R1.20, R1.22, R6.1, R6.2, U4.3, U4.6
+  - [itReq] `archives agent through ipc handler` -> A3, R1.1, R1.2, R1.20, R1.22, R6.1, R6.2, U4.3, U4.6
 - `tests/integration/boundary-check-script.integration.spec.ts`
   - [itReq] `passes for baseline source tree` -> A3, IMPL-005
 - `tests/integration/councils-handlers.integration.spec.ts`
@@ -50,12 +51,13 @@ Generated at: 2026-03-07T23:52:59.360Z
   - [itReq] `exports transcript markdown with header and UI-visible message fields` -> F1, R1.11, R1.23, R1.24, R1.26, R2.1, R2.10, R2.11, R2.12, R2.13, R2.14, R2.15, R2.16, R2.17, R2.18, R2.19, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.29, R3.3, R3.30, R3.31, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U16.1, U16.2, U16.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
   - [itReq] `blocks adding archived agents and blocks runtime when a council still references them` -> F1, R1.11, R1.23, R1.24, R1.26, R2.1, R2.10, R2.11, R2.12, R2.13, R2.14, R2.15, R2.16, R2.17, R2.18, R2.19, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.29, R3.3, R3.30, R3.31, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U16.1, U16.2, U16.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
 - `tests/integration/councils-ipc.contract.integration.spec.ts`
-  - [itReq] `validates list payload` -> A3, R2.1, R2.3, R3.1, R3.23, R3.25, R3.26, R3.32, R3.7, R8.1, U10.1, U10.9, U11.6, U12.2, U3.8
-  - [itReq] `creates and fetches council editor view` -> A3, R2.1, R2.3, R3.1, R3.23, R3.25, R3.26, R3.32, R3.7, R8.1, U10.1, U10.9, U11.6, U12.2, U3.8
-  - [itReq] `validates runtime command payloads` -> A3, R2.1, R2.3, R3.1, R3.23, R3.25, R3.26, R3.32, R3.7, R8.1, U10.1, U10.9, U11.6, U12.2, U3.8
-  - [itReq] `exports transcript through typed IPC handler` -> A3, R2.1, R2.3, R3.1, R3.23, R3.25, R3.26, R3.32, R3.7, R8.1, U10.1, U10.9, U11.6, U12.2, U3.8
-  - [itReq] `enforces runtime cancellation semantics over IPC` -> A3, R2.1, R2.3, R3.1, R3.23, R3.25, R3.26, R3.32, R3.7, R8.1, U10.1, U10.9, U11.6, U12.2, U3.8
-  - [itReq] `redacts internal path-bearing error details over IPC` -> A3, R2.1, R2.3, R3.1, R3.23, R3.25, R3.26, R3.32, R3.7, R8.1, U10.1, U10.9, U11.6, U12.2, U3.8
+  - [itReq] `validates list payload` -> A3, R2.1, R2.3, R3.1, R3.23, R3.25, R3.26, R3.32, R3.7, R6.1, R6.2, R8.1, U10.1, U10.9, U11.6, U12.2, U3.4, U3.8
+  - [itReq] `creates and fetches council editor view` -> A3, R2.1, R2.3, R3.1, R3.23, R3.25, R3.26, R3.32, R3.7, R6.1, R6.2, R8.1, U10.1, U10.9, U11.6, U12.2, U3.4, U3.8
+  - [itReq] `returns the configured default councils page size through ipc` -> A3, R2.1, R2.3, R3.1, R3.23, R3.25, R3.26, R3.32, R3.7, R6.1, R6.2, R8.1, U10.1, U10.9, U11.6, U12.2, U3.4, U3.8
+  - [itReq] `validates runtime command payloads` -> A3, R2.1, R2.3, R3.1, R3.23, R3.25, R3.26, R3.32, R3.7, R6.1, R6.2, R8.1, U10.1, U10.9, U11.6, U12.2, U3.4, U3.8
+  - [itReq] `exports transcript through typed IPC handler` -> A3, R2.1, R2.3, R3.1, R3.23, R3.25, R3.26, R3.32, R3.7, R6.1, R6.2, R8.1, U10.1, U10.9, U11.6, U12.2, U3.4, U3.8
+  - [itReq] `enforces runtime cancellation semantics over IPC` -> A3, R2.1, R2.3, R3.1, R3.23, R3.25, R3.26, R3.32, R3.7, R6.1, R6.2, R8.1, U10.1, U10.9, U11.6, U12.2, U3.4, U3.8
+  - [itReq] `redacts internal path-bearing error details over IPC` -> A3, R2.1, R2.3, R3.1, R3.23, R3.25, R3.26, R3.32, R3.7, R6.1, R6.2, R8.1, U10.1, U10.9, U11.6, U12.2, U3.4, U3.8
 - `tests/integration/coverage-guardrails.integration.spec.ts`
   - [itReq] `keeps architecture-aligned coverage include scopes` -> H3, IMPL-006
 - `tests/integration/migration-verification.integration.spec.ts`
@@ -63,32 +65,36 @@ Generated at: 2026-03-07T23:52:59.360Z
 - `tests/integration/packaging-pipeline.integration.spec.ts`
   - [itReq] `enforces Linux AppImage packaging and native rebuild automation` -> G1, G3, H2, H3, IMPL-001
 - `tests/integration/providers-handlers.integration.spec.ts`
-  - [itReq] `requires successful test before save` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.7, R4.8, R4.9, U5.11, U5.4, U5.5, U5.6, U5.9
-  - [itReq] `saves ollama without API key` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.7, R4.8, R4.9, U5.11, U5.4, U5.5, U5.6, U5.9
-  - [itReq] `saves ollama API key when provided` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.7, R4.8, R4.9, U5.11, U5.4, U5.5, U5.6, U5.9
-  - [itReq] `save and refresh update model catalog` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.7, R4.8, R4.9, U5.11, U5.4, U5.5, U5.6, U5.9
-  - [itReq] `applies global default null-resolution semantics` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.7, R4.8, R4.9, U5.11, U5.4, U5.5, U5.6, U5.9
-  - [itReq] `fails saving credentials when keychain is unavailable` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.7, R4.8, R4.9, U5.11, U5.4, U5.5, U5.6, U5.9
-  - [itReq] `cleans cached snapshots when web contents is released` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.7, R4.8, R4.9, U5.11, U5.4, U5.5, U5.6, U5.9
-  - [itReq] `uses discovered Ollama models instead of static defaults` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.7, R4.8, R4.9, U5.11, U5.4, U5.5, U5.6, U5.9
-  - [itReq] `persists settings context window size` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.7, R4.8, R4.9, U5.11, U5.4, U5.5, U5.6, U5.9
-  - [itReq] `refresh uses keychain-stored credential for gemini` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.7, R4.8, R4.9, U5.11, U5.4, U5.5, U5.6, U5.9
-  - [itReq] `default Gemini model fetch uses header auth and parses model ids` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.7, R4.8, R4.9, U5.11, U5.4, U5.5, U5.6, U5.9
-  - [itReq] `default OpenRouter model fetch uses bearer auth and parses ids` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.7, R4.8, R4.9, U5.11, U5.4, U5.5, U5.6, U5.9
-  - [itReq] `refresh clears stale snapshots across views so default model stays valid` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.7, R4.8, R4.9, U5.11, U5.4, U5.5, U5.6, U5.9
+  - [itReq] `requires successful test before save` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.22, R4.7, R4.8, R4.9, U5.11, U5.12, U5.4, U5.5, U5.6, U5.9
+  - [itReq] `saves ollama without API key` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.22, R4.7, R4.8, R4.9, U5.11, U5.12, U5.4, U5.5, U5.6, U5.9
+  - [itReq] `saves ollama API key when provided` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.22, R4.7, R4.8, R4.9, U5.11, U5.12, U5.4, U5.5, U5.6, U5.9
+  - [itReq] `save and refresh update model catalog` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.22, R4.7, R4.8, R4.9, U5.11, U5.12, U5.4, U5.5, U5.6, U5.9
+  - [itReq] `applies global default null-resolution semantics` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.22, R4.7, R4.8, R4.9, U5.11, U5.12, U5.4, U5.5, U5.6, U5.9
+  - [itReq] `fails saving credentials when keychain is unavailable` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.22, R4.7, R4.8, R4.9, U5.11, U5.12, U5.4, U5.5, U5.6, U5.9
+  - [itReq] `cleans cached snapshots when web contents is released` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.22, R4.7, R4.8, R4.9, U5.11, U5.12, U5.4, U5.5, U5.6, U5.9
+  - [itReq] `disconnect removes provider models and refreshes cached snapshots` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.22, R4.7, R4.8, R4.9, U5.11, U5.12, U5.4, U5.5, U5.6, U5.9
+  - [itReq] `disconnect blocks when provider is already disconnected` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.22, R4.7, R4.8, R4.9, U5.11, U5.12, U5.4, U5.5, U5.6, U5.9
+  - [itReq] `uses discovered Ollama models instead of static defaults` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.22, R4.7, R4.8, R4.9, U5.11, U5.12, U5.4, U5.5, U5.6, U5.9
+  - [itReq] `persists settings context window size` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.22, R4.7, R4.8, R4.9, U5.11, U5.12, U5.4, U5.5, U5.6, U5.9
+  - [itReq] `refresh uses keychain-stored credential for gemini` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.22, R4.7, R4.8, R4.9, U5.11, U5.12, U5.4, U5.5, U5.6, U5.9
+  - [itReq] `default Gemini model fetch uses header auth and parses model ids` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.22, R4.7, R4.8, R4.9, U5.11, U5.12, U5.4, U5.5, U5.6, U5.9
+  - [itReq] `default OpenRouter model fetch uses bearer auth and parses ids` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.22, R4.7, R4.8, R4.9, U5.11, U5.12, U5.4, U5.5, U5.6, U5.9
+  - [itReq] `refresh clears stale snapshots across views so default model stays valid` -> A3, C2, F1, IMPL-007, R4.10, R4.13, R4.18, R4.22, R4.7, R4.8, R4.9, U5.11, U5.12, U5.4, U5.5, U5.6, U5.9
 - `tests/integration/providers-ipc.contract.integration.spec.ts`
-  - [itReq] `validates payload shapes` -> A3, C1, C2, D5, F1, IMPL-005
-  - [itReq] `rejects provider payloads with unknown credential fields` -> A3, C1, C2, D5, F1, IMPL-005
-  - [itReq] `never returns credential secrets in IPC responses` -> A3, C1, C2, D5, F1, IMPL-005
-  - [itReq] `redacts provider error details before returning over IPC` -> A3, C1, C2, D5, F1, IMPL-005
-  - [itReq] `validates context last N payload` -> A3, C1, C2, D5, F1, IMPL-005
+  - [itReq] `validates payload shapes` -> A3, C1, C2, D5, F1, IMPL-005, R4.22, R7.1
+  - [itReq] `rejects provider payloads with unknown credential fields` -> A3, C1, C2, D5, F1, IMPL-005, R4.22, R7.1
+  - [itReq] `never returns credential secrets in IPC responses` -> A3, C1, C2, D5, F1, IMPL-005, R4.22, R7.1
+  - [itReq] `disconnect removes provider config without leaking secrets` -> A3, C1, C2, D5, F1, IMPL-005, R4.22, R7.1
+  - [itReq] `redacts provider error details before returning over IPC` -> A3, C1, C2, D5, F1, IMPL-005, R4.22, R7.1
+  - [itReq] `validates context last N payload` -> A3, C1, C2, D5, F1, IMPL-005, R4.22, R7.1
 - `tests/integration/scripts-presence.integration.spec.ts`
   - [itReq] `contains mandatory quality gates` -> H1, H3, IMPL-001
 - `tests/integration/sqlite-persistence.integration.spec.ts`
-  - [itReq] `persists settings and providers across re-open` -> B1, B2, B3, R2.1, R3.23, R3.3, R3.7, R3.8, R7.1
-  - [itReq] `persists agents across re-open and supports delete` -> B1, B2, B3, R2.1, R3.23, R3.3, R3.7, R3.8, R7.1
-  - [itReq] `persists councils and member references` -> B1, B2, B3, R2.1, R3.23, R3.3, R3.7, R3.8, R7.1
-  - [itReq] `persists council transcript messages and runtime briefing` -> B1, B2, B3, R2.1, R3.23, R3.3, R3.7, R3.8, R7.1
+  - [itReq] `persists settings and providers across re-open` -> B1, B2, B3, R2.1, R3.23, R3.3, R3.7, R3.8, R4.22, R7.1
+  - [itReq] `deletes persisted provider configs` -> B1, B2, B3, R2.1, R3.23, R3.3, R3.7, R3.8, R4.22, R7.1
+  - [itReq] `persists agents across re-open and supports delete` -> B1, B2, B3, R2.1, R3.23, R3.3, R3.7, R3.8, R4.22, R7.1
+  - [itReq] `persists councils and member references` -> B1, B2, B3, R2.1, R3.23, R3.3, R3.7, R3.8, R4.22, R7.1
+  - [itReq] `persists council transcript messages and runtime briefing` -> B1, B2, B3, R2.1, R3.23, R3.3, R3.7, R3.8, R4.22, R7.1
 - `tests/unit/app-ui-helpers.spec.ts`
   - [itReq] `round-trips model selection values` -> U5.3
   - [itReq] `returns null for invalid model selection values` -> U5.3
@@ -96,6 +102,7 @@ Generated at: 2026-03-07T23:52:59.360Z
   - [itReq] `validates autopilot turn limits` -> U10.8
   - [itReq] `deduplicates and bounds toast queue entries` -> U2.6
   - [itReq] `maps toast levels to renderer toast variants` -> U2.6
+  - [itReq] `applies immediate agent archive list updates for every archived filter state` -> R1.20, R1.21, R1.22, R1.24, R1.27, U4.2, U4.5, U4.6
   - [itReq] `normalizes council config tags from draft text` -> U10.11
   - [itReq] `appends council config tags with ui-friendly validation` -> U10.11
   - [itReq] `normalizes renderer tag drafts with shared tag rules` -> R5.3, R5.6
@@ -155,37 +162,38 @@ Generated at: 2026-03-07T23:52:59.360Z
   - [itReq] `returns null for unsupported tab navigation keys` -> U15.2
   - [itReq] `returns null when current tab index is out of bounds` -> U15.2
   - [itReq] `recognizes Enter and Space list-row open keys` -> U15.2
-  - [itReq] `opens council cards from the card surface while ignoring nested menu controls` -> U15.2, U3.7
+  - [itReq] `opens home cards from the card surface while ignoring nested menu controls` -> U15.2, U3.7, U4.6
 - `tests/unit/ids.spec.ts`
   - [itReq] `preserves raw values while branding` -> I1
 - `tests/unit/in-memory-keychain-service.spec.ts`
   - [itReq] `saves credentials through keychain boundary` -> C1
 - `tests/unit/ipc-validator-shapes.spec.ts`
-  - [itReq] `accepts valid payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `rejects empty payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `accepts provider test payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `rejects save payload without test token` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `rejects provider payload with unknown fields` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `accepts nullable global default model payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `accepts valid context last N payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `accepts valid list agents payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `rejects invalid list agents page` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `accepts save agent payload with nullable model` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `accepts nullable get editor payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `rejects delete payload with non-uuid id` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `rejects invalid set archived agent payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `accepts valid list councils payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `accepts valid save council payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `accepts nullable get council editor payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `rejects invalid set archived payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `rejects invalid delete council payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `accepts valid council view payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `rejects pause autopilot payload with invalid id` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `accepts valid start and resume council payloads` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `rejects invalid max turn payloads` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `accepts manual generation and autopilot advance payloads` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `rejects empty conductor injection content and invalid cancel id` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
-  - [itReq] `validates council transcript export payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts valid payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `rejects empty payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts provider test payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `rejects save payload without test token` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts disconnect provider payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `rejects provider payload with unknown fields` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts nullable global default model payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts valid context last N payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts valid list agents payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `rejects invalid list agents page` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts save agent payload with nullable model` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts nullable get editor payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `rejects delete payload with non-uuid id` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `rejects invalid set archived agent payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts valid list councils payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts valid save council payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts nullable get council editor payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `rejects invalid set archived payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `rejects invalid delete council payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts valid council view payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `rejects pause autopilot payload with invalid id` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts valid start and resume council payloads` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `rejects invalid max turn payloads` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `accepts manual generation and autopilot advance payloads` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `rejects empty conductor injection content and invalid cancel id` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `validates council transcript export payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
 - `tests/unit/keytar-keychain-service.spec.ts`
   - [itReq] `writes credentials via keytar adapter` -> C1, C2, H2
   - [itReq] `maps keychain transport failures to unavailable errors` -> C1, C2, H2
@@ -193,6 +201,7 @@ Generated at: 2026-03-07T23:52:59.360Z
   - [itReq] `maps non-availability read failures to read errors` -> C1, C2, H2
 - `tests/unit/main-window-security-defaults.spec.ts`
   - [itReq] `enforces required electron security settings` -> A2
+  - [itReq] `uses a fitted initial content width for the main window` -> U0.2
 - `tests/unit/model-resolution.spec.ts`
   - [itReq] `resolves explicit model when available` -> E2, R4.12, R4.15, R4.18, R4.19
   - [itReq] `falls back to global default when explicit model is null` -> E2, R4.12, R4.15, R4.18, R4.19
@@ -209,6 +218,8 @@ Generated at: 2026-03-07T23:52:59.360Z
   - [itReq] `builds stable provider draft fingerprints` -> U5.3
   - [itReq] `detects provider draft changes against saved fingerprint` -> U5.3
   - [itReq] `marks provider as configured when saved` -> U5.2
+  - [itReq] `requires disconnect before testing replacement provider settings` -> U5.12
+  - [itReq] `hides test and save when disconnect is the only available provider action` -> U5.12
 - `tests/unit/tag-value-object.spec.ts`
   - [itReq] `accepts valid tags and trims whitespace` -> E1, E2, R5.6, R5.7
   - [itReq] `rejects duplicate tags case-insensitively` -> E1, E2, R5.6, R5.7

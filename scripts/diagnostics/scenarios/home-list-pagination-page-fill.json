@@ -1,0 +1,42 @@
+{
+  "name": "home-list-pagination-page-fill",
+  "steps": [
+    { "action": "waitForText", "text": "Council" },
+    {
+      "action": "evaluate",
+      "saveAs": "seedPageFillData",
+      "expression": "async () => { const settings = await window.api.settings.getView({ viewKind: 'settings' }); if (!settings.ok) { return false; } const modelEntry = Object.entries(settings.value.modelCatalog.modelsByProvider).find(([, models]) => Array.isArray(models) && models.length > 0); const modelRefOrNull = modelEntry === undefined ? null : { providerId: modelEntry[0], modelId: modelEntry[1][0] }; const prefix = `PF${Date.now().toString().slice(-6)}`; window.__pageFillPrefix = prefix; for (let index = 1; index <= 13; index += 1) { const agentSave = await window.api.agents.save({ viewKind: 'agentEdit', id: null, name: `${prefix} Agent ${String(index).padStart(2, '0')}`, systemPrompt: `Pagination scenario agent ${index}.`, verbosity: null, temperature: null, tags: [prefix], modelRefOrNull }); if (!agentSave.ok) { return false; } } const agentsList = await window.api.agents.list({ viewKind: 'agentsList', searchText: prefix, tagFilter: '', archivedFilter: 'all', sortBy: 'createdAt', sortDirection: 'asc', page: 1 }); if (!agentsList.ok || agentsList.value.items.length === 0) { return false; } const firstAgentId = agentsList.value.items[0].id; for (let index = 1; index <= 13; index += 1) { const councilSave = await window.api.councils.save({ viewKind: 'councilCreate', id: null, title: `${prefix} Council ${String(index).padStart(2, '0')}`, topic: `Pagination scenario council ${index}.`, goal: null, mode: 'manual', tags: [prefix], memberAgentIds: [firstAgentId], memberColorsByAgentId: {}, conductorModelRefOrNull: null }); if (!councilSave.ok) { return false; } } return true; }"
+    },
+    { "action": "assertSaved", "key": "seedPageFillData", "equals": true },
+    { "action": "click", "selector": "button:has-text('Agents')" },
+    { "action": "waitForText", "text": "New Agent" },
+    {
+      "action": "evaluate",
+      "saveAs": "agentsPageFillFirstPageCount",
+      "expression": "async () => { const prefix = window.__pageFillPrefix; if (typeof prefix !== 'string') { return null; } const input = document.querySelector('input[aria-label=\"Search agents\"]'); if (!(input instanceof HTMLInputElement)) { return null; } input.focus(); input.value = prefix; input.dispatchEvent(new Event('input', { bubbles: true })); const deadline = Date.now() + 5000; while (Date.now() < deadline) { const count = Array.from(document.querySelectorAll('[data-agent-card-id]')).filter((node) => node.textContent?.includes(prefix)).length; if (count === 12) { return count; } await new Promise((resolve) => window.setTimeout(resolve, 100)); } return Array.from(document.querySelectorAll('[data-agent-card-id]')).filter((node) => node.textContent?.includes(prefix)).length; }"
+    },
+    { "action": "assertSaved", "key": "agentsPageFillFirstPageCount", "equals": 12 },
+    { "action": "click", "selector": "button:has-text('Load more')" },
+    {
+      "action": "evaluate",
+      "saveAs": "agentsPageFillLoadedCount",
+      "expression": "async () => { const prefix = window.__pageFillPrefix; if (typeof prefix !== 'string') { return null; } const deadline = Date.now() + 5000; while (Date.now() < deadline) { const count = Array.from(document.querySelectorAll('[data-agent-card-id]')).filter((node) => node.textContent?.includes(prefix)).length; if (count === 13) { return count; } await new Promise((resolve) => window.setTimeout(resolve, 100)); } return Array.from(document.querySelectorAll('[data-agent-card-id]')).filter((node) => node.textContent?.includes(prefix)).length; }"
+    },
+    { "action": "assertSaved", "key": "agentsPageFillLoadedCount", "equals": 13 },
+    { "action": "click", "selector": "button:has-text('Councils')" },
+    { "action": "waitForText", "text": "New Council" },
+    {
+      "action": "evaluate",
+      "saveAs": "councilsPageFillFirstPageCount",
+      "expression": "async () => { const prefix = window.__pageFillPrefix; if (typeof prefix !== 'string') { return null; } const input = document.querySelector('input[aria-label=\"Search councils\"]'); if (!(input instanceof HTMLInputElement)) { return null; } input.focus(); input.value = prefix; input.dispatchEvent(new Event('input', { bubbles: true })); const deadline = Date.now() + 5000; while (Date.now() < deadline) { const count = Array.from(document.querySelectorAll('[data-council-card-id]')).filter((node) => node.textContent?.includes(prefix)).length; if (count === 12) { return count; } await new Promise((resolve) => window.setTimeout(resolve, 100)); } return Array.from(document.querySelectorAll('[data-council-card-id]')).filter((node) => node.textContent?.includes(prefix)).length; }"
+    },
+    { "action": "assertSaved", "key": "councilsPageFillFirstPageCount", "equals": 12 },
+    { "action": "click", "selector": "button:has-text('Load more councils')" },
+    {
+      "action": "evaluate",
+      "saveAs": "councilsPageFillLoadedCount",
+      "expression": "async () => { const prefix = window.__pageFillPrefix; if (typeof prefix !== 'string') { return null; } const deadline = Date.now() + 5000; while (Date.now() < deadline) { const count = Array.from(document.querySelectorAll('[data-council-card-id]')).filter((node) => node.textContent?.includes(prefix)).length; if (count === 13) { return count; } await new Promise((resolve) => window.setTimeout(resolve, 100)); } return Array.from(document.querySelectorAll('[data-council-card-id]')).filter((node) => node.textContent?.includes(prefix)).length; }"
+    },
+    { "action": "assertSaved", "key": "councilsPageFillLoadedCount", "equals": 13 }
+  ]
+}

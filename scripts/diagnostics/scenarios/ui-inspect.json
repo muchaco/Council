@@ -33,11 +33,25 @@
     { "action": "assertSaved", "key": "agentMenuInHeader", "equals": true },
     {
       "action": "evaluate",
-      "saveAs": "agentArchivedBadgePresent",
-      "expression": "() => Array.from(document.querySelectorAll('.agent-card .council-badge')).some((node) => node.textContent?.includes('Archived'))"
+      "saveAs": "agentFooterStatusBadgesPresent",
+      "expression": "() => Array.from(document.querySelectorAll('.agent-card')).some((card) => card.querySelector('.council-card-footer .council-card-status-badge-archived') instanceof HTMLElement)"
     },
-    { "action": "assertSaved", "key": "agentArchivedBadgePresent", "equals": true },
+    { "action": "assertSaved", "key": "agentFooterStatusBadgesPresent", "equals": true },
+    {
+      "action": "evaluate",
+      "saveAs": "agentHeaderBadgesRemoved",
+      "expression": "() => Array.from(document.querySelectorAll('.agent-card .agent-card-header-main')).every((header) => header.querySelector('.council-badge, .council-card-status-badge') === null)"
+    },
+    { "action": "assertSaved", "key": "agentHeaderBadgesRemoved", "equals": true },
+    {
+      "action": "evaluate",
+      "saveAs": "agentCardOpensEditorWithoutMenuEdit",
+      "expression": "() => { const summary = document.querySelector('.agent-actions-menu summary'); if (!(summary instanceof HTMLElement)) { return false; } summary.click(); const menuHasEdit = Array.from(document.querySelectorAll('.agent-menu-item')).some((node) => node.textContent?.includes('Edit agent')); const card = Array.from(document.querySelectorAll('[data-agent-card-id]')).find((node) => node.textContent?.includes('UI Inspect Agent')); if (!(card instanceof HTMLElement)) { return false; } card.click(); return menuHasEdit === false; }"
+    },
+    { "action": "assertSaved", "key": "agentCardOpensEditorWithoutMenuEdit", "equals": true },
+    { "action": "waitForText", "text": "System Prompt" },
     { "action": "screenshot", "file": "agents-list.png", "fullPage": true },
+    { "action": "click", "selector": "button:has-text('Back')" },
     { "action": "click", "selector": "button:has-text('New Agent')" },
     {
       "action": "evaluate",

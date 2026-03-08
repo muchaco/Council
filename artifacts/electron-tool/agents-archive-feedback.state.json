@@ -1,0 +1,29 @@
+{
+  "seedAgent": {
+    "ok": true,
+    "value": {
+      "agent": {
+        "id": "60aeeefb-3a9d-4edb-995f-cd8415d40aed",
+        "name": "Archive Feedback Agent 1772930342836",
+        "systemPrompt": "Verify archive feedback.",
+        "verbosity": null,
+        "temperature": null,
+        "tags": [],
+        "modelRefOrNull": {
+          "providerId": "gemini",
+          "modelId": "gemini-2.5-flash"
+        },
+        "invalidConfig": false,
+        "archived": false,
+        "createdAtUtc": "2026-03-08T00:39:03.018Z",
+        "updatedAtUtc": "2026-03-08T00:39:03.018Z"
+      }
+    }
+  },
+  "firstAgentMatchesSeed": true,
+  "archivedBadgeVisible": true,
+  "archivedApiCount": 1,
+  "archivedFilterLabel": true,
+  "editActionRemoved": true,
+  "restoredActiveCount": 1
+}

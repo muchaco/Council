@@ -3,22 +3,20 @@
     "ok": true,
     "value": {
       "agent": {
-        "id": "90dbba0b-eec7-4382-a064-2a664804bcdc",
-        "name": "Smoke Agent 1772927695776",
+        "id": "b0ac57c8-3fbd-4815-891f-6caee0de9ad9",
+        "name": "Smoke Agent 1772930260237",
         "systemPrompt": "You are a helpful planner.",
         "verbosity": null,
         "temperature": null,
-        "tags": [
-          "smoke"
-        ],
+        "tags": ["smoke"],
         "modelRefOrNull": {
           "providerId": "gemini",
           "modelId": "gemini-2.5-flash"
         },
         "invalidConfig": false,
         "archived": false,
-        "createdAtUtc": "2026-03-07T23:54:55.786Z",
-        "updatedAtUtc": "2026-03-07T23:54:55.786Z"
+        "createdAtUtc": "2026-03-08T00:37:40.296Z",
+        "updatedAtUtc": "2026-03-08T00:37:40.296Z"
       }
     }
   },
@@ -27,14 +25,140 @@
     "value": {
       "items": [
         {
+          "id": "b0ac57c8-3fbd-4815-891f-6caee0de9ad9",
+          "name": "Smoke Agent 1772930260237",
+          "systemPrompt": "You are a helpful planner.",
+          "verbosity": null,
+          "temperature": null,
+          "tags": ["smoke"],
+          "modelRefOrNull": {
+            "providerId": "gemini",
+            "modelId": "gemini-2.5-flash"
+          },
+          "invalidConfig": false,
+          "archived": false,
+          "createdAtUtc": "2026-03-08T00:37:40.296Z",
+          "updatedAtUtc": "2026-03-08T00:37:40.296Z"
+        },
+        {
+          "id": "9a7a3e3b-4220-4e04-bd94-a543cd963664",
+          "name": "Archive Feedback Agent 1772929813472",
+          "systemPrompt": "Verify archive feedback.",
+          "verbosity": null,
+          "temperature": null,
+          "tags": [],
+          "modelRefOrNull": {
+            "providerId": "gemini",
+            "modelId": "gemini-2.5-flash"
+          },
+          "invalidConfig": false,
+          "archived": false,
+          "createdAtUtc": "2026-03-08T00:30:13.542Z",
+          "updatedAtUtc": "2026-03-08T00:30:19.022Z"
+        },
+        {
+          "id": "aa167c53-d61b-4371-a374-9a5d68e1b7d7",
+          "name": "Archive Feedback Agent 1772929751253",
+          "systemPrompt": "Verify archive feedback.",
+          "verbosity": null,
+          "temperature": null,
+          "tags": [],
+          "modelRefOrNull": {
+            "providerId": "gemini",
+            "modelId": "gemini-2.5-flash"
+          },
+          "invalidConfig": false,
+          "archived": false,
+          "createdAtUtc": "2026-03-08T00:29:11.265Z",
+          "updatedAtUtc": "2026-03-08T00:29:11.265Z"
+        },
+        {
+          "id": "3cba94fc-64bc-4c04-b743-ab7e14272d46",
+          "name": "Archive Debug Agent 1772929475148",
+          "systemPrompt": "Debug archive behavior.",
+          "verbosity": null,
+          "temperature": null,
+          "tags": ["dbg1772929475148"],
+          "modelRefOrNull": {
+            "providerId": "gemini",
+            "modelId": "gemini-2.5-flash"
+          },
+          "invalidConfig": false,
+          "archived": false,
+          "createdAtUtc": "2026-03-08T00:24:35.279Z",
+          "updatedAtUtc": "2026-03-08T00:24:35.279Z"
+        },
+        {
+          "id": "d298d343-1537-439c-b6bd-39766a9f7a88",
+          "name": "Archive Debug Agent 1772929360403",
+          "systemPrompt": "Debug archive behavior.",
+          "verbosity": null,
+          "temperature": null,
+          "tags": ["debug-archive"],
+          "modelRefOrNull": {
+            "providerId": "gemini",
+            "modelId": "gemini-2.5-flash"
+          },
+          "invalidConfig": false,
+          "archived": true,
+          "createdAtUtc": "2026-03-08T00:22:40.410Z",
+          "updatedAtUtc": "2026-03-08T00:22:42.158Z"
+        },
+        {
+          "id": "9df24885-ad66-4be6-9605-2c8f2f3f616b",
+          "name": "Archive Debug Agent",
+          "systemPrompt": "Debug archive behavior.",
+          "verbosity": null,
+          "temperature": null,
+          "tags": ["debug-archive"],
+          "modelRefOrNull": {
+            "providerId": "gemini",
+            "modelId": "gemini-2.5-flash"
+          },
+          "invalidConfig": false,
+          "archived": true,
+          "createdAtUtc": "2026-03-08T00:20:15.491Z",
+          "updatedAtUtc": "2026-03-08T00:20:17.462Z"
+        },
+        {
+          "id": "e7b360f9-fb61-4075-ae51-7878a06a7773",
+          "name": "UI Inspect Archived Agent 1772927717763",
+          "systemPrompt": "Scenario helper archived agent.",
+          "verbosity": null,
+          "temperature": null,
+          "tags": ["inspect"],
+          "modelRefOrNull": {
+            "providerId": "gemini",
+            "modelId": "gemini-2.5-flash"
+          },
+          "invalidConfig": false,
+          "archived": true,
+          "createdAtUtc": "2026-03-07T23:55:17.765Z",
+          "updatedAtUtc": "2026-03-07T23:55:17.829Z"
+        },
+        {
+          "id": "53beae41-b1fc-4186-a2a2-25b0b20959d3",
+          "name": "UI Inspect Agent 1772927717696",
+          "systemPrompt": "Scenario helper agent.",
+          "verbosity": null,
+          "temperature": null,
+          "tags": ["inspect"],
+          "modelRefOrNull": {
+            "providerId": "gemini",
+            "modelId": "gemini-2.5-flash"
+          },
+          "invalidConfig": false,
+          "archived": false,
+          "createdAtUtc": "2026-03-07T23:55:17.709Z",
+          "updatedAtUtc": "2026-03-07T23:55:17.709Z"
+        },
+        {
           "id": "90dbba0b-eec7-4382-a064-2a664804bcdc",
           "name": "Smoke Agent 1772927695776",
           "systemPrompt": "You are a helpful planner.",
           "verbosity": null,
           "temperature": null,
-          "tags": [
-            "smoke"
-          ],
+          "tags": ["smoke"],
           "modelRefOrNull": {
             "providerId": "gemini",
             "modelId": "gemini-2.5-flash"
@@ -50,9 +174,7 @@
           "systemPrompt": "Scenario helper agent.",
           "verbosity": null,
           "temperature": null,
-          "tags": [
-            "inspect"
-          ],
+          "tags": ["inspect"],
           "modelRefOrNull": {
             "providerId": "gemini",
             "modelId": "gemini-2.5-flash"
@@ -61,155 +183,14 @@
           "archived": false,
           "createdAtUtc": "2026-03-07T21:23:15.897Z",
           "updatedAtUtc": "2026-03-07T21:23:15.897Z"
-        },
-        {
-          "id": "50015b0f-f5e2-4805-92e9-847c7c495ba8",
-          "name": "UI Inspect Agent 1772916859993",
-          "systemPrompt": "Scenario helper agent.",
-          "verbosity": null,
-          "temperature": null,
-          "tags": [
-            "inspect"
-          ],
-          "modelRefOrNull": {
-            "providerId": "gemini",
-            "modelId": "gemini-2.5-flash"
-          },
-          "invalidConfig": false,
-          "archived": false,
-          "createdAtUtc": "2026-03-07T20:54:20.006Z",
-          "updatedAtUtc": "2026-03-07T20:54:20.006Z"
-        },
-        {
-          "id": "111f718e-23b1-4549-8e16-04884e04a16b",
-          "name": "UI Inspect Agent 1772916780715",
-          "systemPrompt": "Scenario helper agent.",
-          "verbosity": null,
-          "temperature": null,
-          "tags": [
-            "inspect"
-          ],
-          "modelRefOrNull": {
-            "providerId": "gemini",
-            "modelId": "gemini-2.5-flash"
-          },
-          "invalidConfig": false,
-          "archived": false,
-          "createdAtUtc": "2026-03-07T20:53:00.724Z",
-          "updatedAtUtc": "2026-03-07T20:53:00.724Z"
-        },
-        {
-          "id": "de11d814-c1eb-4442-aaae-dc9cc5ade595",
-          "name": "UI Inspect Agent 1772916726109",
-          "systemPrompt": "Scenario helper agent.",
-          "verbosity": null,
-          "temperature": null,
-          "tags": [
-            "inspect"
-          ],
-          "modelRefOrNull": {
-            "providerId": "gemini",
-            "modelId": "gemini-2.5-flash"
-          },
-          "invalidConfig": false,
-          "archived": false,
-          "createdAtUtc": "2026-03-07T20:52:06.121Z",
-          "updatedAtUtc": "2026-03-07T20:52:06.121Z"
-        },
-        {
-          "id": "18bb33c0-5837-4d3b-9272-4dcf8b047ba6",
-          "name": "UI Inspect Agent 1772916636097",
-          "systemPrompt": "Scenario helper agent.",
-          "verbosity": null,
-          "temperature": null,
-          "tags": [
-            "inspect"
-          ],
-          "modelRefOrNull": {
-            "providerId": "gemini",
-            "modelId": "gemini-2.5-flash"
-          },
-          "invalidConfig": false,
-          "archived": false,
-          "createdAtUtc": "2026-03-07T20:50:36.105Z",
-          "updatedAtUtc": "2026-03-07T20:50:36.105Z"
-        },
-        {
-          "id": "326a5a8c-3d2c-462d-b30e-a4b42f07760e",
-          "name": "UI Inspect Agent 1772916596148",
-          "systemPrompt": "Scenario helper agent.",
-          "verbosity": null,
-          "temperature": null,
-          "tags": [
-            "inspect"
-          ],
-          "modelRefOrNull": {
-            "providerId": "gemini",
-            "modelId": "gemini-2.5-flash"
-          },
-          "invalidConfig": false,
-          "archived": false,
-          "createdAtUtc": "2026-03-07T20:49:56.166Z",
-          "updatedAtUtc": "2026-03-07T20:49:56.166Z"
-        },
-        {
-          "id": "040d4c4d-4538-4b3b-bb53-777c4174836b",
-          "name": "Garrett Lisi",
-          "systemPrompt": "You are Garrett Lisi, a theoretical physicist who proposed the E8 Theory of Everything based on an exceptional Lie group. You believe the universe has a deep geometric structure and that all forces and particles emerge from a single beautiful mathematical object. You prefer 4-8 medium-length sentences. Be thoughtful and geometric in your reasoning. You see connections between algebra, geometry, and physics, and believe simplicity and mathematical beauty point toward truth.",
-          "verbosity": null,
-          "temperature": 0.7,
-          "tags": [
-            "physicist",
-            "geometry",
-            "e8-theory"
-          ],
-          "modelRefOrNull": null,
-          "invalidConfig": false,
-          "archived": false,
-          "createdAtUtc": "2026-02-20T10:59:24.675Z",
-          "updatedAtUtc": "2026-02-20T10:59:24.675Z"
-        },
-        {
-          "id": "5618fd6c-6f26-4d6b-8a1a-f896b52b8cde",
-          "name": "Brian Cox",
-          "systemPrompt": "You are Brian Cox, a physicist and science communicator known for making complex concepts accessible. You focus on observable phenomena and the connection between theory and experiment. You are enthusiastic but grounded, emphasizing what we actually know versus what we speculate. You prefer 4-8 medium-length sentences. Be approachable and explain clearly. You often bridge the gap between abstract mathematics and physical reality, asking how we might test these ideas.",
-          "verbosity": null,
-          "temperature": 0.6,
-          "tags": [
-            "physicist",
-            "communicator",
-            "phenomenology"
-          ],
-          "modelRefOrNull": null,
-          "invalidConfig": false,
-          "archived": false,
-          "createdAtUtc": "2026-02-20T10:59:24.144Z",
-          "updatedAtUtc": "2026-02-20T10:59:24.144Z"
-        },
-        {
-          "id": "14df1d6c-6af0-4d47-8c19-b226dece5a10",
-          "name": "Michio Kaku",
-          "systemPrompt": "You are Michio Kaku, a theoretical physicist and futurist known for enthusiasm about string theory and the multiverse. You are optimistic, visionary, and speak about the grand unification of forces and higher dimensions. You see beauty in mathematical elegance and believe deeper symmetries reveal nature. You prefer 4-8 medium-length sentences. Be warm and engaging while defending theoretical frameworks. You often reference the music of strings vibrating in higher dimensions. You believe mathematics is the language of the universe.",
-          "verbosity": null,
-          "temperature": 0.8,
-          "tags": [
-            "physicist",
-            "string-theory",
-            "visionary"
-          ],
-          "modelRefOrNull": null,
-          "invalidConfig": false,
-          "archived": false,
-          "createdAtUtc": "2026-02-20T10:59:23.609Z",
-          "updatedAtUtc": "2026-02-20T10:59:23.609Z"
         }
       ],
       "page": 1,
       "pageSize": 10,
-      "total": 11,
+      "total": 19,
       "hasMore": true,
       "modelCatalog": {
-        "snapshotId": "461fbbab-7a71-47e3-8ca0-d5b6372d5c62",
+        "snapshotId": "0436cc17-c1f6-4475-ab43-c3b981987f0d",
         "modelsByProvider": {
           "gemini": [
             "gemini-2.5-flash",
@@ -242,10 +223,7 @@
             "gemini-2.5-computer-use-preview-10-2025",
             "deep-research-pro-preview-12-2025"
           ],
-          "ollama": [
-            "smollm:135m",
-            "all-minilm:latest"
-          ]
+          "ollama": ["smollm:135m", "all-minilm:latest"]
         }
       },
       "globalDefaultModelRef": {

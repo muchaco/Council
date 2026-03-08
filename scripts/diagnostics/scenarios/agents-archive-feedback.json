@@ -1,0 +1,64 @@
+{
+  "name": "agents-archive-feedback",
+  "steps": [
+    { "action": "waitForText", "text": "Council" },
+    {
+      "action": "evaluate",
+      "saveAs": "seedAgent",
+      "expression": "async () => { const seed = Date.now(); const name = `Archive Feedback Agent ${seed}`; window.__agentArchiveFeedback = { name }; const settings = await window.api.settings.getView({ viewKind: 'settings' }); const modelEntry = settings.ok ? Object.entries(settings.value.modelCatalog.modelsByProvider).find(([, models]) => Array.isArray(models) && models.length > 0) : undefined; const modelRefOrNull = modelEntry === undefined ? null : { providerId: modelEntry[0], modelId: modelEntry[1][0] }; return window.api.agents.save({ viewKind: 'agentEdit', id: null, name, systemPrompt: 'Verify archive feedback.', verbosity: null, temperature: null, tags: [], modelRefOrNull }); }"
+    },
+    { "action": "assertSaved", "key": "seedAgent", "hasPath": "value.agent.id" },
+    { "action": "click", "selector": "button:has-text('Agents')" },
+    { "action": "waitForText", "text": "New Agent" },
+    {
+      "action": "evaluate",
+      "saveAs": "firstAgentMatchesSeed",
+      "expression": "() => document.querySelector('.agent-card-title')?.textContent === window.__agentArchiveFeedback?.name"
+    },
+    { "action": "assertSaved", "key": "firstAgentMatchesSeed", "equals": true },
+    { "action": "click", "selector": ".agent-actions-menu summary" },
+    { "action": "click", "selector": "button:has-text('Archive agent')" },
+    {
+      "action": "evaluate",
+      "saveAs": "archivedBadgeVisible",
+      "expression": "() => document.querySelector('.agent-card .council-badge')?.textContent?.includes('Archived') === true"
+    },
+    { "action": "assertSaved", "key": "archivedBadgeVisible", "equals": true },
+    {
+      "action": "evaluate",
+      "saveAs": "archivedApiCount",
+      "expression": "async () => { const name = window.__agentArchiveFeedback?.name ?? ''; const result = await window.api.agents.list({ viewKind: 'agentsList', searchText: name, tagFilter: '', archivedFilter: 'archived', sortBy: 'updatedAt', sortDirection: 'desc', page: 1 }); return result.ok ? result.value.items.length : -1; }"
+    },
+    { "action": "assertSaved", "key": "archivedApiCount", "equals": 1 },
+    { "action": "click", "selector": ".home-list-toolbar-select" },
+    { "action": "click", "selector": "[role='option']:has-text('Archived only')" },
+    {
+      "action": "evaluate",
+      "saveAs": "archivedFilterLabel",
+      "expression": "() => document.querySelector('.home-list-toolbar-select')?.textContent?.includes('Archived only') === true"
+    },
+    { "action": "assertSaved", "key": "archivedFilterLabel", "equals": true },
+    {
+      "action": "evaluate",
+      "saveAs": "editActionRemoved",
+      "expression": "() => { const summary = document.querySelector('.agent-actions-menu summary'); if (!(summary instanceof HTMLElement)) { return false; } summary.click(); return !Array.from(document.querySelectorAll('.agent-menu-item')).some((node) => node.textContent?.includes('Edit agent')); }"
+    },
+    { "action": "assertSaved", "key": "editActionRemoved", "equals": true },
+    {
+      "action": "evaluate",
+      "expression": "() => { const card = document.querySelector('[data-agent-card-id]'); if (card instanceof HTMLElement) { card.click(); } }"
+    },
+    {
+      "action": "waitForText",
+      "text": "This agent is archived and read-only. Restore it to edit."
+    },
+    { "action": "click", "selector": "button:has-text('Restore')" },
+    {
+      "action": "evaluate",
+      "saveAs": "restoredActiveCount",
+      "expression": "async () => { const name = window.__agentArchiveFeedback?.name ?? ''; const result = await window.api.agents.list({ viewKind: 'agentsList', searchText: name, tagFilter: '', archivedFilter: 'active', sortBy: 'updatedAt', sortDirection: 'desc', page: 1 }); return result.ok ? result.value.items.length : -1; }"
+    },
+    { "action": "assertSaved", "key": "restoredActiveCount", "equals": 1 },
+    { "action": "screenshot", "file": "agents-archive-feedback.png", "fullPage": true }
+  ]
+}

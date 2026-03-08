@@ -1,11 +1,11 @@
 {
-  "generatedAtUtc": "2026-03-07T23:52:59.360Z",
+  "generatedAtUtc": "2026-03-08T01:17:13.651Z",
   "summary": {
     "specFilesTracked": 31,
-    "testCasesTracked": 174,
-    "annotatedTestCases": 174,
+    "testCasesTracked": 185,
+    "annotatedTestCases": 185,
     "unmappedTestCases": 0,
-    "mappedRequirementIds": 182
+    "mappedRequirementIds": 186
   },
   "entries": [
     {
@@ -335,6 +335,9 @@
             "R1.2",
             "R1.20",
             "R1.22",
+            "R6.1",
+            "R6.2",
+            "U4.3",
             "U4.6"
           ],
           "source": "itReq"
@@ -347,6 +350,24 @@
             "R1.2",
             "R1.20",
             "R1.22",
+            "R6.1",
+            "R6.2",
+            "U4.3",
+            "U4.6"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "returns the configured default agents page size through ipc",
+          "requirementIds": [
+            "A3",
+            "R1.1",
+            "R1.2",
+            "R1.20",
+            "R1.22",
+            "R6.1",
+            "R6.2",
+            "U4.3",
             "U4.6"
           ],
           "source": "itReq"
@@ -359,14 +380,17 @@
             "R1.2",
             "R1.20",
             "R1.22",
+            "R6.1",
+            "R6.2",
+            "U4.3",
             "U4.6"
           ],
           "source": "itReq"
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 3,
-      "totalTestCount": 3
+      "itReqInvocationCount": 4,
+      "totalTestCount": 4
     },
     {
       "filePath": "tests/integration/boundary-check-script.integration.spec.ts",
@@ -2321,11 +2345,14 @@
             "R3.26",
             "R3.32",
             "R3.7",
+            "R6.1",
+            "R6.2",
             "R8.1",
             "U10.1",
             "U10.9",
             "U11.6",
             "U12.2",
+            "U3.4",
             "U3.8"
           ],
           "source": "itReq"
@@ -2342,11 +2369,38 @@
             "R3.26",
             "R3.32",
             "R3.7",
+            "R6.1",
+            "R6.2",
             "R8.1",
             "U10.1",
             "U10.9",
             "U11.6",
             "U12.2",
+            "U3.4",
+            "U3.8"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "returns the configured default councils page size through ipc",
+          "requirementIds": [
+            "A3",
+            "R2.1",
+            "R2.3",
+            "R3.1",
+            "R3.23",
+            "R3.25",
+            "R3.26",
+            "R3.32",
+            "R3.7",
+            "R6.1",
+            "R6.2",
+            "R8.1",
+            "U10.1",
+            "U10.9",
+            "U11.6",
+            "U12.2",
+            "U3.4",
             "U3.8"
           ],
           "source": "itReq"
@@ -2363,11 +2417,14 @@
             "R3.26",
             "R3.32",
             "R3.7",
+            "R6.1",
+            "R6.2",
             "R8.1",
             "U10.1",
             "U10.9",
             "U11.6",
             "U12.2",
+            "U3.4",
             "U3.8"
           ],
           "source": "itReq"
@@ -2384,11 +2441,14 @@
             "R3.26",
             "R3.32",
             "R3.7",
+            "R6.1",
+            "R6.2",
             "R8.1",
             "U10.1",
             "U10.9",
             "U11.6",
             "U12.2",
+            "U3.4",
             "U3.8"
           ],
           "source": "itReq"
@@ -2405,11 +2465,14 @@
             "R3.26",
             "R3.32",
             "R3.7",
+            "R6.1",
+            "R6.2",
             "R8.1",
             "U10.1",
             "U10.9",
             "U11.6",
             "U12.2",
+            "U3.4",
             "U3.8"
           ],
           "source": "itReq"
@@ -2426,19 +2489,22 @@
             "R3.26",
             "R3.32",
             "R3.7",
+            "R6.1",
+            "R6.2",
             "R8.1",
             "U10.1",
             "U10.9",
             "U11.6",
             "U12.2",
+            "U3.4",
             "U3.8"
           ],
           "source": "itReq"
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 6,
-      "totalTestCount": 6
+      "itReqInvocationCount": 7,
+      "totalTestCount": 7
     },
     {
       "filePath": "tests/integration/coverage-guardrails.integration.spec.ts",
@@ -2504,10 +2570,12 @@
             "R4.10",
             "R4.13",
             "R4.18",
+            "R4.22",
             "R4.7",
             "R4.8",
             "R4.9",
             "U5.11",
+            "U5.12",
             "U5.4",
             "U5.5",
             "U5.6",
@@ -2525,10 +2593,12 @@
             "R4.10",
             "R4.13",
             "R4.18",
+            "R4.22",
             "R4.7",
             "R4.8",
             "R4.9",
             "U5.11",
+            "U5.12",
             "U5.4",
             "U5.5",
             "U5.6",
@@ -2546,10 +2616,12 @@
             "R4.10",
             "R4.13",
             "R4.18",
+            "R4.22",
             "R4.7",
             "R4.8",
             "R4.9",
             "U5.11",
+            "U5.12",
             "U5.4",
             "U5.5",
             "U5.6",
@@ -2567,10 +2639,12 @@
             "R4.10",
             "R4.13",
             "R4.18",
+            "R4.22",
             "R4.7",
             "R4.8",
             "R4.9",
             "U5.11",
+            "U5.12",
             "U5.4",
             "U5.5",
             "U5.6",
@@ -2588,10 +2662,12 @@
             "R4.10",
             "R4.13",
             "R4.18",
+            "R4.22",
             "R4.7",
             "R4.8",
             "R4.9",
             "U5.11",
+            "U5.12",
             "U5.4",
             "U5.5",
             "U5.6",
@@ -2609,10 +2685,12 @@
             "R4.10",
             "R4.13",
             "R4.18",
+            "R4.22",
             "R4.7",
             "R4.8",
             "R4.9",
             "U5.11",
+            "U5.12",
             "U5.4",
             "U5.5",
             "U5.6",
@@ -2630,10 +2708,58 @@
             "R4.10",
             "R4.13",
             "R4.18",
+            "R4.22",
             "R4.7",
             "R4.8",
             "R4.9",
             "U5.11",
+            "U5.12",
+            "U5.4",
+            "U5.5",
+            "U5.6",
+            "U5.9"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "disconnect removes provider models and refreshes cached snapshots",
+          "requirementIds": [
+            "A3",
+            "C2",
+            "F1",
+            "IMPL-007",
+            "R4.10",
+            "R4.13",
+            "R4.18",
+            "R4.22",
+            "R4.7",
+            "R4.8",
+            "R4.9",
+            "U5.11",
+            "U5.12",
+            "U5.4",
+            "U5.5",
+            "U5.6",
+            "U5.9"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "disconnect blocks when provider is already disconnected",
+          "requirementIds": [
+            "A3",
+            "C2",
+            "F1",
+            "IMPL-007",
+            "R4.10",
+            "R4.13",
+            "R4.18",
+            "R4.22",
+            "R4.7",
+            "R4.8",
+            "R4.9",
+            "U5.11",
+            "U5.12",
             "U5.4",
             "U5.5",
             "U5.6",
@@ -2651,10 +2777,12 @@
             "R4.10",
             "R4.13",
             "R4.18",
+            "R4.22",
             "R4.7",
             "R4.8",
             "R4.9",
             "U5.11",
+            "U5.12",
             "U5.4",
             "U5.5",
             "U5.6",
@@ -2672,10 +2800,12 @@
             "R4.10",
             "R4.13",
             "R4.18",
+            "R4.22",
             "R4.7",
             "R4.8",
             "R4.9",
             "U5.11",
+            "U5.12",
             "U5.4",
             "U5.5",
             "U5.6",
@@ -2693,10 +2823,12 @@
             "R4.10",
             "R4.13",
             "R4.18",
+            "R4.22",
             "R4.7",
             "R4.8",
             "R4.9",
             "U5.11",
+            "U5.12",
             "U5.4",
             "U5.5",
             "U5.6",
@@ -2714,10 +2846,12 @@
             "R4.10",
             "R4.13",
             "R4.18",
+            "R4.22",
             "R4.7",
             "R4.8",
             "R4.9",
             "U5.11",
+            "U5.12",
             "U5.4",
             "U5.5",
             "U5.6",
@@ -2735,10 +2869,12 @@
             "R4.10",
             "R4.13",
             "R4.18",
+            "R4.22",
             "R4.7",
             "R4.8",
             "R4.9",
             "U5.11",
+            "U5.12",
             "U5.4",
             "U5.5",
             "U5.6",
@@ -2756,10 +2892,12 @@
             "R4.10",
             "R4.13",
             "R4.18",
+            "R4.22",
             "R4.7",
             "R4.8",
             "R4.9",
             "U5.11",
+            "U5.12",
             "U5.4",
             "U5.5",
             "U5.6",
@@ -2769,8 +2907,8 @@
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 13,
-      "totalTestCount": 13
+      "itReqInvocationCount": 15,
+      "totalTestCount": 15
     },
     {
       "filePath": "tests/integration/providers-ipc.contract.integration.spec.ts",
@@ -2783,7 +2921,9 @@
             "C2",
             "D5",
             "F1",
-            "IMPL-005"
+            "IMPL-005",
+            "R4.22",
+            "R7.1"
           ],
           "source": "itReq"
         },
@@ -2795,7 +2935,9 @@
             "C2",
             "D5",
             "F1",
-            "IMPL-005"
+            "IMPL-005",
+            "R4.22",
+            "R7.1"
           ],
           "source": "itReq"
         },
@@ -2807,7 +2949,23 @@
             "C2",
             "D5",
             "F1",
-            "IMPL-005"
+            "IMPL-005",
+            "R4.22",
+            "R7.1"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "disconnect removes provider config without leaking secrets",
+          "requirementIds": [
+            "A3",
+            "C1",
+            "C2",
+            "D5",
+            "F1",
+            "IMPL-005",
+            "R4.22",
+            "R7.1"
           ],
           "source": "itReq"
         },
@@ -2819,7 +2977,9 @@
             "C2",
             "D5",
             "F1",
-            "IMPL-005"
+            "IMPL-005",
+            "R4.22",
+            "R7.1"
           ],
           "source": "itReq"
         },
@@ -2831,14 +2991,16 @@
             "C2",
             "D5",
             "F1",
-            "IMPL-005"
+            "IMPL-005",
+            "R4.22",
+            "R7.1"
           ],
           "source": "itReq"
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 5,
-      "totalTestCount": 5
+      "itReqInvocationCount": 6,
+      "totalTestCount": 6
     },
     {
       "filePath": "tests/integration/scripts-presence.integration.spec.ts",
@@ -2871,6 +3033,23 @@
             "R3.3",
             "R3.7",
             "R3.8",
+            "R4.22",
+            "R7.1"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "deletes persisted provider configs",
+          "requirementIds": [
+            "B1",
+            "B2",
+            "B3",
+            "R2.1",
+            "R3.23",
+            "R3.3",
+            "R3.7",
+            "R3.8",
+            "R4.22",
             "R7.1"
           ],
           "source": "itReq"
@@ -2886,6 +3065,7 @@
             "R3.3",
             "R3.7",
             "R3.8",
+            "R4.22",
             "R7.1"
           ],
           "source": "itReq"
@@ -2901,6 +3081,7 @@
             "R3.3",
             "R3.7",
             "R3.8",
+            "R4.22",
             "R7.1"
           ],
           "source": "itReq"
@@ -2916,14 +3097,15 @@
             "R3.3",
             "R3.7",
             "R3.8",
+            "R4.22",
             "R7.1"
           ],
           "source": "itReq"
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 4,
-      "totalTestCount": 4
+      "itReqInvocationCount": 5,
+      "totalTestCount": 5
     },
     {
       "filePath": "tests/unit/app-ui-helpers.spec.ts",
@@ -2967,6 +3149,20 @@
           "name": "maps toast levels to renderer toast variants",
           "requirementIds": [
             "U2.6"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "applies immediate agent archive list updates for every archived filter state",
+          "requirementIds": [
+            "R1.20",
+            "R1.21",
+            "R1.22",
+            "R1.24",
+            "R1.27",
+            "U4.2",
+            "U4.5",
+            "U4.6"
           ],
           "source": "itReq"
         },
@@ -3016,8 +3212,8 @@
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 12,
-      "totalTestCount": 12
+      "itReqInvocationCount": 13,
+      "totalTestCount": 13
     },
     {
       "filePath": "tests/unit/council-runtime-conductor.spec.ts",
@@ -3464,10 +3660,11 @@
           "source": "itReq"
         },
         {
-          "name": "opens council cards from the card surface while ignoring nested menu controls",
+          "name": "opens home cards from the card surface while ignoring nested menu controls",
           "requirementIds": [
             "U15.2",
-            "U3.7"
+            "U3.7",
+            "U4.6"
           ],
           "source": "itReq"
         }
@@ -3528,6 +3725,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -3556,6 +3754,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -3584,6 +3783,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -3612,6 +3812,36 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
+            "R4.6",
+            "R4.8",
+            "R6.1",
+            "U10.1",
+            "U11.6",
+            "U12.2"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "accepts disconnect provider payload",
+          "requirementIds": [
+            "A3",
+            "C1",
+            "F1",
+            "R1.1",
+            "R1.2",
+            "R1.20",
+            "R1.22",
+            "R2.1",
+            "R2.3",
+            "R2.7",
+            "R3.1",
+            "R3.23",
+            "R3.32",
+            "R3.7",
+            "R3.8",
+            "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -3640,6 +3870,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -3668,6 +3899,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -3696,6 +3928,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -3724,6 +3957,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -3752,6 +3986,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -3780,6 +4015,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -3808,6 +4044,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -3836,6 +4073,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -3864,6 +4102,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -3892,6 +4131,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -3920,6 +4160,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -3948,6 +4189,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -3976,6 +4218,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -4004,6 +4247,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -4032,6 +4276,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -4060,6 +4305,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -4088,6 +4334,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -4116,6 +4363,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -4144,6 +4392,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -4172,6 +4421,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -4200,6 +4450,7 @@
             "R3.7",
             "R3.8",
             "R4.17",
+            "R4.22",
             "R4.6",
             "R4.8",
             "R6.1",
@@ -4211,8 +4462,8 @@
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 25,
-      "totalTestCount": 25
+      "itReqInvocationCount": 26,
+      "totalTestCount": 26
     },
     {
       "filePath": "tests/unit/keytar-keychain-service.spec.ts",
@@ -4267,11 +4518,18 @@
             "A2"
           ],
           "source": "itReq"
+        },
+        {
+          "name": "uses a fitted initial content width for the main window",
+          "requirementIds": [
+            "U0.2"
+          ],
+          "source": "itReq"
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 1,
-      "totalTestCount": 1
+      "itReqInvocationCount": 2,
+      "totalTestCount": 2
     },
     {
       "filePath": "tests/unit/model-resolution.spec.ts",
@@ -4422,11 +4680,25 @@
             "U5.2"
           ],
           "source": "itReq"
+        },
+        {
+          "name": "requires disconnect before testing replacement provider settings",
+          "requirementIds": [
+            "U5.12"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "hides test and save when disconnect is the only available provider action",
+          "requirementIds": [
+            "U5.12"
+          ],
+          "source": "itReq"
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 3,
-      "totalTestCount": 3
+      "itReqInvocationCount": 5,
+      "totalTestCount": 5
     },
     {
       "filePath": "tests/unit/tag-value-object.spec.ts",

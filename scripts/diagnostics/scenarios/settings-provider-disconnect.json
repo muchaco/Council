@@ -1,0 +1,27 @@
+{
+  "name": "settings-provider-disconnect",
+  "steps": [
+    { "action": "waitForText", "text": "Council" },
+    { "action": "click", "selector": "button:has-text('Settings')" },
+    { "action": "waitForText", "text": "Providers" },
+    {
+      "action": "evaluate",
+      "saveAs": "disconnectApiExposed",
+      "expression": "() => typeof window.api?.providers?.disconnect === 'function'"
+    },
+    { "action": "assertSaved", "key": "disconnectApiExposed", "equals": true },
+    {
+      "action": "evaluate",
+      "saveAs": "disconnectPatchReady",
+      "expression": "async () => { const originalGetView = window.api.settings.getView; const initial = await originalGetView({ viewKind: 'settings' }); if (!initial.ok) { return false; } const configuredProvider = initial.value.providers.find((provider) => provider.hasCredential || provider.lastSavedAtUtc !== null); if (!configuredProvider) { localStorage.removeItem('diagDisconnectProviderId'); return true; } const providerId = configuredProvider.providerId; const nextProviders = initial.value.providers.map((provider) => provider.providerId === providerId ? { ...provider, hasCredential: false, lastSavedAtUtc: null } : provider); const nextModelsByProvider = { ...initial.value.modelCatalog.modelsByProvider }; delete nextModelsByProvider[providerId]; const disconnectedView = { ...initial.value, providers: nextProviders, canRefreshModels: Object.keys(nextModelsByProvider).length > 0, modelCatalog: { ...initial.value.modelCatalog, snapshotId: `diag-disconnect-${Date.now()}`, modelsByProvider: nextModelsByProvider } }; window.api.providers.disconnect = async () => ({ ok: true, value: { provider: nextProviders.find((provider) => provider.providerId === providerId), modelCatalog: disconnectedView.modelCatalog } }); window.api.settings.getView = async (request) => request.viewKind === 'settings' ? { ok: true, value: disconnectedView } : originalGetView(request); localStorage.setItem('diagDisconnectProviderId', providerId); return true; }"
+    },
+    { "action": "assertSaved", "key": "disconnectPatchReady", "equals": true },
+    {
+      "action": "evaluate",
+      "saveAs": "disconnectFlowWorked",
+      "expression": "async () => { const providerId = localStorage.getItem('diagDisconnectProviderId'); if (providerId === null) { return true; } const labelByProviderId = { gemini: 'Gemini', ollama: 'Ollama', openrouter: 'OpenRouter' }; const providerLabel = labelByProviderId[providerId]; const card = Array.from(document.querySelectorAll('.settings-provider-card')).find((element) => element.textContent?.includes(providerLabel)); if (!(card instanceof HTMLElement)) { return false; } const disconnectButton = Array.from(card.querySelectorAll('button')).find((element) => element.textContent?.trim() === 'Disconnect'); if (!(disconnectButton instanceof HTMLButtonElement)) { return false; } disconnectButton.click(); const startedAt = Date.now(); while (Date.now() - startedAt < 2000) { const updatedCard = Array.from(document.querySelectorAll('.settings-provider-card')).find((element) => element.textContent?.includes(providerLabel)); if (!(updatedCard instanceof HTMLElement)) { return false; } const badgeUpdated = updatedCard.textContent?.includes('Not configured') === true; const disconnectGone = Array.from(updatedCard.querySelectorAll('button')).every((element) => element.textContent?.trim() !== 'Disconnect'); if (badgeUpdated && disconnectGone) { return true; } await new Promise((resolve) => window.setTimeout(resolve, 50)); } return false; }"
+    },
+    { "action": "assertSaved", "key": "disconnectFlowWorked", "equals": true },
+    { "action": "screenshot", "file": "settings-provider-disconnect.png", "fullPage": true }
+  ]
+}

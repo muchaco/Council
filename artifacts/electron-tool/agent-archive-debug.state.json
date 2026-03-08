@@ -1,0 +1,91 @@
+{
+  "seedAgent": {
+    "ok": true,
+    "value": {
+      "agent": {
+        "id": "9df24885-ad66-4be6-9605-2c8f2f3f616b",
+        "name": "Archive Debug Agent",
+        "systemPrompt": "Debug archive behavior.",
+        "verbosity": null,
+        "temperature": null,
+        "tags": ["debug-archive"],
+        "modelRefOrNull": {
+          "providerId": "gemini",
+          "modelId": "gemini-2.5-flash"
+        },
+        "invalidConfig": false,
+        "archived": false,
+        "createdAtUtc": "2026-03-08T00:20:15.491Z",
+        "updatedAtUtc": "2026-03-08T00:20:15.491Z"
+      }
+    }
+  },
+  "archivedList": {
+    "ok": true,
+    "value": {
+      "items": [
+        {
+          "id": "9df24885-ad66-4be6-9605-2c8f2f3f616b",
+          "name": "Archive Debug Agent",
+          "systemPrompt": "Debug archive behavior.",
+          "verbosity": null,
+          "temperature": null,
+          "tags": ["debug-archive"],
+          "modelRefOrNull": {
+            "providerId": "gemini",
+            "modelId": "gemini-2.5-flash"
+          },
+          "invalidConfig": false,
+          "archived": true,
+          "createdAtUtc": "2026-03-08T00:20:15.491Z",
+          "updatedAtUtc": "2026-03-08T00:20:17.462Z"
+        }
+      ],
+      "page": 1,
+      "pageSize": 10,
+      "total": 1,
+      "hasMore": false,
+      "modelCatalog": {
+        "snapshotId": "cb39a79e-8fae-4744-9e1b-640e00d485d1",
+        "modelsByProvider": {
+          "gemini": [
+            "gemini-2.5-flash",
+            "gemini-2.5-pro",
+            "gemini-2.0-flash",
+            "gemini-2.0-flash-001",
+            "gemini-2.0-flash-lite-001",
+            "gemini-2.0-flash-lite",
+            "gemini-exp-1206",
+            "gemini-2.5-flash-preview-tts",
+            "gemini-2.5-pro-preview-tts",
+            "gemma-3-1b-it",
+            "gemma-3-4b-it",
+            "gemma-3-12b-it",
+            "gemma-3-27b-it",
+            "gemma-3n-e4b-it",
+            "gemma-3n-e2b-it",
+            "gemini-flash-latest",
+            "gemini-flash-lite-latest",
+            "gemini-pro-latest",
+            "gemini-2.5-flash-lite",
+            "gemini-2.5-flash-image",
+            "gemini-2.5-flash-preview-09-2025",
+            "gemini-2.5-flash-lite-preview-09-2025",
+            "gemini-3-pro-preview",
+            "gemini-3-flash-preview",
+            "gemini-3-pro-image-preview",
+            "nano-banana-pro-preview",
+            "gemini-robotics-er-1.5-preview",
+            "gemini-2.5-computer-use-preview-10-2025",
+            "deep-research-pro-preview-12-2025"
+          ],
+          "ollama": ["smollm:135m", "all-minilm:latest"]
+        }
+      },
+      "globalDefaultModelRef": {
+        "providerId": "gemini",
+        "modelId": "gemini-2.5-flash"
+      }
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "initial-window-content-width",
+  "steps": [
+    { "action": "waitForText", "text": "Councils" },
+    {
+      "action": "evaluate",
+      "saveAs": "initialViewportWidth",
+      "expression": "() => window.innerWidth"
+    },
+    { "action": "assertSaved", "key": "initialViewportWidth", "equals": 1216 },
+    {
+      "action": "evaluate",
+      "saveAs": "initialShellFitsViewport",
+      "expression": "() => { const shellWidth = Math.round(document.querySelector('.main-content-inner')?.getBoundingClientRect().width ?? 0); return shellWidth >= 1120 && shellWidth <= 1152 && shellWidth < window.innerWidth; }"
+    },
+    { "action": "assertSaved", "key": "initialShellFitsViewport", "equals": true },
+    { "action": "screenshot", "file": "initial-window-content-width.png", "fullPage": true }
+  ]
+}
