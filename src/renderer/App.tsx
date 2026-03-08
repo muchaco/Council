@@ -396,6 +396,33 @@ const resolveMemberRemoveDisabledReason = (params: {
   return null;
 };
 
+const resolveAddMemberDisabledReason = (params: {
+  archived: boolean;
+  canEditMembers: boolean;
+  isSavingMembers: boolean;
+  started: boolean;
+  paused: boolean;
+  mode: CouncilMode;
+}): string | null => {
+  const { archived, canEditMembers, isSavingMembers, started, paused, mode } = params;
+
+  if (isSavingMembers) {
+    return "Saving member changes...";
+  }
+
+  if (!canEditMembers) {
+    if (archived) {
+      return "Archived councils are read-only.";
+    }
+    if (mode === "autopilot" && started && !paused) {
+      return "Pause Autopilot before editing members.";
+    }
+    return "Member changes are currently unavailable.";
+  }
+
+  return null;
+};
+
 const sortProviderIds = (providerIds: ReadonlyArray<string>): ReadonlyArray<string> =>
   [...providerIds].sort((a, b) => a.localeCompare(b));
 
@@ -3271,9 +3298,9 @@ export const App = (): JSX.Element => {
       isAutopilotModalOpen ||
       councilViewState.configEdit !== null;
     const startDisabledReason = council.invalidConfig
-      ? "Start is disabled until model config is fixed."
+      ? "Fix the model config before starting."
       : hasArchivedMembers
-        ? "Start is disabled until archived members are restored or removed."
+        ? "Restore or remove archived members before starting."
         : undefined;
     const transcriptRowCount =
       councilViewState.source.messages.length + (thinkingSpeakerName === null ? 0 : 1);
@@ -3293,6 +3320,14 @@ export const App = (): JSX.Element => {
     const runtimeBriefing = councilViewState.source.briefing;
     const canEditMembers =
       !council.archived && (!council.started || council.paused || council.mode === "manual");
+    const addMemberDisabledReason = resolveAddMemberDisabledReason({
+      archived: council.archived,
+      canEditMembers,
+      isSavingMembers: councilViewState.isSavingMembers,
+      started: council.started,
+      paused: council.paused,
+      mode: council.mode,
+    });
     const memberIdsWithMessages = new Set(
       councilViewState.source.messages
         .filter((message) => message.senderKind === "member" && message.senderAgentId !== null)
@@ -3314,6 +3349,10 @@ export const App = (): JSX.Element => {
         agent.id.toLowerCase().includes(addMemberSearch)
       );
     });
+    const addMemberEmptyStateMessage =
+      addMemberSearch.length > 0
+        ? "No active agents match that search."
+        : "No active agents are available to add.";
 
     return (
       <main className="main-content">
@@ -3360,9 +3399,9 @@ export const App = (): JSX.Element => {
                     onClick={() => void resumeCouncilRuntime()}
                     title={
                       council.invalidConfig
-                        ? "Resume is disabled until model config is fixed."
+                        ? "Fix the model config before resuming."
                         : hasArchivedMembers
-                          ? "Resume is disabled until archived members are restored or removed."
+                          ? "Restore or remove archived members before resuming."
                           : undefined
                     }
                   >
@@ -3481,8 +3520,8 @@ export const App = (): JSX.Element => {
           {hasArchivedMembers ? (
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
               <p className="text-sm text-amber-800">
-                Archived members in this council: {archivedMemberNames.join(", ")}. Restore or
-                remove them before runtime actions.
+                This council includes archived members: {archivedMemberNames.join(", ")}. Restore or
+                remove them before starting, resuming, or choosing the next speaker.
               </p>
             </div>
           ) : null}
@@ -3731,7 +3770,7 @@ export const App = (): JSX.Element => {
                     <Button
                       variant="outline"
                       size="sm"
-                      disabled={!canEditMembers || councilViewState.isSavingMembers}
+                      disabled={addMemberDisabledReason !== null}
                       onClick={() =>
                         setCouncilViewState((current) =>
                           current.status !== "ready"
@@ -3742,6 +3781,7 @@ export const App = (): JSX.Element => {
                               },
                         )
                       }
+                      title={addMemberDisabledReason ?? undefined}
                     >
                       {councilViewState.showAddMemberPanel ? "Close" : "Add Member"}
                     </Button>
@@ -3750,11 +3790,11 @@ export const App = (): JSX.Element => {
                   {councilViewState.showAddMemberPanel ? (
                     <div className="mb-4 p-4 bg-muted/50 rounded-lg">
                       <Label htmlFor="council-view-add-member-search" className="mb-2 block">
-                        Search agents
+                        Search active agents
                       </Label>
                       <Input
                         id="council-view-add-member-search"
-                        placeholder="Search by name"
+                        placeholder="Search by name or ID"
                         value={councilViewState.addMemberSearchText}
                         onChange={(event) =>
                           setCouncilViewState((current) =>
@@ -3790,7 +3830,7 @@ export const App = (): JSX.Element => {
                         ))}
                         {addableAgents.length === 0 ? (
                           <p className="text-sm text-muted-foreground text-center py-4">
-                            No matching active agents available.
+                            {addMemberEmptyStateMessage}
                           </p>
                         ) : null}
                       </div>
@@ -3834,7 +3874,9 @@ export const App = (): JSX.Element => {
                               {memberAgentId}
                             </p>
                             {memberArchived ? (
-                              <p className="text-xs text-amber-700">Archived member</p>
+                              <p className="text-xs text-amber-700">
+                                Archived - restore or remove before runtime.
+                              </p>
                             ) : null}
                           </div>
                           <div className="flex items-center gap-2">
@@ -4610,7 +4652,9 @@ export const App = (): JSX.Element => {
                 <div>
                   <strong>{agent.name}</strong>
                   {agent.archived ? (
-                    <p className="text-sm text-amber-700">Archived (cannot be newly selected)</p>
+                    <p className="text-sm text-amber-700">
+                      Archived - cannot be added as a new member.
+                    </p>
                   ) : null}
                   {agent.invalidConfig ? (
                     <p className="text-sm text-muted-foreground">
@@ -4852,7 +4896,7 @@ export const App = (): JSX.Element => {
         </header>
 
         {archived ? (
-          <p className="status-line">Archived agents are read-only. Restore to edit.</p>
+          <p className="status-line">This agent is archived and read-only. Restore it to edit.</p>
         ) : null}
 
         <section className="settings-section">
@@ -5023,6 +5067,19 @@ export const App = (): JSX.Element => {
   }
 
   const renderHomeContent = (): JSX.Element => {
+    const councilsEmptyMessage =
+      councilsArchivedFilter === "archived"
+        ? "No archived councils found."
+        : councilsArchivedFilter === "active"
+          ? "No active councils found."
+          : "No councils yet. Create your first council to get started.";
+    const agentsEmptyMessage =
+      agentsArchivedFilter === "archived"
+        ? "No archived agents found."
+        : agentsArchivedFilter === "active"
+          ? "No active agents found."
+          : "No agents yet. Create your first agent.";
+
     if (homeTab === "councils") {
       return (
         <section
@@ -5101,9 +5158,7 @@ export const App = (): JSX.Element => {
           ) : null}
           {!councilsLoading && councils.length === 0 ? (
             <Card className="p-8 text-center">
-              <p className="text-muted-foreground">
-                No councils yet. Create your first council to get started.
-              </p>
+              <p className="text-muted-foreground">{councilsEmptyMessage}</p>
             </Card>
           ) : null}
 
@@ -5387,7 +5442,7 @@ export const App = (): JSX.Element => {
 
           {!agentsLoading && agents.length === 0 ? (
             <Card className="p-8 text-center">
-              <p className="text-muted-foreground">No agents yet. Create your first agent.</p>
+              <p className="text-muted-foreground">{agentsEmptyMessage}</p>
             </Card>
           ) : null}
 
