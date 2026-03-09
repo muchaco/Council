@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from "react";
+import { createPortal } from "react-dom";
+import { cn } from "../lib/utils";
 
 export interface ColorPickerProps {
   colors: ReadonlyArray<string>;
@@ -21,6 +23,13 @@ const colorNames: Record<string, string> = {
   "#7c2d12": "Rust",
 };
 
+type PopoverPosition = {
+  top: number;
+  left: number;
+};
+
+const POPOVER_WIDTH = 116;
+
 export function ColorPicker({
   colors,
   value,
@@ -30,41 +39,82 @@ export function ColorPicker({
   id,
 }: ColorPickerProps): JSX.Element {
   const [isOpen, setIsOpen] = useState(false);
+  const [position, setPosition] = useState<PopoverPosition>({ top: 0, left: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const gridRef = useRef<HTMLDivElement>(null);
-
+  const popoverRef = useRef<HTMLDivElement>(null);
   const selectedIndex = colors.indexOf(value);
 
+  const updatePosition = useCallback((): void => {
+    const trigger = triggerRef.current;
+    if (trigger === null) {
+      return;
+    }
+
+    const rect = trigger.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const desiredLeft = rect.left + rect.width / 2 - POPOVER_WIDTH / 2;
+    const left = Math.max(8, Math.min(desiredLeft, viewportWidth - POPOVER_WIDTH - 8));
+    const top = rect.bottom + 8;
+    const estimatedHeight = 44;
+    const fitsBelow = top + estimatedHeight <= viewportHeight - 8;
+
+    setPosition({
+      left,
+      top: fitsBelow ? top : Math.max(8, rect.top - estimatedHeight - 8),
+    });
+  }, []);
+
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent): void => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
+    if (!isOpen) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event: MouseEvent): void => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
       }
+
+      if (containerRef.current?.contains(target) || popoverRef.current?.contains(target)) {
+        return;
+      }
+
+      setIsOpen(false);
     };
 
-    if (isOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
+    const handleWindowChange = (): void => {
+      updatePosition();
+    };
+
+    window.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("resize", handleWindowChange);
+    window.addEventListener("scroll", handleWindowChange, true);
 
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("resize", handleWindowChange);
+      window.removeEventListener("scroll", handleWindowChange, true);
     };
-  }, [isOpen]);
+  }, [isOpen, updatePosition]);
 
-  useEffect(() => {
-    if (isOpen && gridRef.current) {
-      const selectedButton = gridRef.current.querySelector<HTMLButtonElement>(
-        `[data-color-index="${selectedIndex}"]`,
-      );
-      selectedButton?.focus();
+  useLayoutEffect(() => {
+    if (!isOpen) {
+      return;
     }
-  }, [isOpen, selectedIndex]);
 
-  const handleKeyDown = useCallback(
+    updatePosition();
+    const selectedButton = popoverRef.current?.querySelector<HTMLButtonElement>(
+      `[data-color-index="${selectedIndex}"]`,
+    );
+    selectedButton?.focus();
+  }, [isOpen, selectedIndex, updatePosition]);
+
+  const handleOptionKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLButtonElement>, index: number): void => {
-      const cols = 4;
       const total = colors.length;
+      const cols = 4;
       let nextIndex: number | null = null;
 
       switch (event.key) {
@@ -107,34 +157,47 @@ export function ColorPicker({
       }
 
       if (nextIndex !== null) {
-        const nextButton = gridRef.current?.querySelector<HTMLButtonElement>(
+        const nextButton = popoverRef.current?.querySelector<HTMLButtonElement>(
           `[data-color-index="${nextIndex}"]`,
         );
         nextButton?.focus();
       }
     },
-    [colors, value, onChange],
+    [colors, onChange, value],
   );
 
-  const handleTriggerKeyDown = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>): void => {
-    switch (event.key) {
-      case "Enter":
-      case " ":
-      case "ArrowDown":
-        event.preventDefault();
-        setIsOpen(true);
-        break;
-      case "Escape":
-        event.preventDefault();
-        setIsOpen(false);
-        break;
-    }
-  }, []);
+  const handleTriggerKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLButtonElement>): void => {
+      switch (event.key) {
+        case "Enter":
+        case " ":
+        case "ArrowDown":
+          event.preventDefault();
+          if (disabled) {
+            return;
+          }
+          setIsOpen(true);
+          break;
+        case "Escape":
+          event.preventDefault();
+          setIsOpen(false);
+          break;
+      }
+    },
+    [disabled],
+  );
+
+  const popoverStyle: CSSProperties = {
+    position: "fixed",
+    top: position.top,
+    left: position.left,
+    width: POPOVER_WIDTH,
+  };
 
   return (
-    <div ref={containerRef} className="color-picker">
+    <div ref={containerRef} className="relative shrink-0">
       {label ? (
-        <label className="color-picker-label" htmlFor={id}>
+        <label className="sr-only" htmlFor={id}>
           {label}
         </label>
       ) : null}
@@ -142,59 +205,75 @@ export function ColorPicker({
         ref={triggerRef}
         id={id}
         type="button"
-        className="color-picker-trigger"
-        onClick={() => !disabled && setIsOpen(!isOpen)}
+        className={cn(
+          "flex h-8 w-10 items-center justify-center rounded-md border border-input bg-background",
+          "transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "disabled:cursor-not-allowed disabled:opacity-50",
+        )}
+        onClick={() => {
+          if (disabled) {
+            return;
+          }
+          updatePosition();
+          setIsOpen((current) => !current);
+        }}
         onKeyDown={handleTriggerKeyDown}
         disabled={disabled}
-        aria-haspopup="true"
+        aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-label={`${label}: ${colorNames[value] ?? value}`}
-        style={{ "--selected-color": value } as React.CSSProperties}
       >
-        <span className="color-picker-swatch" />
-        <span className="color-picker-name">{colorNames[value] ?? value}</span>
-        <span className="color-picker-arrow" aria-hidden="true">
-          ▼
-        </span>
+        <span
+          className="h-4 w-4 rounded-full border border-black/10"
+          style={{ backgroundColor: value }}
+        />
       </button>
 
-      {isOpen ? (
-        <div
-          ref={gridRef}
-          className="color-picker-dropdown"
-          role="menu"
-          aria-label={`${label} options`}
-          tabIndex={-1}
-        >
-          {colors.map((color, index) => (
-            <button
-              key={color}
-              type="button"
-              role="menuitem"
-              aria-selected={color === value}
-              data-color-index={index}
-              className={`color-picker-option ${color === value ? "color-picker-option-selected" : ""}`}
-              onClick={() => {
-                onChange(color);
-                setIsOpen(false);
-                triggerRef.current?.focus();
-              }}
-              onKeyDown={(event) => handleKeyDown(event, index)}
-              style={{ "--option-color": color } as React.CSSProperties}
-              title={colorNames[color] ?? color}
-              tabIndex={-1}
+      {isOpen
+        ? createPortal(
+            <div
+              ref={popoverRef}
+              className="z-[100] grid grid-cols-4 gap-1 rounded-lg border border-border bg-popover p-2 shadow-xl"
+              role="menu"
+              aria-label={`${label} options`}
+              style={popoverStyle}
             >
-              <span className="color-picker-option-swatch" />
-              <span className="color-picker-option-name">{colorNames[color] ?? color}</span>
-              {color === value ? (
-                <span className="color-picker-check" aria-hidden="true">
-                  ✓
-                </span>
-              ) : null}
-            </button>
-          ))}
-        </div>
-      ) : null}
+              {colors.map((color, index) => (
+                <button
+                  key={color}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={color === value}
+                  aria-label={`${label}: ${colorNames[color] ?? color}`}
+                  data-color-index={index}
+                  className={cn(
+                    "flex h-6 w-6 items-center justify-center rounded-full transition-colors",
+                    "hover:bg-accent focus-visible:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    color === value && "bg-accent/70",
+                  )}
+                  onClick={() => {
+                    onChange(color);
+                    setIsOpen(false);
+                    triggerRef.current?.focus();
+                  }}
+                  onKeyDown={(event) => handleOptionKeyDown(event, index)}
+                  title={colorNames[color] ?? color}
+                  tabIndex={-1}
+                >
+                  <span
+                    className={cn(
+                      "h-4 w-4 rounded-full border border-black/10",
+                      color === value &&
+                        "ring-2 ring-foreground/80 ring-offset-1 ring-offset-popover",
+                    )}
+                    style={{ backgroundColor: color }}
+                  />
+                </button>
+              ))}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

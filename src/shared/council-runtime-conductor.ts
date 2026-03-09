@@ -1,11 +1,5 @@
 import { type Result, err, ok } from "neverthrow";
 
-export type RuntimeConversationMessage = {
-  senderName: string;
-  senderKind: "member" | "conductor";
-  content: string;
-};
-
 export type ConductorDecision = {
   briefing: string;
   goalReached: boolean;
@@ -19,80 +13,14 @@ export type ConductorOpeningDecision = {
   firstSpeakerAgentId: string;
 };
 
-export const buildAutopilotOpeningPrompt = (params: {
-  topic: string;
-  goal: string | null;
-  memberAgentIds: ReadonlyArray<string>;
-}): string => {
-  const goalSection = params.goal === null ? "(none)" : params.goal;
-  const membersSection =
-    params.memberAgentIds.length === 0 ? "(none)" : params.memberAgentIds.join(",");
-
-  return [
-    "You are the Council Conductor.",
-    "You are starting an Autopilot council.",
-    "Respond with strict JSON only and no markdown.",
-    'JSON shape: {"openingMessage": string, "briefing": string, "goalReached": boolean, "firstSpeakerAgentId": string}',
-    "Rules:",
-    "- openingMessage must be concise and kick off the discussion.",
-    "- briefing must be a concise initial TL;DR state.",
-    "- goalReached should usually be false at start unless topic/goal is already satisfied.",
-    "- firstSpeakerAgentId must be one of eligible member ids.",
-    `Topic: ${params.topic}`,
-    `Goal: ${goalSection}`,
-    `Eligible members for first speaker: ${membersSection}`,
-  ].join("\n");
-};
-
-export const buildConductorDecisionPrompt = (params: {
-  mode: "manual" | "autopilot";
-  topic: string;
-  goal: string | null;
-  previousBriefing: string | null;
-  messages: ReadonlyArray<RuntimeConversationMessage>;
-  omittedMessageCount: number;
-  eligibleMemberAgentIds: ReadonlyArray<string>;
-}): string => {
-  const goalSection = params.goal === null ? "(none)" : params.goal;
-  const briefingSection = params.previousBriefing ?? "(none)";
-  const messagesSection =
-    params.messages.length === 0
-      ? "(none)"
-      : params.messages
-          .map(
-            (message, index) =>
-              `${index + 1}. [${message.senderKind}] ${message.senderName}: ${message.content}`,
-          )
-          .join("\n");
-  const eligibleSection =
-    params.mode === "autopilot"
-      ? params.eligibleMemberAgentIds.length === 0
-        ? "(none)"
-        : params.eligibleMemberAgentIds.join(",")
-      : "(manual mode - must return null)";
-
-  return [
-    "You are the Council Conductor.",
-    "Respond with strict JSON only and no markdown.",
-    'JSON shape: {"briefing": string, "goalReached": boolean, "nextSpeakerAgentId": string | null}',
-    "Rules:",
-    "- briefing must be concise and meaningful.",
-    "- goalReached must be true only if topic/goal has been satisfied.",
-    "- In manual mode, nextSpeakerAgentId must be null.",
-    "- In autopilot mode, nextSpeakerAgentId must be one of eligible member ids.",
-    `Mode: ${params.mode}`,
-    `Topic: ${params.topic}`,
-    `Goal: ${goalSection}`,
-    `Previous briefing: ${briefingSection}`,
-    `Earlier messages omitted: ${params.omittedMessageCount}`,
-    "Conversation:",
-    messagesSection,
-    `Eligible members for next speaker: ${eligibleSection}`,
-  ].join("\n");
-};
-
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
+
+const normalizeJsonResponseText = (text: string): string => {
+  const trimmed = text.trim();
+  const fencedMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  return fencedMatch?.[1]?.trim() ?? trimmed;
+};
 
 export const parseConductorDecision = (params: {
   text: string;
@@ -101,7 +29,7 @@ export const parseConductorDecision = (params: {
 }): Result<ConductorDecision, string> => {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(params.text);
+    parsed = JSON.parse(normalizeJsonResponseText(params.text));
   } catch {
     return err("Conductor response is not valid JSON.");
   }
@@ -152,7 +80,7 @@ export const parseAutopilotOpeningDecision = (params: {
 }): Result<ConductorOpeningDecision, string> => {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(params.text);
+    parsed = JSON.parse(normalizeJsonResponseText(params.text));
   } catch {
     return err("Conductor opening response is not valid JSON.");
   }

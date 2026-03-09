@@ -34,6 +34,8 @@ export const requiresProviderDisconnect = (params: {
     savedFingerprint: params.savedFingerprint,
   });
 
+export const isProviderCardEditable = (configured: boolean): boolean => !configured;
+
 export const shouldShowProviderTestAndSaveActions = (params: {
   provider: ProviderDraftSnapshot & {
     testToken: string | null;
@@ -43,17 +45,12 @@ export const shouldShowProviderTestAndSaveActions = (params: {
   configured: boolean;
   requiresDisconnect: boolean;
 }): boolean => {
-  const { configured, provider, requiresDisconnect } = params;
-  if (!configured || requiresDisconnect || provider.testToken !== null) {
-    return true;
-  }
-
-  if (provider.isTesting || provider.isSaving) {
-    return true;
-  }
-
-  return provider.endpointUrl.trim().length > 0 || provider.apiKey.trim().length > 0;
+  const { configured } = params;
+  return !configured;
 };
+
+export const isProviderTestable = (provider: ProviderDraftSnapshot): boolean =>
+  provider.endpointUrl.trim().length > 0 || provider.apiKey.trim().length > 0;
 
 export const isProviderConfigured = (provider: {
   hasCredential: boolean;

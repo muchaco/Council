@@ -107,6 +107,12 @@
       "expression": "() => document.querySelector('main.shell .settings-section') instanceof HTMLElement"
     },
     { "action": "assertSaved", "key": "councilEditorStyledShellPresent", "equals": true },
+    {
+      "action": "evaluate",
+      "saveAs": "newCouncilHidesArchivedAgents",
+      "expression": "() => !document.body.textContent?.includes('Archived - cannot be added as a new member.')"
+    },
+    { "action": "assertSaved", "key": "newCouncilHidesArchivedAgents", "equals": true },
     { "action": "screenshot", "file": "council-editor.png", "fullPage": true },
     { "action": "click", "selector": "button:has-text('Back')" },
     {

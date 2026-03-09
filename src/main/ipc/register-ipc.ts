@@ -146,6 +146,9 @@ export const registerIpcHandlers = (): {
             .map((agent) => ({
               id: agent.id,
               name: agent.name,
+              systemPrompt: agent.systemPrompt,
+              verbosity: agent.verbosity,
+              modelRefOrNull: agent.modelRefOrNull,
               invalidConfig: isModelConfigInvalid({
                 modelRefOrNull: agent.modelRefOrNull,
                 globalDefaultModelRef: view.globalDefaultModelRef,

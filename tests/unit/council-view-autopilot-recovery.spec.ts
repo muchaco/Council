@@ -1,4 +1,5 @@
 import { describe, expect } from "vitest";
+import { normalizeCouncilRuntimeError } from "../../src/shared/council-runtime-error-normalization.js";
 import {
   buildAutopilotRecoveryNotice,
   buildManualRetryNotice,
@@ -6,19 +7,28 @@ import {
 import { itReq } from "../helpers/requirement-trace";
 
 describe("council view autopilot recovery", () => {
-  itReq(["U12.6"], "returns notice when autopilot is paused with runtime error", () => {
-    const notice = buildAutopilotRecoveryNotice({
-      council: {
-        mode: "autopilot",
-        started: true,
-        paused: true,
-      },
-      runtimeMessage: "Message generation failed.",
-    });
+  itReq(
+    ["R3.24", "U12.6"],
+    "builds autopilot recovery notice from normalized runtime error",
+    () => {
+      const notice = buildAutopilotRecoveryNotice({
+        council: {
+          mode: "autopilot",
+          started: true,
+          paused: true,
+        },
+        runtimeError: normalizeCouncilRuntimeError({
+          message: "HTTP 429 rate limit exceeded",
+          providerId: "gemini",
+          modelId: "gemini-1.5-flash",
+        }),
+      });
 
-    expect(notice).toContain("Autopilot paused after an error");
-    expect(notice).toContain("Resume to retry");
-  });
+      expect(notice?.title).toBe("Autopilot paused");
+      expect(notice?.body).toContain("Resume");
+      expect(notice?.technicalDetails).toContain("Provider: gemini");
+    },
+  );
 
   itReq(["U12.6"], "returns null when message is empty", () => {
     const notice = buildAutopilotRecoveryNotice({
@@ -27,7 +37,7 @@ describe("council view autopilot recovery", () => {
         started: true,
         paused: true,
       },
-      runtimeMessage: "   ",
+      runtimeError: null,
     });
 
     expect(notice).toBeNull();
@@ -40,7 +50,7 @@ describe("council view autopilot recovery", () => {
         started: true,
         paused: false,
       },
-      runtimeMessage: "Message generation failed.",
+      runtimeError: normalizeCouncilRuntimeError({ message: "Message generation failed." }),
     });
 
     const runningAutopilotNotice = buildAutopilotRecoveryNotice({
@@ -49,23 +59,29 @@ describe("council view autopilot recovery", () => {
         started: true,
         paused: false,
       },
-      runtimeMessage: "Message generation failed.",
+      runtimeError: normalizeCouncilRuntimeError({ message: "Message generation failed." }),
     });
 
     expect(manualNotice).toBeNull();
     expect(runningAutopilotNotice).toBeNull();
   });
 
-  itReq(["U13.4"], "returns manual retry guidance copy for manual runtime errors", () => {
+  itReq(["R3.28", "U13.4"], "builds manual retry notice from normalized runtime error", () => {
     const notice = buildManualRetryNotice({
       council: {
         mode: "manual",
       },
-      runtimeMessage: "Message generation failed.",
+      runtimeError: normalizeCouncilRuntimeError({
+        message: "API key not found",
+        providerId: "openrouter",
+        modelId: "openai/gpt-4.1-mini",
+      }),
     });
 
-    expect(notice).toContain("Message generation failed.");
-    expect(notice).toContain("same member or a different member to retry");
+    expect(notice?.title).toBe("Turn failed");
+    expect(notice?.body).toContain("Check provider settings or choose another model");
+    expect(notice?.body).toContain("same member or a different");
+    expect(notice?.technicalDetails).toContain("Provider: openrouter");
   });
 
   itReq(["U13.4"], "returns null manual retry guidance for non-manual mode or empty text", () => {
@@ -74,7 +90,7 @@ describe("council view autopilot recovery", () => {
         council: {
           mode: "autopilot",
         },
-        runtimeMessage: "Message generation failed.",
+        runtimeError: normalizeCouncilRuntimeError({ message: "Message generation failed." }),
       }),
     ).toBeNull();
     expect(
@@ -82,7 +98,7 @@ describe("council view autopilot recovery", () => {
         council: {
           mode: "manual",
         },
-        runtimeMessage: "   ",
+        runtimeError: null,
       }),
     ).toBeNull();
   });

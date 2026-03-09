@@ -1,7 +1,10 @@
 import { ResultAsync, okAsync } from "neverthrow";
 import { describe, expect } from "vitest";
 import { type CouncilRecord, createCouncilsSlice } from "../../src/main/features/councils/slice";
-import type { AiServiceError } from "../../src/main/services/interfaces";
+import type {
+  AiServiceError,
+  AiServiceGenerateTextRequest,
+} from "../../src/main/services/interfaces";
 import { asAgentId, asCouncilId } from "../../src/shared/domain/ids";
 import { itReq } from "../helpers/requirement-trace";
 
@@ -10,6 +13,10 @@ const FILE_REQUIREMENT_IDS = [
   "R1.23",
   "R1.24",
   "R1.26",
+  "R1.3",
+  "R1.6",
+  "R1.7",
+  "R1.8",
   "R2.1",
   "R2.2",
   "R2.3",
@@ -60,6 +67,7 @@ const FILE_REQUIREMENT_IDS = [
   "R3.33",
   "R3.34",
   "R4.16",
+  "R4.18",
   "R8.2",
   "R8.3",
   "F1",
@@ -87,21 +95,47 @@ const FILE_REQUIREMENT_IDS = [
   "U9.6",
   "U9.7",
   "U9.8",
+  "E1",
+  "E2",
+  "E4",
 ] as const;
 
+type TestAvailableAgent = {
+  id: string;
+  name: string;
+  systemPrompt: string;
+  verbosity: string | null;
+  modelRefOrNull: { providerId: string; modelId: string } | null;
+  invalidConfig: boolean;
+  archived: boolean;
+};
+
+const createAvailableAgent = (
+  overrides: Partial<TestAvailableAgent> & Pick<TestAvailableAgent, "id" | "name">,
+): TestAvailableAgent => ({
+  id: overrides.id,
+  name: overrides.name,
+  systemPrompt: overrides.systemPrompt ?? `You are ${overrides.name}, a helpful council member.`,
+  verbosity: overrides.verbosity ?? null,
+  modelRefOrNull: overrides.modelRefOrNull ?? null,
+  invalidConfig: overrides.invalidConfig ?? false,
+  archived: overrides.archived ?? false,
+});
+
 const AVAILABLE_AGENTS = [
-  {
+  createAvailableAgent({
     id: "00000000-0000-4000-8000-000000000101",
     name: "Planner",
-    invalidConfig: false,
-    archived: false,
-  },
-  {
+    systemPrompt:
+      "You are Planner, an operations strategist who turns vague ideas into sequenced plans.",
+    verbosity: "Concise but concrete",
+  }),
+  createAvailableAgent({
     id: "00000000-0000-4000-8000-000000000102",
     name: "Researcher",
-    invalidConfig: false,
-    archived: false,
-  },
+    systemPrompt:
+      "You are Researcher, a user research specialist who brings evidence into the discussion.",
+  }),
 ];
 const PRIMARY_AGENT_ID = "00000000-0000-4000-8000-000000000101";
 const SECONDARY_AGENT_ID = "00000000-0000-4000-8000-000000000102";
@@ -131,13 +165,10 @@ const createSlice = (options?: {
   failConductorDecision?: boolean;
   providerFailuresBeforeSuccess?: number;
   contextLastN?: number;
-  availableAgents?: ReadonlyArray<{
-    id: string;
-    name: string;
-    invalidConfig: boolean;
-    archived: boolean;
-  }>;
+  availableAgents?: ReadonlyArray<TestAvailableAgent>;
   initialCouncils?: ReadonlyArray<CouncilRecord>;
+  modelCatalogByProvider?: Record<string, ReadonlyArray<string>>;
+  globalDefaultModelRef?: { providerId: string; modelId: string } | null;
 }) => {
   let sequence = 0;
   let messageId = 0;
@@ -151,23 +182,49 @@ const createSlice = (options?: {
   const refreshModelCatalogCalls: Array<"councilsList" | "councilCreate" | "councilView"> = [];
   const memberPrompts: Array<string> = [];
   const conductorPrompts: Array<string> = [];
+  const memberRequests: Array<AiServiceGenerateTextRequest> = [];
+  const conductorRequests: Array<AiServiceGenerateTextRequest> = [];
   const transcriptExports: Array<{
     webContentsId: number;
     suggestedFileName: string;
     markdown: string;
   }> = [];
 
+  const modelCatalogByProvider = options?.modelCatalogByProvider ?? {
+    gemini: ["gemini-1.5-flash"],
+  };
+  const globalDefaultModelRef = options?.globalDefaultModelRef ?? {
+    providerId: "gemini",
+    modelId: "gemini-1.5-flash",
+  };
+
   const readEligibleMembers = (promptContent: string, label: string): ReadonlyArray<string> => {
-    const eligibleMatch = promptContent.match(new RegExp(`${label}: (.*)`));
-    const eligibleRaw = eligibleMatch?.[1]?.trim() ?? "";
-    if (eligibleRaw.length === 0 || eligibleRaw.startsWith("(")) {
+    const lines = promptContent.split("\n");
+    const sectionStart = lines.findIndex((line) => line.trim() === `${label}:`);
+    if (sectionStart === -1) {
       return [];
     }
 
-    return eligibleRaw
-      .split(",")
-      .map((value) => value.trim())
-      .filter((value) => value.length > 0);
+    const ids: Array<string> = [];
+    for (const line of lines.slice(sectionStart + 1)) {
+      const trimmed = line.trim();
+      if (trimmed.length === 0) {
+        continue;
+      }
+      if (trimmed.startsWith("- id:")) {
+        const match = trimmed.match(/^- id: ([^;]+);/);
+        if (match?.[1] !== undefined) {
+          ids.push(match[1].trim());
+        }
+        continue;
+      }
+      if (trimmed.startsWith("(")) {
+        return [];
+      }
+      break;
+    }
+
+    return ids;
   };
 
   const buildConductorDecisionResponse = (promptContent: string): string => {
@@ -201,14 +258,9 @@ const createSlice = (options?: {
         okAsync({
           modelCatalog: {
             snapshotId: `${viewKind}-snapshot-1`,
-            modelsByProvider: {
-              gemini: ["gemini-1.5-flash"],
-            },
+            modelsByProvider: modelCatalogByProvider,
           },
-          globalDefaultModelRef: {
-            providerId: "gemini",
-            modelId: "gemini-1.5-flash",
-          },
+          globalDefaultModelRef,
           canRefreshModels: true,
         }),
       refreshModelCatalog: ({ viewKind }) =>
@@ -218,9 +270,7 @@ const createSlice = (options?: {
             return {
               modelCatalog: {
                 snapshotId: `${viewKind}-snapshot-2`,
-                modelsByProvider: {
-                  gemini: ["gemini-1.5-flash"],
-                },
+                modelsByProvider: modelCatalogByProvider,
               },
             };
           })(),
@@ -253,18 +303,22 @@ const createSlice = (options?: {
                   return;
                 }
                 const promptContent = request.messages.map((message) => message.content).join("\n");
-                const isConductorRequest = promptContent.includes("You are the Council Conductor.");
+                const isConductorRequest = request.messages[0]?.content.includes(
+                  "You are the Council Conductor.",
+                );
                 if (isConductorRequest) {
                   conductorPrompts.push(promptContent);
+                  conductorRequests.push(request);
                 } else {
                   memberPrompts.push(promptContent);
+                  memberRequests.push(request);
                 }
                 if (providerFailuresRemaining > 0) {
                   providerFailuresRemaining -= 1;
                   reject(new Error("provider failure"));
                   return;
                 }
-                const isOpeningRequest = promptContent.includes("starting an Autopilot council");
+                const isOpeningRequest = promptContent.includes("starting an Autopilot Council");
 
                 if (
                   options?.failConductorDecision === true &&
@@ -322,6 +376,8 @@ const createSlice = (options?: {
     > => refreshModelCatalogCalls,
     getMemberPrompts: (): ReadonlyArray<string> => memberPrompts,
     getConductorPrompts: (): ReadonlyArray<string> => conductorPrompts,
+    getMemberRequests: (): ReadonlyArray<AiServiceGenerateTextRequest> => memberRequests,
+    getConductorRequests: (): ReadonlyArray<AiServiceGenerateTextRequest> => conductorRequests,
     getTranscriptExports: (): ReadonlyArray<{
       webContentsId: number;
       suggestedFileName: string;
@@ -687,12 +743,12 @@ describe("councils handlers", () => {
     async () => {
       const invalidAgents = [
         ...AVAILABLE_AGENTS,
-        {
+        createAvailableAgent({
           id: INVALID_AGENT_ID,
           name: "Legacy Member",
           invalidConfig: true,
           archived: false,
-        },
+        }),
       ];
 
       const slice = createSlice({ availableAgents: invalidAgents });
@@ -1013,6 +1069,17 @@ describe("councils handlers", () => {
       expect(started.value.council.autopilotMaxTurns).toBe(4);
       expect(started.value.council.autopilotTurnsCompleted).toBe(0);
 
+      const openingRequest = slice.getConductorRequests().at(0);
+      expect(openingRequest).toBeDefined();
+      if (openingRequest !== undefined) {
+        expect(openingRequest.messages[1]?.content).toContain(
+          "- id: 00000000-0000-4000-8000-000000000101; name: Planner; role: You are Planner, an operations strategist who turns vague ideas into sequenced plans.",
+        );
+        expect(openingRequest.messages[1]?.content).toContain(
+          "- id: 00000000-0000-4000-8000-000000000102; name: Researcher; role: You are Researcher, a user research specialist who brings evidence into the discussion.",
+        );
+      }
+
       const viewAfterStart = await slice.getCouncilView({
         webContentsId: 231,
         councilId: saved.value.council.id,
@@ -1228,6 +1295,156 @@ describe("councils handlers", () => {
       expect(latestConductorPrompt).not.toContain("Kickoff");
       expect(latestConductorPrompt).toContain("Previous briefing: Briefing");
       expect(latestConductorPrompt).toContain("Earlier messages omitted: 2");
+    },
+  );
+
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "sends agent-authored runtime prompts and resolves explicit member and conductor models",
+    async () => {
+      const plannerModel = {
+        providerId: "openrouter",
+        modelId: "openai/gpt-4o-mini",
+      };
+      const conductorModel = {
+        providerId: "ollama",
+        modelId: "qwen2.5",
+      };
+      const slice = createSlice({
+        modelCatalogByProvider: {
+          gemini: ["gemini-1.5-flash"],
+          openrouter: ["openai/gpt-4o-mini"],
+          ollama: ["qwen2.5"],
+        },
+        availableAgents: [
+          createAvailableAgent({
+            id: PRIMARY_AGENT_ID,
+            name: "Planner",
+            systemPrompt:
+              "You are Planner, an operations strategist who turns vague ideas into sequenced plans.",
+            verbosity: "Short but specific",
+            modelRefOrNull: plannerModel,
+          }),
+          createAvailableAgent({
+            id: SECONDARY_AGENT_ID,
+            name: "Researcher",
+            systemPrompt:
+              "You are Researcher, a user research specialist who brings evidence into the discussion.",
+          }),
+        ],
+      });
+
+      const saved = await slice.saveCouncil({
+        webContentsId: 233,
+        draft: {
+          viewKind: "councilCreate",
+          id: null,
+          title: "Prompt Metadata Council",
+          topic: "Refine the launch narrative",
+          goal: "Agree on a crisp pitch",
+          mode: "manual",
+          tags: [],
+          memberAgentIds: [PRIMARY_AGENT_ID, SECONDARY_AGENT_ID],
+          memberColorsByAgentId: {},
+          conductorModelRefOrNull: conductorModel,
+        },
+      });
+      expect(saved.isOk()).toBe(true);
+      if (saved.isErr()) {
+        return;
+      }
+
+      await slice.startCouncil({
+        webContentsId: 233,
+        id: saved.value.council.id,
+        maxTurns: null,
+      });
+
+      const generated = await slice.generateManualTurn({
+        webContentsId: 233,
+        id: saved.value.council.id,
+        memberAgentId: PRIMARY_AGENT_ID,
+      });
+      expect(generated.isOk()).toBe(true);
+
+      const memberRequest = slice.getMemberRequests().at(-1);
+      expect(memberRequest).toBeDefined();
+      if (memberRequest === undefined) {
+        return;
+      }
+
+      expect(memberRequest.providerId).toBe(plannerModel.providerId);
+      expect(memberRequest.modelId).toBe(plannerModel.modelId);
+      expect(memberRequest.messages[0]?.content).toContain(
+        "You are Planner, an operations strategist who turns vague ideas into sequenced plans.",
+      );
+      expect(memberRequest.messages[0]?.content).toContain(
+        "Verbosity requirement: Short but specific.",
+      );
+      expect(memberRequest.messages[1]?.content).toContain(
+        "- id: 00000000-0000-4000-8000-000000000102; name: Researcher; role: You are Researcher, a user research specialist who brings evidence into the discussion.",
+      );
+
+      const conductorRequest = slice.getConductorRequests().at(-1);
+      expect(conductorRequest).toBeDefined();
+      if (conductorRequest === undefined) {
+        return;
+      }
+
+      expect(conductorRequest.providerId).toBe(conductorModel.providerId);
+      expect(conductorRequest.modelId).toBe(conductorModel.modelId);
+      expect(conductorRequest.messages[0]?.content).toContain("Return valid JSON only.");
+      expect(conductorRequest.messages[1]?.content).toContain("Recent conversation:");
+      expect(conductorRequest.messages[1]?.content).toContain(
+        "1. [member] Planner: Generated turn 2",
+      );
+    },
+  );
+
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "falls back to the global default model when member and conductor models are null",
+    async () => {
+      const slice = createSlice();
+      const saved = await slice.saveCouncil({
+        webContentsId: 234,
+        draft: {
+          viewKind: "councilCreate",
+          id: null,
+          title: "Default Model Council",
+          topic: "Verify defaults",
+          goal: null,
+          mode: "manual",
+          tags: [],
+          memberAgentIds: [PRIMARY_AGENT_ID],
+          memberColorsByAgentId: {},
+          conductorModelRefOrNull: null,
+        },
+      });
+      expect(saved.isOk()).toBe(true);
+      if (saved.isErr()) {
+        return;
+      }
+
+      await slice.startCouncil({
+        webContentsId: 234,
+        id: saved.value.council.id,
+        maxTurns: null,
+      });
+
+      const generated = await slice.generateManualTurn({
+        webContentsId: 234,
+        id: saved.value.council.id,
+        memberAgentId: PRIMARY_AGENT_ID,
+      });
+      expect(generated.isOk()).toBe(true);
+
+      const memberRequest = slice.getMemberRequests().at(-1);
+      const conductorRequest = slice.getConductorRequests().at(-1);
+      expect(memberRequest?.providerId).toBe("gemini");
+      expect(memberRequest?.modelId).toBe("gemini-1.5-flash");
+      expect(conductorRequest?.providerId).toBe("gemini");
+      expect(conductorRequest?.modelId).toBe("gemini-1.5-flash");
     },
   );
 
@@ -1498,6 +1715,17 @@ describe("councils handlers", () => {
     expect(generated.isErr()).toBe(true);
     if (generated.isErr()) {
       expect(generated.error.kind).toBe("ProviderError");
+      expect(generated.error.userMessage).toBe(
+        "The model could not generate a response. Try again or choose another model.",
+      );
+      expect(generated.error.details).toEqual({
+        runtimeError: {
+          category: "generationFailed",
+          title: "Generation failed",
+          message: "The model could not generate a response. Try again or choose another model.",
+          technicalDetails: "Provider: gemini\nModel: gemini-1.5-flash",
+        },
+      });
     }
     expect(slice.getRefreshModelCatalogCalls()).toEqual(["councilView"]);
   });
@@ -1570,16 +1798,47 @@ describe("councils handlers", () => {
 
   itReq(
     FILE_REQUIREMENT_IDS,
+    "omits archived agents from the new council member selector",
+    async () => {
+      const archivedAgents = [
+        ...AVAILABLE_AGENTS,
+        createAvailableAgent({
+          id: INVALID_AGENT_ID,
+          name: "Archived Member",
+          archived: true,
+        }),
+      ];
+
+      const slice = createSlice({ availableAgents: archivedAgents });
+      const editor = await slice.getEditorView({
+        webContentsId: 225,
+        councilId: null,
+      });
+
+      expect(editor.isOk()).toBe(true);
+      if (editor.isErr()) {
+        return;
+      }
+
+      expect(editor.value.availableAgents.map((agent) => agent.id)).toEqual([
+        PRIMARY_AGENT_ID,
+        SECONDARY_AGENT_ID,
+      ]);
+    },
+  );
+
+  itReq(
+    FILE_REQUIREMENT_IDS,
     "blocks adding archived agents and blocks runtime when a council still references them",
     async () => {
       const archivedAgents = [
         ...AVAILABLE_AGENTS,
-        {
+        createAvailableAgent({
           id: INVALID_AGENT_ID,
           name: "Archived Member",
           invalidConfig: false,
           archived: true,
-        },
+        }),
       ];
 
       const createBlockedSlice = createSlice({ availableAgents: archivedAgents });

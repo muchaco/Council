@@ -1,5 +1,9 @@
 import { describe, expect } from "vitest";
 import {
+  resolveConductorGenerationModel,
+  resolveMemberGenerationModel,
+} from "../../src/shared/council-runtime-model-resolution";
+import {
   buildAvailableModelKeys,
   groupModelsByProvider,
   isModelConfigInvalid,
@@ -7,7 +11,7 @@ import {
 } from "../../src/shared/domain/model-ref";
 import { itReq } from "../helpers/requirement-trace";
 
-const FILE_REQUIREMENT_IDS = ["E2", "R4.12", "R4.15", "R4.18", "R4.19"] as const;
+const FILE_REQUIREMENT_IDS = ["E2", "R1.8", "R4.12", "R4.15", "R4.18", "R4.19"] as const;
 
 describe("model resolution", () => {
   itReq(FILE_REQUIREMENT_IDS, "resolves explicit model when available", () => {
@@ -94,4 +98,43 @@ describe("model resolution", () => {
       },
     ]);
   });
+
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "resolves member generation from the member model before default",
+    () => {
+      const result = resolveMemberGenerationModel({
+        memberModelRefOrNull: { providerId: "openrouter", modelId: "anthropic/claude-3.5-haiku" },
+        globalDefaultModelRef: { providerId: "gemini", modelId: "gemini-1.5-flash" },
+        availableModelKeys: new Set([
+          "gemini:gemini-1.5-flash",
+          "openrouter:anthropic/claude-3.5-haiku",
+        ]),
+      });
+
+      expect(result.isOk()).toBe(true);
+      expect(result._unsafeUnwrap()).toEqual({
+        providerId: "openrouter",
+        modelId: "anthropic/claude-3.5-haiku",
+      });
+    },
+  );
+
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "resolves conductor generation from the conductor model before default",
+    () => {
+      const result = resolveConductorGenerationModel({
+        conductorModelRefOrNull: { providerId: "ollama", modelId: "qwen2.5" },
+        globalDefaultModelRef: { providerId: "gemini", modelId: "gemini-1.5-flash" },
+        availableModelKeys: new Set(["gemini:gemini-1.5-flash", "ollama:qwen2.5"]),
+      });
+
+      expect(result.isOk()).toBe(true);
+      expect(result._unsafeUnwrap()).toEqual({
+        providerId: "ollama",
+        modelId: "qwen2.5",
+      });
+    },
+  );
 });

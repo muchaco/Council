@@ -1,0 +1,53 @@
+{
+  "name": "council-runtime-error-normalization",
+  "steps": [
+    { "action": "waitForText", "text": "Councils" },
+    {
+      "action": "evaluate",
+      "saveAs": "seedRuntimeErrorCouncil",
+      "expression": "async () => { const stamp = Date.now(); const title = `Runtime Error Scenario ${stamp}`; const settings = await window.api.settings.getView({ viewKind: 'settings' }); if (!settings.ok) { return `settings:${settings.error.userMessage}`; } const providerId = Object.keys(settings.value.modelCatalog.modelsByProvider)[0]; if (providerId === undefined) { return 'no-provider'; } const memberSave = await window.api.agents.save({ viewKind: 'agentEdit', id: null, name: `Runtime Error Member ${stamp}`, systemPrompt: 'Scenario helper member.', verbosity: null, temperature: null, tags: ['scenario'], modelRefOrNull: null }); if (!memberSave.ok) { return `agent-save:${memberSave.error.userMessage}`; } const memberId = memberSave.value.agent.id; const saved = await window.api.councils.save({ viewKind: 'councilCreate', id: null, title, topic: 'Verify normalized runtime error UI', goal: 'Show concise council runtime errors with optional details', mode: 'manual', tags: ['scenario', 'runtime-error'], memberAgentIds: [memberId], memberColorsByAgentId: { [memberId]: '#0f766e' }, conductorModelRefOrNull: null }); if (!saved.ok) { return `save:${saved.error.userMessage}`; } window.localStorage.setItem('runtimeErrorScenarioCouncilTitle', title); window.localStorage.setItem('runtimeErrorScenarioMemberId', memberId); window.localStorage.setItem('runtimeErrorScenarioProviderId', providerId); return 'ok'; }"
+    },
+    { "action": "assertSaved", "key": "seedRuntimeErrorCouncil", "equals": "ok" },
+    {
+      "action": "evaluate",
+      "saveAs": "runtimeErrorScenarioCouncilTitle",
+      "expression": "() => window.localStorage.getItem('runtimeErrorScenarioCouncilTitle')"
+    },
+    { "action": "click", "selector": "button:has-text('Settings')" },
+    { "action": "waitForText", "text": "Providers" },
+    { "action": "click", "selector": "button:has-text('Councils')" },
+    { "action": "waitForText", "text": "Runtime Error Scenario" },
+    {
+      "action": "click",
+      "selector": ".council-card:has-text('Runtime Error Scenario')"
+    },
+    { "action": "waitForText", "text": "Transcript" },
+    { "action": "click", "selector": "button:has-text('Start')" },
+    {
+      "action": "evaluate",
+      "saveAs": "disconnectScenarioProvider",
+      "expression": "async () => { const providerId = window.localStorage.getItem('runtimeErrorScenarioProviderId'); if (providerId === null) { return 'missing-runtime-error-scenario-provider'; } const disconnected = await window.api.providers.disconnect({ viewKind: 'settings', providerId }); return disconnected.ok ? 'ok' : `disconnect:${disconnected.error.userMessage}`; }"
+    },
+    { "action": "assertSaved", "key": "disconnectScenarioProvider", "equals": "ok" },
+    {
+      "action": "evaluate",
+      "saveAs": "detailsCollapsedByDefault",
+      "expression": "() => document.querySelector('details[open]') === null"
+    },
+    { "action": "assertSaved", "key": "detailsCollapsedByDefault", "equals": true },
+    { "action": "click", "selector": "button:has-text('Speak')" },
+    { "action": "waitForText", "text": "Turn failed" },
+    {
+      "action": "waitForText",
+      "text": "Refresh models or choose another one, then retry with the same member or a different one."
+    },
+    { "action": "waitForText", "text": "Show technical details" },
+    { "action": "click", "selector": "summary:has-text('Show technical details')" },
+    { "action": "waitForText", "text": "Signal: Model selection is unavailable for this runtime" },
+    {
+      "action": "screenshot",
+      "file": "council-runtime-error-normalization.png",
+      "fullPage": true
+    }
+  ]
+}

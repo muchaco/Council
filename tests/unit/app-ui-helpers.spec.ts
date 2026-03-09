@@ -1,10 +1,15 @@
 import { describe, expect } from "vitest";
 import {
+  DEFAULT_AGENT_HOME_LIST_FILTERS,
+  DEFAULT_COUNCIL_HOME_LIST_FILTERS,
   appendCouncilConfigTag,
   applyAgentArchivedListUpdate,
   buildInvalidConfigBadgeAriaLabel,
   buildProviderConfiguredBadgeAriaLabel,
   buildProviderConnectionTestButtonAriaLabel,
+  formatHomeListTotal,
+  hasActiveAgentHomeListFilters,
+  hasActiveCouncilHomeListFilters,
   isModelSelectionInCatalog,
   normalizeTagsDraft,
   parseCouncilConfigTags,
@@ -171,6 +176,12 @@ describe("app ui helpers", () => {
     expect(resolveToastVariant("error")).toBe("error");
   });
 
+  itReq(["U3.3", "U4.2"], "formats home list totals for councils and agents", () => {
+    expect(formatHomeListTotal({ total: 0, singularLabel: "council" })).toBe("0 councils");
+    expect(formatHomeListTotal({ total: 1, singularLabel: "council" })).toBe("1 council");
+    expect(formatHomeListTotal({ total: 14, singularLabel: "agent" })).toBe("14 agents");
+  });
+
   itReq(
     ["R1.20", "R1.21", "R1.22", "R1.24", "R1.27", "U4.2", "U4.5", "U4.6"],
     "applies immediate agent archive list updates for every archived filter state",
@@ -236,6 +247,82 @@ describe("app ui helpers", () => {
           archivedFilter: "archived",
         }),
       ).toEqual([]);
+    },
+  );
+
+  itReq(
+    ["R1.17", "R1.19", "R1.22", "R1.27", "U4.2"],
+    "resolves agent home-list clear filters state and defaults",
+    () => {
+      expect(hasActiveAgentHomeListFilters(DEFAULT_AGENT_HOME_LIST_FILTERS)).toBe(false);
+      expect(
+        hasActiveAgentHomeListFilters({
+          ...DEFAULT_AGENT_HOME_LIST_FILTERS,
+          searchText: " planner ",
+        }),
+      ).toBe(true);
+      expect(
+        hasActiveAgentHomeListFilters({
+          ...DEFAULT_AGENT_HOME_LIST_FILTERS,
+          tagFilter: "research",
+        }),
+      ).toBe(true);
+      expect(
+        hasActiveAgentHomeListFilters({
+          ...DEFAULT_AGENT_HOME_LIST_FILTERS,
+          archivedFilter: "active",
+        }),
+      ).toBe(true);
+      expect(
+        hasActiveAgentHomeListFilters({
+          ...DEFAULT_AGENT_HOME_LIST_FILTERS,
+          sortBy: "createdAt",
+        }),
+      ).toBe(true);
+      expect(
+        hasActiveAgentHomeListFilters({
+          ...DEFAULT_AGENT_HOME_LIST_FILTERS,
+          sortDirection: "asc",
+        }),
+      ).toBe(true);
+    },
+  );
+
+  itReq(
+    ["R2.22", "R2.24", "U3.2"],
+    "resolves council home-list clear filters state and defaults",
+    () => {
+      expect(hasActiveCouncilHomeListFilters(DEFAULT_COUNCIL_HOME_LIST_FILTERS)).toBe(false);
+      expect(
+        hasActiveCouncilHomeListFilters({
+          ...DEFAULT_COUNCIL_HOME_LIST_FILTERS,
+          searchText: " delivery ",
+        }),
+      ).toBe(true);
+      expect(
+        hasActiveCouncilHomeListFilters({
+          ...DEFAULT_COUNCIL_HOME_LIST_FILTERS,
+          tagFilter: "ops",
+        }),
+      ).toBe(true);
+      expect(
+        hasActiveCouncilHomeListFilters({
+          ...DEFAULT_COUNCIL_HOME_LIST_FILTERS,
+          archivedFilter: "archived",
+        }),
+      ).toBe(true);
+      expect(
+        hasActiveCouncilHomeListFilters({
+          ...DEFAULT_COUNCIL_HOME_LIST_FILTERS,
+          sortBy: "createdAt",
+        }),
+      ).toBe(true);
+      expect(
+        hasActiveCouncilHomeListFilters({
+          ...DEFAULT_COUNCIL_HOME_LIST_FILTERS,
+          sortDirection: "asc",
+        }),
+      ).toBe(true);
     },
   );
 

@@ -1,14 +1,37 @@
 {
   "name": "council-view-color-picker",
   "steps": [
-    { "action": "waitForText", "text": "Council" },
-    { "action": "click", "selector": "button:has-text('Councils')" },
-    { "action": "waitForText", "text": "New Council" },
+    { "action": "waitForText", "text": "Councils" },
     {
       "action": "evaluate",
-      "expression": "() => { const card = document.querySelector('.council-card'); if (card instanceof HTMLElement) { card.click(); } }"
+      "saveAs": "seedColorPickerCouncilOk",
+      "expression": "async () => { const getEditor = async () => window.api.councils.getEditorView({ viewKind: 'councilCreate', councilId: null }); const settings = await window.api.settings.getView({ viewKind: 'settings' }); const modelEntry = settings.ok ? Object.entries(settings.value.modelCatalog.modelsByProvider).find(([, models]) => Array.isArray(models) && models.length > 0) : undefined; const modelRefOrNull = modelEntry === undefined ? null : { providerId: modelEntry[0], modelId: modelEntry[1][0] }; let editor = await getEditor(); if (!editor.ok) { return false; } let attempts = 0; while (editor.value.availableAgents.length < 2 && attempts < 4) { attempts += 1; const agentSave = await window.api.agents.save({ viewKind: 'agentEdit', id: null, name: `Color Picker Scenario ${Date.now()}-${attempts}`, systemPrompt: 'Scenario helper agent.', verbosity: null, temperature: null, tags: ['scenario'], modelRefOrNull }); if (!agentSave.ok) { break; } editor = await getEditor(); if (!editor.ok) { return false; } } if (editor.value.availableAgents.length < 2) { return false; } const selectedMembers = editor.value.availableAgents.slice(0, 2); const title = `Color Picker Scenario ${Date.now()}`; const saveResult = await window.api.councils.save({ viewKind: 'councilCreate', id: null, title, topic: 'Validate member color picker popover', goal: 'Open the member color picker and change a color', mode: 'manual', tags: ['scenario'], memberAgentIds: selectedMembers.map((agent) => agent.id), memberColorsByAgentId: { [selectedMembers[0].id]: '#0a5c66', [selectedMembers[1].id]: '#2563eb' }, conductorModelRefOrNull: null }); return saveResult.ok; }"
     },
+    { "action": "assertSaved", "key": "seedColorPickerCouncilOk", "equals": true },
+    { "action": "click", "selector": "button:has-text('Settings')" },
+    { "action": "waitForText", "text": "Providers" },
+    { "action": "click", "selector": "button:has-text('Councils')" },
+    { "action": "waitForText", "text": "Color Picker Scenario" },
+    {
+      "action": "evaluate",
+      "saveAs": "openedColorPickerCouncil",
+      "expression": "() => { const card = Array.from(document.querySelectorAll('[data-council-card-id]')).find((node) => node.textContent?.includes('Color Picker Scenario')); if (!(card instanceof HTMLElement)) { return false; } card.click(); return true; }"
+    },
+    { "action": "assertSaved", "key": "openedColorPickerCouncil", "equals": true },
     { "action": "waitForText", "text": "Back" },
+    {
+      "action": "evaluate",
+      "saveAs": "openedColorPicker",
+      "expression": "() => { const button = document.querySelector('[id^=\"member-color-\"]'); if (!(button instanceof HTMLButtonElement)) { return false; } button.click(); return true; }"
+    },
+    { "action": "assertSaved", "key": "openedColorPicker", "equals": true },
+    {
+      "action": "evaluate",
+      "saveAs": "selectedCrimson",
+      "expression": "() => { const button = document.querySelector('button[title=\"Crimson\"]'); if (!(button instanceof HTMLButtonElement)) { return false; } button.click(); return true; }"
+    },
+    { "action": "assertSaved", "key": "selectedCrimson", "equals": true },
+    { "action": "waitForText", "text": "Member color updated." },
     { "action": "screenshot", "file": "council-view-color-picker.png", "fullPage": true }
   ]
 }

@@ -1,4 +1,8 @@
 import type { ResultAsync } from "neverthrow";
+import {
+  readCouncilRuntimeErrorDetails,
+  toCouncilRuntimeErrorDetails,
+} from "../../../shared/council-runtime-error-normalization.js";
 import { type DomainError, domainError } from "../../../shared/domain/errors.js";
 import type {
   AdvanceAutopilotTurnResponse,
@@ -45,7 +49,13 @@ const toValidationFailure = (message: string): IpcResult<never> => ({
 const sanitizeDomainError = (error: DomainError): DomainError => ({
   ...error,
   devMessage: "Redacted at IPC boundary.",
-  details: undefined,
+  details:
+    error.details === undefined
+      ? undefined
+      : (() => {
+          const runtimeError = readCouncilRuntimeErrorDetails(error.details);
+          return runtimeError === null ? undefined : toCouncilRuntimeErrorDetails(runtimeError);
+        })(),
 });
 
 const toIpcResult = async <T>(operation: ResultAsync<T, DomainError>): Promise<IpcResult<T>> => {

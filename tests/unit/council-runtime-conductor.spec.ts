@@ -1,22 +1,34 @@
 import { describe, expect } from "vitest";
 import {
-  buildAutopilotOpeningPrompt,
-  buildConductorDecisionPrompt,
   parseAutopilotOpeningDecision,
   parseConductorDecision,
 } from "../../src/shared/council-runtime-conductor";
+import {
+  buildAutopilotOpeningPromptBundle,
+  buildConductorDecisionPromptBundle,
+} from "../../src/shared/council-runtime-prompts";
 import { itReq } from "../helpers/requirement-trace";
 
-const FILE_REQUIREMENT_IDS = ["R3.13", "R3.14", "R3.18", "R3.20", "E1", "E2", "F1"] as const;
+const FILE_REQUIREMENT_IDS = [
+  "R3.13",
+  "R3.14",
+  "R3.16",
+  "R3.17",
+  "R3.18",
+  "R3.20",
+  "E1",
+  "E2",
+  "F1",
+] as const;
 
 describe("council runtime conductor helpers", () => {
-  itReq(FILE_REQUIREMENT_IDS, "builds a prompt with strict JSON contract", () => {
-    const prompt = buildConductorDecisionPrompt({
+  itReq(FILE_REQUIREMENT_IDS, "builds a split prompt bundle with strict JSON contract", () => {
+    const prompt = buildConductorDecisionPromptBundle({
       mode: "autopilot",
       topic: "Reduce cycle time",
       goal: "Agree 3 actions",
       previousBriefing: "Previous state",
-      messages: [
+      recentMessages: [
         {
           senderName: "Planner",
           senderKind: "member",
@@ -24,13 +36,23 @@ describe("council runtime conductor helpers", () => {
         },
       ],
       omittedMessageCount: 3,
-      eligibleMemberAgentIds: ["member-a", "member-b"],
+      eligibleMembers: [
+        { id: "member-a", name: "Planner", role: "Operations lead" },
+        { id: "member-b", name: "Researcher", role: "User research lead" },
+      ],
     });
 
-    expect(prompt).toContain("strict JSON");
-    expect(prompt).toContain("nextSpeakerAgentId");
-    expect(prompt).toContain("member-a,member-b");
-    expect(prompt).toContain("Earlier messages omitted: 3");
+    expect(prompt.messages[0]?.role).toBe("system");
+    expect(prompt.messages[1]?.role).toBe("user");
+    expect(prompt.messages[0]?.content).toContain("Return valid JSON only.");
+    expect(prompt.messages[0]?.content).toContain("nextSpeakerAgentId");
+    expect(prompt.messages[1]?.content).toContain("Earlier messages omitted: 3");
+    expect(prompt.messages[1]?.content).toContain(
+      "- id: member-a; name: Planner; role: Operations lead",
+    );
+    expect(prompt.messages[1]?.content).toContain(
+      "- id: member-b; name: Researcher; role: User research lead",
+    );
   });
 
   itReq(FILE_REQUIREMENT_IDS, "parses valid manual-mode conductor decision", () => {
@@ -66,14 +88,20 @@ describe("council runtime conductor helpers", () => {
   });
 
   itReq(FILE_REQUIREMENT_IDS, "builds and parses autopilot opening contract", () => {
-    const prompt = buildAutopilotOpeningPrompt({
+    const prompt = buildAutopilotOpeningPromptBundle({
       topic: "Kickoff",
       goal: "Align on next steps",
-      memberAgentIds: ["member-a", "member-b"],
+      members: [
+        { id: "member-a", name: "Planner", role: "Operations lead" },
+        { id: "member-b", name: "Researcher", role: "User research lead" },
+      ],
     });
 
-    expect(prompt).toContain("openingMessage");
-    expect(prompt).toContain("firstSpeakerAgentId");
+    expect(prompt.messages[0]?.content).toContain("openingMessage");
+    expect(prompt.messages[0]?.content).toContain("firstSpeakerAgentId");
+    expect(prompt.messages[1]?.content).toContain(
+      "- id: member-a; name: Planner; role: Operations lead",
+    );
 
     const parsed = parseAutopilotOpeningDecision({
       text: JSON.stringify({
@@ -93,20 +121,32 @@ describe("council runtime conductor helpers", () => {
   });
 
   itReq(FILE_REQUIREMENT_IDS, "builds manual-mode prompt fallback sections", () => {
-    const prompt = buildConductorDecisionPrompt({
+    const prompt = buildConductorDecisionPromptBundle({
       mode: "manual",
       topic: "Kickoff",
       goal: null,
       previousBriefing: null,
-      messages: [],
+      recentMessages: [],
       omittedMessageCount: 0,
+      eligibleMembers: [],
+    });
+
+    expect(prompt.messages[1]?.content).toContain("Goal: (none)");
+    expect(prompt.messages[1]?.content).toContain("Previous briefing: (none)");
+    expect(prompt.messages[1]?.content).toContain("Recent conversation:\n(none)");
+    expect(prompt.messages[1]?.content).toContain(
+      "Eligible members for next speaker:\n(manual mode - nextSpeakerAgentId must be null)",
+    );
+  });
+
+  itReq(FILE_REQUIREMENT_IDS, "unwraps a fully fenced JSON response before parsing", () => {
+    const parsed = parseConductorDecision({
+      text: '```json\n{"briefing":"ok","goalReached":false,"nextSpeakerAgentId":null}\n```',
+      mode: "manual",
       eligibleMemberAgentIds: [],
     });
 
-    expect(prompt).toContain("Goal: (none)");
-    expect(prompt).toContain("Previous briefing: (none)");
-    expect(prompt).toContain("Conversation:\n(none)");
-    expect(prompt).toContain("Eligible members for next speaker: (manual mode - must return null)");
+    expect(parsed.isOk()).toBe(true);
   });
 
   itReq(FILE_REQUIREMENT_IDS, "rejects malformed manual and autopilot decision payloads", () => {

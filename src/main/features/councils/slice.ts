@@ -2,9 +2,6 @@ import { type ResultAsync, errAsync, okAsync } from "neverthrow";
 import {
   type ConductorDecision,
   type ConductorOpeningDecision,
-  type RuntimeConversationMessage,
-  buildAutopilotOpeningPrompt,
-  buildConductorDecisionPrompt,
   parseAutopilotOpeningDecision,
   parseConductorDecision,
 } from "../../../shared/council-runtime-conductor.js";
@@ -13,6 +10,22 @@ import {
   normalizeContextLastN,
   selectLastNContextMessages,
 } from "../../../shared/council-runtime-context-window.js";
+import {
+  normalizeCouncilRuntimeError,
+  toCouncilRuntimeErrorDetails,
+} from "../../../shared/council-runtime-error-normalization.js";
+import {
+  resolveConductorGenerationModel,
+  resolveMemberGenerationModel,
+} from "../../../shared/council-runtime-model-resolution.js";
+import {
+  type RuntimeConversationMessage,
+  type RuntimePromptParticipant,
+  buildAutopilotOpeningPromptBundle,
+  buildConductorDecisionPromptBundle,
+  buildMemberTurnPromptBundle,
+  deriveAgentRoleLabel,
+} from "../../../shared/council-runtime-prompts.js";
 import { type DomainError, domainError } from "../../../shared/domain/errors.js";
 import {
   type AgentId,
@@ -50,7 +63,11 @@ import type {
   SetCouncilArchivedResponse,
   StartCouncilResponse,
 } from "../../../shared/ipc/dto.js";
-import type { AiService, ExportService } from "../../services/interfaces.js";
+import type {
+  AiService,
+  AiServiceGenerateTextRequest,
+  ExportService,
+} from "../../services/interfaces.js";
 
 type CouncilMode = "autopilot" | "manual";
 
@@ -99,6 +116,12 @@ type CouncilRuntimeBriefingRecord = {
   updatedAtUtc: string;
 };
 
+type CouncilRuntimeAgentRecord = CouncilAgentOptionDto & {
+  systemPrompt: string;
+  verbosity: string | null;
+  modelRefOrNull: ModelRef | null;
+};
+
 type InFlightGenerationRecord = {
   requestId: string;
   kind: "manualMemberTurn" | "autopilotStep" | "conductorBriefing" | "autopilotOpening";
@@ -130,7 +153,7 @@ type CouncilsSliceDependencies = {
   listAvailableAgents: (params: {
     webContentsId: number;
     viewKind: "councilCreate" | "councilView";
-  }) => ResultAsync<ReadonlyArray<CouncilAgentOptionDto>, DomainError>;
+  }) => ResultAsync<ReadonlyArray<CouncilRuntimeAgentRecord>, DomainError>;
   loadPersistedCouncils?: () => ResultAsync<ReadonlyArray<CouncilRecord>, DomainError>;
   persistCouncil?: (council: CouncilRecord) => ResultAsync<void, DomainError>;
   persistCouncilDeletion?: (councilId: CouncilId) => ResultAsync<void, DomainError>;
@@ -330,12 +353,27 @@ const toCouncilRuntimeBriefingDto = (
   };
 };
 
+const toCouncilAgentOptionDto = (agent: CouncilRuntimeAgentRecord): CouncilAgentOptionDto => ({
+  id: agent.id,
+  name: agent.name,
+  invalidConfig: agent.invalidConfig,
+  archived: agent.archived,
+});
+
 const toRuntimeConversationMessage = (
   message: CouncilMessageRecord,
 ): RuntimeConversationMessage => ({
   senderName: message.senderName,
   senderKind: message.senderKind,
   content: message.content,
+});
+
+const toRuntimePromptParticipant = (
+  agent: CouncilRuntimeAgentRecord,
+): RuntimePromptParticipant => ({
+  id: agent.id,
+  name: agent.name,
+  role: deriveAgentRoleLabel(agent.systemPrompt),
 });
 
 const toTranscriptMarkdown = (params: {
@@ -396,8 +434,31 @@ export const createCouncilsSlice = (
       DEFAULT_CONTEXT_LAST_N,
     );
 
+  const buildRuntimeError = (params: {
+    kind: "ProviderError" | "StateViolationError";
+    devMessage: string;
+    providerId?: string | null;
+    modelId?: string | null;
+  }): DomainError => {
+    const runtimeError = normalizeCouncilRuntimeError({
+      message: params.devMessage,
+      providerId: params.providerId,
+      modelId: params.modelId,
+    });
+
+    return domainError(
+      params.kind,
+      params.devMessage,
+      runtimeError.message,
+      toCouncilRuntimeErrorDetails(runtimeError),
+    );
+  };
+
   const mapProviderError = (message: string): DomainError =>
-    domainError("ProviderError", message, "Message generation failed.");
+    buildRuntimeError({
+      kind: "ProviderError",
+      devMessage: message,
+    });
 
   const toGenerationStateDto = (councilId: CouncilId): CouncilGenerationStateDto => {
     const inFlight = inFlightGenerationByCouncilId.get(councilId);
@@ -536,13 +597,80 @@ export const createCouncilsSlice = (
     return true;
   };
 
+  const buildAgentLookup = (
+    agents: ReadonlyArray<CouncilRuntimeAgentRecord>,
+  ): ReadonlyMap<string, CouncilRuntimeAgentRecord> =>
+    new Map(agents.map((agent) => [agent.id, agent]));
+
+  const buildPromptParticipants = (params: {
+    memberAgentIds: ReadonlyArray<AgentId>;
+    agentById: ReadonlyMap<string, CouncilRuntimeAgentRecord>;
+  }): ReadonlyArray<RuntimePromptParticipant> =>
+    params.memberAgentIds.flatMap((memberAgentId) => {
+      const agent = params.agentById.get(memberAgentId);
+      return agent === undefined ? [] : [toRuntimePromptParticipant(agent)];
+    });
+
+  const buildMemberPromptBundle = (params: {
+    council: CouncilRecord;
+    memberAgent: CouncilRuntimeAgentRecord;
+    previousBriefing: CouncilRuntimeBriefingRecord | null;
+    messages: ReadonlyArray<CouncilMessageRecord>;
+    agentById: ReadonlyMap<string, CouncilRuntimeAgentRecord>;
+  }) => {
+    const contextWindow = selectLastNContextMessages(params.messages, getContextLastN());
+    const allParticipants = buildPromptParticipants({
+      memberAgentIds: params.council.memberAgentIds,
+      agentById: params.agentById,
+    });
+
+    return buildMemberTurnPromptBundle({
+      councilTitle: params.council.title,
+      topic: params.council.topic,
+      goal: params.council.goal,
+      memberName: params.memberAgent.name,
+      memberRole: deriveAgentRoleLabel(params.memberAgent.systemPrompt),
+      memberSystemPrompt: params.memberAgent.systemPrompt,
+      memberVerbosity: params.memberAgent.verbosity,
+      otherMembers: allParticipants.filter(
+        (participant) => participant.id !== params.memberAgent.id,
+      ),
+      briefing: params.previousBriefing?.briefing ?? null,
+      recentMessages: contextWindow.messages.map(toRuntimeConversationMessage),
+      omittedMessageCount: contextWindow.omittedCount,
+    });
+  };
+
+  const resolveGenerationModelRef = (params: {
+    actorRole: "member" | "conductor";
+    explicitModelRefOrNull: ModelRef | null;
+    modelContext: CouncilModelContext;
+  }) => {
+    const availableModelKeys = buildAvailableModelKeys(
+      params.modelContext.modelCatalog.modelsByProvider,
+    );
+
+    return params.actorRole === "member"
+      ? resolveMemberGenerationModel({
+          memberModelRefOrNull: params.explicitModelRefOrNull,
+          globalDefaultModelRef: params.modelContext.globalDefaultModelRef,
+          availableModelKeys,
+        })
+      : resolveConductorGenerationModel({
+          conductorModelRefOrNull: params.explicitModelRefOrNull,
+          globalDefaultModelRef: params.modelContext.globalDefaultModelRef,
+          availableModelKeys,
+        });
+  };
+
   const generateTextForCouncil = (params: {
     council: CouncilRecord;
     modelContext: CouncilModelContext;
     kind: InFlightGenerationRecord["kind"];
     memberAgentId: AgentId | null;
-    promptRole: "member" | "conductor";
-    promptContent: string;
+    actorRole: "member" | "conductor";
+    explicitModelRefOrNull: ModelRef | null;
+    promptMessages: AiServiceGenerateTextRequest["messages"];
   }): ResultAsync<string, DomainError> => {
     const requestId = dependencies.createGenerationRequestId();
     const controller = new AbortController();
@@ -553,9 +681,12 @@ export const createCouncilsSlice = (
       memberAgentId: params.memberAgentId,
     });
 
-    const resolvedModelRef =
-      params.council.conductorModelRefOrNull ?? params.modelContext.globalDefaultModelRef;
-    if (resolvedModelRef === null) {
+    const resolvedModelResult = resolveGenerationModelRef({
+      actorRole: params.actorRole,
+      explicitModelRefOrNull: params.explicitModelRefOrNull,
+      modelContext: params.modelContext,
+    });
+    if (resolvedModelResult.isErr()) {
       inFlightGenerationByCouncilId.delete(params.council.id);
       dependencies.logger?.error(
         "council-generation",
@@ -565,28 +696,35 @@ export const createCouncilsSlice = (
           councilId: params.council.id,
           kind: params.kind,
           memberAgentId: params.memberAgentId,
-          promptRole: params.promptRole,
-          hasConductorModel: params.council.conductorModelRefOrNull !== null,
+          actorRole: params.actorRole,
+          hasExplicitModel: params.explicitModelRefOrNull !== null,
           hasGlobalDefault: params.modelContext.globalDefaultModelRef !== null,
         },
       );
       return errAsync(
-        stateError(
-          `Council ${params.council.id} has no resolved model for generation`,
-          "Cannot generate because model configuration is invalid.",
-        ),
+        buildRuntimeError({
+          kind: "StateViolationError",
+          devMessage: `Council ${params.council.id} cannot generate because model configuration is invalid`,
+        }),
       );
     }
+
+    const resolvedModelRef = resolvedModelResult.value;
+    const promptLength = params.promptMessages.reduce(
+      (total, message) => total + message.content.length,
+      0,
+    );
 
     dependencies.logger?.info("council-generation", "generateTextForCouncilStart", {
       councilId: params.council.id,
       requestId,
       kind: params.kind,
       memberAgentId: params.memberAgentId,
-      promptRole: params.promptRole,
+      actorRole: params.actorRole,
       providerId: resolvedModelRef.providerId,
       modelId: resolvedModelRef.modelId,
-      promptLength: params.promptContent.length,
+      promptLength,
+      promptMessageCount: params.promptMessages.length,
     });
 
     return dependencies.aiService
@@ -595,16 +733,7 @@ export const createCouncilsSlice = (
           providerId: resolvedModelRef.providerId,
           modelId: resolvedModelRef.modelId,
           temperature: 0.2,
-          messages: [
-            {
-              role: "system",
-              content: "Council runtime generation skeleton.",
-            },
-            {
-              role: "user",
-              content: `${params.promptRole}: ${params.promptContent}`,
-            },
-          ],
+          messages: params.promptMessages,
         },
         controller.signal,
       )
@@ -623,7 +752,7 @@ export const createCouncilsSlice = (
             requestId,
             kind: params.kind,
             memberAgentId: params.memberAgentId,
-            promptRole: params.promptRole,
+            actorRole: params.actorRole,
             providerId: providerError.providerId,
             modelId: providerError.modelId,
             errorMessage: providerError.message,
@@ -636,11 +765,12 @@ export const createCouncilsSlice = (
               `Council ${params.council.id} generation cancelled`,
               "Generation was cancelled.",
             )
-          : domainError(
-              "ProviderError",
-              `Generation failed for council ${params.council.id}: ${providerError.message}`,
-              `Generation failed (${providerError.providerId}/${providerError.modelId}): ${providerError.message}`,
-            );
+          : buildRuntimeError({
+              kind: "ProviderError",
+              devMessage: `Generation failed for council ${params.council.id}: ${providerError.message}`,
+              providerId: providerError.providerId,
+              modelId: providerError.modelId,
+            });
       })
       .andThen((response) => {
         const inFlight = inFlightGenerationByCouncilId.get(params.council.id);
@@ -667,7 +797,7 @@ export const createCouncilsSlice = (
               requestId,
               kind: params.kind,
               memberAgentId: params.memberAgentId,
-              promptRole: params.promptRole,
+              actorRole: params.actorRole,
               providerId: resolvedModelRef.providerId,
               modelId: resolvedModelRef.modelId,
             },
@@ -682,7 +812,7 @@ export const createCouncilsSlice = (
           requestId,
           kind: params.kind,
           memberAgentId: params.memberAgentId,
-          promptRole: params.promptRole,
+          actorRole: params.actorRole,
           providerId: resolvedModelRef.providerId,
           modelId: resolvedModelRef.modelId,
           textLength: text.length,
@@ -698,8 +828,9 @@ export const createCouncilsSlice = (
     modelContext: CouncilModelContext;
     kind: InFlightGenerationRecord["kind"];
     memberAgentId: AgentId | null;
-    promptRole: "member" | "conductor";
-    promptContent: string;
+    actorRole: "member" | "conductor";
+    explicitModelRefOrNull: ModelRef | null;
+    promptMessages: AiServiceGenerateTextRequest["messages"];
   }): ResultAsync<string, DomainError> =>
     generateTextForCouncil(params).orElse((firstError) => {
       if (firstError.kind !== "ProviderError") {
@@ -759,17 +890,17 @@ export const createCouncilsSlice = (
     previousBriefing: CouncilRuntimeBriefingRecord | null;
     messages: ReadonlyArray<CouncilMessageRecord>;
     mode: CouncilMode;
-    eligibleMemberAgentIds: ReadonlyArray<AgentId>;
+    eligibleMembers: ReadonlyArray<RuntimePromptParticipant>;
   }): ResultAsync<ConductorDecision, DomainError> => {
     const contextWindow = selectLastNContextMessages(params.messages, getContextLastN());
-    const prompt = buildConductorDecisionPrompt({
+    const promptBundle = buildConductorDecisionPromptBundle({
       mode: params.mode,
       topic: params.council.topic,
       goal: params.council.goal,
       previousBriefing: params.previousBriefing?.briefing ?? null,
-      messages: contextWindow.messages.map(toRuntimeConversationMessage),
+      recentMessages: contextWindow.messages.map(toRuntimeConversationMessage),
       omittedMessageCount: contextWindow.omittedCount,
-      eligibleMemberAgentIds: params.eligibleMemberAgentIds,
+      eligibleMembers: params.eligibleMembers,
     });
 
     return generateTextWithRefreshRetry({
@@ -778,13 +909,14 @@ export const createCouncilsSlice = (
       modelContext: params.modelContext,
       kind: "conductorBriefing",
       memberAgentId: null,
-      promptRole: "conductor",
-      promptContent: prompt,
+      actorRole: "conductor",
+      explicitModelRefOrNull: params.council.conductorModelRefOrNull,
+      promptMessages: promptBundle.messages,
     }).andThen((text) => {
       const parsed = parseConductorDecision({
         text,
         mode: params.mode,
-        eligibleMemberAgentIds: params.eligibleMemberAgentIds,
+        eligibleMemberAgentIds: params.eligibleMembers.map((member) => member.id),
       });
       if (parsed.isErr()) {
         return errAsync(
@@ -802,11 +934,12 @@ export const createCouncilsSlice = (
     webContentsId: number;
     council: CouncilRecord;
     modelContext: CouncilModelContext;
+    members: ReadonlyArray<RuntimePromptParticipant>;
   }): ResultAsync<ConductorOpeningDecision, DomainError> => {
-    const prompt = buildAutopilotOpeningPrompt({
+    const promptBundle = buildAutopilotOpeningPromptBundle({
       topic: params.council.topic,
       goal: params.council.goal,
-      memberAgentIds: params.council.memberAgentIds,
+      members: params.members,
     });
 
     return generateTextWithRefreshRetry({
@@ -815,8 +948,9 @@ export const createCouncilsSlice = (
       modelContext: params.modelContext,
       kind: "autopilotOpening",
       memberAgentId: null,
-      promptRole: "conductor",
-      promptContent: prompt,
+      actorRole: "conductor",
+      explicitModelRefOrNull: params.council.conductorModelRefOrNull,
+      promptMessages: promptBundle.messages,
     }).andThen((text) => {
       const parsed = parseAutopilotOpeningDecision({
         text,
@@ -832,38 +966,6 @@ export const createCouncilsSlice = (
 
       return okAsync(parsed.value);
     });
-  };
-
-  const buildMemberTurnPrompt = (params: {
-    council: CouncilRecord;
-    speakerName: string;
-    previousBriefing: CouncilRuntimeBriefingRecord | null;
-    messages: ReadonlyArray<CouncilMessageRecord>;
-  }): string => {
-    const contextWindow = selectLastNContextMessages(params.messages, getContextLastN());
-    const briefingSection = params.previousBriefing?.briefing ?? "(none)";
-    const conversationSection =
-      contextWindow.messages.length === 0
-        ? "(none)"
-        : contextWindow.messages
-            .map(
-              (message, index) =>
-                `${index + 1}. [${message.senderKind}] ${message.senderName}: ${message.content}`,
-            )
-            .join("\n");
-
-    return [
-      "You are a council member responding in an ongoing council discussion.",
-      `Council: ${params.council.title}`,
-      `Topic: ${params.council.topic}`,
-      `Goal: ${params.council.goal ?? "(none)"}`,
-      `Speaker: ${params.speakerName}`,
-      `Current briefing: ${briefingSection}`,
-      `Earlier messages omitted: ${contextWindow.omittedCount}`,
-      "Recent conversation:",
-      conversationSection,
-      "Respond with only the speaker's next message.",
-    ].join("\n");
   };
 
   const listCouncils: CouncilsSlice["listCouncils"] = ({
@@ -947,17 +1049,18 @@ export const createCouncilsSlice = (
           dependencies
             .listAvailableAgents({
               webContentsId,
-              viewKind: "councilCreate",
+              viewKind: "councilView",
             })
             .andThen((availableAgents) => {
               const availableModelKeys = buildAvailableModelKeys(
                 modelContext.modelCatalog.modelsByProvider,
               );
+              const createViewAvailableAgents = availableAgents.filter((agent) => !agent.archived);
 
               if (councilId === null) {
                 return okAsync({
                   council: null,
-                  availableAgents,
+                  availableAgents: createViewAvailableAgents.map(toCouncilAgentOptionDto),
                   modelCatalog: modelContext.modelCatalog,
                   globalDefaultModelRef: modelContext.globalDefaultModelRef,
                   canRefreshModels: modelContext.canRefreshModels,
@@ -977,7 +1080,7 @@ export const createCouncilsSlice = (
                   availableModelKeys,
                   globalDefaultModelRef: modelContext.globalDefaultModelRef,
                 }),
-                availableAgents,
+                availableAgents: availableAgents.map(toCouncilAgentOptionDto),
                 modelCatalog: modelContext.modelCatalog,
                 globalDefaultModelRef: modelContext.globalDefaultModelRef,
                 canRefreshModels: modelContext.canRefreshModels,
@@ -1020,7 +1123,7 @@ export const createCouncilsSlice = (
                         availableModelKeys,
                         globalDefaultModelRef: modelContext.globalDefaultModelRef,
                       }),
-                      availableAgents,
+                      availableAgents: availableAgents.map(toCouncilAgentOptionDto),
                       messages: messages.map(toCouncilMessageDto),
                       briefing: toCouncilRuntimeBriefingDto(briefing),
                       generation: toGenerationStateDto(existing.id),
@@ -1458,6 +1561,10 @@ export const createCouncilsSlice = (
                 webContentsId,
                 council: next,
                 modelContext,
+                members: buildPromptParticipants({
+                  memberAgentIds: next.memberAgentIds,
+                  agentById: availableAgentById,
+                }),
               })
                 .andThen((opening) => {
                   const openingTimestamp = dependencies.nowUtc();
@@ -1712,16 +1819,13 @@ export const createCouncilsSlice = (
         );
       }
 
-      const availableAgentById = new Map<string, CouncilAgentOptionDto>();
       return dependencies
         .listAvailableAgents({
           webContentsId,
-          viewKind: "councilCreate",
+          viewKind: "councilView",
         })
         .andThen((availableAgents) => {
-          for (const agent of availableAgents) {
-            availableAgentById.set(agent.id, agent);
-          }
+          const availableAgentById = buildAgentLookup(availableAgents);
           return validateNoArchivedMembers({
             council,
             availableAgentById,
@@ -1742,13 +1846,30 @@ export const createCouncilsSlice = (
                 getCouncilMessages(council.id).map((existingMessages) => ({
                   previousBriefing,
                   existingMessages,
+                  availableAgentById,
                 })),
               ),
             );
           });
         })
-        .andThen(({ previousBriefing, existingMessages }) => {
-          const speakerName = availableAgentById.get(memberAgentId)?.name ?? memberAgentId;
+        .andThen(({ previousBriefing, existingMessages, availableAgentById }) => {
+          const selectedMember = availableAgentById.get(selectedMemberId);
+          if (selectedMember === undefined) {
+            return errAsync(
+              notFoundError(
+                `Council ${id} selected missing member ${selectedMemberId}`,
+                "Selected member no longer exists.",
+              ),
+            );
+          }
+
+          const promptBundle = buildMemberPromptBundle({
+            council,
+            memberAgent: selectedMember,
+            previousBriefing,
+            messages: existingMessages,
+            agentById: availableAgentById,
+          });
 
           return generateTextWithRefreshRetry({
             webContentsId,
@@ -1756,16 +1877,14 @@ export const createCouncilsSlice = (
             modelContext,
             kind: "manualMemberTurn",
             memberAgentId: selectedMemberId,
-            promptRole: "member",
-            promptContent: buildMemberTurnPrompt({
-              council,
-              speakerName,
-              previousBriefing,
-              messages: existingMessages,
-            }),
-          }).andThen((generatedText) => okAsync({ generatedText, previousBriefing }));
+            actorRole: "member",
+            explicitModelRefOrNull: selectedMember.modelRefOrNull,
+            promptMessages: promptBundle.messages,
+          }).andThen((generatedText) =>
+            okAsync({ generatedText, previousBriefing, availableAgentById }),
+          );
         })
-        .andThen(({ generatedText, previousBriefing }) => {
+        .andThen(({ generatedText, previousBriefing, availableAgentById }) => {
           const now = dependencies.nowUtc();
           const nextCouncil: CouncilRecord = {
             ...council,
@@ -1793,7 +1912,7 @@ export const createCouncilsSlice = (
                   previousBriefing,
                   messages: allMessages,
                   mode: "manual",
-                  eligibleMemberAgentIds: [],
+                  eligibleMembers: [],
                 }).andThen((decision) =>
                   persistBriefing({
                     councilId: council.id,
@@ -1875,7 +1994,7 @@ export const createCouncilsSlice = (
               previousBriefing,
               messages: allMessages,
               mode: "manual",
-              eligibleMemberAgentIds: [],
+              eligibleMembers: [],
             }).andThen((decision) =>
               persistBriefing({
                 councilId: council.id,
@@ -2001,19 +2120,33 @@ export const createCouncilsSlice = (
             return dependencies
               .listAvailableAgents({
                 webContentsId,
-                viewKind: "councilCreate",
+                viewKind: "councilView",
               })
               .andThen((availableAgents) => {
-                const availableAgentById = new Map(
-                  availableAgents.map((agent) => [agent.id, agent]),
-                );
+                const availableAgentById = buildAgentLookup(availableAgents);
                 return validateNoArchivedMembers({
                   council,
                   availableAgentById,
                   userMessage:
                     "Cannot advance Autopilot because one or more council members are archived. Restore or remove them first.",
                 }).andThen(() => {
-                  const memberName = availableAgentById.get(selectedMember)?.name ?? selectedMember;
+                  const selectedMemberAgent = availableAgentById.get(selectedMember);
+                  if (selectedMemberAgent === undefined) {
+                    return errAsync(
+                      notFoundError(
+                        `Council ${id} selected missing autopilot member ${selectedMember}`,
+                        "A council member no longer exists.",
+                      ),
+                    );
+                  }
+
+                  const promptBundle = buildMemberPromptBundle({
+                    council,
+                    memberAgent: selectedMemberAgent,
+                    previousBriefing,
+                    messages,
+                    agentById: availableAgentById,
+                  });
 
                   return generateTextWithRefreshRetry({
                     webContentsId,
@@ -2021,13 +2154,9 @@ export const createCouncilsSlice = (
                     modelContext,
                     kind: "autopilotStep",
                     memberAgentId: selectedMember,
-                    promptRole: "member",
-                    promptContent: buildMemberTurnPrompt({
-                      council,
-                      speakerName: memberName,
-                      previousBriefing,
-                      messages,
-                    }),
+                    actorRole: "member",
+                    explicitModelRefOrNull: selectedMemberAgent.modelRefOrNull,
+                    promptMessages: promptBundle.messages,
                   }).andThen((generatedText) => {
                     const now = dependencies.nowUtc();
 
@@ -2036,7 +2165,7 @@ export const createCouncilsSlice = (
                       councilId: council.id,
                       senderKind: "member",
                       senderAgentId: selectedMember,
-                      senderName: memberName,
+                      senderName: selectedMemberAgent.name,
                       senderColor: council.memberColorsByAgentId[selectedMember] ?? null,
                       content: generatedText,
                       createdAtUtc: now,
@@ -2055,7 +2184,10 @@ export const createCouncilsSlice = (
                           previousBriefing,
                           messages: allMessages,
                           mode: "autopilot",
-                          eligibleMemberAgentIds: normalizedEligibleMembers,
+                          eligibleMembers: buildPromptParticipants({
+                            memberAgentIds: normalizedEligibleMembers,
+                            agentById: availableAgentById,
+                          }),
                         }).andThen((decision) => {
                           const plannedNextSpeaker =
                             normalizedEligibleMembers.length === 1

@@ -30,6 +30,7 @@ const FILE_REQUIREMENT_IDS = [
 const createHandlers = (options?: {
   generationDelayMs?: number;
   failExport?: boolean;
+  generationErrorMessage?: string;
 }) => {
   let sequence = 0;
   let messageId = 0;
@@ -70,6 +71,9 @@ const createHandlers = (options?: {
         {
           id: "00000000-0000-4000-8000-000000000101",
           name: "Planner",
+          systemPrompt: "You are Planner, a structured operator.",
+          verbosity: null,
+          modelRefOrNull: null,
           invalidConfig: false,
           archived: false,
         },
@@ -92,8 +96,17 @@ const createHandlers = (options?: {
       return okAsync(undefined);
     },
     aiService: {
-      generateText: (request, abortSignal) =>
-        ResultAsync.fromPromise(
+      generateText: (request, abortSignal) => {
+        if (options?.generationErrorMessage !== undefined) {
+          return errAsync({
+            kind: "ProviderError",
+            message: options.generationErrorMessage,
+            providerId: request.providerId,
+            modelId: request.modelId,
+          } satisfies AiServiceError);
+        }
+
+        return ResultAsync.fromPromise(
           new Promise<{ text: string }>((resolve, reject) => {
             const timer = setTimeout(() => {
               if (abortSignal.aborted) {
@@ -117,7 +130,8 @@ const createHandlers = (options?: {
             providerId: request.providerId,
             modelId: request.modelId,
           }),
-        ),
+        );
+      },
     },
     createMessageId: () => `message-${++messageId}`,
     createGenerationRequestId: () => `generation-${++generationId}`,
@@ -512,6 +526,72 @@ describe("councils ipc contract", () => {
       expect(exported.error.details).toBeUndefined();
       const serialized = JSON.stringify(exported.error);
       expect(serialized.includes("/tmp")).toBe(false);
+    }
+  });
+
+  itReq(["A3", "C1", "D5"], "returns sanitized runtime error details over IPC", async () => {
+    const handlers = createHandlers({
+      generationErrorMessage: "HTTP 401: API key not found at /tmp/provider-secret.json",
+    });
+    const saved = await handlers.saveCouncil(
+      {
+        viewKind: "councilCreate",
+        id: null,
+        title: "Runtime Error Council",
+        topic: "Runtime error sanitization",
+        goal: null,
+        mode: "manual",
+        tags: [],
+        memberAgentIds: ["00000000-0000-4000-8000-000000000101"],
+        memberColorsByAgentId: {},
+        conductorModelRefOrNull: null,
+      },
+      54,
+    );
+    expect(saved.ok).toBe(true);
+    if (!saved.ok) {
+      return;
+    }
+
+    const started = await handlers.startCouncil(
+      {
+        viewKind: "councilView",
+        id: saved.value.council.id,
+        maxTurns: null,
+      },
+      54,
+    );
+    expect(started.ok).toBe(true);
+    if (!started.ok) {
+      return;
+    }
+
+    const generated = await handlers.generateManualTurn(
+      {
+        viewKind: "councilView",
+        id: saved.value.council.id,
+        memberAgentId: "00000000-0000-4000-8000-000000000101",
+      },
+      54,
+    );
+    expect(generated.ok).toBe(false);
+    if (!generated.ok) {
+      expect(generated.error.devMessage).toBe("Redacted at IPC boundary.");
+      expect(generated.error.userMessage).toBe(
+        "This model could not authenticate. Check provider settings or choose another model.",
+      );
+      expect(generated.error.details).toEqual({
+        runtimeError: {
+          category: "authOrConfig",
+          title: "Check provider settings",
+          message:
+            "This model could not authenticate. Check provider settings or choose another model.",
+          technicalDetails:
+            "Provider: gemini\nModel: gemini-1.5-flash\nSignal: Authentication or provider configuration issue",
+        },
+      });
+      const serialized = JSON.stringify(generated.error);
+      expect(serialized.includes("/tmp/provider-secret.json")).toBe(false);
     }
   });
 });

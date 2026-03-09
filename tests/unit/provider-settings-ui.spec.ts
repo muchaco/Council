@@ -1,8 +1,10 @@
 import { describe, expect } from "vitest";
 import {
   fingerprintProviderDraft,
+  isProviderCardEditable,
   isProviderConfigured,
   isProviderDraftChanged,
+  isProviderTestable,
   requiresProviderDisconnect,
   shouldShowProviderTestAndSaveActions,
 } from "../../src/shared/provider-settings-ui.js";
@@ -77,6 +79,29 @@ describe("provider settings ui helpers", () => {
     ).toBe(false);
   });
 
+  itReq(["U5.2", "U5.12"], "keeps configured provider cards read-only until disconnect", () => {
+    expect(isProviderCardEditable(true)).toBe(false);
+    expect(isProviderCardEditable(false)).toBe(true);
+  });
+
+  itReq(["U5.3", "U5.12"], "treats provider drafts as testable only after input is written", () => {
+    expect(
+      isProviderTestable({
+        providerId: "gemini",
+        endpointUrl: "",
+        apiKey: "",
+      }),
+    ).toBe(false);
+
+    expect(
+      isProviderTestable({
+        providerId: "gemini",
+        endpointUrl: "https://example.test",
+        apiKey: "",
+      }),
+    ).toBe(true);
+  });
+
   itReq(["U5.12"], "requires disconnect before testing replacement provider settings", () => {
     const savedFingerprint = fingerprintProviderDraft({
       providerId: "gemini",
@@ -109,39 +134,35 @@ describe("provider settings ui helpers", () => {
     ).toBe(false);
   });
 
-  itReq(
-    ["U5.12"],
-    "hides test and save when disconnect is the only available provider action",
-    () => {
-      expect(
-        shouldShowProviderTestAndSaveActions({
-          provider: {
-            providerId: "gemini",
-            endpointUrl: "",
-            apiKey: "",
-            testToken: null,
-            isTesting: false,
-            isSaving: false,
-          },
-          configured: true,
-          requiresDisconnect: false,
-        }),
-      ).toBe(false);
+  itReq(["U5.3", "U5.12"], "shows test and save only while provider is not configured", () => {
+    expect(
+      shouldShowProviderTestAndSaveActions({
+        provider: {
+          providerId: "gemini",
+          endpointUrl: "",
+          apiKey: "",
+          testToken: null,
+          isTesting: false,
+          isSaving: false,
+        },
+        configured: true,
+        requiresDisconnect: false,
+      }),
+    ).toBe(false);
 
-      expect(
-        shouldShowProviderTestAndSaveActions({
-          provider: {
-            providerId: "gemini",
-            endpointUrl: "",
-            apiKey: "new-key",
-            testToken: null,
-            isTesting: false,
-            isSaving: false,
-          },
-          configured: true,
-          requiresDisconnect: true,
-        }),
-      ).toBe(true);
-    },
-  );
+    expect(
+      shouldShowProviderTestAndSaveActions({
+        provider: {
+          providerId: "gemini",
+          endpointUrl: "https://example.test",
+          apiKey: "new-key",
+          testToken: null,
+          isTesting: false,
+          isSaving: false,
+        },
+        configured: false,
+        requiresDisconnect: false,
+      }),
+    ).toBe(true);
+  });
 });

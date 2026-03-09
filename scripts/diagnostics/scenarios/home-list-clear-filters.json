@@ -1,0 +1,51 @@
+{
+  "name": "home-list-clear-filters",
+  "steps": [
+    { "action": "waitForText", "text": "Council" },
+    {
+      "action": "evaluate",
+      "saveAs": "seedHomeListClearFilters",
+      "expression": "async () => { const settings = await window.api.settings.getView({ viewKind: 'settings' }); const modelEntry = settings.ok ? Object.entries(settings.value.modelCatalog.modelsByProvider).find(([, models]) => Array.isArray(models) && models.length > 0) : undefined; const modelRefOrNull = modelEntry === undefined ? null : { providerId: modelEntry[0], modelId: modelEntry[1][0] }; const agentResult = await window.api.agents.save({ viewKind: 'agentEdit', id: null, name: `Clear Filters Agent ${Date.now()}`, systemPrompt: 'You test toolbar resets.', verbosity: null, temperature: null, tags: ['reset'], modelRefOrNull }); if (!agentResult.ok) { return agentResult; } return window.api.councils.save({ viewKind: 'councilCreate', id: null, title: `Clear Filters Council ${Date.now()}`, topic: 'Verify toolbar reset flow', goal: null, mode: 'manual', tags: ['reset'], memberAgentIds: [agentResult.value.agent.id], memberColorsByAgentId: {}, conductorModelRefOrNull: modelRefOrNull }); }"
+    },
+    { "action": "assertSaved", "key": "seedHomeListClearFilters", "hasPath": "value.council.id" },
+    {
+      "action": "evaluate",
+      "saveAs": "councilToolbarResetState",
+      "expression": "async () => { const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms)); const clickTextButton = async (root, text) => { const button = Array.from(root.querySelectorAll('button')).find((node) => node.textContent?.trim() === text); if (!(button instanceof HTMLButtonElement)) { throw new Error(`Missing button: ${text}`); } button.click(); await sleep(50); }; const chooseOption = async (root, index, optionText) => { const trigger = root.querySelectorAll(\"button[role='combobox']\")[index]; if (!(trigger instanceof HTMLButtonElement)) { throw new Error(`Missing combobox trigger at index ${index}`); } trigger.click(); await sleep(50); const option = Array.from(document.querySelectorAll(\"[role='option']\")).find((node) => node.textContent?.trim() === optionText); if (!(option instanceof HTMLElement)) { throw new Error(`Missing option: ${optionText}`); } option.click(); await sleep(50); }; const panel = document.querySelector('#home-panel-councils'); if (!(panel instanceof HTMLElement)) { throw new Error('Missing councils panel'); } const search = panel.querySelector(\"input[aria-label='Search councils']\"); const tag = panel.querySelector(\"input[aria-label='Filter by tag']\"); if (!(search instanceof HTMLInputElement) || !(tag instanceof HTMLInputElement)) { throw new Error('Missing councils toolbar inputs'); } search.focus(); search.value = 'topic'; search.dispatchEvent(new Event('input', { bubbles: true })); tag.focus(); tag.value = 'reset'; tag.dispatchEvent(new Event('input', { bubbles: true })); await sleep(50); await chooseOption(panel, 0, 'Active only'); await chooseOption(panel, 1, 'Date created'); await chooseOption(panel, 2, 'Oldest first'); const clearButtonBefore = Array.from(panel.querySelectorAll('button')).find((node) => node.textContent?.trim() === 'Clear filters'); if (!(clearButtonBefore instanceof HTMLButtonElement)) { throw new Error('Missing councils clear filters button'); } const beforeDisabled = clearButtonBefore.disabled; await clickTextButton(panel, 'Clear filters'); const clearButtonAfter = Array.from(panel.querySelectorAll('button')).find((node) => node.textContent?.trim() === 'Clear filters'); return { beforeDisabled, afterDisabled: clearButtonAfter instanceof HTMLButtonElement ? clearButtonAfter.disabled : null, searchValue: search.value, tagValue: tag.value, archivedValue: panel.querySelectorAll(\"button[role='combobox']\")[0]?.textContent?.trim() ?? null, sortByValue: panel.querySelectorAll(\"button[role='combobox']\")[1]?.textContent?.trim() ?? null, sortDirectionValue: panel.querySelectorAll(\"button[role='combobox']\")[2]?.textContent?.trim() ?? null }; }"
+    },
+    {
+      "action": "assertSaved",
+      "key": "councilToolbarResetState",
+      "equals": {
+        "beforeDisabled": false,
+        "afterDisabled": true,
+        "searchValue": "",
+        "tagValue": "",
+        "archivedValue": "All councils",
+        "sortByValue": "Last modified",
+        "sortDirectionValue": "Newest first"
+      }
+    },
+    { "action": "click", "selector": "button:has-text('Agents')" },
+    { "action": "waitForText", "text": "New Agent" },
+    {
+      "action": "evaluate",
+      "saveAs": "agentToolbarResetState",
+      "expression": "async () => { const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms)); const clickTextButton = async (root, text) => { const button = Array.from(root.querySelectorAll('button')).find((node) => node.textContent?.trim() === text); if (!(button instanceof HTMLButtonElement)) { throw new Error(`Missing button: ${text}`); } button.click(); await sleep(50); }; const chooseOption = async (root, index, optionText) => { const trigger = root.querySelectorAll(\"button[role='combobox']\")[index]; if (!(trigger instanceof HTMLButtonElement)) { throw new Error(`Missing combobox trigger at index ${index}`); } trigger.click(); await sleep(50); const option = Array.from(document.querySelectorAll(\"[role='option']\")).find((node) => node.textContent?.trim() === optionText); if (!(option instanceof HTMLElement)) { throw new Error(`Missing option: ${optionText}`); } option.click(); await sleep(50); }; const panel = document.querySelector('#home-panel-agents'); if (!(panel instanceof HTMLElement)) { throw new Error('Missing agents panel'); } const search = panel.querySelector(\"input[aria-label='Search agents']\"); const tag = panel.querySelector(\"input[aria-label='Filter by tag']\"); if (!(search instanceof HTMLInputElement) || !(tag instanceof HTMLInputElement)) { throw new Error('Missing agents toolbar inputs'); } search.focus(); search.value = 'clear'; search.dispatchEvent(new Event('input', { bubbles: true })); tag.focus(); tag.value = 'reset'; tag.dispatchEvent(new Event('input', { bubbles: true })); await sleep(50); await chooseOption(panel, 0, 'Archived only'); await chooseOption(panel, 1, 'Date created'); await chooseOption(panel, 2, 'Oldest first'); const clearButtonBefore = Array.from(panel.querySelectorAll('button')).find((node) => node.textContent?.trim() === 'Clear filters'); if (!(clearButtonBefore instanceof HTMLButtonElement)) { throw new Error('Missing agents clear filters button'); } const beforeDisabled = clearButtonBefore.disabled; await clickTextButton(panel, 'Clear filters'); const clearButtonAfter = Array.from(panel.querySelectorAll('button')).find((node) => node.textContent?.trim() === 'Clear filters'); return { beforeDisabled, afterDisabled: clearButtonAfter instanceof HTMLButtonElement ? clearButtonAfter.disabled : null, searchValue: search.value, tagValue: tag.value, archivedValue: panel.querySelectorAll(\"button[role='combobox']\")[0]?.textContent?.trim() ?? null, sortByValue: panel.querySelectorAll(\"button[role='combobox']\")[1]?.textContent?.trim() ?? null, sortDirectionValue: panel.querySelectorAll(\"button[role='combobox']\")[2]?.textContent?.trim() ?? null }; }"
+    },
+    {
+      "action": "assertSaved",
+      "key": "agentToolbarResetState",
+      "equals": {
+        "beforeDisabled": false,
+        "afterDisabled": true,
+        "searchValue": "",
+        "tagValue": "",
+        "archivedValue": "All agents",
+        "sortByValue": "Last modified",
+        "sortDirectionValue": "Newest first"
+      }
+    },
+    { "action": "screenshot", "file": "home-list-clear-filters.png", "fullPage": true }
+  ]
+}

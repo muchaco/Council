@@ -25,6 +25,8 @@ import {
   type AutopilotLimitModalAction,
   type AutopilotLimitModalState,
   COUNCIL_CONFIG_MAX_TAGS,
+  DEFAULT_AGENT_HOME_LIST_FILTERS,
+  DEFAULT_COUNCIL_HOME_LIST_FILTERS,
   appendCouncilConfigTag,
   applyAgentArchivedListUpdate,
   buildInvalidConfigBadgeAriaLabel,
@@ -33,6 +35,9 @@ import {
   buildProviderDisconnectButtonAriaLabel,
   councilModelLabel,
   createAutopilotLimitModalState,
+  formatHomeListTotal,
+  hasActiveAgentHomeListFilters,
+  hasActiveCouncilHomeListFilters,
   isAgentDraftInvalidConfig,
   isCouncilDraftInvalidConfig,
   isModelSelectionInCatalog,
@@ -45,12 +50,17 @@ import {
   toModelSelectionValue,
 } from "../shared/app-ui-helpers.js";
 import {
+  type CouncilRuntimeErrorDto,
+  readCouncilRuntimeErrorDetails,
+} from "../shared/council-runtime-error-normalization.js";
+import {
   buildManualSpeakerSelectionAriaLabel,
   buildTranscriptMessageAriaLabel,
   resolveInlineConfigEditKeyboardAction,
   resolveTranscriptFocusIndex,
 } from "../shared/council-view-accessibility.js";
 import {
+  type CouncilRuntimeNotice,
   buildAutopilotRecoveryNotice,
   buildManualRetryNotice,
 } from "../shared/council-view-autopilot-recovery";
@@ -91,8 +101,10 @@ import type {
 } from "../shared/ipc/dto";
 import {
   fingerprintProviderDraft,
+  isProviderCardEditable,
   isProviderConfigured,
   isProviderDraftChanged,
+  isProviderTestable,
   requiresProviderDisconnect,
   shouldShowProviderTestAndSaveActions,
 } from "../shared/provider-settings-ui.js";
@@ -266,7 +278,7 @@ type CouncilViewState =
       showMemberRemoveDialog: boolean;
       pendingMemberRemovalId: string | null;
       conductorDraft: string;
-      manualTurnRetryMessage: string | null;
+      runtimeError: CouncilRuntimeErrorDto | null;
       message: string;
     }
   | { status: "error"; message: string };
@@ -351,6 +363,10 @@ const isConnectionTestAllowed = (params: {
 }): boolean => {
   const { provider, savedFingerprint, requiresDisconnect } = params;
   if (provider.isTesting || provider.isSaving || provider.isDisconnecting || requiresDisconnect) {
+    return false;
+  }
+
+  if (!isProviderTestable(provider)) {
     return false;
   }
 
@@ -489,6 +505,62 @@ const toCouncilConfigFieldDisplayValue = (params: {
   return toModelSelectionValue(params.council.conductorModelRefOrNull);
 };
 
+const createReadyCouncilViewState = (
+  source: GetCouncilViewResponse,
+  overrides?: Partial<Extract<CouncilViewState, { status: "ready" }>>,
+): Extract<CouncilViewState, { status: "ready" }> => ({
+  status: "ready",
+  source,
+  isStarting: false,
+  isPausing: false,
+  isResuming: false,
+  isGeneratingManualTurn: false,
+  pendingManualMemberAgentId: null,
+  isInjectingConductor: false,
+  isCancellingGeneration: false,
+  isExportingTranscript: false,
+  isLeavingView: false,
+  showLeaveDialog: false,
+  activeTab: "discussion",
+  configEdit: null,
+  configTagInput: "",
+  showConfigDiscardDialog: false,
+  showConfigDeleteDialog: false,
+  isSavingConfigField: false,
+  isRefreshingConfigModels: false,
+  isSavingMembers: false,
+  showAddMemberPanel: false,
+  addMemberSearchText: "",
+  showMemberRemoveDialog: false,
+  pendingMemberRemovalId: null,
+  conductorDraft: "",
+  runtimeError: null,
+  message: "",
+  ...overrides,
+});
+
+const renderCouncilRuntimeNotice = (notice: CouncilRuntimeNotice): JSX.Element => (
+  <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 mb-4">
+    <div className="flex items-start gap-3">
+      <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-destructive">{notice.title}</p>
+        <p className="text-sm text-destructive/90 mt-1">{notice.body}</p>
+        {notice.technicalDetails !== null ? (
+          <details className="mt-2">
+            <summary className="cursor-pointer text-xs text-destructive/90 underline-offset-4 hover:underline">
+              Show technical details
+            </summary>
+            <pre className="mt-2 whitespace-pre-wrap break-words rounded bg-background/60 p-2 text-xs text-foreground">
+              {notice.technicalDetails}
+            </pre>
+          </details>
+        ) : null}
+      </div>
+    </div>
+  </div>
+);
+
 export const App = (): JSX.Element => {
   const [homeTab, setHomeTab] = useState<HomeTab>("councils");
   const [screen, setScreen] = useState<ScreenState>({ kind: "home" });
@@ -516,11 +588,19 @@ export const App = (): JSX.Element => {
   const [agentsLoading, setAgentsLoading] = useState(false);
   const [agentsLoadingMore, setAgentsLoadingMore] = useState(false);
   const [agentsError, setAgentsError] = useState<string | null>(null);
-  const [agentsSortBy, setAgentsSortBy] = useState<AgentSortField>("updatedAt");
-  const [agentsSortDirection, setAgentsSortDirection] = useState<SortDirection>("desc");
-  const [agentsSearchText, setAgentsSearchText] = useState("");
-  const [agentsTagFilter, setAgentsTagFilter] = useState("");
-  const [agentsArchivedFilter, setAgentsArchivedFilter] = useState<AgentArchivedFilter>("all");
+  const [agentsSortBy, setAgentsSortBy] = useState<AgentSortField>(
+    DEFAULT_AGENT_HOME_LIST_FILTERS.sortBy,
+  );
+  const [agentsSortDirection, setAgentsSortDirection] = useState<SortDirection>(
+    DEFAULT_AGENT_HOME_LIST_FILTERS.sortDirection,
+  );
+  const [agentsSearchText, setAgentsSearchText] = useState(
+    DEFAULT_AGENT_HOME_LIST_FILTERS.searchText,
+  );
+  const [agentsTagFilter, setAgentsTagFilter] = useState(DEFAULT_AGENT_HOME_LIST_FILTERS.tagFilter);
+  const [agentsArchivedFilter, setAgentsArchivedFilter] = useState<AgentArchivedFilter>(
+    DEFAULT_AGENT_HOME_LIST_FILTERS.archivedFilter,
+  );
   const [agentsGlobalDefaultModel, setAgentsGlobalDefaultModel] = useState<ModelRef | null>(null);
 
   const [agentEditorState, setAgentEditorState] = useState<AgentEditorState>({ status: "loading" });
@@ -532,12 +612,21 @@ export const App = (): JSX.Element => {
   const [councilsLoading, setCouncilsLoading] = useState(false);
   const [councilsLoadingMore, setCouncilsLoadingMore] = useState(false);
   const [councilsError, setCouncilsError] = useState<string | null>(null);
-  const [councilsSortBy, setCouncilsSortBy] = useState<CouncilSortField>("updatedAt");
-  const [councilsSortDirection, setCouncilsSortDirection] = useState<SortDirection>("desc");
-  const [councilsSearchText, setCouncilsSearchText] = useState("");
-  const [councilsTagFilter, setCouncilsTagFilter] = useState("");
-  const [councilsArchivedFilter, setCouncilsArchivedFilter] =
-    useState<CouncilArchivedFilter>("all");
+  const [councilsSortBy, setCouncilsSortBy] = useState<CouncilSortField>(
+    DEFAULT_COUNCIL_HOME_LIST_FILTERS.sortBy,
+  );
+  const [councilsSortDirection, setCouncilsSortDirection] = useState<SortDirection>(
+    DEFAULT_COUNCIL_HOME_LIST_FILTERS.sortDirection,
+  );
+  const [councilsSearchText, setCouncilsSearchText] = useState(
+    DEFAULT_COUNCIL_HOME_LIST_FILTERS.searchText,
+  );
+  const [councilsTagFilter, setCouncilsTagFilter] = useState(
+    DEFAULT_COUNCIL_HOME_LIST_FILTERS.tagFilter,
+  );
+  const [councilsArchivedFilter, setCouncilsArchivedFilter] = useState<CouncilArchivedFilter>(
+    DEFAULT_COUNCIL_HOME_LIST_FILTERS.archivedFilter,
+  );
   const [councilsGlobalDefaultModel, setCouncilsGlobalDefaultModel] = useState<ModelRef | null>(
     null,
   );
@@ -708,7 +797,7 @@ export const App = (): JSX.Element => {
       }
 
       const draftMap = toProviderDraftMap(result.value.providers);
-      if (!preserveDraftInputs || drafts === null) {
+      if (!preserveDraftInputs || draftsRef.current === null) {
         setDrafts(draftMap);
         setGlobalDefaultSelection(toModelSelectionValue(result.value.globalDefaultModelRef));
         setContextLastNInput(String(result.value.contextLastN));
@@ -723,7 +812,7 @@ export const App = (): JSX.Element => {
       setSettingsViewState({ status: "ready", data: result.value });
       return true;
     },
-    [drafts, pushToast],
+    [pushToast],
   );
 
   const loadAgents = useCallback(
@@ -835,6 +924,38 @@ export const App = (): JSX.Element => {
       void loadCouncils({ page: 1, append: false });
     }
   }, [homeTab, screen.kind, loadCouncils]);
+
+  const hasActiveAgentsHomeListFilters = hasActiveAgentHomeListFilters({
+    searchText: agentsSearchText,
+    tagFilter: agentsTagFilter,
+    archivedFilter: agentsArchivedFilter,
+    sortBy: agentsSortBy,
+    sortDirection: agentsSortDirection,
+  });
+
+  const hasActiveCouncilsHomeListFilters = hasActiveCouncilHomeListFilters({
+    searchText: councilsSearchText,
+    tagFilter: councilsTagFilter,
+    archivedFilter: councilsArchivedFilter,
+    sortBy: councilsSortBy,
+    sortDirection: councilsSortDirection,
+  });
+
+  const clearAgentHomeListFilters = useCallback((): void => {
+    setAgentsSearchText(DEFAULT_AGENT_HOME_LIST_FILTERS.searchText);
+    setAgentsTagFilter(DEFAULT_AGENT_HOME_LIST_FILTERS.tagFilter);
+    setAgentsArchivedFilter(DEFAULT_AGENT_HOME_LIST_FILTERS.archivedFilter);
+    setAgentsSortBy(DEFAULT_AGENT_HOME_LIST_FILTERS.sortBy);
+    setAgentsSortDirection(DEFAULT_AGENT_HOME_LIST_FILTERS.sortDirection);
+  }, []);
+
+  const clearCouncilHomeListFilters = useCallback((): void => {
+    setCouncilsSearchText(DEFAULT_COUNCIL_HOME_LIST_FILTERS.searchText);
+    setCouncilsTagFilter(DEFAULT_COUNCIL_HOME_LIST_FILTERS.tagFilter);
+    setCouncilsArchivedFilter(DEFAULT_COUNCIL_HOME_LIST_FILTERS.archivedFilter);
+    setCouncilsSortBy(DEFAULT_COUNCIL_HOME_LIST_FILTERS.sortBy);
+    setCouncilsSortDirection(DEFAULT_COUNCIL_HOME_LIST_FILTERS.sortDirection);
+  }, []);
 
   // Auto-scroll transcript to bottom
   useLayoutEffect(() => {
@@ -1003,8 +1124,12 @@ export const App = (): JSX.Element => {
         console.log("[Autopilot Loop] Advance result:", result.ok ? "success" : "error");
         if (!result.ok) {
           pushToast("error", result.error.userMessage);
+          const runtimeError = readCouncilRuntimeErrorDetails(result.error.details);
+          return loadCouncilView(screen.councilId, {
+            preserveActiveTab: councilViewState.activeTab,
+            runtimeError,
+          });
         }
-        // Always reload to get updated state (success or error)
         return loadCouncilView(screen.councilId);
       })
       .catch((error) => {
@@ -1126,9 +1251,6 @@ export const App = (): JSX.Element => {
 
       const currentProvider = current[providerId];
       if (result.ok) {
-        const message = draftChanged
-          ? "Draft changed after test. Re-run test before saving."
-          : "Connection test successful. You can save now.";
         return {
           ...current,
           [providerId]: {
@@ -1137,7 +1259,7 @@ export const App = (): JSX.Element => {
             isDisconnecting: false,
             testToken: draftChanged ? null : result.value.testToken,
             testStatusText: result.value.statusText,
-            message,
+            message: "",
           },
         };
       }
@@ -1684,7 +1806,13 @@ export const App = (): JSX.Element => {
   };
 
   const loadCouncilView = useCallback(
-    async (councilId: string): Promise<void> => {
+    async (
+      councilId: string,
+      options?: {
+        preserveActiveTab?: CouncilViewTab;
+        runtimeError?: CouncilRuntimeErrorDto | null;
+      },
+    ): Promise<void> => {
       setCouncilViewState({ status: "loading" });
       const result = await window.api.councils.getCouncilView({
         viewKind: "councilView",
@@ -1697,35 +1825,12 @@ export const App = (): JSX.Element => {
         return;
       }
 
-      setCouncilViewState({
-        status: "ready",
-        source: result.value,
-        isStarting: false,
-        isPausing: false,
-        isResuming: false,
-        isGeneratingManualTurn: false,
-        pendingManualMemberAgentId: null,
-        isInjectingConductor: false,
-        isCancellingGeneration: false,
-        isExportingTranscript: false,
-        isLeavingView: false,
-        showLeaveDialog: false,
-        activeTab: "discussion",
-        configEdit: null,
-        configTagInput: "",
-        showConfigDiscardDialog: false,
-        showConfigDeleteDialog: false,
-        isSavingConfigField: false,
-        isRefreshingConfigModels: false,
-        isSavingMembers: false,
-        showAddMemberPanel: false,
-        addMemberSearchText: "",
-        showMemberRemoveDialog: false,
-        pendingMemberRemovalId: null,
-        conductorDraft: "",
-        manualTurnRetryMessage: null,
-        message: "",
-      });
+      setCouncilViewState(
+        createReadyCouncilViewState(result.value, {
+          activeTab: options?.preserveActiveTab ?? "discussion",
+          runtimeError: options?.runtimeError ?? null,
+        }),
+      );
     },
     [pushToast],
   );
@@ -1874,6 +1979,7 @@ export const App = (): JSX.Element => {
         : {
             ...current,
             isStarting: true,
+            runtimeError: null,
             message: "",
           },
     );
@@ -1925,6 +2031,7 @@ export const App = (): JSX.Element => {
         : {
             ...current,
             isPausing: true,
+            runtimeError: null,
             message: "",
           },
     );
@@ -1969,6 +2076,7 @@ export const App = (): JSX.Element => {
         : {
             ...current,
             isResuming: true,
+            runtimeError: null,
             message: "",
           },
     );
@@ -2649,7 +2757,7 @@ export const App = (): JSX.Element => {
             ...current,
             isGeneratingManualTurn: true,
             pendingManualMemberAgentId: memberAgentId,
-            manualTurnRetryMessage: null,
+            runtimeError: null,
             message: "",
           },
     );
@@ -2661,6 +2769,7 @@ export const App = (): JSX.Element => {
     });
     if (!result.ok) {
       pushToast("error", result.error.userMessage);
+      const runtimeError = readCouncilRuntimeErrorDetails(result.error.details);
       setCouncilViewState((current) =>
         current.status !== "ready"
           ? current
@@ -2668,7 +2777,7 @@ export const App = (): JSX.Element => {
               ...current,
               isGeneratingManualTurn: false,
               pendingManualMemberAgentId: null,
-              manualTurnRetryMessage: result.error.userMessage,
+              runtimeError,
               message: "",
             },
       );
@@ -2696,6 +2805,7 @@ export const App = (): JSX.Element => {
         : {
             ...current,
             isInjectingConductor: true,
+            runtimeError: null,
             message: "",
           },
     );
@@ -3415,13 +3525,13 @@ export const App = (): JSX.Element => {
         started: council.started,
         paused: council.paused,
       },
-      runtimeMessage: councilViewState.message,
+      runtimeError: councilViewState.runtimeError,
     });
     const manualRetryNotice = buildManualRetryNotice({
       council: {
         mode: council.mode,
       },
-      runtimeMessage: councilViewState.manualTurnRetryMessage,
+      runtimeError: councilViewState.runtimeError,
     });
     const isAutopilotModalOpen = autopilotLimitModal !== null;
     const autopilotSubmitLabel =
@@ -3577,7 +3687,7 @@ export const App = (): JSX.Element => {
                 ) : null}
               </div>
             </div>
-            <h1 className="font-serif text-3xl mb-2">{council.title}</h1>
+            <h1 className="text-3xl mb-2">{council.title}</h1>
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <Badge variant="outline" className="capitalize">
                 {council.mode}
@@ -3693,17 +3803,13 @@ export const App = (): JSX.Element => {
               <div className="space-y-6">
                 {/* Transcript */}
                 <Card className="p-6">
-                  <h2 className="font-serif text-xl font-medium mb-4">Transcript</h2>
-                  {autopilotRecoveryNotice !== null ? (
-                    <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 mb-4">
-                      <p className="text-sm text-destructive">{autopilotRecoveryNotice}</p>
-                    </div>
-                  ) : null}
-                  {manualRetryNotice !== null ? (
-                    <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 mb-4">
-                      <p className="text-sm text-destructive">{manualRetryNotice}</p>
-                    </div>
-                  ) : null}
+                  <h2 className="text-xl font-medium mb-4">Transcript</h2>
+                  {autopilotRecoveryNotice !== null
+                    ? renderCouncilRuntimeNotice(autopilotRecoveryNotice)
+                    : null}
+                  {manualRetryNotice !== null
+                    ? renderCouncilRuntimeNotice(manualRetryNotice)
+                    : null}
                   {councilViewState.source.messages.length === 0 && thinkingSpeakerName === null ? (
                     <div className="text-center py-12 bg-muted/50 rounded-lg">
                       <p className="text-muted-foreground mb-4">
@@ -3833,7 +3939,7 @@ export const App = (): JSX.Element => {
 
                 {/* Conductor Message */}
                 <Card className="p-6">
-                  <h2 className="font-serif text-xl font-medium mb-4">Conductor Message</h2>
+                  <h2 className="text-xl font-medium mb-4">Conductor Message</h2>
                   <Textarea
                     placeholder="Type your message as conductor..."
                     onChange={(event) =>
@@ -3870,7 +3976,7 @@ export const App = (): JSX.Element => {
               <div className="space-y-6">
                 {/* Briefing */}
                 <Card className="p-6">
-                  <h2 className="font-serif text-xl font-medium mb-4">Briefing</h2>
+                  <h2 className="text-xl font-medium mb-4">Briefing</h2>
                   {runtimeBriefing === null ? (
                     <p className="text-sm text-muted-foreground italic">
                       Briefing not generated yet.
@@ -3907,7 +4013,7 @@ export const App = (): JSX.Element => {
                 {/* Members */}
                 <Card className="p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="font-serif text-xl font-medium">
+                    <h2 className="text-xl font-medium">
                       Members ({council.memberAgentIds.length})
                     </h2>
                     <Button
@@ -4084,7 +4190,7 @@ export const App = (): JSX.Element => {
               role="tabpanel"
             >
               <Card className="p-6">
-                <h2 className="font-serif text-xl font-medium mb-6">Configuration</h2>
+                <h2 className="text-xl font-medium mb-6">Configuration</h2>
                 <div className="space-y-6">
                   {/* Topic */}
                   <div className="space-y-3">
@@ -5210,6 +5316,14 @@ export const App = (): JSX.Element => {
   }
 
   const renderHomeContent = (): JSX.Element => {
+    const councilsTotalLabel = formatHomeListTotal({
+      total: councilsTotal,
+      singularLabel: "council",
+    });
+    const agentsTotalLabel = formatHomeListTotal({
+      total: agentsTotal,
+      singularLabel: "agent",
+    });
     const councilsEmptyMessage =
       councilsArchivedFilter === "archived"
         ? "No archived councils found."
@@ -5232,6 +5346,9 @@ export const App = (): JSX.Element => {
           className="space-y-5"
         >
           <div className="home-list-toolbar home-list-toolbar-councils">
+            <div aria-live="polite" className="home-list-toolbar-meta">
+              {councilsLoading ? "Loading councils..." : councilsTotalLabel}
+            </div>
             <div className="home-list-toolbar-fields home-list-toolbar-fields-wide">
               <Input
                 aria-label="Search councils"
@@ -5249,6 +5366,14 @@ export const App = (): JSX.Element => {
               />
             </div>
             <div className="home-list-toolbar-fields">
+              <Button
+                variant="outline"
+                disabled={!hasActiveCouncilsHomeListFilters}
+                onClick={clearCouncilHomeListFilters}
+                type="button"
+              >
+                Clear filters
+              </Button>
               <Select
                 value={councilsArchivedFilter}
                 onValueChange={(value) => setCouncilsArchivedFilter(value as CouncilArchivedFilter)}
@@ -5516,6 +5641,9 @@ export const App = (): JSX.Element => {
           role="tabpanel"
         >
           <div className="home-list-toolbar home-list-toolbar-agents">
+            <div aria-live="polite" className="home-list-toolbar-meta">
+              {agentsLoading ? "Loading agents..." : agentsTotalLabel}
+            </div>
             <div className="home-list-toolbar-fields home-list-toolbar-fields-wide">
               <Input
                 aria-label="Search agents"
@@ -5533,6 +5661,14 @@ export const App = (): JSX.Element => {
               />
             </div>
             <div className="home-list-toolbar-fields">
+              <Button
+                variant="outline"
+                disabled={!hasActiveAgentsHomeListFilters}
+                onClick={clearAgentHomeListFilters}
+                type="button"
+              >
+                Clear filters
+              </Button>
               <Select
                 value={agentsArchivedFilter}
                 onValueChange={(value) => setAgentsArchivedFilter(value as AgentArchivedFilter)}
@@ -5789,6 +5925,7 @@ export const App = (): JSX.Element => {
                       savedDraftFingerprints === null ? null : savedDraftFingerprints[providerId];
                     const providerConfigured =
                       savedProvider !== undefined && isProviderConfigured(savedProvider);
+                    const providerCardEditable = isProviderCardEditable(providerConfigured);
                     const requiresDisconnect = requiresProviderDisconnect({
                       provider,
                       savedFingerprint,
@@ -5837,6 +5974,7 @@ export const App = (): JSX.Element => {
                                   ? "http://127.0.0.1:11434"
                                   : "Optional endpoint"
                               }
+                              readOnly={!providerCardEditable}
                               value={provider.endpointUrl}
                             />
                           </div>
@@ -5852,11 +5990,17 @@ export const App = (): JSX.Element => {
                               placeholder={
                                 showOllamaNote ? "Optional for local Ollama" : "Enter API key"
                               }
+                              readOnly={!providerCardEditable}
                               value={provider.apiKey}
                             />
                             {showOllamaNote ? (
                               <p className="text-xs text-muted-foreground">
                                 Local Ollama usually does not need an API key.
+                              </p>
+                            ) : null}
+                            {providerConfigured ? (
+                              <p className="text-xs text-muted-foreground">
+                                Disconnect this provider to edit and test replacement settings.
                               </p>
                             ) : null}
                           </div>
@@ -6073,6 +6217,7 @@ export const App = (): JSX.Element => {
     <header className="home-topbar">
       <nav aria-label="Home sections" className="home-tabs" role="tablist">
         <button
+          aria-label={`Councils (${formatHomeListTotal({ total: councilsTotal, singularLabel: "council" })})`}
           aria-controls="home-panel-councils"
           aria-selected={homeTab === "councils"}
           className={homeTab === "councils" ? "home-tab-button active" : "home-tab-button"}
@@ -6086,9 +6231,13 @@ export const App = (): JSX.Element => {
           type="button"
         >
           <LayoutDashboard />
-          <span>Councils</span>
+          <span className="home-tab-label">Councils</span>
+          <span aria-hidden="true" className="home-tab-count">
+            {councilsTotal}
+          </span>
         </button>
         <button
+          aria-label={`Agents (${formatHomeListTotal({ total: agentsTotal, singularLabel: "agent" })})`}
           aria-controls="home-panel-agents"
           aria-selected={homeTab === "agents"}
           className={homeTab === "agents" ? "home-tab-button active" : "home-tab-button"}
@@ -6102,7 +6251,10 @@ export const App = (): JSX.Element => {
           type="button"
         >
           <Users />
-          <span>Agents</span>
+          <span className="home-tab-label">Agents</span>
+          <span aria-hidden="true" className="home-tab-count">
+            {agentsTotal}
+          </span>
         </button>
         <button
           aria-controls="home-panel-settings"

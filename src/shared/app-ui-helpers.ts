@@ -3,9 +3,13 @@ import { type Tag, addTag } from "./domain/tag.js";
 import type {
   AgentArchivedFilter,
   AgentDto,
+  AgentSortField,
+  CouncilArchivedFilter,
   CouncilDto,
+  CouncilSortField,
   GetAgentEditorViewResponse,
   GetCouncilEditorViewResponse,
+  SortDirection,
 } from "./ipc/dto.js";
 
 export type AutopilotLimitModalAction = "start" | "resume";
@@ -27,10 +31,58 @@ export type AutopilotLimitModalState = {
   validationMessage: string;
 };
 
+export type AgentHomeListFilters = {
+  searchText: string;
+  tagFilter: string;
+  archivedFilter: AgentArchivedFilter;
+  sortBy: AgentSortField;
+  sortDirection: SortDirection;
+};
+
+export type CouncilHomeListFilters = {
+  searchText: string;
+  tagFilter: string;
+  archivedFilter: CouncilArchivedFilter;
+  sortBy: CouncilSortField;
+  sortDirection: SortDirection;
+};
+
 export const AUTOPILOT_MAX_TURNS_MIN = 1;
 export const AUTOPILOT_MAX_TURNS_MAX = 200;
 export const AUTOPILOT_DEFAULT_MAX_TURNS = "12";
 export const COUNCIL_CONFIG_MAX_TAGS = 3;
+
+export const DEFAULT_AGENT_HOME_LIST_FILTERS: AgentHomeListFilters = {
+  searchText: "",
+  tagFilter: "",
+  archivedFilter: "all",
+  sortBy: "updatedAt",
+  sortDirection: "desc",
+};
+
+export const DEFAULT_COUNCIL_HOME_LIST_FILTERS: CouncilHomeListFilters = {
+  searchText: "",
+  tagFilter: "",
+  archivedFilter: "all",
+  sortBy: "updatedAt",
+  sortDirection: "desc",
+};
+
+const normalizeHomeListText = (value: string): string => value.trim();
+
+export const hasActiveAgentHomeListFilters = (filters: AgentHomeListFilters): boolean =>
+  normalizeHomeListText(filters.searchText) !== DEFAULT_AGENT_HOME_LIST_FILTERS.searchText ||
+  normalizeHomeListText(filters.tagFilter) !== DEFAULT_AGENT_HOME_LIST_FILTERS.tagFilter ||
+  filters.archivedFilter !== DEFAULT_AGENT_HOME_LIST_FILTERS.archivedFilter ||
+  filters.sortBy !== DEFAULT_AGENT_HOME_LIST_FILTERS.sortBy ||
+  filters.sortDirection !== DEFAULT_AGENT_HOME_LIST_FILTERS.sortDirection;
+
+export const hasActiveCouncilHomeListFilters = (filters: CouncilHomeListFilters): boolean =>
+  normalizeHomeListText(filters.searchText) !== DEFAULT_COUNCIL_HOME_LIST_FILTERS.searchText ||
+  normalizeHomeListText(filters.tagFilter) !== DEFAULT_COUNCIL_HOME_LIST_FILTERS.tagFilter ||
+  filters.archivedFilter !== DEFAULT_COUNCIL_HOME_LIST_FILTERS.archivedFilter ||
+  filters.sortBy !== DEFAULT_COUNCIL_HOME_LIST_FILTERS.sortBy ||
+  filters.sortDirection !== DEFAULT_COUNCIL_HOME_LIST_FILTERS.sortDirection;
 
 export const toModelSelectionValue = (modelRefOrNull: ModelRef | null): string =>
   modelRefOrNull === null ? "" : `${modelRefOrNull.providerId}:${modelRefOrNull.modelId}`;
@@ -148,6 +200,16 @@ export const councilModelLabel = (
   }
 
   return "Global default (unselected)";
+};
+
+export const formatHomeListTotal = (params: {
+  total: number;
+  singularLabel: string;
+  pluralLabel?: string;
+}): string => {
+  const label =
+    params.total === 1 ? params.singularLabel : (params.pluralLabel ?? `${params.singularLabel}s`);
+  return `${params.total} ${label}`;
 };
 
 export const isAgentDraftInvalidConfig = (params: {
