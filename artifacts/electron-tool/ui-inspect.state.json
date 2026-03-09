@@ -14,5 +14,6 @@
   "openCouncilButtonRemoved": true,
   "councilEditorRefreshButtonPresent": true,
   "councilEditorStyledShellPresent": true,
+  "newCouncilHidesArchivedAgents": true,
   "councilViewRefreshButtonPresent": true
 }

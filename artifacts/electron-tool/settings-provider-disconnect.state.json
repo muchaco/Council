@@ -1,5 +1,7 @@
 {
   "disconnectApiExposed": true,
   "disconnectPatchReady": true,
-  "disconnectFlowWorked": true
+  "configuredCardIsReadOnly": true,
+  "disconnectFlowWorked": true,
+  "editableDraftPersistsAfterDisconnect": true
 }

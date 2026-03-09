@@ -1,0 +1,48 @@
+{
+  "seedHomeListClearFilters": {
+    "ok": true,
+    "value": {
+      "council": {
+        "id": "efa3f2bd-7bf5-4528-96d4-7be5b3dd46cd",
+        "title": "Clear Filters Council 1773000913652",
+        "topic": "Verify toolbar reset flow",
+        "goal": null,
+        "tags": ["reset"],
+        "mode": "manual",
+        "memberAgentIds": ["2cf24f5d-c636-4ced-bd00-9bb954042248"],
+        "memberColorsByAgentId": {},
+        "conductorModelRefOrNull": {
+          "providerId": "gemini",
+          "modelId": "gemini-2.5-flash"
+        },
+        "invalidConfig": false,
+        "archived": false,
+        "started": false,
+        "paused": false,
+        "autopilotMaxTurns": null,
+        "autopilotTurnsCompleted": 0,
+        "turnCount": 0,
+        "createdAtUtc": "2026-03-08T20:15:13.672Z",
+        "updatedAtUtc": "2026-03-08T20:15:13.672Z"
+      }
+    }
+  },
+  "councilToolbarResetState": {
+    "beforeDisabled": false,
+    "afterDisabled": true,
+    "searchValue": "",
+    "tagValue": "",
+    "archivedValue": "All councils",
+    "sortByValue": "Last modified",
+    "sortDirectionValue": "Newest first"
+  },
+  "agentToolbarResetState": {
+    "beforeDisabled": false,
+    "afterDisabled": true,
+    "searchValue": "",
+    "tagValue": "",
+    "archivedValue": "All agents",
+    "sortByValue": "Last modified",
+    "sortDirectionValue": "Newest first"
+  }
+}
