@@ -95,6 +95,11 @@ Decompose the renderer from a monolithic `src/renderer/App.tsx` into screen-leve
   - `src/renderer/components/agents/AgentCardMenu.tsx`
   - `src/renderer/components/shared/ModelSelectField.tsx`
   - home panel wrappers `src/renderer/components/home/CouncilsPanel.tsx` and `src/renderer/components/home/AgentsPanel.tsx`
+- Council View leaf extraction is in progress and now includes:
+  - `src/renderer/components/council-view/TranscriptMessageRow.tsx`
+  - `src/renderer/components/council-view/ThinkingMessageRow.tsx`
+  - `src/renderer/components/council-view/BriefingCard.tsx`
+  - `src/renderer/components/council-view/ConductorComposerCard.tsx`
 - Required validation/traceability/status updates were run and refreshed for the behavior-preserving decomposition pass.
 
 ### Still left to implement
@@ -106,10 +111,6 @@ Decompose the renderer from a monolithic `src/renderer/App.tsx` into screen-leve
   - `ConfigTab.tsx`
   - `AutopilotLimitDialog.tsx`
 - Extract remaining council-view leaf components that are still inlined inside `CouncilViewScreen.tsx`:
-  - `TranscriptMessageRow.tsx`
-  - `ThinkingMessageRow.tsx`
-  - `BriefingCard.tsx`
-  - `ConductorComposerCard.tsx`
   - `TranscriptCard.tsx`
   - `MembersCard.tsx`
   - `AddMemberPanel.tsx`

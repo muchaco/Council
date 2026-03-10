@@ -24,7 +24,6 @@ import {
 } from "../../../shared/council-runtime-error-normalization.js";
 import {
   buildManualSpeakerSelectionAriaLabel,
-  buildTranscriptMessageAriaLabel,
   resolveInlineConfigEditKeyboardAction,
   resolveTranscriptFocusIndex,
 } from "../../../shared/council-view-accessibility.js";
@@ -39,9 +38,6 @@ import {
 } from "../../../shared/council-view-runtime-guards";
 import {
   resolveThinkingPlaceholderSpeakerId,
-  resolveTranscriptAccentColor,
-  resolveTranscriptAvatarInitials,
-  resolveTranscriptMessageAlignment,
   shouldRenderInlineThinkingCancel,
 } from "../../../shared/council-view-transcript.js";
 import type { CouncilDto, GetCouncilViewResponse } from "../../../shared/ipc/dto";
@@ -71,6 +67,10 @@ import {
   SelectValue,
 } from "../ui/select";
 import { Textarea } from "../ui/textarea";
+import { BriefingCard } from "./BriefingCard";
+import { ConductorComposerCard } from "./ConductorComposerCard";
+import { ThinkingMessageRow } from "./ThinkingMessageRow";
+import { TranscriptMessageRow } from "./TranscriptMessageRow";
 
 type CouncilViewTab = "discussion" | "config";
 type CouncilConfigField = "topic" | "goal" | "tags" | "conductorModel";
@@ -1282,170 +1282,49 @@ export const CouncilViewScreen = ({
                 ) : (
                   <div className="max-h-[500px] space-y-3 overflow-y-auto pr-2">
                     {state.source.messages.map((message, index) => (
-                      <button
-                        aria-label={buildTranscriptMessageAriaLabel(message)}
-                        className={`w-full rounded-lg p-3 text-left transition-colors hover:bg-muted/50 ${resolveTranscriptMessageAlignment(message) === "right" ? "bg-muted/30" : ""}`}
-                        data-transcript-row-index={index}
+                      <TranscriptMessageRow
+                        index={index}
                         key={message.id}
-                        onKeyDown={(event) =>
-                          handleTranscriptRowKeyDown(event, index, transcriptRowCount)
+                        memberColorsByAgentId={state.source.council.memberColorsByAgentId}
+                        message={message}
+                        onKeyDown={(event, currentIndex) =>
+                          handleTranscriptRowKeyDown(event, currentIndex, transcriptRowCount)
                         }
-                        ref={(element) => {
-                          transcriptRowRefs.current[index] = element;
+                        registerRowRef={(currentIndex, element) => {
+                          transcriptRowRefs.current[currentIndex] = element;
                         }}
-                        type="button"
-                      >
-                        <div className="flex gap-3">
-                          <Avatar
-                            className="flex-shrink-0"
-                            style={{
-                              backgroundColor: resolveTranscriptAccentColor(
-                                message,
-                                state.source.council.memberColorsByAgentId,
-                              ),
-                            }}
-                          >
-                            <AvatarFallback className="text-sm font-medium text-white">
-                              {resolveTranscriptAvatarInitials(message.senderName)}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0 flex-1">
-                            <div className="mb-1 flex items-center gap-2">
-                              <span className="text-sm font-medium">
-                                {message.senderName}
-                                {message.senderKind === "conductor" ? (
-                                  <Badge className="ml-2 text-xs" variant="secondary">
-                                    Conductor
-                                  </Badge>
-                                ) : null}
-                              </span>
-                              <span className="text-xs text-muted-foreground">
-                                #{message.sequenceNumber}
-                              </span>
-                            </div>
-                            <p className="whitespace-pre-wrap text-sm text-foreground">
-                              {message.content}
-                            </p>
-                            <p
-                              className="mt-1 text-xs text-muted-foreground"
-                              title={message.createdAtUtc}
-                            >
-                              {message.createdAtUtc}
-                            </p>
-                          </div>
-                        </div>
-                      </button>
+                      />
                     ))}
                     {thinkingSpeakerName !== null ? (
-                      <div className="flex items-start gap-3 rounded-lg bg-muted/30 p-3">
-                        <Avatar
-                          className="flex-shrink-0"
-                          style={{ backgroundColor: thinkingSpeakerColor ?? "#0a5c66" }}
-                        >
-                          <AvatarFallback className="text-sm font-medium text-white">
-                            {resolveTranscriptAvatarInitials(thinkingSpeakerName)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <div className="mb-1 flex items-center gap-2">
-                            <span className="text-sm font-medium">{thinkingSpeakerName}</span>
-                            <span className="text-xs text-muted-foreground">Thinking</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground" />
-                            <span
-                              className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground"
-                              style={{ animationDelay: "0.1s" }}
-                            />
-                            <span
-                              className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground"
-                              style={{ animationDelay: "0.2s" }}
-                            />
-                          </div>
-                        </div>
-                        {showInlineThinkingCancel ? (
-                          <Button
-                            disabled={state.isCancellingGeneration || state.configEdit !== null}
-                            onClick={() => void cancelCouncilGeneration()}
-                            size="sm"
-                            variant="outline"
-                          >
-                            {state.isCancellingGeneration ? "Cancelling..." : "Cancel"}
-                          </Button>
-                        ) : null}
-                      </div>
+                      <ThinkingMessageRow
+                        disabled={state.isCancellingGeneration || state.configEdit !== null}
+                        isCancellingGeneration={state.isCancellingGeneration}
+                        onCancel={() => void cancelCouncilGeneration()}
+                        showInlineThinkingCancel={showInlineThinkingCancel}
+                        thinkingSpeakerColor={thinkingSpeakerColor}
+                        thinkingSpeakerName={thinkingSpeakerName}
+                      />
                     ) : null}
                     <div ref={chatEndRef} />
                   </div>
                 )}
               </Card>
 
-              <Card className="p-6">
-                <h2 className="mb-4 text-xl font-medium">Conductor Message</h2>
-                <Textarea
-                  disabled={council.archived}
-                  onChange={(event) =>
-                    setState((current) =>
-                      current.status !== "ready"
-                        ? current
-                        : { ...current, conductorDraft: event.target.value },
-                    )
-                  }
-                  placeholder="Type your message as conductor..."
-                  rows={4}
-                  value={state.conductorDraft}
-                />
-                <div className="mt-4 flex justify-end">
-                  <Button
-                    disabled={
-                      state.isInjectingConductor ||
-                      generationRunning ||
-                      council.archived ||
-                      !state.conductorDraft.trim()
-                    }
-                    onClick={() => void injectConductorMessage()}
-                  >
-                    {state.isInjectingConductor ? "Sending..." : "Send as Conductor"}
-                  </Button>
-                </div>
-              </Card>
+              <ConductorComposerCard
+                conductorDraft={state.conductorDraft}
+                disabled={generationRunning || council.archived}
+                isInjectingConductor={state.isInjectingConductor}
+                onChangeDraft={(value) =>
+                  setState((current) =>
+                    current.status !== "ready" ? current : { ...current, conductorDraft: value },
+                  )
+                }
+                onSubmit={() => void injectConductorMessage()}
+              />
             </div>
 
             <div className="space-y-6">
-              <Card className="p-6">
-                <h2 className="mb-4 text-xl font-medium">Briefing</h2>
-                {runtimeBriefing === null ? (
-                  <p className="text-sm italic text-muted-foreground">
-                    Briefing not generated yet.
-                  </p>
-                ) : (
-                  <div className="space-y-4">
-                    <div>
-                      <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">
-                        Summary
-                      </p>
-                      <p className="text-sm">{runtimeBriefing.briefing}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">Goal status:</span>
-                      <Badge variant={runtimeBriefing.goalReached ? "default" : "secondary"}>
-                        {runtimeBriefing.goalReached ? "Reached" : "In progress"}
-                      </Badge>
-                    </div>
-                    {runtimeBriefing.goalReached ? (
-                      <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-                        <p className="mb-1 text-sm font-medium text-green-800">Goal reached</p>
-                        <p className="text-xs text-green-700">
-                          The latest briefing reports this council has reached its stated goal.
-                        </p>
-                      </div>
-                    ) : null}
-                    <p className="text-xs text-muted-foreground">
-                      Updated: {runtimeBriefing.updatedAtUtc}
-                    </p>
-                  </div>
-                )}
-              </Card>
+              <BriefingCard briefing={runtimeBriefing} />
 
               <Card className="p-6">
                 <div className="mb-4 flex items-center justify-between">
