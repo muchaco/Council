@@ -2,16 +2,18 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   COUNCIL_CONFIG_MAX_TAGS,
-  appendCouncilConfigTag,
+  appendTagToDraft,
   councilModelLabel,
   isModelSelectionInCatalog,
-  parseCouncilConfigTags,
+  parseTagDraft,
+  removeTagFromDraft,
   toModelSelectionValue,
 } from "../../../shared/app-ui-helpers.js";
 import { resolveInlineConfigEditKeyboardAction } from "../../../shared/council-view-accessibility.js";
 import type { GetCouncilViewResponse } from "../../../shared/ipc/dto";
 import { ConfirmDialog } from "../../ConfirmDialog";
 import { EditableConfigFieldRow } from "../shared/EditableConfigFieldRow";
+import { TagList } from "../shared/TagList";
 import { TagsEditor } from "../shared/TagsEditor";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -85,6 +87,7 @@ export const ConfigTab = ({
 }: ConfigTabProps): JSX.Element => {
   const [configEdit, setConfigEdit] = useState<CouncilConfigEditState | null>(null);
   const [configTagInput, setConfigTagInput] = useState("");
+  const [configTagMessage, setConfigTagMessage] = useState("");
   const [showConfigDiscardDialog, setShowConfigDiscardDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isSavingConfigField, setIsSavingConfigField] = useState(false);
@@ -94,8 +97,7 @@ export const ConfigTab = ({
 
   const configEditField = configEdit?.field ?? null;
   const configEditDraftValue = configEdit?.draftValue ?? "";
-  const configEditTags =
-    configEditField === "tags" ? parseCouncilConfigTags(configEditDraftValue) : [];
+  const configEditTags = configEditField === "tags" ? parseTagDraft(configEditDraftValue) : [];
   const conductorSelectValue =
     configEditDraftValue.length > 0 ? configEditDraftValue : "__global_default__";
   const hasUnavailableConductorSelection = !isModelSelectionInCatalog({
@@ -140,6 +142,7 @@ export const ConfigTab = ({
       draftValue: toCouncilConfigFieldDisplayValue({ council, field }),
     });
     setConfigTagInput("");
+    setConfigTagMessage("");
     setShowConfigDiscardDialog(false);
     onEditingChange(true);
   };
@@ -154,6 +157,7 @@ export const ConfigTab = ({
     }
     setConfigEdit(null);
     setConfigTagInput("");
+    setConfigTagMessage("");
     setShowConfigDiscardDialog(false);
     onEditingChange(false);
   };
@@ -170,6 +174,7 @@ export const ConfigTab = ({
     }
     setConfigEdit(null);
     setConfigTagInput("");
+    setConfigTagMessage("");
     setShowConfigDiscardDialog(false);
     onEditingChange(false);
   };
@@ -178,27 +183,41 @@ export const ConfigTab = ({
     if (configEdit?.field !== "tags") {
       return;
     }
-    const currentTags = parseCouncilConfigTags(configEdit.draftValue);
-    const result = appendCouncilConfigTag({
-      currentTags,
+    const result = appendTagToDraft({
+      currentDraftValue: configEdit.draftValue,
       tagInput: configTagInput,
       maxTags: COUNCIL_CONFIG_MAX_TAGS,
     });
     if (!result.ok) {
+      setConfigTagMessage(result.message);
       return;
     }
-    setConfigEdit({ ...configEdit, draftValue: result.tags.join(", ") });
+    setConfigEdit({ ...configEdit, draftValue: result.draftValue });
     setConfigTagInput("");
+    setConfigTagMessage("");
   };
 
   const removeTagFromCouncilConfigEdit = (tagToRemove: string): void => {
     if (configEdit?.field !== "tags") {
       return;
     }
-    const nextTags = parseCouncilConfigTags(configEdit.draftValue).filter(
-      (tag) => tag.toLowerCase() !== tagToRemove.toLowerCase(),
-    );
-    setConfigEdit({ ...configEdit, draftValue: nextTags.join(", ") });
+    const result = removeTagFromDraft({
+      currentDraftValue: configEdit.draftValue,
+      tagToRemove,
+    });
+    setConfigEdit({ ...configEdit, draftValue: result.draftValue });
+    setConfigTagMessage("");
+  };
+
+  const removeLastConfigTag = (): void => {
+    if (configEdit?.field !== "tags") {
+      return;
+    }
+    const lastTag = configEditTags.at(-1);
+    if (lastTag === undefined) {
+      return;
+    }
+    removeTagFromCouncilConfigEdit(lastTag);
   };
 
   const handleInlineConfigKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>): void => {
@@ -226,13 +245,13 @@ export const ConfigTab = ({
   return (
     <section
       aria-labelledby="council-view-tab-config"
-      className="space-y-6"
+      className="space-y-4"
       id="council-view-panel-config"
       role="tabpanel"
     >
-      <Card className="p-6">
-        <div className="space-y-6" ref={councilConfigEditContainerRef}>
-          <h2 className="mb-6 text-xl font-medium">Configuration</h2>
+      <Card className="p-4 sm:p-5">
+        <div className="space-y-5" ref={councilConfigEditContainerRef}>
+          <h2 className="mb-4 text-lg font-medium">Configuration</h2>
 
           <EditableConfigFieldRow
             disabled={configEdit !== null || council.archived}
@@ -300,27 +319,25 @@ export const ConfigTab = ({
             isEditing={configEditField === "tags"}
             label="Tags"
             onEdit={() => openCouncilConfigEdit("tags")}
-            viewContent={
-              <div className="flex flex-wrap gap-2">
-                {council.tags.length > 0 ? (
-                  council.tags.map((tag) => (
-                    <Badge key={tag} variant="secondary">
-                      {tag}
-                    </Badge>
-                  ))
-                ) : (
-                  <span className="text-sm italic text-muted-foreground">None</span>
-                )}
-              </div>
-            }
+            viewContent={<TagList emptyLabel="None" tags={council.tags} />}
           >
             <div className="space-y-3">
               <TagsEditor
-                helperText={`Press Enter to add. Max ${COUNCIL_CONFIG_MAX_TAGS} tags.`}
+                errorText={configTagMessage || undefined}
+                inputId="council-config-tags-input"
                 inputValue={configTagInput}
+                maxTags={COUNCIL_CONFIG_MAX_TAGS}
                 onAdd={addTagToCouncilConfigEdit}
                 onInputChange={setConfigTagInput}
-                onInputEscape={() => closeCouncilConfigEdit(false)}
+                onInputEscape={() => {
+                  if (configTagInput.trim().length > 0) {
+                    setConfigTagInput("");
+                    setConfigTagMessage("");
+                    return;
+                  }
+                  closeCouncilConfigEdit(false);
+                }}
+                onRemoveLastTag={removeLastConfigTag}
                 onRemoveTag={removeTagFromCouncilConfigEdit}
                 tags={configEditTags}
               />
@@ -412,8 +429,8 @@ export const ConfigTab = ({
           </EditableConfigFieldRow>
         </div>
       </Card>
-      <Card className="p-6">
-        <h3 className="mb-4 font-medium">Actions</h3>
+      <Card className="p-4 sm:p-5">
+        <h3 className="mb-3 font-medium">Actions</h3>
         <div className="flex flex-wrap gap-3">
           <Button
             disabled={configEdit !== null || isExportingTranscript}

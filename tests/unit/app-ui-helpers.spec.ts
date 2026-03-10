@@ -3,19 +3,25 @@ import {
   DEFAULT_AGENT_HOME_LIST_FILTERS,
   DEFAULT_COUNCIL_HOME_LIST_FILTERS,
   appendCouncilConfigTag,
+  appendTagToDraft,
   applyAgentArchivedListUpdate,
   buildInvalidConfigBadgeAriaLabel,
   buildProviderConfiguredBadgeAriaLabel,
   buildProviderConnectionTestButtonAriaLabel,
+  buildTagEditorHelperText,
+  commitTagFilterDraft,
   formatHomeListTotal,
   hasActiveAgentHomeListFilters,
   hasActiveCouncilHomeListFilters,
   isModelSelectionInCatalog,
   normalizeTagsDraft,
   parseCouncilConfigTags,
+  parseTagDraft,
+  removeTagFromDraft,
   resolveAutopilotMaxTurns,
   resolveConfirmDialogKeyboardAction,
   resolveDisclosureKeyboardAction,
+  resolveTagEditorInputKeyAction,
   resolveToastVariant,
   toModelRef,
   toModelSelectionValue,
@@ -332,6 +338,7 @@ describe("app ui helpers", () => {
       "planning",
       "execution",
     ]);
+    expect(parseTagDraft(" alpha, beta ")).toEqual(["alpha", "beta"]);
   });
 
   itReq(["U10.11"], "appends council config tags with ui-friendly validation", () => {
@@ -402,6 +409,68 @@ describe("app ui helpers", () => {
       message: "Each tag must be 20 characters or fewer.",
     });
   });
+
+  itReq(
+    ["R1.15", "R2.20", "R5.3", "R5.6", "U10.10", "U10.11"],
+    "applies shared chip-editor add and remove helpers across tag surfaces",
+    () => {
+      expect(
+        appendTagToDraft({
+          currentDraftValue: "strategy",
+          tagInput: "planning",
+        }),
+      ).toEqual({
+        ok: true,
+        draftValue: "strategy, planning",
+        tags: ["strategy", "planning"],
+      });
+
+      expect(
+        removeTagFromDraft({
+          currentDraftValue: "strategy, planning",
+          tagToRemove: "Strategy",
+        }),
+      ).toEqual({
+        draftValue: "planning",
+        tags: ["planning"],
+      });
+    },
+  );
+
+  itReq(
+    ["R5.7", "R5.8", "U10.11"],
+    "resolves shared tag editor keyboard and helper messaging",
+    () => {
+      expect(
+        resolveTagEditorInputKeyAction({
+          key: "Enter",
+          draftValue: "ops",
+          committedTags: [],
+        }),
+      ).toBe("submit");
+      expect(
+        resolveTagEditorInputKeyAction({
+          key: "Escape",
+          draftValue: "ops",
+          committedTags: [],
+        }),
+      ).toBe("clearDraft");
+      expect(
+        resolveTagEditorInputKeyAction({
+          key: "Backspace",
+          draftValue: "",
+          committedTags: ["ops"],
+        }),
+      ).toBe("removeLastTag");
+      expect(commitTagFilterDraft("  ops  ")).toBe("ops");
+      expect(buildTagEditorHelperText({ slotsRemaining: 2 })).toBe(
+        "Press Enter to add. Backspace removes the last tag. 2 slots left.",
+      );
+      expect(buildTagEditorHelperText({ mode: "filter", slotsRemaining: 0 })).toBe(
+        "Exact match only. Press Enter to commit the filter.",
+      );
+    },
+  );
 
   itReq(["U11.2", "U15.2"], "maps confirmation-dialog keyboard actions", () => {
     expect(resolveConfirmDialogKeyboardAction("Enter")).toBe("confirm");

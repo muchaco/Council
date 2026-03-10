@@ -1,71 +1,94 @@
-import { Badge } from "../ui/badge";
+import {
+  buildTagEditorHelperText,
+  resolveTagEditorInputKeyAction,
+} from "../../../shared/app-ui-helpers.js";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
+import { TagList } from "./TagList";
 
 type TagsEditorProps = {
   addLabel?: string;
   emptyLabel?: string;
-  helperText?: string;
+  disabled?: boolean;
+  errorText?: string;
+  inputId?: string;
   inputPlaceholder?: string;
   inputValue: string;
+  maxTags?: number;
   onAdd: () => void;
   onInputChange: (value: string) => void;
   onInputEscape: () => void;
+  onRemoveLastTag?: () => void;
   onRemoveTag: (tag: string) => void;
+  readOnly?: boolean;
   tags: ReadonlyArray<string>;
 };
 
 export const TagsEditor = ({
   addLabel = "Add",
   emptyLabel = "No tags yet",
-  helperText,
+  disabled = false,
+  errorText,
+  inputId,
   inputPlaceholder = "Add tag",
   inputValue,
+  maxTags,
   onAdd,
   onInputChange,
   onInputEscape,
+  onRemoveLastTag,
   onRemoveTag,
+  readOnly = false,
   tags,
-}: TagsEditorProps): JSX.Element => (
-  <div className="space-y-3">
-    <div className="flex flex-wrap gap-2">
-      {tags.map((tag) => (
-        <Badge className="gap-1" key={tag} variant="secondary">
-          {tag}
-          <button
-            aria-label={`Remove tag ${tag}`}
-            className="ml-1 hover:text-destructive"
-            onClick={() => onRemoveTag(tag)}
-            type="button"
-          >
-            x
-          </button>
-        </Badge>
-      ))}
-      {tags.length === 0 ? (
-        <span className="text-sm italic text-muted-foreground">{emptyLabel}</span>
-      ) : null}
-    </div>
-    <div className="flex gap-2">
-      <Input
-        onChange={(event) => onInputChange(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            onAdd();
-          }
-          if (event.key === "Escape") {
-            event.preventDefault();
-            onInputEscape();
-          }
-        }}
-        placeholder={inputPlaceholder}
-        value={inputValue}
+}: TagsEditorProps): JSX.Element => {
+  const isInteractive = !disabled && !readOnly;
+  const helperText = buildTagEditorHelperText({
+    maxTags,
+    slotsRemaining: Math.max((maxTags ?? Number.POSITIVE_INFINITY) - tags.length, 0),
+  });
+
+  return (
+    <div className="space-y-3">
+      <TagList
+        emptyLabel={emptyLabel}
+        onTagRemove={isInteractive ? onRemoveTag : undefined}
+        tags={tags}
       />
-      <Button disabled={!inputValue.trim()} onClick={onAdd} variant="outline">
-        {addLabel}
-      </Button>
+      <div className="flex gap-2">
+        <Input
+          disabled={!isInteractive}
+          id={inputId}
+          onChange={(event) => onInputChange(event.target.value)}
+          onKeyDown={(event) => {
+            const action = resolveTagEditorInputKeyAction({
+              key: event.key,
+              draftValue: inputValue,
+              committedTags: tags,
+            });
+            if (action === "none") {
+              return;
+            }
+            event.preventDefault();
+            if (action === "submit") {
+              onAdd();
+              return;
+            }
+            if (action === "clearDraft") {
+              onInputEscape();
+              return;
+            }
+            onRemoveLastTag?.();
+          }}
+          placeholder={inputPlaceholder}
+          value={inputValue}
+        />
+        <Button disabled={!isInteractive || !inputValue.trim()} onClick={onAdd} variant="outline">
+          {addLabel}
+        </Button>
+      </div>
+      <p className={`text-xs ${errorText ? "text-destructive" : "text-muted-foreground"}`}>
+        {errorText ?? helperText}
+      </p>
     </div>
-    {helperText ? <p className="text-xs text-muted-foreground">{helperText}</p> : null}
-  </div>
-);
+  );
+};

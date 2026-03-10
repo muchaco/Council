@@ -1,9 +1,16 @@
 import { useEffect, useState } from "react";
 
-import { isCouncilDraftInvalidConfig } from "../../../shared/app-ui-helpers.js";
+import {
+  COUNCIL_CONFIG_MAX_TAGS,
+  appendTagToDraft,
+  isCouncilDraftInvalidConfig,
+  parseTagDraft,
+  removeTagFromDraft,
+} from "../../../shared/app-ui-helpers.js";
 import type { CouncilMode } from "../../../shared/ipc/dto";
 import { DetailScreenShell } from "../shared/DetailScreenShell";
 import { ModelSelectField } from "../shared/ModelSelectField";
+import { TagsEditor } from "../shared/TagsEditor";
 import { CouncilEditorDialogs } from "./CouncilEditorDialogs";
 import {
   type CouncilEditorState,
@@ -25,6 +32,8 @@ export const CouncilEditorScreen = ({
   pushToast,
 }: CouncilEditorScreenProps): JSX.Element | null => {
   const [state, setState] = useState<CouncilEditorState>({ status: "loading" });
+  const [tagInput, setTagInput] = useState("");
+  const [tagMessage, setTagMessage] = useState("");
   const hasUnsavedDraft =
     state.status === "ready" &&
     getCouncilEditorDraftFingerprint(state.draft) !== state.initialFingerprint;
@@ -81,8 +90,51 @@ export const CouncilEditorScreen = ({
     if (!isActive) {
       return;
     }
+    setTagInput("");
+    setTagMessage("");
     void loadCouncilEditor(councilId);
   }, [councilId, isActive, loadCouncilEditor]);
+
+  const addTag = (): void => {
+    if (state.status !== "ready") {
+      return;
+    }
+    const result = appendTagToDraft({
+      currentDraftValue: state.draft.tagsInput,
+      tagInput,
+      maxTags: COUNCIL_CONFIG_MAX_TAGS,
+    });
+    if (!result.ok) {
+      setTagMessage(result.message);
+      return;
+    }
+    updateDraft({ tagsInput: result.draftValue });
+    setTagInput("");
+    setTagMessage("");
+  };
+
+  const removeTag = (tagToRemove: string): void => {
+    if (state.status !== "ready") {
+      return;
+    }
+    const result = removeTagFromDraft({
+      currentDraftValue: state.draft.tagsInput,
+      tagToRemove,
+    });
+    updateDraft({ tagsInput: result.draftValue });
+    setTagMessage("");
+  };
+
+  const removeLastTag = (): void => {
+    if (state.status !== "ready") {
+      return;
+    }
+    const lastTag = parseTagDraft(state.draft.tagsInput).at(-1);
+    if (lastTag === undefined) {
+      return;
+    }
+    removeTag(lastTag);
+  };
 
   if (!isActive) {
     return null;
@@ -111,6 +163,7 @@ export const CouncilEditorScreen = ({
     modelCatalog: state.source.modelCatalog,
     globalDefaultModelRef: state.source.globalDefaultModelRef,
   });
+  const draftTags = parseTagDraft(state.draft.tagsInput);
 
   return (
     <main className="shell">
@@ -204,14 +257,24 @@ export const CouncilEditorScreen = ({
           <p className="text-sm text-muted-foreground">Mode is locked after creation.</p>
         ) : null}
 
-        <label className="field" htmlFor="council-tags">
-          Tags (comma-separated, max 3)
+        <label className="field" htmlFor="council-tags-input">
+          Tags
         </label>
-        <input
-          id="council-tags"
-          onChange={(event) => updateDraft({ tagsInput: event.target.value })}
-          type="text"
-          value={state.draft.tagsInput}
+        <TagsEditor
+          errorText={tagMessage || undefined}
+          inputId="council-tags-input"
+          inputPlaceholder="Add tag"
+          inputValue={tagInput}
+          maxTags={COUNCIL_CONFIG_MAX_TAGS}
+          onAdd={addTag}
+          onInputChange={setTagInput}
+          onInputEscape={() => {
+            setTagInput("");
+            setTagMessage("");
+          }}
+          onRemoveLastTag={removeLastTag}
+          onRemoveTag={removeTag}
+          tags={draftTags}
         />
 
         <p className="field">Members</p>

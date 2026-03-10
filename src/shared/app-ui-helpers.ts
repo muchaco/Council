@@ -1,5 +1,5 @@
 import type { ModelRef } from "./domain/model-ref.js";
-import { type Tag, addTag } from "./domain/tag.js";
+import { TAG_MAX_PER_OBJECT, type Tag, addTag } from "./domain/tag.js";
 import type {
   AgentArchivedFilter,
   AgentDto,
@@ -50,7 +50,7 @@ export type CouncilHomeListFilters = {
 export const AUTOPILOT_MAX_TURNS_MIN = 1;
 export const AUTOPILOT_MAX_TURNS_MAX = 200;
 export const AUTOPILOT_DEFAULT_MAX_TURNS = "12";
-export const COUNCIL_CONFIG_MAX_TAGS = 3;
+export const COUNCIL_CONFIG_MAX_TAGS = TAG_MAX_PER_OBJECT;
 
 export const DEFAULT_AGENT_HOME_LIST_FILTERS: AgentHomeListFilters = {
   searchText: "",
@@ -297,11 +297,15 @@ export const resolveToastVariant = (level: ToastLevel): ToastVariant => {
   }
 };
 
-export const parseCouncilConfigTags = (draftValue: string): ReadonlyArray<string> =>
+export const parseTagDraft = (draftValue: string): ReadonlyArray<string> =>
   draftValue
     .split(",")
     .map((tag) => tag.trim())
     .filter((tag) => tag.length > 0);
+
+export const parseCouncilConfigTags = parseTagDraft;
+
+export const serializeTagDraft = (tags: ReadonlyArray<string>): string => tags.join(", ");
 
 const toTagValidationMessage = (error: string, maxTags: number): string => {
   if (error === "TagTooShort") {
@@ -333,10 +337,7 @@ export const normalizeTagsDraft = (params: {
     } => {
   const maxTags = params.maxTags ?? COUNCIL_CONFIG_MAX_TAGS;
   let tags: ReadonlyArray<Tag> = [];
-  const parts = params.tagsInput
-    .split(",")
-    .map((tag) => tag.trim())
-    .filter((tag) => tag.length > 0);
+  const parts = parseTagDraft(params.tagsInput);
 
   for (const part of parts) {
     const next = addTag(tags, part);
@@ -423,6 +424,96 @@ export const appendCouncilConfigTag = (params: {
     ok: true,
     tags: next.value,
   };
+};
+
+export const appendTagToDraft = (params: {
+  currentDraftValue: string;
+  tagInput: string;
+  maxTags?: number;
+}):
+  | {
+      ok: true;
+      draftValue: string;
+      tags: ReadonlyArray<string>;
+    }
+  | {
+      ok: false;
+      message: string;
+    } => {
+  const result = appendCouncilConfigTag({
+    currentTags: parseTagDraft(params.currentDraftValue),
+    tagInput: params.tagInput,
+    maxTags: params.maxTags,
+  });
+  if (!result.ok) {
+    return result;
+  }
+
+  return {
+    ok: true,
+    draftValue: serializeTagDraft(result.tags),
+    tags: result.tags,
+  };
+};
+
+export const removeTagFromDraft = (params: {
+  currentDraftValue: string;
+  tagToRemove: string;
+}): {
+  draftValue: string;
+  tags: ReadonlyArray<string>;
+} => {
+  const tags = parseTagDraft(params.currentDraftValue).filter(
+    (tag) => tag.toLowerCase() !== params.tagToRemove.toLowerCase(),
+  );
+
+  return {
+    draftValue: serializeTagDraft(tags),
+    tags,
+  };
+};
+
+export const commitTagFilterDraft = (draftValue: string): string => draftValue.trim();
+
+export const resolveTagEditorInputKeyAction = (params: {
+  key: string;
+  draftValue: string;
+  committedTags: ReadonlyArray<string>;
+}): "submit" | "clearDraft" | "removeLastTag" | "none" => {
+  if (params.key === "Enter") {
+    return "submit";
+  }
+  if (params.key === "Escape") {
+    return params.draftValue.trim().length > 0 ? "clearDraft" : "none";
+  }
+  if (params.key === "Backspace") {
+    return params.draftValue.length === 0 && params.committedTags.length > 0
+      ? "removeLastTag"
+      : "none";
+  }
+  return "none";
+};
+
+export const buildTagEditorHelperText = (params: {
+  maxTags?: number;
+  slotsRemaining: number;
+  mode?: "edit" | "filter";
+}): string => {
+  const maxTags = params.maxTags ?? COUNCIL_CONFIG_MAX_TAGS;
+  const prefix =
+    params.mode === "filter"
+      ? "Exact match only. Press Enter to commit the filter"
+      : "Press Enter to add. Backspace removes the last tag";
+
+  if (params.mode === "filter") {
+    return `${prefix}.`;
+  }
+
+  if (params.slotsRemaining <= 0) {
+    return `${prefix}. ${maxTags} tags max.`;
+  }
+
+  return `${prefix}. ${params.slotsRemaining} ${params.slotsRemaining === 1 ? "slot" : "slots"} left.`;
 };
 
 export const resolveConfirmDialogKeyboardAction = (key: string): "confirm" | "cancel" | "none" => {

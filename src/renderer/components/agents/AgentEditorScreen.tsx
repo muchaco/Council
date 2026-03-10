@@ -1,15 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   COUNCIL_CONFIG_MAX_TAGS,
+  appendTagToDraft,
   isAgentDraftInvalidConfig,
   normalizeTagsDraft,
+  parseTagDraft,
+  removeTagFromDraft,
   toModelRef,
 } from "../../../shared/app-ui-helpers.js";
 import type { GetAgentEditorViewResponse } from "../../../shared/ipc/dto";
 import { ConfirmDialog } from "../../ConfirmDialog";
 import { DetailScreenShell } from "../shared/DetailScreenShell";
 import { ModelSelectField } from "../shared/ModelSelectField";
+import { TagsEditor } from "../shared/TagsEditor";
 import { Button } from "../ui/button";
 
 type AgentEditorDraft = {
@@ -66,6 +70,8 @@ export const AgentEditorScreen = ({
   pushToast,
 }: AgentEditorScreenProps): JSX.Element | null => {
   const [state, setState] = useState<AgentEditorState>({ status: "loading" });
+  const [tagInput, setTagInput] = useState("");
+  const [tagMessage, setTagMessage] = useState("");
 
   const hasUnsavedDraft =
     state.status === "ready" && JSON.stringify(state.draft) !== state.initialFingerprint;
@@ -104,6 +110,8 @@ export const AgentEditorScreen = ({
         return;
       }
       const draft = toAgentEditorDraft(result.value.agent);
+      setTagInput("");
+      setTagMessage("");
       setState({
         status: "ready",
         source: result.value,
@@ -131,9 +139,54 @@ export const AgentEditorScreen = ({
   };
 
   const updateDraft = (patch: Partial<AgentEditorDraft>): void => {
+    if (Object.hasOwn(patch, "tagsInput")) {
+      setTagMessage("");
+    }
     setState((current) =>
       current.status !== "ready" ? current : { ...current, draft: { ...current.draft, ...patch } },
     );
+  };
+
+  const addTag = (): void => {
+    if (state.status !== "ready") {
+      return;
+    }
+    const result = appendTagToDraft({
+      currentDraftValue: state.draft.tagsInput,
+      tagInput,
+      maxTags: COUNCIL_CONFIG_MAX_TAGS,
+    });
+    if (!result.ok) {
+      setTagMessage(result.message);
+      return;
+    }
+    updateDraft({ tagsInput: result.draftValue });
+    setTagInput("");
+    setTagMessage("");
+  };
+
+  const removeTag = (tagToRemove: string): void => {
+    if (state.status !== "ready") {
+      return;
+    }
+    const result = removeTagFromDraft({
+      currentDraftValue: state.draft.tagsInput,
+      tagToRemove,
+    });
+    updateDraft({ tagsInput: result.draftValue });
+    setTagMessage("");
+  };
+
+  const removeLastTag = (): void => {
+    if (state.status !== "ready") {
+      return;
+    }
+    const currentTags = parseTagDraft(state.draft.tagsInput);
+    const lastTag = currentTags.at(-1);
+    if (lastTag === undefined) {
+      return;
+    }
+    removeTag(lastTag);
   };
 
   const save = async (): Promise<void> => {
@@ -146,6 +199,7 @@ export const AgentEditorScreen = ({
     });
     if (!normalizedTagsResult.ok) {
       pushToast("warning", normalizedTagsResult.message);
+      setTagMessage(normalizedTagsResult.message);
       setState((current) =>
         current.status !== "ready"
           ? current
@@ -183,6 +237,7 @@ export const AgentEditorScreen = ({
       );
       return;
     }
+    setTagMessage("");
     pushToast("info", "Agent saved.");
     close(true);
   };
@@ -317,6 +372,7 @@ export const AgentEditorScreen = ({
     globalDefaultModelRef: state.source.globalDefaultModelRef,
   });
   const archived = state.source.agent?.archived === true;
+  const draftTags = parseTagDraft(state.draft.tagsInput);
 
   return (
     <main className="shell">
@@ -412,15 +468,25 @@ export const AgentEditorScreen = ({
           value={state.draft.temperature}
         />
 
-        <label className="field" htmlFor="agent-tags">
-          Tags (comma-separated, max 3)
+        <label className="field" htmlFor="agent-tags-input">
+          Tags
         </label>
-        <input
+        <TagsEditor
           disabled={archived}
-          id="agent-tags"
-          onChange={(event) => updateDraft({ tagsInput: event.target.value })}
-          type="text"
-          value={state.draft.tagsInput}
+          errorText={tagMessage || undefined}
+          inputId="agent-tags-input"
+          inputPlaceholder="Add tag"
+          inputValue={tagInput}
+          maxTags={COUNCIL_CONFIG_MAX_TAGS}
+          onAdd={addTag}
+          onInputChange={setTagInput}
+          onInputEscape={() => {
+            setTagInput("");
+            setTagMessage("");
+          }}
+          onRemoveLastTag={removeLastTag}
+          onRemoveTag={removeTag}
+          tags={draftTags}
         />
 
         <ModelSelectField
