@@ -11,7 +11,7 @@
           "providerId": "gemini",
           "endpointUrl": null,
           "hasCredential": true,
-          "lastSavedAtUtc": "2026-03-08T19:34:05.472Z"
+          "lastSavedAtUtc": "2026-03-08T21:51:03.753Z"
         },
         {
           "providerId": "ollama",
@@ -33,7 +33,7 @@
       "globalDefaultModelInvalidConfig": false,
       "contextLastN": 20,
       "modelCatalog": {
-        "snapshotId": "9d8ac7e1-2648-4da0-96c8-0379f530896b",
+        "snapshotId": "60c681b5-ee71-44c2-95b2-eb08bd40d48e",
         "modelsByProvider": {
           "gemini": [
             "gemini-2.5-flash",

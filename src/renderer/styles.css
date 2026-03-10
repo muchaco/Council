@@ -193,6 +193,10 @@
   line-height: 1.2;
 }
 
+.home-tab-count::before {
+  content: attr(data-count);
+}
+
 .home-tab-button.active .home-tab-count {
   background: hsl(var(--primary) / 0.12);
 }
