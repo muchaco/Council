@@ -86,6 +86,9 @@ Decompose the renderer from a monolithic `src/renderer/App.tsx` into screen-leve
   - `src/renderer/components/settings/SettingsPanel.tsx`
   - `src/renderer/components/agents/AgentEditorScreen.tsx`
   - `src/renderer/components/councils/CouncilEditorScreen.tsx`
+  - `src/renderer/components/councils/councilEditorScreenState.ts`
+  - `src/renderer/components/councils/useCouncilEditorActions.ts`
+  - `src/renderer/components/councils/CouncilEditorDialogs.tsx`
   - `src/renderer/components/council-view/CouncilViewScreen.tsx`
 - Low-risk presentational/shared pieces already extracted:
   - `src/renderer/components/navigation/HomeTopBar.tsx`
@@ -128,8 +131,8 @@ Decompose the renderer from a monolithic `src/renderer/App.tsx` into screen-leve
 
 ### Still left to implement
  - Optional cleanup still available if repetition becomes clearer after the council-view cuts:
- - `src/renderer/components/councils/CouncilEditorScreen.tsx` is now the clearest remaining renderer screen that still mixes state shape, async handlers, and screen JSX in one file.
- - `src/renderer/components/council-view/CouncilViewScreen.tsx` is smaller but still the main remaining council-view orchestrator, with the autopilot effect and dialog callback wiring still available for a later behavior-preserving extraction if that repetition becomes clearer.
+ - `src/renderer/components/council-view/CouncilViewScreen.tsx` is now the clearest remaining renderer orchestrator, with the autopilot effect and dialog callback wiring still available for a later behavior-preserving extraction if that repetition becomes clearer.
+ - `src/renderer/components/councils/CouncilEditorScreen.tsx` is much smaller now, but an additional presentational cut is still possible if the remaining field markup starts to repeat elsewhere.
 - Focused direct tests remain optional follow-up only if any new pure helpers are extracted from the remaining council-view work.
 - If the final renderer-only cleanup is split further, keep commits behavior-preserving and continue using the existing validation/traceability/status refresh workflow after each slice.
 
