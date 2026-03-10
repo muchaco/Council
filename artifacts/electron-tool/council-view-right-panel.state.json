@@ -1,5 +1,6 @@
 {
   "seedCouncilOk": true,
-  "openedRemoveDialog": true,
-  "memberCountAfterAdd": 2
+  "openedRightPanelScenarioCouncil": true,
+  "addedMemberFromPanel": true,
+  "memberCountAfterAdd": 3
 }

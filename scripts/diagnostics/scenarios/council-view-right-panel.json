@@ -18,35 +18,27 @@
       "expression": "() => { const card = Array.from(document.querySelectorAll('[data-council-card-id]')).find((node) => node.textContent?.includes('Right Panel Scenario')); if (!(card instanceof HTMLElement)) { return false; } card.click(); return true; }"
     },
     { "action": "assertSaved", "key": "openedRightPanelScenarioCouncil", "equals": true },
-    { "action": "waitForText", "text": "Briefing" },
-    { "action": "waitForText", "text": "Members" },
-    { "action": "waitForText", "text": "Conductor message" },
+    { "action": "waitForText", "text": "Add member" },
+    { "action": "waitForText", "text": "Send as Conductor" },
     { "action": "click", "selector": "button:has-text('Start')" },
-    { "action": "waitForText", "text": "Select to speak" },
+    { "action": "waitForText", "text": "Speak" },
+    { "action": "click", "selector": "button:has-text('Add member')" },
+    { "action": "waitForText", "text": "Search active agents" },
     {
       "action": "evaluate",
-      "saveAs": "openedRemoveDialog",
-      "expression": "() => { const button = Array.from(document.querySelectorAll('.member-remove-button')).find((node) => node instanceof HTMLButtonElement && !node.disabled); if (!(button instanceof HTMLButtonElement)) { return false; } button.click(); return true; }"
+      "saveAs": "addedMemberFromPanel",
+      "expression": "() => { const button = Array.from(document.querySelectorAll('button')).find((node) => node.textContent?.trim() === 'Add'); if (!(button instanceof HTMLButtonElement)) { return false; } button.click(); return true; }"
     },
-    { "action": "assertSaved", "key": "openedRemoveDialog", "equals": true },
-    { "action": "waitForText", "text": "Remove member?" },
-    { "action": "click", "selector": ".modal-panel button:has-text('Remove')" },
-    { "action": "waitForText", "text": "At least one member is required." },
-    { "action": "click", "selector": "button:has-text('Add member')" },
-    { "action": "waitForText", "text": "Search agents" },
-    { "action": "click", "selector": "article.list-row button:has-text('Add')" },
+    { "action": "assertSaved", "key": "addedMemberFromPanel", "equals": true },
+    { "action": "waitForText", "text": "Members (3)" },
     {
       "action": "evaluate",
       "saveAs": "memberCountAfterAdd",
-      "expression": "() => document.querySelectorAll('article.member-row').length"
+      "expression": "() => document.querySelectorAll('button[aria-label^=\"Color:\"]').length"
     },
-    { "action": "assertSaved", "key": "memberCountAfterAdd", "equals": 2 },
-    { "action": "waitForSelector", "selector": ".member-row-actions select" },
-    {
-      "action": "selectOption",
-      "selector": ".member-row-actions select",
-      "value": "#be123c"
-    },
+    { "action": "assertSaved", "key": "memberCountAfterAdd", "equals": 3 },
+    { "action": "click", "selector": "button[aria-label^='Color:']" },
+    { "action": "click", "selector": "button[aria-label='Color: Crimson']" },
     { "action": "waitForText", "text": "Member color updated." },
     { "action": "screenshot", "file": "council-view-right-panel.png", "fullPage": true }
   ]

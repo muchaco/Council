@@ -132,7 +132,7 @@ Traceability source-of-truth is generated from test annotations and mapping conf
 Generated source-of-truth files:
 - `docs/traceability/requirements-traceability.generated.json`
 - `docs/traceability/requirements-traceability.generated.md`
-Last generated: 2026-03-10T13:20:59.809Z
+Last generated: 2026-03-10T13:31:54.027Z
 Coverage snapshot: 33 specs, 206 test entries, 195 mapped requirement IDs.
 <!-- TRACEABILITY:END -->
 

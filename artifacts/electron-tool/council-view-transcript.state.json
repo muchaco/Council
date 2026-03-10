@@ -1,5 +1,6 @@
 {
   "seedCouncilOk": true,
+  "openedTranscriptScenarioCouncil": true,
   "noTranscriptRowsInitially": true,
   "transcriptActionAffordancesHidden": true,
   "emptyStateHiddenAfterFirstMessage": true,

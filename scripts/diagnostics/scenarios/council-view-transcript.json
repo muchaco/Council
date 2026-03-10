@@ -55,7 +55,7 @@
     {
       "action": "evaluate",
       "saveAs": "transcriptStartHiddenAfterFirstMessage",
-      "expression": "() => { const transcriptSection = Array.from(document.querySelectorAll('.council-view-left-column .settings-section')).find((section) => section.querySelector('h2')?.textContent?.trim() === 'Transcript'); if (!(transcriptSection instanceof HTMLElement)) { return false; } return Array.from(transcriptSection.querySelectorAll('button')).every((button) => button.textContent?.trim() !== 'Start'); }"
+      "expression": "() => { const heading = Array.from(document.querySelectorAll('h2')).find((node) => node.textContent?.trim() === 'Transcript'); const transcriptCard = heading?.closest('.rounded-lg, [class*=\"card\"]'); if (!(transcriptCard instanceof HTMLElement)) { return false; } return Array.from(transcriptCard.querySelectorAll('button')).every((button) => button.textContent?.trim() !== 'Start Discussion'); }"
     },
     {
       "action": "assertSaved",
