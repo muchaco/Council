@@ -105,7 +105,7 @@ Decompose the renderer from a monolithic `src/renderer/App.tsx` into screen-leve
   - `src/renderer/components/shared/DetailScreenShell.tsx`
   - home panel wrappers `src/renderer/components/home/CouncilsPanel.tsx` and `src/renderer/components/home/AgentsPanel.tsx`
   - home list ownership moved into the panel containers so `CouncilsPanel.tsx` and `AgentsPanel.tsx` now own their own query/filter/pagination/list-action state while `HomeScreen.tsx` only coordinates visible tab selection
-- Council View leaf extraction is in progress and now includes:
+- Council View leaf extraction is complete and now includes:
   - `src/renderer/components/council-view/CouncilViewHeader.tsx`
   - `src/renderer/components/council-view/CouncilViewTabs.tsx`
   - `src/renderer/components/council-view/CouncilRuntimeAlerts.tsx`
@@ -129,14 +129,13 @@ Decompose the renderer from a monolithic `src/renderer/App.tsx` into screen-leve
   - `src/renderer/components/council-view/useCouncilViewMemberActions.ts`
   - `src/renderer/components/council-view/useCouncilViewScreenLifecycle.ts`
   - `src/renderer/components/council-view/useCouncilViewDialogHandlers.ts`
+  - `src/renderer/components/council-view/CouncilViewReadyScreen.tsx`
 - Required validation/traceability/status updates were run and refreshed for the behavior-preserving decomposition pass.
 
-### Still left to implement
- - Optional cleanup still available if repetition becomes clearer after the council-view cuts:
- - `src/renderer/components/council-view/CouncilViewScreen.tsx` is now much smaller, but a final presentational/orchestration pass is still available if the remaining header/tab/content composition starts to feel repetitive.
- - `src/renderer/components/councils/CouncilEditorScreen.tsx` is much smaller now, but an additional presentational cut is still possible if the remaining field markup starts to repeat elsewhere.
-- Focused direct tests remain optional follow-up only if any new pure helpers are extracted from the remaining council-view work.
-- If the final renderer-only cleanup is split further, keep commits behavior-preserving and continue using the existing validation/traceability/status refresh workflow after each slice.
+### Plan closure
+- Plan 044 implementation is complete. `src/renderer/App.tsx` is a lightweight screen switcher, screen-specific state lives with the extracted screen containers, and the remaining Council View composition now sits in `src/renderer/components/council-view/CouncilViewReadyScreen.tsx` so `src/renderer/components/council-view/CouncilViewScreen.tsx` is a thin lifecycle/action shell.
+- No additional renderer decomposition work is required to satisfy this plan. Future renderer cleanup can proceed only as separate follow-up work if new repetition appears elsewhere.
+- No focused test files changed for the closing slice because the work is a behavior-preserving component boundary refactor; equivalence is verified through the required validation, traceability, and Electron diagnostic command set.
 
 ## Proposed component ownership model
 
