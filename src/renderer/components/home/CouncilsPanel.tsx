@@ -1,87 +1,277 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   KeyboardEvent as ReactKeyboardEvent,
   MouseEvent as ReactMouseEvent,
   SyntheticEvent,
 } from "react";
 
-import { formatHomeListTotal } from "../../../shared/app-ui-helpers.js";
+import {
+  DEFAULT_COUNCIL_HOME_LIST_FILTERS,
+  formatHomeListTotal,
+  hasActiveCouncilHomeListFilters,
+} from "../../../shared/app-ui-helpers.js";
+import {
+  isCardOpenInteractionTarget,
+  isListRowOpenKey,
+} from "../../../shared/home-keyboard-accessibility.js";
 import type {
   CouncilArchivedFilter,
   CouncilDto,
   CouncilSortField,
   SortDirection,
 } from "../../../shared/ipc/dto";
+import { ConfirmDialog } from "../../ConfirmDialog";
 import { CouncilCard } from "../councils/CouncilCard";
 import { HomeListToolbar } from "../shared/HomeListToolbar";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 
 type CouncilsPanelProps = {
-  archivedFilter: CouncilArchivedFilter;
-  councils: ReadonlyArray<CouncilDto>;
-  error: string | null;
-  exportingCouncilId: string | null;
-  hasActiveFilters: boolean;
-  hasMore: boolean;
-  isLoading: boolean;
-  isLoadingMore: boolean;
-  page: number;
-  searchText: string;
-  sortBy: CouncilSortField;
-  sortDirection: SortDirection;
-  tagFilter: string;
-  total: number;
-  onClearFilters: () => void;
-  onDelete: (council: CouncilDto) => void;
-  onExport: (councilId: string) => void;
-  onLoadMore: () => void;
-  onMenuKeyDown: (event: ReactKeyboardEvent<HTMLDetailsElement>) => void;
-  onMenuSummaryKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => void;
-  onMenuToggle: (event: SyntheticEvent<HTMLDetailsElement>) => void;
+  isActive: boolean;
   onOpenCouncilEditor: () => void;
-  onOpenCouncilView: (
-    event: ReactMouseEvent<HTMLElement> | ReactKeyboardEvent<HTMLElement>,
-    councilId: string,
-  ) => void;
-  onSetArchived: (params: { councilId: string; archived: boolean }) => void;
-  onSetArchivedFilter: (value: CouncilArchivedFilter) => void;
-  onSetSearchText: (value: string) => void;
-  onSetSortBy: (value: CouncilSortField) => void;
-  onSetSortDirection: (value: SortDirection) => void;
-  onSetTagFilter: (value: string) => void;
+  onOpenCouncilView: (councilId: string) => void;
+  onTotalChange: (total: number) => void;
+  pushToast: (tone: "warning" | "error" | "info", message: string) => void;
 };
 
 export const CouncilsPanel = ({
-  archivedFilter,
-  councils,
-  error,
-  exportingCouncilId,
-  hasActiveFilters,
-  hasMore,
-  isLoading,
-  isLoadingMore,
-  page,
-  searchText,
-  sortBy,
-  sortDirection,
-  tagFilter,
-  total,
-  onClearFilters,
-  onDelete,
-  onExport,
-  onLoadMore,
-  onMenuKeyDown,
-  onMenuSummaryKeyDown,
-  onMenuToggle,
+  isActive,
   onOpenCouncilEditor,
   onOpenCouncilView,
-  onSetArchived,
-  onSetArchivedFilter,
-  onSetSearchText,
-  onSetSortBy,
-  onSetSortDirection,
-  onSetTagFilter,
+  onTotalChange,
+  pushToast,
 }: CouncilsPanelProps): JSX.Element => {
+  const [councils, setCouncils] = useState<ReadonlyArray<CouncilDto>>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<CouncilSortField>(DEFAULT_COUNCIL_HOME_LIST_FILTERS.sortBy);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(
+    DEFAULT_COUNCIL_HOME_LIST_FILTERS.sortDirection,
+  );
+  const [searchText, setSearchText] = useState(DEFAULT_COUNCIL_HOME_LIST_FILTERS.searchText);
+  const [tagFilter, setTagFilter] = useState(DEFAULT_COUNCIL_HOME_LIST_FILTERS.tagFilter);
+  const [archivedFilter, setArchivedFilter] = useState<CouncilArchivedFilter>(
+    DEFAULT_COUNCIL_HOME_LIST_FILTERS.archivedFilter,
+  );
+  const [exportingCouncilId, setExportingCouncilId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<CouncilDto | null>(null);
+
+  const loadCouncils = useCallback(
+    async (params: { page: number; append: boolean }): Promise<void> => {
+      if (params.append) {
+        setIsLoadingMore(true);
+      } else {
+        setIsLoading(true);
+      }
+      setError(null);
+      const result = await window.api.councils.list({
+        viewKind: "councilsList",
+        searchText,
+        tagFilter,
+        archivedFilter,
+        sortBy,
+        sortDirection,
+        page: params.page,
+      });
+      if (!result.ok) {
+        setError(result.error.userMessage);
+        pushToast("error", result.error.userMessage);
+        setIsLoading(false);
+        setIsLoadingMore(false);
+        return;
+      }
+      setCouncils((current) =>
+        params.append ? [...current, ...result.value.items] : result.value.items,
+      );
+      setPage(result.value.page);
+      setHasMore(result.value.hasMore);
+      setTotal(result.value.total);
+      onTotalChange(result.value.total);
+      setIsLoading(false);
+      setIsLoadingMore(false);
+    },
+    [archivedFilter, onTotalChange, pushToast, searchText, sortBy, sortDirection, tagFilter],
+  );
+
+  useEffect(() => {
+    if (!isActive) {
+      return;
+    }
+    void loadCouncils({ page: 1, append: false });
+  }, [isActive, loadCouncils]);
+
+  useEffect(() => {
+    if (!isActive) {
+      return;
+    }
+    const handleClickOutside = (event: MouseEvent): void => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      const openMenus = document.querySelectorAll<HTMLDetailsElement>(
+        ".council-actions-menu[open]",
+      );
+      for (const menu of openMenus) {
+        if (!menu.contains(target)) {
+          menu.open = false;
+        }
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isActive]);
+
+  const hasActiveFilters = useMemo(
+    () =>
+      hasActiveCouncilHomeListFilters({
+        searchText,
+        tagFilter,
+        archivedFilter,
+        sortBy,
+        sortDirection,
+      }),
+    [archivedFilter, searchText, sortBy, sortDirection, tagFilter],
+  );
+
+  const clearFilters = useCallback((): void => {
+    setSearchText(DEFAULT_COUNCIL_HOME_LIST_FILTERS.searchText);
+    setTagFilter(DEFAULT_COUNCIL_HOME_LIST_FILTERS.tagFilter);
+    setArchivedFilter(DEFAULT_COUNCIL_HOME_LIST_FILTERS.archivedFilter);
+    setSortBy(DEFAULT_COUNCIL_HOME_LIST_FILTERS.sortBy);
+    setSortDirection(DEFAULT_COUNCIL_HOME_LIST_FILTERS.sortDirection);
+  }, []);
+
+  const handleMenuKeyDown = (event: ReactKeyboardEvent<HTMLDetailsElement>): void => {
+    if (event.key !== "Escape" || !event.currentTarget.open) {
+      return;
+    }
+    event.preventDefault();
+    event.currentTarget.open = false;
+    const summary = event.currentTarget.querySelector("summary");
+    if (summary instanceof HTMLElement) {
+      summary.focus();
+    }
+  };
+
+  const focusMenuAction = (
+    detailsElement: HTMLDetailsElement,
+    position: "first" | "last",
+  ): void => {
+    const actionButtons = Array.from(
+      detailsElement.querySelectorAll<HTMLButtonElement>(".row-menu-items button:not(:disabled)"),
+    );
+    const target =
+      position === "first" ? actionButtons[0] : actionButtons[actionButtons.length - 1];
+    target?.focus();
+  };
+
+  const handleMenuSummaryKeyDown = (event: ReactKeyboardEvent<HTMLElement>): void => {
+    const detailsElement = event.currentTarget.closest("details");
+    if (!(detailsElement instanceof HTMLDetailsElement)) {
+      return;
+    }
+    if (event.key === "Escape") {
+      if (!detailsElement.open) {
+        return;
+      }
+      event.preventDefault();
+      detailsElement.open = false;
+      event.currentTarget.focus();
+      return;
+    }
+    if (!["Enter", " ", "ArrowDown", "ArrowUp"].includes(event.key)) {
+      return;
+    }
+    event.preventDefault();
+    detailsElement.open = true;
+    focusMenuAction(detailsElement, event.key === "ArrowUp" ? "last" : "first");
+  };
+
+  const handleMenuToggle = (event: SyntheticEvent<HTMLDetailsElement>): void => {
+    const details = event.currentTarget;
+    const dropdown = details.querySelector(".council-menu-dropdown") as HTMLElement | null;
+    if (!dropdown || !details.open) {
+      return;
+    }
+    const rect = dropdown.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - rect.top;
+    const dropdownHeight = rect.height;
+    if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
+      dropdown.classList.add("council-menu-dropdown-up");
+    } else {
+      dropdown.classList.remove("council-menu-dropdown-up");
+    }
+  };
+
+  const handleCardClick = (event: ReactMouseEvent<HTMLElement>, councilId: string): void => {
+    if (!isCardOpenInteractionTarget(event.target)) {
+      return;
+    }
+    onOpenCouncilView(councilId);
+  };
+
+  const handleCardKeyDown = (event: ReactKeyboardEvent<HTMLElement>, councilId: string): void => {
+    if (event.target !== event.currentTarget || !isListRowOpenKey(event.key)) {
+      return;
+    }
+    event.preventDefault();
+    onOpenCouncilView(councilId);
+  };
+
+  const exportCouncilTranscript = async (councilId: string): Promise<void> => {
+    setExportingCouncilId(councilId);
+    const result = await window.api.councils.exportTranscript({
+      viewKind: "councilsList",
+      id: councilId,
+    });
+    setExportingCouncilId(null);
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      return;
+    }
+    if (result.value.status === "cancelled") {
+      pushToast("warning", "Export cancelled.");
+      return;
+    }
+    pushToast("info", `Transcript exported to ${result.value.filePath}`);
+  };
+
+  const setArchivedFromList = async (params: {
+    councilId: string;
+    archived: boolean;
+  }): Promise<void> => {
+    const result = await window.api.councils.setArchived({
+      id: params.councilId,
+      archived: params.archived,
+    });
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      return;
+    }
+    pushToast("info", params.archived ? "Council archived." : "Council restored.");
+    await loadCouncils({ page: 1, append: false });
+  };
+
+  const confirmDelete = async (): Promise<void> => {
+    if (pendingDelete === null) {
+      return;
+    }
+    const result = await window.api.councils.delete({ id: pendingDelete.id });
+    setPendingDelete(null);
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      return;
+    }
+    pushToast("info", "Council deleted.");
+    await loadCouncils({ page: 1, append: false });
+  };
+
   const totalLabel = formatHomeListTotal({ total, singularLabel: "council" });
   const emptyMessage =
     archivedFilter === "archived"
@@ -94,6 +284,7 @@ export const CouncilsPanel = ({
     <section
       aria-labelledby="home-tab-councils"
       className="space-y-5"
+      hidden={!isActive}
       id="home-panel-councils"
       role="tabpanel"
     >
@@ -109,12 +300,12 @@ export const CouncilsPanel = ({
         isLoading={isLoading}
         metaLabel={isLoading ? "Loading councils..." : totalLabel}
         onAction={onOpenCouncilEditor}
-        onClearFilters={onClearFilters}
-        onSetArchivedFilter={(value) => onSetArchivedFilter(value as CouncilArchivedFilter)}
-        onSetSearchText={onSetSearchText}
-        onSetSortBy={(value) => onSetSortBy(value as CouncilSortField)}
-        onSetSortDirection={(value) => onSetSortDirection(value as SortDirection)}
-        onSetTagFilter={onSetTagFilter}
+        onClearFilters={clearFilters}
+        onSetArchivedFilter={(value) => setArchivedFilter(value as CouncilArchivedFilter)}
+        onSetSearchText={setSearchText}
+        onSetSortBy={(value) => setSortBy(value as CouncilSortField)}
+        onSetSortDirection={(value) => setSortDirection(value as SortDirection)}
+        onSetTagFilter={setTagFilter}
         searchAriaLabel="Search councils"
         searchPlaceholder="Search title or topic"
         searchText={searchText}
@@ -145,24 +336,43 @@ export const CouncilsPanel = ({
             council={council}
             exportingCouncilId={exportingCouncilId}
             key={council.id}
-            onCardClick={(event, councilId) => onOpenCouncilView(event, councilId)}
-            onCardKeyDown={(event, councilId) => onOpenCouncilView(event, councilId)}
-            onDelete={onDelete}
-            onExport={onExport}
-            onMenuKeyDown={onMenuKeyDown}
-            onMenuSummaryKeyDown={onMenuSummaryKeyDown}
-            onMenuToggle={onMenuToggle}
-            onSetArchived={onSetArchived}
+            onCardClick={handleCardClick}
+            onCardKeyDown={handleCardKeyDown}
+            onDelete={setPendingDelete}
+            onExport={exportCouncilTranscript}
+            onMenuKeyDown={handleMenuKeyDown}
+            onMenuSummaryKeyDown={handleMenuSummaryKeyDown}
+            onMenuToggle={handleMenuToggle}
+            onSetArchived={setArchivedFromList}
           />
         ))}
         {hasMore ? (
           <div className="col-span-full flex justify-center pt-4">
-            <Button disabled={isLoadingMore} onClick={onLoadMore} type="button" variant="outline">
+            <Button
+              disabled={isLoadingMore}
+              onClick={() => void loadCouncils({ page: page + 1, append: true })}
+              type="button"
+              variant="outline"
+            >
               {isLoadingMore ? "Loading..." : "Load more councils"}
             </Button>
           </div>
         ) : null}
       </div>
+
+      <ConfirmDialog
+        confirmLabel="Delete"
+        confirmTone="danger"
+        message={
+          pendingDelete === null ? "" : `Delete council "${pendingDelete.title}" permanently?`
+        }
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          void confirmDelete();
+        }}
+        open={pendingDelete !== null}
+        title="Delete council?"
+      />
     </section>
   );
 };

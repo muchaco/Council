@@ -1,82 +1,222 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   KeyboardEvent as ReactKeyboardEvent,
   MouseEvent as ReactMouseEvent,
   SyntheticEvent,
 } from "react";
 
-import { formatHomeListTotal } from "../../../shared/app-ui-helpers.js";
+import {
+  DEFAULT_AGENT_HOME_LIST_FILTERS,
+  applyAgentArchivedListUpdate,
+  formatHomeListTotal,
+  hasActiveAgentHomeListFilters,
+} from "../../../shared/app-ui-helpers.js";
 import type { ModelRef } from "../../../shared/domain/model-ref";
+import {
+  isCardOpenInteractionTarget,
+  isListRowOpenKey,
+} from "../../../shared/home-keyboard-accessibility.js";
 import type {
   AgentArchivedFilter,
   AgentDto,
   AgentSortField,
   SortDirection,
 } from "../../../shared/ipc/dto";
+import { ConfirmDialog } from "../../ConfirmDialog";
 import { AgentCard } from "../agents/AgentCard";
 import { HomeListToolbar } from "../shared/HomeListToolbar";
-import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 
 type AgentsPanelProps = {
-  agents: ReadonlyArray<AgentDto>;
-  archivedFilter: AgentArchivedFilter;
-  error: string | null;
-  globalDefaultModel: ModelRef | null;
-  hasActiveFilters: boolean;
-  hasMore: boolean;
-  isLoading: boolean;
-  isLoadingMore: boolean;
-  page: number;
-  searchText: string;
-  sortBy: AgentSortField;
-  sortDirection: SortDirection;
-  tagFilter: string;
-  total: number;
-  onClearFilters: () => void;
-  onDelete: (agent: AgentDto) => void;
-  onLoadMore: () => void;
-  onMenuToggle: (event: SyntheticEvent<HTMLDetailsElement>) => void;
+  isActive: boolean;
   onOpenAgentEditor: () => void;
-  onOpenAgentFromCard: (
-    event: ReactMouseEvent<HTMLElement> | ReactKeyboardEvent<HTMLElement>,
-    agentId: string,
-  ) => void;
-  onSetArchived: (params: { agentId: string; archived: boolean }) => void;
-  onSetArchivedFilter: (value: AgentArchivedFilter) => void;
-  onSetSearchText: (value: string) => void;
-  onSetSortBy: (value: AgentSortField) => void;
-  onSetSortDirection: (value: SortDirection) => void;
-  onSetTagFilter: (value: string) => void;
+  onOpenAgentFromCard: (agentId: string) => void;
+  onTotalChange: (total: number) => void;
+  pushToast: (tone: "warning" | "error" | "info", message: string) => void;
 };
 
 export const AgentsPanel = ({
-  agents,
-  archivedFilter,
-  error,
-  globalDefaultModel,
-  hasActiveFilters,
-  hasMore,
-  isLoading,
-  isLoadingMore,
-  page,
-  searchText,
-  sortBy,
-  sortDirection,
-  tagFilter,
-  total,
-  onClearFilters,
-  onDelete,
-  onLoadMore,
-  onMenuToggle,
+  isActive,
   onOpenAgentEditor,
   onOpenAgentFromCard,
-  onSetArchived,
-  onSetArchivedFilter,
-  onSetSearchText,
-  onSetSortBy,
-  onSetSortDirection,
-  onSetTagFilter,
+  onTotalChange,
+  pushToast,
 }: AgentsPanelProps): JSX.Element => {
+  const [agents, setAgents] = useState<ReadonlyArray<AgentDto>>([]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<AgentSortField>(DEFAULT_AGENT_HOME_LIST_FILTERS.sortBy);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(
+    DEFAULT_AGENT_HOME_LIST_FILTERS.sortDirection,
+  );
+  const [searchText, setSearchText] = useState(DEFAULT_AGENT_HOME_LIST_FILTERS.searchText);
+  const [tagFilter, setTagFilter] = useState(DEFAULT_AGENT_HOME_LIST_FILTERS.tagFilter);
+  const [archivedFilter, setArchivedFilter] = useState<AgentArchivedFilter>(
+    DEFAULT_AGENT_HOME_LIST_FILTERS.archivedFilter,
+  );
+  const [globalDefaultModel, setGlobalDefaultModel] = useState<ModelRef | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<AgentDto | null>(null);
+
+  const loadAgents = useCallback(
+    async (params: { page: number; append: boolean }): Promise<void> => {
+      if (params.append) {
+        setIsLoadingMore(true);
+      } else {
+        setIsLoading(true);
+      }
+      setError(null);
+      const result = await window.api.agents.list({
+        viewKind: "agentsList",
+        searchText,
+        tagFilter,
+        archivedFilter,
+        sortBy,
+        sortDirection,
+        page: params.page,
+      });
+      if (!result.ok) {
+        setError(result.error.userMessage);
+        pushToast("error", result.error.userMessage);
+        setIsLoading(false);
+        setIsLoadingMore(false);
+        return;
+      }
+      setAgents((current) =>
+        params.append ? [...current, ...result.value.items] : result.value.items,
+      );
+      setPage(result.value.page);
+      setHasMore(result.value.hasMore);
+      setTotal(result.value.total);
+      onTotalChange(result.value.total);
+      setGlobalDefaultModel(result.value.globalDefaultModelRef);
+      setIsLoading(false);
+      setIsLoadingMore(false);
+    },
+    [archivedFilter, onTotalChange, pushToast, searchText, sortBy, sortDirection, tagFilter],
+  );
+
+  useEffect(() => {
+    if (!isActive) {
+      return;
+    }
+    void loadAgents({ page: 1, append: false });
+  }, [isActive, loadAgents]);
+
+  useEffect(() => {
+    if (!isActive) {
+      return;
+    }
+    const handleClickOutside = (event: MouseEvent): void => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+      const openMenus = document.querySelectorAll<HTMLDetailsElement>(".agent-actions-menu[open]");
+      for (const menu of openMenus) {
+        if (!menu.contains(target)) {
+          menu.open = false;
+        }
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isActive]);
+
+  const hasActiveFilters = useMemo(
+    () =>
+      hasActiveAgentHomeListFilters({
+        searchText,
+        tagFilter,
+        archivedFilter,
+        sortBy,
+        sortDirection,
+      }),
+    [archivedFilter, searchText, sortBy, sortDirection, tagFilter],
+  );
+
+  const clearFilters = useCallback((): void => {
+    setSearchText(DEFAULT_AGENT_HOME_LIST_FILTERS.searchText);
+    setTagFilter(DEFAULT_AGENT_HOME_LIST_FILTERS.tagFilter);
+    setArchivedFilter(DEFAULT_AGENT_HOME_LIST_FILTERS.archivedFilter);
+    setSortBy(DEFAULT_AGENT_HOME_LIST_FILTERS.sortBy);
+    setSortDirection(DEFAULT_AGENT_HOME_LIST_FILTERS.sortDirection);
+  }, []);
+
+  const handleMenuToggle = (event: SyntheticEvent<HTMLDetailsElement>): void => {
+    const details = event.currentTarget;
+    const dropdown = details.querySelector(".agent-menu-dropdown") as HTMLElement | null;
+    if (!dropdown || !details.open) {
+      return;
+    }
+    const rect = dropdown.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - rect.top;
+    const dropdownHeight = rect.height;
+    if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
+      dropdown.classList.add("agent-menu-dropdown-up");
+    } else {
+      dropdown.classList.remove("agent-menu-dropdown-up");
+    }
+  };
+
+  const handleCardClick = (event: ReactMouseEvent<HTMLElement>, agentId: string): void => {
+    if (!isCardOpenInteractionTarget(event.target)) {
+      return;
+    }
+    onOpenAgentFromCard(agentId);
+  };
+
+  const handleCardKeyDown = (event: ReactKeyboardEvent<HTMLElement>, agentId: string): void => {
+    if (event.target !== event.currentTarget || !isListRowOpenKey(event.key)) {
+      return;
+    }
+    event.preventDefault();
+    onOpenAgentFromCard(agentId);
+  };
+
+  const setArchivedFromList = async (params: {
+    agentId: string;
+    archived: boolean;
+  }): Promise<void> => {
+    setAgents((current) =>
+      applyAgentArchivedListUpdate({
+        agents: current,
+        agentId: params.agentId,
+        archived: params.archived,
+        archivedFilter,
+      }),
+    );
+    const result = await window.api.agents.setArchived({
+      id: params.agentId,
+      archived: params.archived,
+    });
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      await loadAgents({ page: 1, append: false });
+      return;
+    }
+    pushToast("info", params.archived ? "Agent archived." : "Agent restored.");
+    await loadAgents({ page: 1, append: false });
+  };
+
+  const confirmDelete = async (): Promise<void> => {
+    if (pendingDelete === null) {
+      return;
+    }
+    const result = await window.api.agents.delete({ id: pendingDelete.id });
+    setPendingDelete(null);
+    if (!result.ok) {
+      pushToast("error", result.error.userMessage);
+      return;
+    }
+    pushToast("info", "Agent deleted.");
+    await loadAgents({ page: 1, append: false });
+  };
+
   const totalLabel = formatHomeListTotal({ total, singularLabel: "agent" });
   const emptyMessage =
     archivedFilter === "archived"
@@ -89,6 +229,7 @@ export const AgentsPanel = ({
     <section
       aria-labelledby="home-tab-agents"
       className="settings-section"
+      hidden={!isActive}
       id="home-panel-agents"
       role="tabpanel"
     >
@@ -104,12 +245,12 @@ export const AgentsPanel = ({
         isLoading={isLoading}
         metaLabel={isLoading ? "Loading agents..." : totalLabel}
         onAction={onOpenAgentEditor}
-        onClearFilters={onClearFilters}
-        onSetArchivedFilter={(value) => onSetArchivedFilter(value as AgentArchivedFilter)}
-        onSetSearchText={onSetSearchText}
-        onSetSortBy={(value) => onSetSortBy(value as AgentSortField)}
-        onSetSortDirection={(value) => onSetSortDirection(value as SortDirection)}
-        onSetTagFilter={onSetTagFilter}
+        onClearFilters={clearFilters}
+        onSetArchivedFilter={(value) => setArchivedFilter(value as AgentArchivedFilter)}
+        onSetSearchText={setSearchText}
+        onSetSortBy={(value) => setSortBy(value as AgentSortField)}
+        onSetSortDirection={(value) => setSortDirection(value as SortDirection)}
+        onSetTagFilter={setTagFilter}
         searchAriaLabel="Search agents"
         searchPlaceholder="Search name or prompt"
         searchText={searchText}
@@ -145,11 +286,11 @@ export const AgentsPanel = ({
             agent={agent}
             globalDefaultModel={globalDefaultModel}
             key={agent.id}
-            onCardClick={(event, agentId) => onOpenAgentFromCard(event, agentId)}
-            onCardKeyDown={(event, agentId) => onOpenAgentFromCard(event, agentId)}
-            onDelete={onDelete}
-            onMenuToggle={onMenuToggle}
-            onSetArchived={onSetArchived}
+            onCardClick={handleCardClick}
+            onCardKeyDown={handleCardKeyDown}
+            onDelete={setPendingDelete}
+            onMenuToggle={handleMenuToggle}
+            onSetArchived={setArchivedFromList}
           />
         ))}
         {hasMore ? (
@@ -157,7 +298,7 @@ export const AgentsPanel = ({
             <button
               className="secondary"
               disabled={isLoadingMore}
-              onClick={onLoadMore}
+              onClick={() => void loadAgents({ page: page + 1, append: true })}
               type="button"
             >
               {isLoadingMore ? "Loading..." : "Load more"}
@@ -165,6 +306,17 @@ export const AgentsPanel = ({
           </div>
         ) : null}
       </div>
+
+      <ConfirmDialog
+        confirmLabel="Delete"
+        message={pendingDelete === null ? "" : `Delete agent "${pendingDelete.name}" permanently?`}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          void confirmDelete();
+        }}
+        open={pendingDelete !== null}
+        title="Delete agent?"
+      />
     </section>
   );
 };
