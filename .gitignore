@@ -6,3 +6,5 @@ coverage/
 .agents/
 localhost_5173_*.png
 artifacts/electron-tool/*.png
+
+artifacts/electron-tool/settings-smoke.state.json
