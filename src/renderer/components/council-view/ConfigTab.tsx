@@ -11,11 +11,11 @@ import {
 import { resolveInlineConfigEditKeyboardAction } from "../../../shared/council-view-accessibility.js";
 import type { GetCouncilViewResponse } from "../../../shared/ipc/dto";
 import { ConfirmDialog } from "../../ConfirmDialog";
+import { EditableConfigFieldRow } from "../shared/EditableConfigFieldRow";
+import { TagsEditor } from "../shared/TagsEditor";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
-import { Input } from "../ui/input";
-import { Label } from "../ui/label";
 import {
   Select,
   SelectContent,
@@ -233,263 +233,183 @@ export const ConfigTab = ({
       <Card className="p-6">
         <div className="space-y-6" ref={councilConfigEditContainerRef}>
           <h2 className="mb-6 text-xl font-medium">Configuration</h2>
-          <div className="space-y-3">
-            <Label className="text-sm font-medium">Topic</Label>
-            {configEditField === "topic" ? (
-              <div className="space-y-3">
-                <Textarea
-                  onChange={(event) =>
-                    setConfigEdit((current) =>
-                      current === null ? current : { ...current, draftValue: event.target.value },
-                    )
-                  }
-                  onKeyDown={handleInlineConfigKeyDown}
-                  ref={(element) => {
-                    councilConfigEditInputRef.current = element;
-                  }}
-                  rows={4}
-                  value={configEditDraftValue}
-                />
-                <div className="flex justify-end">
-                  <Button
-                    disabled={isSavingConfigField}
-                    onClick={() => void saveCouncilConfigEdit()}
-                  >
-                    {isSavingConfigField ? "Saving..." : "Save"}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-start justify-between gap-4 rounded-lg bg-muted/50 p-3">
-                <p className="flex-1 text-sm">{council.topic}</p>
-                <Button
-                  aria-label="Edit topic"
-                  disabled={configEdit !== null || council.archived}
-                  onClick={() => openCouncilConfigEdit("topic")}
-                  size="sm"
-                  variant="ghost"
-                >
-                  ✎
+
+          <EditableConfigFieldRow
+            disabled={configEdit !== null || council.archived}
+            editAriaLabel="Edit topic"
+            isEditing={configEditField === "topic"}
+            label="Topic"
+            onEdit={() => openCouncilConfigEdit("topic")}
+            viewContent={<p className="text-sm">{council.topic}</p>}
+          >
+            <div className="space-y-3">
+              <Textarea
+                onChange={(event) =>
+                  setConfigEdit((current) =>
+                    current === null ? current : { ...current, draftValue: event.target.value },
+                  )
+                }
+                onKeyDown={handleInlineConfigKeyDown}
+                ref={(element) => {
+                  councilConfigEditInputRef.current = element;
+                }}
+                rows={4}
+                value={configEditDraftValue}
+              />
+              <div className="flex justify-end">
+                <Button disabled={isSavingConfigField} onClick={() => void saveCouncilConfigEdit()}>
+                  {isSavingConfigField ? "Saving..." : "Save"}
                 </Button>
               </div>
-            )}
-          </div>
-          <div className="space-y-3">
-            <Label className="text-sm font-medium">Goal</Label>
-            {configEditField === "goal" ? (
-              <div className="space-y-3">
-                <Textarea
-                  onChange={(event) =>
-                    setConfigEdit((current) =>
-                      current === null ? current : { ...current, draftValue: event.target.value },
-                    )
-                  }
-                  onKeyDown={handleInlineConfigKeyDown}
-                  ref={(element) => {
-                    councilConfigEditInputRef.current = element;
-                  }}
-                  rows={3}
-                  value={configEditDraftValue}
-                />
-                <div className="flex justify-end">
-                  <Button
-                    disabled={isSavingConfigField}
-                    onClick={() => void saveCouncilConfigEdit()}
-                  >
-                    {isSavingConfigField ? "Saving..." : "Save"}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-start justify-between gap-4 rounded-lg bg-muted/50 p-3">
-                <p className="flex-1 text-sm">{council.goal ?? "None set"}</p>
-                <Button
-                  aria-label="Edit goal"
-                  disabled={configEdit !== null || council.archived}
-                  onClick={() => openCouncilConfigEdit("goal")}
-                  size="sm"
-                  variant="ghost"
-                >
-                  ✎
+            </div>
+          </EditableConfigFieldRow>
+
+          <EditableConfigFieldRow
+            disabled={configEdit !== null || council.archived}
+            editAriaLabel="Edit goal"
+            isEditing={configEditField === "goal"}
+            label="Goal"
+            onEdit={() => openCouncilConfigEdit("goal")}
+            viewContent={<p className="text-sm">{council.goal ?? "None set"}</p>}
+          >
+            <div className="space-y-3">
+              <Textarea
+                onChange={(event) =>
+                  setConfigEdit((current) =>
+                    current === null ? current : { ...current, draftValue: event.target.value },
+                  )
+                }
+                onKeyDown={handleInlineConfigKeyDown}
+                ref={(element) => {
+                  councilConfigEditInputRef.current = element;
+                }}
+                rows={3}
+                value={configEditDraftValue}
+              />
+              <div className="flex justify-end">
+                <Button disabled={isSavingConfigField} onClick={() => void saveCouncilConfigEdit()}>
+                  {isSavingConfigField ? "Saving..." : "Save"}
                 </Button>
               </div>
-            )}
-          </div>
-          <div className="space-y-3">
-            <Label className="text-sm font-medium">Tags</Label>
-            {configEditField === "tags" ? (
-              <div className="space-y-3">
-                <div className="flex flex-wrap gap-2">
-                  {configEditTags.map((tag) => (
-                    <Badge className="gap-1" key={tag} variant="secondary">
+            </div>
+          </EditableConfigFieldRow>
+
+          <EditableConfigFieldRow
+            disabled={configEdit !== null || council.archived}
+            editAriaLabel="Edit tags"
+            isEditing={configEditField === "tags"}
+            label="Tags"
+            onEdit={() => openCouncilConfigEdit("tags")}
+            viewContent={
+              <div className="flex flex-wrap gap-2">
+                {council.tags.length > 0 ? (
+                  council.tags.map((tag) => (
+                    <Badge key={tag} variant="secondary">
                       {tag}
-                      <button
-                        aria-label={`Remove tag ${tag}`}
-                        className="ml-1 hover:text-destructive"
-                        onClick={() => removeTagFromCouncilConfigEdit(tag)}
-                        type="button"
-                      >
-                        x
-                      </button>
                     </Badge>
-                  ))}
-                  {configEditTags.length === 0 ? (
-                    <span className="text-sm italic text-muted-foreground">No tags yet</span>
-                  ) : null}
-                </div>
-                <div className="flex gap-2">
-                  <Input
-                    onChange={(event) => setConfigTagInput(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        addTagToCouncilConfigEdit();
-                      }
-                      if (event.key === "Escape") {
-                        event.preventDefault();
-                        closeCouncilConfigEdit(false);
-                      }
+                  ))
+                ) : (
+                  <span className="text-sm italic text-muted-foreground">None</span>
+                )}
+              </div>
+            }
+          >
+            <div className="space-y-3">
+              <TagsEditor
+                helperText={`Press Enter to add. Max ${COUNCIL_CONFIG_MAX_TAGS} tags.`}
+                inputValue={configTagInput}
+                onAdd={addTagToCouncilConfigEdit}
+                onInputChange={setConfigTagInput}
+                onInputEscape={() => closeCouncilConfigEdit(false)}
+                onRemoveTag={removeTagFromCouncilConfigEdit}
+                tags={configEditTags}
+              />
+              <div className="flex justify-end">
+                <Button disabled={isSavingConfigField} onClick={() => void saveCouncilConfigEdit()}>
+                  {isSavingConfigField ? "Saving..." : "Save"}
+                </Button>
+              </div>
+            </div>
+          </EditableConfigFieldRow>
+
+          <EditableConfigFieldRow
+            disabled={configEdit !== null || council.archived}
+            editAriaLabel="Edit conductor model"
+            isEditing={configEditField === "conductorModel"}
+            label="Conductor Model"
+            onEdit={() => openCouncilConfigEdit("conductorModel")}
+            viewContent={
+              <div className="flex items-center gap-2">
+                <p className="text-sm">{councilModelLabel(council, globalDefaultModelRef)}</p>
+                {council.invalidConfig ? <Badge variant="destructive">Invalid config</Badge> : null}
+              </div>
+            }
+          >
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <Select
+                  onValueChange={(value) =>
+                    setConfigEdit((current) =>
+                      current === null
+                        ? current
+                        : {
+                            ...current,
+                            draftValue: value === "__global_default__" ? "" : value,
+                          },
+                    )
+                  }
+                  value={conductorSelectValue}
+                >
+                  <SelectTrigger
+                    className="flex-1"
+                    ref={(element) => {
+                      councilConfigEditInputRef.current = element;
                     }}
-                    placeholder="Add tag"
-                    value={configTagInput}
-                  />
-                  <Button
-                    disabled={!configTagInput.trim()}
-                    onClick={addTagToCouncilConfigEdit}
-                    variant="outline"
                   >
-                    Add
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Press Enter to add. Max {COUNCIL_CONFIG_MAX_TAGS} tags.
-                </p>
-                <div className="flex justify-end">
-                  <Button
-                    disabled={isSavingConfigField}
-                    onClick={() => void saveCouncilConfigEdit()}
-                  >
-                    {isSavingConfigField ? "Saving..." : "Save"}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-start justify-between gap-4 rounded-lg bg-muted/50 p-3">
-                <div className="flex flex-1 flex-wrap gap-2">
-                  {council.tags.length > 0 ? (
-                    council.tags.map((tag) => (
-                      <Badge key={tag} variant="secondary">
-                        {tag}
-                      </Badge>
-                    ))
-                  ) : (
-                    <span className="text-sm italic text-muted-foreground">None</span>
-                  )}
-                </div>
+                    <SelectValue placeholder="Select model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {hasUnavailableConductorSelection ? (
+                      <SelectItem value={configEditDraftValue}>
+                        Unavailable ({configEditDraftValue})
+                      </SelectItem>
+                    ) : null}
+                    <SelectItem value="__global_default__">Global default</SelectItem>
+                    {Object.entries(modelCatalog.modelsByProvider).map(([providerId, modelIds]) => (
+                      <SelectGroup key={providerId}>
+                        <SelectLabel>{providerId}</SelectLabel>
+                        {modelIds.map((modelId) => (
+                          <SelectItem
+                            key={`${providerId}:${modelId}`}
+                            value={`${providerId}:${modelId}`}
+                          >
+                            {modelId}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Button
-                  aria-label="Edit tags"
-                  disabled={configEdit !== null || council.archived}
-                  onClick={() => openCouncilConfigEdit("tags")}
-                  size="sm"
+                  aria-label="Refresh council conductor model options"
+                  className="shrink-0"
+                  disabled={isRefreshingConfigModels || !canRefreshModels}
+                  onClick={() => void refreshCouncilConfigModels()}
+                  size="icon"
+                  title="Refresh models"
+                  type="button"
                   variant="ghost"
                 >
-                  ✎
+                  ⟳
                 </Button>
               </div>
-            )}
-          </div>
-          <div className="space-y-3">
-            <Label className="text-sm font-medium">Conductor Model</Label>
-            {configEditField === "conductorModel" ? (
-              <div className="space-y-3">
-                <div className="flex gap-2">
-                  <Select
-                    onValueChange={(value) =>
-                      setConfigEdit((current) =>
-                        current === null
-                          ? current
-                          : {
-                              ...current,
-                              draftValue: value === "__global_default__" ? "" : value,
-                            },
-                      )
-                    }
-                    value={conductorSelectValue}
-                  >
-                    <SelectTrigger
-                      className="flex-1"
-                      ref={(element) => {
-                        councilConfigEditInputRef.current = element;
-                      }}
-                    >
-                      <SelectValue placeholder="Select model" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {hasUnavailableConductorSelection ? (
-                        <SelectItem value={configEditDraftValue}>
-                          Unavailable ({configEditDraftValue})
-                        </SelectItem>
-                      ) : null}
-                      <SelectItem value="__global_default__">Global default</SelectItem>
-                      {Object.entries(modelCatalog.modelsByProvider).map(
-                        ([providerId, modelIds]) => (
-                          <SelectGroup key={providerId}>
-                            <SelectLabel>{providerId}</SelectLabel>
-                            {modelIds.map((modelId) => (
-                              <SelectItem
-                                key={`${providerId}:${modelId}`}
-                                value={`${providerId}:${modelId}`}
-                              >
-                                {modelId}
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        ),
-                      )}
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    aria-label="Refresh council conductor model options"
-                    className="shrink-0"
-                    disabled={isRefreshingConfigModels || !canRefreshModels}
-                    onClick={() => void refreshCouncilConfigModels()}
-                    size="icon"
-                    title="Refresh models"
-                    type="button"
-                    variant="ghost"
-                  >
-                    ⟳
-                  </Button>
-                </div>
-                <div className="flex justify-end">
-                  <Button
-                    disabled={isSavingConfigField}
-                    onClick={() => void saveCouncilConfigEdit()}
-                  >
-                    {isSavingConfigField ? "Saving..." : "Save"}
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between gap-4 rounded-lg bg-muted/50 p-3">
-                <div className="flex flex-1 items-center gap-2">
-                  <p className="text-sm">{councilModelLabel(council, globalDefaultModelRef)}</p>
-                  {council.invalidConfig ? (
-                    <Badge variant="destructive">Invalid config</Badge>
-                  ) : null}
-                </div>
-                <Button
-                  aria-label="Edit conductor model"
-                  disabled={configEdit !== null || council.archived}
-                  onClick={() => openCouncilConfigEdit("conductorModel")}
-                  size="sm"
-                  variant="ghost"
-                >
-                  ✎
+              <div className="flex justify-end">
+                <Button disabled={isSavingConfigField} onClick={() => void saveCouncilConfigEdit()}>
+                  {isSavingConfigField ? "Saving..." : "Save"}
                 </Button>
               </div>
-            )}
-          </div>
+            </div>
+          </EditableConfigFieldRow>
         </div>
       </Card>
       <Card className="p-6">
