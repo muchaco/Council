@@ -100,6 +100,8 @@ Decompose the renderer from a monolithic `src/renderer/App.tsx` into screen-leve
   - `src/renderer/components/council-view/ThinkingMessageRow.tsx`
   - `src/renderer/components/council-view/BriefingCard.tsx`
   - `src/renderer/components/council-view/ConductorComposerCard.tsx`
+  - `src/renderer/components/council-view/MembersCard.tsx`
+  - `src/renderer/components/council-view/AddMemberPanel.tsx`
 - Required validation/traceability/status updates were run and refreshed for the behavior-preserving decomposition pass.
 
 ### Still left to implement
@@ -112,8 +114,6 @@ Decompose the renderer from a monolithic `src/renderer/App.tsx` into screen-leve
   - `AutopilotLimitDialog.tsx`
 - Extract remaining council-view leaf components that are still inlined inside `CouncilViewScreen.tsx`:
   - `TranscriptCard.tsx`
-  - `MembersCard.tsx`
-  - `AddMemberPanel.tsx`
 - Push the remaining ephemeral council-view subtree state down to the narrowest safe scope after those component cuts are in place:
   - conductor draft
   - transcript refs/focus handling

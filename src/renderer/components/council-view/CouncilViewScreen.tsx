@@ -23,7 +23,6 @@ import {
   readCouncilRuntimeErrorDetails,
 } from "../../../shared/council-runtime-error-normalization.js";
 import {
-  buildManualSpeakerSelectionAriaLabel,
   resolveInlineConfigEditKeyboardAction,
   resolveTranscriptFocusIndex,
 } from "../../../shared/council-view-accessibility.js";
@@ -42,8 +41,6 @@ import {
 } from "../../../shared/council-view-transcript.js";
 import type { CouncilDto, GetCouncilViewResponse } from "../../../shared/ipc/dto";
 import { ConfirmDialog } from "../../ConfirmDialog";
-import { ColorPicker } from "../ColorPicker";
-import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
@@ -69,6 +66,7 @@ import {
 import { Textarea } from "../ui/textarea";
 import { BriefingCard } from "./BriefingCard";
 import { ConductorComposerCard } from "./ConductorComposerCard";
+import { MembersCard } from "./MembersCard";
 import { ThinkingMessageRow } from "./ThinkingMessageRow";
 import { TranscriptMessageRow } from "./TranscriptMessageRow";
 
@@ -1326,168 +1324,49 @@ export const CouncilViewScreen = ({
             <div className="space-y-6">
               <BriefingCard briefing={runtimeBriefing} />
 
-              <Card className="p-6">
-                <div className="mb-4 flex items-center justify-between">
-                  <h2 className="text-xl font-medium">Members ({council.memberAgentIds.length})</h2>
-                  <Button
-                    disabled={state.isSavingMembers || council.archived}
-                    onClick={() =>
-                      setState((current) =>
-                        current.status !== "ready"
-                          ? current
-                          : { ...current, showAddMemberPanel: !current.showAddMemberPanel },
-                      )
-                    }
-                    size="sm"
-                    title={!canEditMembers ? "Members cannot be edited right now." : undefined}
-                    variant="outline"
-                  >
-                    {state.showAddMemberPanel ? "Close" : "Add Member"}
-                  </Button>
-                </div>
-                {state.showAddMemberPanel ? (
-                  <div className="mb-4 rounded-lg bg-muted/50 p-4">
-                    <Label className="mb-2 block" htmlFor="council-view-add-member-search">
-                      Search active agents
-                    </Label>
-                    <Input
-                      className="mb-3"
-                      id="council-view-add-member-search"
-                      onChange={(event) =>
-                        setState((current) =>
-                          current.status !== "ready"
-                            ? current
-                            : { ...current, addMemberSearchText: event.target.value },
-                        )
-                      }
-                      placeholder="Search by name or ID"
-                      value={state.addMemberSearchText}
-                    />
-                    <div className="max-h-[200px] space-y-2 overflow-y-auto">
-                      {addableAgents.map((agent) => (
-                        <div
-                          className="flex items-center justify-between rounded border bg-background p-2"
-                          key={agent.id}
-                        >
-                          <div>
-                            <p className="text-sm font-medium">{agent.name}</p>
-                            <p className="text-xs text-muted-foreground">{agent.id}</p>
-                          </div>
-                          <Button
-                            disabled={!canEditMembers || state.isSavingMembers}
-                            onClick={() => void addCouncilViewMember(agent.id)}
-                            size="sm"
-                            variant="outline"
-                          >
-                            Add
-                          </Button>
-                        </div>
-                      ))}
-                      {addableAgents.length === 0 ? (
-                        <p className="py-4 text-center text-sm text-muted-foreground">
-                          {addMemberEmptyStateMessage}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
-                <div className="space-y-3">
-                  {council.memberAgentIds.map((memberAgentId) => {
-                    const memberName = memberNameById.get(memberAgentId) ?? memberAgentId;
-                    const memberAgent = availableAgentById.get(memberAgentId);
-                    const memberArchived = memberAgent?.archived === true;
-                    const memberHasMessages = memberIdsWithMessages.has(memberAgentId);
-                    const memberColor =
-                      council.memberColorsByAgentId[memberAgentId] ??
-                      MEMBER_COLOR_PALETTE[0] ??
-                      "#0a5c66";
-                    const removeDisabledReason = council.archived
-                      ? "Archived councils are read-only."
-                      : !canEditMembers
-                        ? "Members cannot be edited right now."
-                        : memberHasMessages
-                          ? "Members with transcript messages cannot be removed."
-                          : council.memberAgentIds.length <= 1
-                            ? "Councils must keep at least one member."
-                            : state.isSavingMembers
-                              ? "Wait for the current save to finish."
-                              : null;
-                    const removeReasonId = `member-remove-reason-${memberAgentId}`;
-                    return (
-                      <div
-                        className="flex items-center gap-3 rounded-lg bg-muted/30 p-3"
-                        key={memberAgentId}
-                      >
-                        <Avatar style={{ backgroundColor: memberColor }}>
-                          <AvatarFallback className="text-xs font-medium text-white">
-                            {memberName.slice(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">{memberName}</p>
-                          <p className="truncate text-xs text-muted-foreground">{memberAgentId}</p>
-                          {memberArchived ? (
-                            <p className="text-xs text-amber-700">
-                              Archived - restore or remove before runtime.
-                            </p>
-                          ) : null}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <ColorPicker
-                            colors={MEMBER_COLOR_PALETTE}
-                            disabled={!canEditMembers || state.isSavingMembers}
-                            id={`member-color-${memberAgentId}`}
-                            label="Color"
-                            onChange={(color) =>
-                              void setCouncilViewMemberColor({ memberAgentId, color })
-                            }
-                            value={memberColor}
-                          />
-                          {council.mode === "manual" ? (
-                            <Button
-                              aria-label={buildManualSpeakerSelectionAriaLabel(memberName)}
-                              disabled={manualSpeakerDisabledReason !== null}
-                              onClick={() => void generateManualTurn(memberAgentId)}
-                              size="sm"
-                              title={manualSpeakerDisabledReason ?? undefined}
-                              variant="outline"
-                            >
-                              {state.isGeneratingManualTurn ? "Generating..." : "Speak"}
-                            </Button>
-                          ) : null}
-                          <Button
-                            aria-describedby={
-                              removeDisabledReason === null ? undefined : removeReasonId
-                            }
-                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                            disabled={removeDisabledReason !== null}
-                            onClick={() =>
-                              setState((current) =>
-                                current.status !== "ready"
-                                  ? current
-                                  : {
-                                      ...current,
-                                      pendingMemberRemovalId: memberAgentId,
-                                      showMemberRemoveDialog: true,
-                                    },
-                              )
-                            }
-                            size="sm"
-                            variant="ghost"
-                          >
-                            Remove
-                          </Button>
-                          {removeDisabledReason === null ? null : (
-                            <p className="sr-only" id={removeReasonId}>
-                              {removeDisabledReason}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </Card>
+              <MembersCard
+                addMemberEmptyStateMessage={addMemberEmptyStateMessage}
+                addMemberSearchText={state.addMemberSearchText}
+                addableAgents={addableAgents}
+                availableAgentById={availableAgentById}
+                canEditMembers={canEditMembers}
+                council={council}
+                isGeneratingManualTurn={state.isGeneratingManualTurn}
+                isSavingMembers={state.isSavingMembers}
+                manualSpeakerDisabledReason={manualSpeakerDisabledReason}
+                memberIdsWithMessages={memberIdsWithMessages}
+                memberNameById={memberNameById}
+                memberPalette={MEMBER_COLOR_PALETTE}
+                onAddMember={(memberAgentId) => void addCouncilViewMember(memberAgentId)}
+                onGenerateManualTurn={(memberAgentId) => void generateManualTurn(memberAgentId)}
+                onMemberColorChange={(params) => void setCouncilViewMemberColor(params)}
+                onMemberSearchTextChange={(value) =>
+                  setState((current) =>
+                    current.status !== "ready"
+                      ? current
+                      : { ...current, addMemberSearchText: value },
+                  )
+                }
+                onRequestRemoveMember={(memberAgentId) =>
+                  setState((current) =>
+                    current.status !== "ready"
+                      ? current
+                      : {
+                          ...current,
+                          pendingMemberRemovalId: memberAgentId,
+                          showMemberRemoveDialog: true,
+                        },
+                  )
+                }
+                onToggleAddMemberPanel={() =>
+                  setState((current) =>
+                    current.status !== "ready"
+                      ? current
+                      : { ...current, showAddMemberPanel: !current.showAddMemberPanel },
+                  )
+                }
+                showAddMemberPanel={state.showAddMemberPanel}
+              />
             </div>
           </section>
         ) : (
