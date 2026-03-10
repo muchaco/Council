@@ -97,6 +97,8 @@ Decompose the renderer from a monolithic `src/renderer/App.tsx` into screen-leve
   - `src/renderer/components/shared/HomeListToolbar.tsx`
   - `src/renderer/components/shared/EditableConfigFieldRow.tsx`
   - `src/renderer/components/shared/TagsEditor.tsx`
+  - `src/renderer/components/settings/settingsPanelState.ts`
+  - `src/renderer/components/settings/useSettingsProviderActions.ts`
   - `src/renderer/components/shared/DetailScreenShell.tsx`
   - home panel wrappers `src/renderer/components/home/CouncilsPanel.tsx` and `src/renderer/components/home/AgentsPanel.tsx`
   - home list ownership moved into the panel containers so `CouncilsPanel.tsx` and `AgentsPanel.tsx` now own their own query/filter/pagination/list-action state while `HomeScreen.tsx` only coordinates visible tab selection

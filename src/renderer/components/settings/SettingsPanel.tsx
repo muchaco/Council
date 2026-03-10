@@ -9,18 +9,11 @@ import {
   toModelRef,
   toModelSelectionValue,
 } from "../../../shared/app-ui-helpers.js";
-import type {
-  GetSettingsViewResponse,
-  ProviderConfigDto,
-  ProviderDraftDto,
-  ProviderId,
-} from "../../../shared/ipc/dto";
+import type { ProviderId } from "../../../shared/ipc/dto";
 import {
-  fingerprintProviderDraft,
   isProviderCardEditable,
   isProviderConfigured,
   isProviderDraftChanged,
-  isProviderTestable,
   requiresProviderDisconnect,
   shouldShowProviderTestAndSaveActions,
 } from "../../../shared/provider-settings-ui.js";
@@ -39,110 +32,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-
-type SettingsAccordionSection = "providers" | "general";
-
-type ProviderDraftState = {
-  providerId: ProviderId;
-  endpointUrl: string;
-  apiKey: string;
-  testToken: string | null;
-  testStatusText: string;
-  message: string;
-  isTesting: boolean;
-  isSaving: boolean;
-  isDisconnecting: boolean;
-};
-
-type SettingsViewState =
-  | { status: "idle" }
-  | { status: "ready"; data: GetSettingsViewResponse }
-  | { status: "error"; message: string };
-
-const DEFAULT_SETTINGS_ACCORDION_SECTIONS: Array<SettingsAccordionSection> = ["providers"];
-
-const PROVIDER_LABELS: Record<ProviderId, string> = {
-  gemini: "Gemini",
-  ollama: "Ollama",
-  openrouter: "OpenRouter",
-};
-
-const toInitialDraftState = (provider: ProviderConfigDto): ProviderDraftState => ({
-  providerId: provider.providerId,
-  endpointUrl: provider.endpointUrl ?? "",
-  apiKey: "",
-  testToken: null,
-  testStatusText: "Not tested",
-  message: "",
-  isTesting: false,
-  isSaving: false,
-  isDisconnecting: false,
-});
-
-const toProviderDraftMap = (
-  providers: ReadonlyArray<ProviderConfigDto>,
-): Record<ProviderId, ProviderDraftState> =>
-  providers.reduce<Record<ProviderId, ProviderDraftState>>(
-    (acc, provider) => {
-      acc[provider.providerId] = toInitialDraftState(provider);
-      return acc;
-    },
-    {
-      gemini: toInitialDraftState({
-        providerId: "gemini",
-        endpointUrl: null,
-        hasCredential: false,
-        lastSavedAtUtc: null,
-      }),
-      ollama: toInitialDraftState({
-        providerId: "ollama",
-        endpointUrl: null,
-        hasCredential: false,
-        lastSavedAtUtc: null,
-      }),
-      openrouter: toInitialDraftState({
-        providerId: "openrouter",
-        endpointUrl: null,
-        hasCredential: false,
-        lastSavedAtUtc: null,
-      }),
-    },
-  );
-
-const buildSavedFingerprints = (
-  draftMap: Record<ProviderId, ProviderDraftState>,
-): Record<ProviderId, string> => ({
-  gemini: fingerprintProviderDraft(draftMap.gemini),
-  ollama: fingerprintProviderDraft(draftMap.ollama),
-  openrouter: fingerprintProviderDraft(draftMap.openrouter),
-});
-
-const toProviderDraftDto = (provider: ProviderDraftState): ProviderDraftDto => ({
-  providerId: provider.providerId,
-  endpointUrl: provider.endpointUrl.trim() || null,
-  apiKey: provider.apiKey.trim() || null,
-});
-
-const isSaveAllowed = (provider: ProviderDraftState): boolean =>
-  provider.testToken !== null &&
-  !provider.isTesting &&
-  !provider.isSaving &&
-  !provider.isDisconnecting;
-
-const isConnectionTestAllowed = (params: {
-  provider: ProviderDraftState;
-  savedFingerprint: string | null;
-  requiresDisconnect: boolean;
-}): boolean => {
-  const { provider, savedFingerprint, requiresDisconnect } = params;
-  if (provider.isTesting || provider.isSaving || provider.isDisconnecting || requiresDisconnect) {
-    return false;
-  }
-  if (!isProviderTestable(provider)) {
-    return false;
-  }
-  return isProviderDraftChanged({ provider, savedFingerprint });
-};
+import {
+  DEFAULT_SETTINGS_ACCORDION_SECTIONS,
+  PROVIDER_LABELS,
+  type ProviderDraftState,
+  type SettingsAccordionSection,
+  type SettingsViewState,
+  buildSavedFingerprints,
+  isConnectionTestAllowed,
+  isSaveAllowed,
+  toProviderDraftMap,
+} from "./settingsPanelState";
+import { useSettingsProviderActions } from "./useSettingsProviderActions";
 
 type SettingsPanelProps = {
   isActive: boolean;
@@ -260,259 +161,15 @@ export const SettingsPanel = ({ isActive, pushToast }: SettingsPanelProps): JSX.
     };
   }, [hasUnsavedSettingsChanges]);
 
-  const updateProviderDraft = (
-    providerId: ProviderId,
-    updates: Partial<Pick<ProviderDraftState, "endpointUrl" | "apiKey">>,
-  ): void => {
-    setDrafts((current) => {
-      if (current === null) {
-        return current;
-      }
-      return {
-        ...current,
-        [providerId]: {
-          ...current[providerId],
-          ...updates,
-          testToken: null,
-          message: "Connection must be tested again before save.",
-          testStatusText: "Not tested",
-        },
-      };
+  const { disconnectProvider, runConnectionTest, saveProvider, updateProviderDraft } =
+    useSettingsProviderActions({
+      draftsRef,
+      loadSettingsView,
+      pushToast,
+      savedDraftFingerprints,
+      setDrafts,
+      settingsViewState,
     });
-  };
-
-  const runConnectionTest = async (providerId: ProviderId): Promise<void> => {
-    const currentDrafts = draftsRef.current;
-    if (currentDrafts === null) {
-      return;
-    }
-    const provider = currentDrafts[providerId];
-    const savedFingerprint = savedDraftFingerprints?.[providerId] ?? null;
-    const savedProvider =
-      settingsViewState.status === "ready"
-        ? settingsViewState.data.providers.find((item) => item.providerId === providerId)
-        : undefined;
-    const needsDisconnect =
-      savedProvider !== undefined &&
-      requiresProviderDisconnect({
-        provider,
-        savedFingerprint,
-        configured: isProviderConfigured(savedProvider),
-      });
-    if (needsDisconnect) {
-      const warningMessage = "Disconnect the saved provider before testing new settings.";
-      pushToast("warning", warningMessage);
-      setDrafts((current) =>
-        current === null
-          ? current
-          : {
-              ...current,
-              [providerId]: {
-                ...current[providerId],
-                testToken: null,
-                testStatusText: "Not tested",
-                message: warningMessage,
-              },
-            },
-      );
-      return;
-    }
-    if (!isProviderDraftChanged({ provider, savedFingerprint })) {
-      const infoMessage = "No provider changes to test. Edit endpoint or key first.";
-      pushToast("info", infoMessage);
-      setDrafts((current) =>
-        current === null
-          ? current
-          : { ...current, [providerId]: { ...current[providerId], message: infoMessage } },
-      );
-      return;
-    }
-
-    const initialFingerprint = fingerprintProviderDraft(provider);
-    setDrafts((current) =>
-      current === null
-        ? current
-        : {
-            ...current,
-            [providerId]: {
-              ...current[providerId],
-              isTesting: true,
-              isDisconnecting: false,
-              message: "",
-            },
-          },
-    );
-
-    const result = await window.api.providers.testConnection({
-      provider: toProviderDraftDto(provider),
-    });
-    const latestDraft = draftsRef.current?.[providerId] ?? provider;
-    const draftChanged = fingerprintProviderDraft(latestDraft) !== initialFingerprint;
-    if (result.ok) {
-      pushToast(
-        draftChanged ? "warning" : "info",
-        draftChanged
-          ? "Draft changed after test. Re-run test before saving."
-          : "Connection test successful. You can save now.",
-      );
-    } else {
-      pushToast("error", result.error.userMessage);
-    }
-
-    setDrafts((current) => {
-      if (current === null) {
-        return current;
-      }
-      if (result.ok) {
-        return {
-          ...current,
-          [providerId]: {
-            ...current[providerId],
-            isTesting: false,
-            isDisconnecting: false,
-            testToken: draftChanged ? null : result.value.testToken,
-            testStatusText: result.value.statusText,
-            message: "",
-          },
-        };
-      }
-      return {
-        ...current,
-        [providerId]: {
-          ...current[providerId],
-          isTesting: false,
-          isDisconnecting: false,
-          testToken: null,
-          testStatusText: "Connection failed",
-          message: result.error.userMessage,
-        },
-      };
-    });
-  };
-
-  const saveProvider = async (providerId: ProviderId): Promise<void> => {
-    const currentDrafts = draftsRef.current;
-    if (currentDrafts === null) {
-      return;
-    }
-    const provider = currentDrafts[providerId];
-    if (provider.testToken === null) {
-      const warningMessage = "Run a successful connection test before saving.";
-      pushToast("warning", warningMessage);
-      setDrafts((current) =>
-        current === null
-          ? current
-          : {
-              ...current,
-              [providerId]: {
-                ...current[providerId],
-                isDisconnecting: false,
-                message: warningMessage,
-              },
-            },
-      );
-      return;
-    }
-
-    setDrafts((current) =>
-      current === null
-        ? current
-        : {
-            ...current,
-            [providerId]: {
-              ...current[providerId],
-              isSaving: true,
-              isDisconnecting: false,
-              message: "",
-            },
-          },
-    );
-    const result = await window.api.providers.saveConfig({
-      provider: toProviderDraftDto(provider),
-      testToken: provider.testToken,
-    });
-    if (!result.ok) {
-      pushToast("error", result.error.userMessage);
-      setDrafts((current) =>
-        current === null
-          ? current
-          : {
-              ...current,
-              [providerId]: {
-                ...current[providerId],
-                isSaving: false,
-                isDisconnecting: false,
-                message: result.error.userMessage,
-              },
-            },
-      );
-      return;
-    }
-    await loadSettingsView();
-    pushToast("info", `${PROVIDER_LABELS[providerId]} provider saved.`);
-  };
-
-  const disconnectProvider = async (providerId: ProviderId): Promise<void> => {
-    setDrafts((current) =>
-      current === null
-        ? current
-        : {
-            ...current,
-            [providerId]: {
-              ...current[providerId],
-              isTesting: false,
-              isSaving: false,
-              isDisconnecting: true,
-              testToken: null,
-              testStatusText: "Not tested",
-              message: "",
-            },
-          },
-    );
-
-    const result = await window.api.providers.disconnect({ providerId, viewKind: "settings" });
-    if (!result.ok) {
-      pushToast("error", result.error.userMessage);
-      setDrafts((current) =>
-        current === null
-          ? current
-          : {
-              ...current,
-              [providerId]: {
-                ...current[providerId],
-                isDisconnecting: false,
-                message: result.error.userMessage,
-              },
-            },
-      );
-      return;
-    }
-
-    setDrafts((current) =>
-      current === null
-        ? current
-        : {
-            ...current,
-            [providerId]: {
-              ...current[providerId],
-              isTesting: false,
-              isSaving: false,
-              isDisconnecting: false,
-              testToken: null,
-              testStatusText: "Not tested",
-              message: "Provider disconnected. Test connection before saving new settings.",
-            },
-          },
-    );
-    const loaded = await loadSettingsView({
-      preserveDraftInputs: true,
-      preserveVisibleStateOnError: true,
-    });
-    if (!loaded) {
-      return;
-    }
-    pushToast("info", `${PROVIDER_LABELS[providerId]} provider disconnected.`);
-  };
 
   const onRefreshModels = async (): Promise<void> => {
     setIsRefreshingModels(true);
