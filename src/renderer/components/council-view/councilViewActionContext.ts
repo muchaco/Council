@@ -1,16 +1,8 @@
 import type { Dispatch, SetStateAction } from "react";
 
 import type { AutopilotLimitModalAction } from "../../../shared/app-ui-helpers.js";
-import type { CouncilRuntimeErrorDto } from "../../../shared/council-runtime-error-normalization.js";
-import type { CouncilViewState, CouncilViewTab } from "./councilViewScreenState";
-
-export type LoadCouncilView = (
-  nextCouncilId: string,
-  options?: {
-    preserveActiveTab?: CouncilViewTab;
-    runtimeError?: CouncilRuntimeErrorDto | null;
-  },
-) => Promise<void>;
+import type { CouncilViewState } from "./councilViewScreenState";
+import type { LoadCouncilView } from "./useCouncilViewScreenLifecycle";
 
 export type CouncilViewActionContext = {
   autopilotLimitAction: AutopilotLimitModalAction | null;

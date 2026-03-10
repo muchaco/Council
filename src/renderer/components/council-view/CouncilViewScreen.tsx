@@ -1,27 +1,18 @@
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 
 import type { AutopilotLimitModalAction } from "../../../shared/app-ui-helpers.js";
-import {
-  type CouncilRuntimeErrorDto,
-  readCouncilRuntimeErrorDetails,
-} from "../../../shared/council-runtime-error-normalization.js";
-import { buildCouncilViewExitPlan } from "../../../shared/council-view-runtime-guards";
-import type { GetCouncilViewResponse } from "../../../shared/ipc/dto";
 import { DetailScreenShell } from "../shared/DetailScreenShell";
-import { ConfigTab, type CouncilConfigEditState } from "./ConfigTab";
+import { ConfigTab } from "./ConfigTab";
 import { CouncilRuntimeAlerts } from "./CouncilRuntimeAlerts";
 import { CouncilViewDialogs } from "./CouncilViewDialogs";
 import { CouncilViewHeader } from "./CouncilViewHeader";
 import { CouncilViewTabs } from "./CouncilViewTabs";
 import { DiscussionTab } from "./DiscussionTab";
 import { deriveCouncilViewScreenState } from "./councilViewScreenDerivedState";
-import {
-  type CouncilViewState,
-  type CouncilViewTab,
-  MEMBER_COLOR_PALETTE,
-  createReadyCouncilViewState,
-} from "./councilViewScreenState";
+import { type CouncilViewState, MEMBER_COLOR_PALETTE } from "./councilViewScreenState";
 import { useCouncilViewActions } from "./useCouncilViewActions";
+import { useCouncilViewDialogHandlers } from "./useCouncilViewDialogHandlers";
+import { useCouncilViewScreenLifecycle } from "./useCouncilViewScreenLifecycle";
 
 type CouncilViewScreenProps = {
   councilId: string;
@@ -40,78 +31,13 @@ export const CouncilViewScreen = ({
   const [autopilotLimitAction, setAutopilotLimitAction] =
     useState<AutopilotLimitModalAction | null>(null);
 
-  const loadCouncilView = useCallback(
-    async (
-      nextCouncilId: string,
-      options?: {
-        preserveActiveTab?: CouncilViewTab;
-        runtimeError?: CouncilRuntimeErrorDto | null;
-      },
-    ): Promise<void> => {
-      setState({ status: "loading" });
-      const result = await window.api.councils.getCouncilView({
-        viewKind: "councilView",
-        councilId: nextCouncilId,
-      });
-      if (!result.ok) {
-        setState({ status: "error", message: result.error.userMessage });
-        pushToast("error", result.error.userMessage);
-        return;
-      }
-      setState(
-        createReadyCouncilViewState(result.value, {
-          activeTab: options?.preserveActiveTab,
-          runtimeError: options?.runtimeError ?? null,
-        }),
-      );
-    },
-    [pushToast],
-  );
-
-  useEffect(() => {
-    if (!isActive) {
-      return;
-    }
-    void loadCouncilView(councilId);
-  }, [councilId, isActive, loadCouncilView]);
-
-  useEffect(() => {
-    if (!isActive) {
-      return;
-    }
-    document.title = `Council: ${state.status === "ready" ? state.source.council.title : "Council View"}`;
-  }, [isActive, state]);
-
-  useEffect(() => {
-    if (!isActive || state.status !== "ready") {
-      return;
-    }
-    const council = state.source.council;
-    const generation = state.source.generation;
-    if (
-      council.mode !== "autopilot" ||
-      !council.started ||
-      council.paused ||
-      council.archived ||
-      generation.status === "running" ||
-      state.isConfigEditing
-    ) {
-      return;
-    }
-    window.api.councils
-      .advanceAutopilotTurn({ viewKind: "councilView", id: councilId })
-      .then((result) => {
-        if (!result.ok) {
-          pushToast("error", result.error.userMessage);
-          const runtimeError = readCouncilRuntimeErrorDetails(result.error.details);
-          return loadCouncilView(councilId, { preserveActiveTab: state.activeTab, runtimeError });
-        }
-        return loadCouncilView(councilId);
-      })
-      .catch(() => {
-        pushToast("error", "Autopilot encountered an error. Check console for details.");
-      });
-  }, [councilId, isActive, loadCouncilView, pushToast, state]);
+  const { loadCouncilView } = useCouncilViewScreenLifecycle({
+    councilId,
+    isActive,
+    pushToast,
+    setState,
+    state,
+  });
 
   const {
     addCouncilViewMember,
@@ -140,6 +66,24 @@ export const CouncilViewScreen = ({
     setAutopilotLimitAction,
     setState,
     state,
+  });
+  const {
+    onCancelLeave,
+    onCancelMemberRemove,
+    onCloseAutopilotDialog,
+    onConfigEditingChange,
+    onConfirmLeave,
+    onConfirmMemberRemove,
+    onRequestRemoveMember,
+    onSelectTab,
+    onSubmitAutopilotDialog,
+  } = useCouncilViewDialogHandlers({
+    executeLeave,
+    saveCouncilViewMembers,
+    setAutopilotLimitAction,
+    setState,
+    state,
+    submitAutopilotLimitModal,
   });
 
   if (!isActive) {
@@ -251,11 +195,7 @@ export const CouncilViewScreen = ({
           activeTab={state.activeTab}
           disableConfigTab={state.isConfigEditing && state.activeTab !== "config"}
           disableDiscussionTab={state.isConfigEditing && state.activeTab !== "discussion"}
-          onSelectTab={(activeTab) =>
-            setState((current) =>
-              current.status !== "ready" ? current : { ...current, activeTab },
-            )
-          }
+          onSelectTab={onSelectTab}
         />
 
         <CouncilRuntimeAlerts
@@ -291,17 +231,7 @@ export const CouncilViewScreen = ({
             onCancelGeneration={() => void cancelCouncilGeneration()}
             onGenerateManualTurn={(memberAgentId) => void generateManualTurn(memberAgentId)}
             onMemberColorChange={(params) => void setCouncilViewMemberColor(params)}
-            onRequestRemoveMember={(memberAgentId) =>
-              setState((current) =>
-                current.status !== "ready"
-                  ? current
-                  : {
-                      ...current,
-                      pendingMemberRemovalId: memberAgentId,
-                      showMemberRemoveDialog: true,
-                    },
-              )
-            }
+            onRequestRemoveMember={onRequestRemoveMember}
             onStartDiscussion={() => void startCouncilRuntime()}
             onSubmitConductor={injectConductorMessage}
             showEmptyStateStart={runtimeControls.showEmptyStateStart}
@@ -333,11 +263,7 @@ export const CouncilViewScreen = ({
             isExportingTranscript={state.isExportingTranscript}
             modelCatalog={state.source.modelCatalog}
             onDeleteCouncil={() => deleteCouncilFromView(council)}
-            onEditingChange={(isConfigEditing) =>
-              setState((current) =>
-                current.status !== "ready" ? current : { ...current, isConfigEditing },
-              )
-            }
+            onEditingChange={onConfigEditingChange}
             onExportTranscript={exportCouncilTranscript}
             onRefreshModelCatalog={refreshCouncilViewConfigModels}
             onSaveField={saveCouncilConfigEdit}
@@ -354,43 +280,12 @@ export const CouncilViewScreen = ({
               ? ""
               : `Remove ${memberNameById.get(state.pendingMemberRemovalId) ?? "this member"}? You can add them again later.`
           }
-          onCancelLeave={() =>
-            setState((current) =>
-              current.status !== "ready" ? current : { ...current, showLeaveDialog: false },
-            )
-          }
-          onCancelMemberRemove={() =>
-            setState((current) =>
-              current.status !== "ready"
-                ? current
-                : { ...current, pendingMemberRemovalId: null, showMemberRemoveDialog: false },
-            )
-          }
-          onCloseAutopilotDialog={() => setAutopilotLimitAction(null)}
-          onConfirmLeave={() => {
-            const exitPlan = buildCouncilViewExitPlan(
-              state.source.council,
-              state.source.generation,
-            );
-            void executeLeave({ exitPlan });
-          }}
-          onConfirmMemberRemove={() => {
-            if (state.pendingMemberRemovalId === null) {
-              return;
-            }
-            const memberId = state.pendingMemberRemovalId;
-            const nextMemberIds = state.source.council.memberAgentIds.filter(
-              (id) => id !== memberId,
-            );
-            const nextColors = { ...state.source.council.memberColorsByAgentId };
-            delete nextColors[memberId];
-            void saveCouncilViewMembers({
-              memberAgentIds: nextMemberIds,
-              memberColorsByAgentId: nextColors,
-              successMessage: "Member removed.",
-            });
-          }}
-          onSubmitAutopilotDialog={(maxTurns) => void submitAutopilotLimitModal(maxTurns)}
+          onCancelLeave={onCancelLeave}
+          onCancelMemberRemove={onCancelMemberRemove}
+          onCloseAutopilotDialog={onCloseAutopilotDialog}
+          onConfirmLeave={onConfirmLeave}
+          onConfirmMemberRemove={onConfirmMemberRemove}
+          onSubmitAutopilotDialog={onSubmitAutopilotDialog}
           submitLabel={autopilotSubmitLabel}
         />
       </div>

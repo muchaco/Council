@@ -56,6 +56,7 @@ Current repository state snapshot:
 - Council View cleanup now extracts `src/renderer/components/council-view/CouncilViewDialogs.tsx` and `src/renderer/components/council-view/councilViewScreenDerivedState.ts`, reducing `src/renderer/components/council-view/CouncilViewScreen.tsx` to runtime orchestration while keeping leave/remove-member/autopilot dialog behavior and derived runtime display state unchanged.
 - Council View decomposition now also extracts `src/renderer/components/council-view/councilViewScreenState.ts` and `src/renderer/components/council-view/useCouncilViewActions.ts`, moving screen-state shape/defaults and runtime/config/member action orchestration out of `src/renderer/components/council-view/CouncilViewScreen.tsx` without changing Council View sequencing or IPC behavior.
 - Council View action cleanup now further splits `src/renderer/components/council-view/useCouncilViewActions.ts` into `src/renderer/components/council-view/councilViewActionContext.ts`, `src/renderer/components/council-view/useCouncilViewRuntimeActions.ts`, `src/renderer/components/council-view/useCouncilViewConfigActions.ts`, and `src/renderer/components/council-view/useCouncilViewMemberActions.ts`, leaving the top-level action module as a thin composer while preserving the existing runtime/config/member behavior.
+- Council View screen cleanup now also extracts `src/renderer/components/council-view/useCouncilViewScreenLifecycle.ts` and `src/renderer/components/council-view/useCouncilViewDialogHandlers.ts`, moving load/title/autopilot orchestration plus dialog/tab callback wiring out of `src/renderer/components/council-view/CouncilViewScreen.tsx` while keeping the visible screen behavior unchanged.
 - Council editor cleanup now extracts `src/renderer/components/councils/councilEditorScreenState.ts`, `src/renderer/components/councils/useCouncilEditorActions.ts`, and `src/renderer/components/councils/CouncilEditorDialogs.tsx`, reducing `src/renderer/components/councils/CouncilEditorScreen.tsx` to screen orchestration plus form JSX while preserving save/archive/delete/member-removal behavior.
 - Settings cleanup now extracts `src/renderer/components/settings/settingsPanelState.ts` and `src/renderer/components/settings/useSettingsProviderActions.ts`, moving provider draft/state helpers plus provider test/save/disconnect orchestration out of `src/renderer/components/settings/SettingsPanel.tsx` while preserving existing provider-card behavior.
 - The latest cleanup slice also factors repeated Council View config markup into `src/renderer/components/shared/EditableConfigFieldRow.tsx` and `src/renderer/components/shared/TagsEditor.tsx`, which `src/renderer/components/council-view/ConfigTab.tsx` now uses to preserve existing inline-edit and tag-edit behavior with less repeated JSX.
@@ -137,7 +138,7 @@ Traceability source-of-truth is generated from test annotations and mapping conf
 Generated source-of-truth files:
 - `docs/traceability/requirements-traceability.generated.json`
 - `docs/traceability/requirements-traceability.generated.md`
-Last generated: 2026-03-10T12:50:28.265Z
+Last generated: 2026-03-10T12:56:58.173Z
 Coverage snapshot: 33 specs, 206 test entries, 195 mapped requirement IDs.
 <!-- TRACEABILITY:END -->
 
