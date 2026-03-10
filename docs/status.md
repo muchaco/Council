@@ -53,6 +53,7 @@ Current repository state snapshot:
 - The next renderer decomposition cleanup slice now also extracts a shared home-list toolbar in `src/renderer/components/shared/HomeListToolbar.tsx`, letting `src/renderer/components/home/CouncilsPanel.tsx` and `src/renderer/components/home/AgentsPanel.tsx` keep their existing search/filter/sort/new-item behavior while removing repeated toolbar markup.
 - Home renderer decomposition now pushes Councils and Agents home-list query/filter/pagination/delete/export/archive state into `src/renderer/components/home/CouncilsPanel.tsx` and `src/renderer/components/home/AgentsPanel.tsx`, leaving `src/renderer/components/home/HomeScreen.tsx` focused on top-tab navigation and panel visibility while preserving panel state across detail navigation.
 - Council View cleanup now extracts `src/renderer/components/council-view/CouncilViewDialogs.tsx` and `src/renderer/components/council-view/councilViewScreenDerivedState.ts`, reducing `src/renderer/components/council-view/CouncilViewScreen.tsx` to runtime orchestration while keeping leave/remove-member/autopilot dialog behavior and derived runtime display state unchanged.
+- Council View decomposition now also extracts `src/renderer/components/council-view/councilViewScreenState.ts` and `src/renderer/components/council-view/useCouncilViewActions.ts`, moving screen-state shape/defaults and runtime/config/member action orchestration out of `src/renderer/components/council-view/CouncilViewScreen.tsx` without changing Council View sequencing or IPC behavior.
 - The latest cleanup slice also factors repeated Council View config markup into `src/renderer/components/shared/EditableConfigFieldRow.tsx` and `src/renderer/components/shared/TagsEditor.tsx`, which `src/renderer/components/council-view/ConfigTab.tsx` now uses to preserve existing inline-edit and tag-edit behavior with less repeated JSX.
 - The latest renderer cleanup also extracts `src/renderer/components/shared/DetailScreenShell.tsx`, which now handles the shared loading/error/back shell used by `src/renderer/components/agents/AgentEditorScreen.tsx`, `src/renderer/components/councils/CouncilEditorScreen.tsx`, and `src/renderer/components/council-view/CouncilViewScreen.tsx` without changing the fallback UX.
 - Native runtime workflow now has explicit helper entry points in `package.json` and `scripts/switch-native-runtime.mjs`: `bun run native:node` rebuilds `better-sqlite3` and `keytar` for Node/Vitest, while `bun run native:electron` rebuilds them for Electron diagnostics/package flows, reducing ABI-mismatch churn when switching between test and Electron workflows.
@@ -132,7 +133,7 @@ Traceability source-of-truth is generated from test annotations and mapping conf
 Generated source-of-truth files:
 - `docs/traceability/requirements-traceability.generated.json`
 - `docs/traceability/requirements-traceability.generated.md`
-Last generated: 2026-03-10T11:20:06.116Z
+Last generated: 2026-03-10T12:12:19.541Z
 Coverage snapshot: 33 specs, 206 test entries, 195 mapped requirement IDs.
 <!-- TRACEABILITY:END -->
 

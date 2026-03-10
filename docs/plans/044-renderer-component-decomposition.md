@@ -116,6 +116,8 @@ Decompose the renderer from a monolithic `src/renderer/App.tsx` into screen-leve
   - `src/renderer/components/council-view/AddMemberPanel.tsx`
   - `src/renderer/components/council-view/CouncilViewDialogs.tsx`
   - `src/renderer/components/council-view/councilViewScreenDerivedState.ts`
+  - `src/renderer/components/council-view/councilViewScreenState.ts`
+  - `src/renderer/components/council-view/useCouncilViewActions.ts`
 - Required validation/traceability/status updates were run and refreshed for the behavior-preserving decomposition pass.
 
 ### Still left to implement
