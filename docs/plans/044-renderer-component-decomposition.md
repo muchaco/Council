@@ -96,6 +96,12 @@ Decompose the renderer from a monolithic `src/renderer/App.tsx` into screen-leve
   - `src/renderer/components/shared/ModelSelectField.tsx`
   - home panel wrappers `src/renderer/components/home/CouncilsPanel.tsx` and `src/renderer/components/home/AgentsPanel.tsx`
 - Council View leaf extraction is in progress and now includes:
+  - `src/renderer/components/council-view/CouncilViewHeader.tsx`
+  - `src/renderer/components/council-view/CouncilViewTabs.tsx`
+  - `src/renderer/components/council-view/CouncilRuntimeAlerts.tsx`
+  - `src/renderer/components/council-view/DiscussionTab.tsx`
+  - `src/renderer/components/council-view/TranscriptCard.tsx`
+  - `src/renderer/components/council-view/AutopilotLimitDialog.tsx`
   - `src/renderer/components/council-view/TranscriptMessageRow.tsx`
   - `src/renderer/components/council-view/ThinkingMessageRow.tsx`
   - `src/renderer/components/council-view/BriefingCard.tsx`
@@ -106,14 +112,7 @@ Decompose the renderer from a monolithic `src/renderer/App.tsx` into screen-leve
 
 ### Still left to implement
 - Split `src/renderer/components/council-view/CouncilViewScreen.tsx` into the narrower plan-target components:
-  - `CouncilViewHeader.tsx`
-  - `CouncilViewTabs.tsx`
-  - `CouncilRuntimeAlerts.tsx`
-  - `DiscussionTab.tsx`
   - `ConfigTab.tsx`
-  - `AutopilotLimitDialog.tsx`
-- Extract remaining council-view leaf components that are still inlined inside `CouncilViewScreen.tsx`:
-  - `TranscriptCard.tsx`
 - Push the remaining ephemeral council-view subtree state down to the narrowest safe scope after those component cuts are in place:
   - conductor draft
   - transcript refs/focus handling

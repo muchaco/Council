@@ -1,10 +1,7 @@
-import { ChevronLeft } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import {
-  AUTOPILOT_MAX_TURNS_MAX,
-  AUTOPILOT_MAX_TURNS_MIN,
   type AutopilotLimitModalAction,
   type AutopilotLimitModalState,
   COUNCIL_CONFIG_MAX_TAGS,
@@ -44,14 +41,6 @@ import { ConfirmDialog } from "../../ConfirmDialog";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../ui/dialog";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import {
@@ -64,11 +53,11 @@ import {
   SelectValue,
 } from "../ui/select";
 import { Textarea } from "../ui/textarea";
-import { BriefingCard } from "./BriefingCard";
-import { ConductorComposerCard } from "./ConductorComposerCard";
-import { MembersCard } from "./MembersCard";
-import { ThinkingMessageRow } from "./ThinkingMessageRow";
-import { TranscriptMessageRow } from "./TranscriptMessageRow";
+import { AutopilotLimitDialog } from "./AutopilotLimitDialog";
+import { CouncilRuntimeAlerts } from "./CouncilRuntimeAlerts";
+import { CouncilViewHeader } from "./CouncilViewHeader";
+import { CouncilViewTabs } from "./CouncilViewTabs";
+import { DiscussionTab } from "./DiscussionTab";
 
 type CouncilViewTab = "discussion" | "config";
 type CouncilConfigField = "topic" | "goal" | "tags" | "conductorModel";
@@ -1018,8 +1007,6 @@ export const CouncilViewScreen = ({
     council: { mode: council.mode },
     runtimeError: state.runtimeError,
   });
-  const autopilotDialogTitle =
-    autopilotLimitModal?.action === "start" ? "Start Autopilot" : "Resume Autopilot";
   const autopilotSubmitLabel =
     autopilotLimitModal?.action === "start"
       ? state.isStarting
@@ -1078,297 +1065,143 @@ export const CouncilViewScreen = ({
   return (
     <main className="main-content">
       <div className="main-content-inner">
-        <header className="mb-6">
-          <div className="mb-6 flex items-center justify-between">
-            <Button
-              className="gap-2"
-              disabled={state.isLeavingView}
-              onClick={() => void leaveSafely()}
-              variant="outline"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              {state.isLeavingView ? "Leaving..." : "Back"}
-            </Button>
-            <div className="flex items-center gap-2">
-              {runtimeControls.showTopBarStart ? (
-                <Button
-                  disabled={startDisabled}
-                  onClick={() => void startCouncilRuntime()}
-                  title={startDisabledReason}
-                >
-                  {state.isStarting ? "Starting..." : "Start"}
-                </Button>
-              ) : null}
-              {runtimeControls.canPause ? (
-                <Button
-                  disabled={state.isPausing || state.configEdit !== null}
-                  onClick={() => void pauseCouncilRuntime()}
-                  variant="outline"
-                >
-                  {state.isPausing ? "Pausing..." : "Pause"}
-                </Button>
-              ) : null}
-              {runtimeControls.canResume ? (
-                <Button
-                  disabled={
-                    state.isResuming ||
-                    council.invalidConfig ||
-                    hasArchivedMembers ||
-                    autopilotLimitModal !== null ||
-                    state.configEdit !== null
-                  }
-                  onClick={() => openAutopilotLimitModal("resume")}
-                  title={
-                    council.invalidConfig
-                      ? "Fix the model config before resuming."
-                      : hasArchivedMembers
-                        ? "Restore or remove archived members before resuming."
-                        : undefined
-                  }
-                >
-                  {state.isResuming ? "Resuming..." : "Resume"}
-                </Button>
-              ) : null}
-              {(runtimeControls.canStart || runtimeControls.canResume) &&
-              (council.invalidConfig || hasArchivedMembers) ? (
-                <Badge
-                  title={
-                    council.invalidConfig
-                      ? "Resolved conductor model is unavailable in this view's model catalog snapshot."
-                      : "One or more council members are archived."
-                  }
-                  variant={council.invalidConfig ? "destructive" : "outline"}
-                >
-                  {council.invalidConfig ? "Invalid config" : "Archived members"}
-                </Badge>
-              ) : null}
-              {generationActive && !showInlineThinkingCancel ? (
-                <Button
-                  disabled={state.isCancellingGeneration || state.configEdit !== null}
-                  onClick={() => void cancelCouncilGeneration()}
-                  variant="outline"
-                >
-                  {state.isCancellingGeneration ? "Cancelling..." : "Cancel"}
-                </Button>
-              ) : null}
-            </div>
-          </div>
-          <h1 className="mb-2 text-3xl">{council.title}</h1>
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            <Badge className="capitalize" variant="outline">
-              {council.mode}
-            </Badge>
-            <span>{council.started ? (council.paused ? "Paused" : "Running") : "Stopped"}</span>
-            <span>Turn {council.turnCount}</span>
-            {council.mode === "autopilot" ? (
-              <span>
-                {council.autopilotTurnsCompleted}/{council.autopilotMaxTurns ?? "∞"} completed
-              </span>
-            ) : null}
-          </div>
-          {pausedNextSpeakerName !== null ? (
-            <p className="mt-2 text-sm text-muted-foreground">
-              Next speaker: {pausedNextSpeakerName}
-            </p>
-          ) : null}
-          <div
-            aria-label="Council view tabs"
-            className="mt-6 flex items-center gap-1 border-b"
-            role="tablist"
-          >
-            <Button
-              aria-controls="council-view-panel-discussion"
-              aria-selected={state.activeTab === "discussion"}
-              data-state={state.activeTab === "discussion" ? "active" : "inactive"}
-              disabled={state.configEdit !== null && state.activeTab !== "discussion"}
-              id="council-view-tab-discussion"
-              onClick={() =>
-                setState((current) =>
-                  current.status !== "ready" ? current : { ...current, activeTab: "discussion" },
-                )
-              }
-              role="tab"
-              variant={state.activeTab === "discussion" ? "secondary" : "ghost"}
-            >
-              Discussion
-            </Button>
-            <Button
-              aria-controls="council-view-panel-config"
-              aria-selected={state.activeTab === "config"}
-              data-state={state.activeTab === "config" ? "active" : "inactive"}
-              disabled={state.configEdit !== null && state.activeTab !== "config"}
-              id="council-view-tab-config"
-              onClick={() =>
-                setState((current) =>
-                  current.status !== "ready" ? current : { ...current, activeTab: "config" },
-                )
-              }
-              role="tab"
-              variant={state.activeTab === "config" ? "secondary" : "ghost"}
-            >
-              Config
-            </Button>
-          </div>
-        </header>
+        <CouncilViewHeader
+          autopilotLimitModalOpen={autopilotLimitModal !== null}
+          autopilotMaxTurns={council.autopilotMaxTurns}
+          autopilotTurnsCompleted={council.autopilotTurnsCompleted}
+          cancelDisabled={state.isCancellingGeneration || state.configEdit !== null}
+          canShowRuntimeBlockBadge={
+            (runtimeControls.canStart || runtimeControls.canResume) &&
+            (council.invalidConfig || hasArchivedMembers)
+          }
+          invalidConfig={council.invalidConfig}
+          isCancellingGeneration={state.isCancellingGeneration}
+          isLeavingView={state.isLeavingView}
+          isPausing={state.isPausing}
+          isResuming={state.isResuming}
+          isStarting={state.isStarting}
+          mode={council.mode}
+          onBack={() => void leaveSafely()}
+          onCancelGeneration={() => void cancelCouncilGeneration()}
+          onPause={() => void pauseCouncilRuntime()}
+          onResume={() => openAutopilotLimitModal("resume")}
+          onStart={() => void startCouncilRuntime()}
+          pauseDisabled={state.isPausing || state.configEdit !== null}
+          paused={council.paused}
+          pausedNextSpeakerName={pausedNextSpeakerName}
+          resumeDisabledReason={
+            council.invalidConfig
+              ? "Fix the model config before resuming."
+              : hasArchivedMembers
+                ? "Restore or remove archived members before resuming."
+                : undefined
+          }
+          runtimeControls={runtimeControls}
+          showTopBarCancel={generationActive && !showInlineThinkingCancel}
+          startDisabled={startDisabled}
+          startDisabledReason={startDisabledReason}
+          started={council.started}
+          statusBadgeTitle={
+            council.invalidConfig
+              ? "Resolved conductor model is unavailable in this view's model catalog snapshot."
+              : "One or more council members are archived."
+          }
+          title={council.title}
+          turnCount={council.turnCount}
+        />
+        <CouncilViewTabs
+          activeTab={state.activeTab}
+          disableConfigTab={state.configEdit !== null && state.activeTab !== "config"}
+          disableDiscussionTab={state.configEdit !== null && state.activeTab !== "discussion"}
+          onSelectTab={(activeTab) =>
+            setState((current) =>
+              current.status !== "ready" ? current : { ...current, activeTab },
+            )
+          }
+        />
 
-        {council.archived ? (
-          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
-            <p className="text-sm text-amber-800">Archived councils are read-only.</p>
-          </div>
-        ) : null}
-        {hasArchivedMembers ? (
-          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3">
-            <p className="text-sm text-amber-800">
-              This council includes archived members: {archivedMemberNames.join(", ")}. Restore or
-              remove them before starting, resuming, or choosing the next speaker.
-            </p>
-          </div>
-        ) : null}
-        {council.invalidConfig ? (
-          <div className="mb-4 rounded-lg border border-destructive/20 bg-destructive/10 p-3">
-            <p className="text-sm text-destructive">
-              Invalid config: start/resume is blocked until you select an available Conductor model
-              or refresh models in Config.
-            </p>
-          </div>
-        ) : null}
-        {state.message.length > 0 && autopilotRecoveryNotice === null ? (
-          <div className="mb-4 rounded-lg bg-muted p-3">
-            <p className="text-sm">{state.message}</p>
-          </div>
-        ) : null}
+        <CouncilRuntimeAlerts
+          archived={council.archived}
+          archivedMemberNames={archivedMemberNames}
+          hasArchivedMembers={hasArchivedMembers}
+          invalidConfig={council.invalidConfig}
+          message={state.message}
+          showMessage={state.message.length > 0 && autopilotRecoveryNotice === null}
+        />
 
         {state.activeTab === "discussion" ? (
-          <section
-            aria-labelledby="council-view-tab-discussion"
-            className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]"
-            id="council-view-panel-discussion"
-            role="tabpanel"
-          >
-            <div className="space-y-6">
-              <Card className="p-6">
-                <h2 className="mb-4 text-xl font-medium">Transcript</h2>
-                {autopilotRecoveryNotice !== null ? (
-                  <div className="mb-4 rounded-lg bg-muted p-3">
-                    <p className="font-medium text-sm">{autopilotRecoveryNotice.title}</p>
-                    <p className="text-sm">{autopilotRecoveryNotice.body}</p>
-                  </div>
-                ) : null}
-                {manualRetryNotice !== null ? (
-                  <div className="mb-4 rounded-lg bg-muted p-3">
-                    <p className="font-medium text-sm">{manualRetryNotice.title}</p>
-                    <p className="text-sm">{manualRetryNotice.body}</p>
-                  </div>
-                ) : null}
-                {state.source.messages.length === 0 && thinkingSpeakerName === null ? (
-                  <div className="rounded-lg bg-muted/50 py-12 text-center">
-                    <p className="mb-4 text-muted-foreground">
-                      {council.mode === "manual"
-                        ? "No messages yet. Choose the next speaker from Members."
-                        : "No messages yet."}
-                    </p>
-                    {runtimeControls.showEmptyStateStart ? (
-                      <Button
-                        disabled={startDisabled}
-                        onClick={() => void startCouncilRuntime()}
-                        title={startDisabledReason}
-                      >
-                        {state.isStarting ? "Starting..." : "Start Discussion"}
-                      </Button>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="max-h-[500px] space-y-3 overflow-y-auto pr-2">
-                    {state.source.messages.map((message, index) => (
-                      <TranscriptMessageRow
-                        index={index}
-                        key={message.id}
-                        memberColorsByAgentId={state.source.council.memberColorsByAgentId}
-                        message={message}
-                        onKeyDown={(event, currentIndex) =>
-                          handleTranscriptRowKeyDown(event, currentIndex, transcriptRowCount)
-                        }
-                        registerRowRef={(currentIndex, element) => {
-                          transcriptRowRefs.current[currentIndex] = element;
-                        }}
-                      />
-                    ))}
-                    {thinkingSpeakerName !== null ? (
-                      <ThinkingMessageRow
-                        disabled={state.isCancellingGeneration || state.configEdit !== null}
-                        isCancellingGeneration={state.isCancellingGeneration}
-                        onCancel={() => void cancelCouncilGeneration()}
-                        showInlineThinkingCancel={showInlineThinkingCancel}
-                        thinkingSpeakerColor={thinkingSpeakerColor}
-                        thinkingSpeakerName={thinkingSpeakerName}
-                      />
-                    ) : null}
-                    <div ref={chatEndRef} />
-                  </div>
-                )}
-              </Card>
-
-              <ConductorComposerCard
-                conductorDraft={state.conductorDraft}
-                disabled={generationRunning || council.archived}
-                isInjectingConductor={state.isInjectingConductor}
-                onChangeDraft={(value) =>
-                  setState((current) =>
-                    current.status !== "ready" ? current : { ...current, conductorDraft: value },
-                  )
-                }
-                onSubmit={() => void injectConductorMessage()}
-              />
-            </div>
-
-            <div className="space-y-6">
-              <BriefingCard briefing={runtimeBriefing} />
-
-              <MembersCard
-                addMemberEmptyStateMessage={addMemberEmptyStateMessage}
-                addMemberSearchText={state.addMemberSearchText}
-                addableAgents={addableAgents}
-                availableAgentById={availableAgentById}
-                canEditMembers={canEditMembers}
-                council={council}
-                isGeneratingManualTurn={state.isGeneratingManualTurn}
-                isSavingMembers={state.isSavingMembers}
-                manualSpeakerDisabledReason={manualSpeakerDisabledReason}
-                memberIdsWithMessages={memberIdsWithMessages}
-                memberNameById={memberNameById}
-                memberPalette={MEMBER_COLOR_PALETTE}
-                onAddMember={(memberAgentId) => void addCouncilViewMember(memberAgentId)}
-                onGenerateManualTurn={(memberAgentId) => void generateManualTurn(memberAgentId)}
-                onMemberColorChange={(params) => void setCouncilViewMemberColor(params)}
-                onMemberSearchTextChange={(value) =>
-                  setState((current) =>
-                    current.status !== "ready"
-                      ? current
-                      : { ...current, addMemberSearchText: value },
-                  )
-                }
-                onRequestRemoveMember={(memberAgentId) =>
-                  setState((current) =>
-                    current.status !== "ready"
-                      ? current
-                      : {
-                          ...current,
-                          pendingMemberRemovalId: memberAgentId,
-                          showMemberRemoveDialog: true,
-                        },
-                  )
-                }
-                onToggleAddMemberPanel={() =>
-                  setState((current) =>
-                    current.status !== "ready"
-                      ? current
-                      : { ...current, showAddMemberPanel: !current.showAddMemberPanel },
-                  )
-                }
-                showAddMemberPanel={state.showAddMemberPanel}
-              />
-            </div>
-          </section>
+          <DiscussionTab
+            addMemberEmptyStateMessage={addMemberEmptyStateMessage}
+            addMemberSearchText={state.addMemberSearchText}
+            addableAgents={addableAgents}
+            autopilotRecoveryNotice={autopilotRecoveryNotice}
+            availableAgentById={availableAgentById}
+            briefing={runtimeBriefing}
+            canEditMembers={canEditMembers}
+            chatEndRef={chatEndRef}
+            conductorDisabled={generationRunning || council.archived}
+            conductorDraft={state.conductorDraft}
+            council={council}
+            isCancellingGeneration={state.isCancellingGeneration}
+            isConfigEditing={state.configEdit !== null}
+            isGeneratingManualTurn={state.isGeneratingManualTurn}
+            isInjectingConductor={state.isInjectingConductor}
+            isSavingMembers={state.isSavingMembers}
+            isStarting={state.isStarting}
+            manualRetryNotice={manualRetryNotice}
+            manualSpeakerDisabledReason={manualSpeakerDisabledReason}
+            memberIdsWithMessages={memberIdsWithMessages}
+            memberNameById={memberNameById}
+            memberPalette={MEMBER_COLOR_PALETTE}
+            messages={state.source.messages}
+            onAddMember={(memberAgentId) => void addCouncilViewMember(memberAgentId)}
+            onCancelGeneration={() => void cancelCouncilGeneration()}
+            onChangeConductorDraft={(value) =>
+              setState((current) =>
+                current.status !== "ready" ? current : { ...current, conductorDraft: value },
+              )
+            }
+            onGenerateManualTurn={(memberAgentId) => void generateManualTurn(memberAgentId)}
+            onMemberColorChange={(params) => void setCouncilViewMemberColor(params)}
+            onMemberSearchTextChange={(value) =>
+              setState((current) =>
+                current.status !== "ready" ? current : { ...current, addMemberSearchText: value },
+              )
+            }
+            onRequestRemoveMember={(memberAgentId) =>
+              setState((current) =>
+                current.status !== "ready"
+                  ? current
+                  : {
+                      ...current,
+                      pendingMemberRemovalId: memberAgentId,
+                      showMemberRemoveDialog: true,
+                    },
+              )
+            }
+            onStartDiscussion={() => void startCouncilRuntime()}
+            onSubmitConductor={() => void injectConductorMessage()}
+            onToggleAddMemberPanel={() =>
+              setState((current) =>
+                current.status !== "ready"
+                  ? current
+                  : { ...current, showAddMemberPanel: !current.showAddMemberPanel },
+              )
+            }
+            onTranscriptRowKeyDown={(event, currentIndex) =>
+              handleTranscriptRowKeyDown(event, currentIndex, transcriptRowCount)
+            }
+            registerTranscriptRowRef={(currentIndex, element) => {
+              transcriptRowRefs.current[currentIndex] = element;
+            }}
+            showAddMemberPanel={state.showAddMemberPanel}
+            showEmptyStateStart={runtimeControls.showEmptyStateStart}
+            showInlineThinkingCancel={showInlineThinkingCancel}
+            startDisabled={startDisabled}
+            startDisabledReason={startDisabledReason}
+            thinkingSpeakerColor={thinkingSpeakerColor}
+            thinkingSpeakerName={thinkingSpeakerName}
+          />
         ) : (
           <section
             aria-labelledby="council-view-tab-config"
@@ -1833,68 +1666,26 @@ export const CouncilViewScreen = ({
           title="Delete council?"
         />
 
-        <Dialog
-          onOpenChange={() => setAutopilotLimitModal(null)}
-          open={autopilotLimitModal !== null}
-        >
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{autopilotDialogTitle}</DialogTitle>
-              <DialogDescription>Set an optional turn limit for this run.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="flex items-center space-x-2">
-                <input
-                  checked={autopilotLimitModal?.limitTurns ?? false}
-                  className="h-4 w-4 rounded border-gray-300"
-                  id="autopilot-limit-toggle"
-                  onChange={(event) =>
-                    setAutopilotLimitModal((current) =>
-                      current === null
-                        ? current
-                        : { ...current, limitTurns: event.target.checked, validationMessage: "" },
-                    )
-                  }
-                  type="checkbox"
-                />
-                <Label htmlFor="autopilot-limit-toggle">Limit turns</Label>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="autopilot-max-turns-input">
-                  Max turns ({AUTOPILOT_MAX_TURNS_MIN}-{AUTOPILOT_MAX_TURNS_MAX})
-                </Label>
-                <Input
-                  disabled={!(autopilotLimitModal?.limitTurns ?? false)}
-                  id="autopilot-max-turns-input"
-                  min={AUTOPILOT_MAX_TURNS_MIN}
-                  onChange={(event) =>
-                    setAutopilotLimitModal((current) =>
-                      current === null
-                        ? current
-                        : { ...current, maxTurnsInput: event.target.value, validationMessage: "" },
-                    )
-                  }
-                  placeholder="e.g. 12"
-                  type="number"
-                  value={autopilotLimitModal?.maxTurnsInput ?? ""}
-                />
-              </div>
-              {autopilotLimitModal?.validationMessage ? (
-                <p className="text-sm text-muted-foreground">
-                  {autopilotLimitModal.validationMessage}
-                </p>
-              ) : null}
-            </div>
-            <DialogFooter className="flex gap-2">
-              <Button onClick={() => setAutopilotLimitModal(null)} variant="secondary">
-                Cancel
-              </Button>
-              <Button onClick={() => void submitAutopilotLimitModal()}>
-                {autopilotSubmitLabel}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <AutopilotLimitDialog
+          modal={autopilotLimitModal}
+          onClose={() => setAutopilotLimitModal(null)}
+          onLimitTurnsChange={(checked) =>
+            setAutopilotLimitModal((current) =>
+              current === null
+                ? current
+                : { ...current, limitTurns: checked, validationMessage: "" },
+            )
+          }
+          onMaxTurnsInputChange={(value) =>
+            setAutopilotLimitModal((current) =>
+              current === null
+                ? current
+                : { ...current, maxTurnsInput: value, validationMessage: "" },
+            )
+          }
+          onSubmit={() => void submitAutopilotLimitModal()}
+          submitLabel={autopilotSubmitLabel}
+        />
       </div>
     </main>
   );
