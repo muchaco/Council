@@ -5,13 +5,13 @@
     {
       "action": "evaluate",
       "saveAs": "activeTabAfterArrowRight",
-      "expression": "async () => { const active = document.querySelector('button.tab-active'); if (!(active instanceof HTMLButtonElement)) { return null; } active.focus(); active.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })); await new Promise((resolve) => window.setTimeout(resolve, 0)); const next = document.querySelector('button.tab-active'); return next instanceof HTMLButtonElement ? (next.textContent?.trim() ?? null) : null; }"
+      "expression": "async () => { const active = document.querySelector('button.home-tab-button.active'); if (!(active instanceof HTMLButtonElement)) { return null; } active.focus(); active.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })); await new Promise((resolve) => window.setTimeout(resolve, 0)); const next = document.querySelector('button.home-tab-button.active'); return next instanceof HTMLButtonElement ? (next.textContent?.trim() ?? null) : null; }"
     },
     { "action": "assertSaved", "key": "activeTabAfterArrowRight", "equals": "Agents" },
     {
       "action": "evaluate",
       "saveAs": "activeTabAfterArrowLeft",
-      "expression": "async () => { const active = document.querySelector('button.tab-active'); if (!(active instanceof HTMLButtonElement)) { return null; } active.focus(); active.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true })); await new Promise((resolve) => window.setTimeout(resolve, 0)); const next = document.querySelector('button.tab-active'); return next instanceof HTMLButtonElement ? (next.textContent?.trim() ?? null) : null; }"
+      "expression": "async () => { const active = document.querySelector('button.home-tab-button.active'); if (!(active instanceof HTMLButtonElement)) { return null; } active.focus(); active.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true, cancelable: true })); await new Promise((resolve) => window.setTimeout(resolve, 0)); const next = document.querySelector('button.home-tab-button.active'); return next instanceof HTMLButtonElement ? (next.textContent?.trim() ?? null) : null; }"
     },
     { "action": "assertSaved", "key": "activeTabAfterArrowLeft", "equals": "Councils" },
     { "action": "click", "selector": "button:has-text('Settings')" },
@@ -19,7 +19,7 @@
     {
       "action": "evaluate",
       "saveAs": "testDisabledInitially",
-      "expression": "() => { const button = Array.from(document.querySelectorAll('.provider-card button')).find((node) => node.textContent?.trim() === 'Test connection'); return button instanceof HTMLButtonElement ? button.disabled : null; }"
+      "expression": "() => { const button = Array.from(document.querySelectorAll('.settings-provider-card button')).find((node) => node.textContent?.trim() === 'Test connection'); return button instanceof HTMLButtonElement ? button.disabled : null; }"
     },
     { "action": "assertSaved", "key": "testDisabledInitially", "equals": true },
     {
@@ -30,7 +30,7 @@
     {
       "action": "evaluate",
       "saveAs": "testEnabledAfterDraftChange",
-      "expression": "() => { const card = Array.from(document.querySelectorAll('.provider-card')).find((node) => node.textContent?.includes('OpenRouter')); if (!(card instanceof HTMLElement)) { return null; } const button = Array.from(card.querySelectorAll('button')).find((node) => node.textContent?.trim() === 'Test connection'); return button instanceof HTMLButtonElement ? button.disabled : null; }"
+      "expression": "() => { const card = Array.from(document.querySelectorAll('.settings-provider-card')).find((node) => node.textContent?.includes('OpenRouter')); if (!(card instanceof HTMLElement)) { return null; } const button = Array.from(card.querySelectorAll('button')).find((node) => node.textContent?.trim() === 'Test connection'); return button instanceof HTMLButtonElement ? button.disabled : null; }"
     },
     { "action": "assertSaved", "key": "testEnabledAfterDraftChange", "equals": false },
     { "action": "click", "selector": "button:has-text('Councils')" },

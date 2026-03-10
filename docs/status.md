@@ -16,6 +16,7 @@ Current repository state snapshot:
 - Settings/Providers/Model Catalog slice is implemented end-to-end and now extended by Agents and Councils foundations in main/IPC, with Councils persistence + lifecycle command/query support now available.
 - Settings provider cards now expose explicit configured/not-configured status badges, use a simple two-state action layout (`Test connection` + `Save` while disconnected, `Disconnect` while configured), keep configured providers read-only, restore editable inputs after disconnect, preserve success feedback in toast form, avoid remount-style draft resets while typing, and refresh cached model catalogs when a provider is disconnected.
 - Councils diagnostics scenario no longer depends on live provider credentials and now validates settings dirty-test gating + core councils navigation with deterministic secret-free steps.
+- Councils renderer diagnostics are refreshed for the current component markup: `scripts/diagnostics/scenarios/councils-ui.json` now targets the active home-tab and settings provider-card selectors used by the decomposed renderer, keeping the council editor smoke path aligned with the live UI.
 - Councils runtime milestone now includes transcript/message persistence, runtime briefing snapshot persistence, bounded context-window prompt composition, Autopilot start-opening orchestration, dedicated Start/Resume modal turn-limit UX in Council View, persisted max-turn orchestration controls for Start/Resume runtime runs, and end-to-end transcript export with main-only file dialog/write boundaries.
 - Council runtime prompt architecture now routes member, conductor, and autopilot-opening generations through pure canonical message builders, injects Agent-authored system prompts plus optional verbosity into member runtime calls, derives concise role labels from Agent prompts for peer/conductor context, and resolves member vs conductor models through explicit role-aware runtime helpers instead of the previous conductor-only path.
 - Council runtime failures now normalize provider/model/runtime errors into concise user-safe categories with optional sanitized technical details, and Council View renders compact inline recovery notices instead of raw provider payload dumps.
@@ -136,7 +137,7 @@ Traceability source-of-truth is generated from test annotations and mapping conf
 Generated source-of-truth files:
 - `docs/traceability/requirements-traceability.generated.json`
 - `docs/traceability/requirements-traceability.generated.md`
-Last generated: 2026-03-10T12:45:31.104Z
+Last generated: 2026-03-10T12:50:28.265Z
 Coverage snapshot: 33 specs, 206 test entries, 195 mapped requirement IDs.
 <!-- TRACEABILITY:END -->
 
