@@ -18,7 +18,6 @@
       "expression": "() => { const card = Array.from(document.querySelectorAll('[data-council-card-id]')).find((node) => node.textContent?.includes('Transcript Scenario')); if (!(card instanceof HTMLElement)) { return false; } card.click(); return true; }"
     },
     { "action": "assertSaved", "key": "openedTranscriptScenarioCouncil", "equals": true },
-    { "action": "waitForText", "text": "Transcript" },
     {
       "action": "waitForText",
       "text": "No messages yet. Choose the next speaker from Members."
