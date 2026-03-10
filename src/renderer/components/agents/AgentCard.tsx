@@ -8,6 +8,7 @@ import type {
 import { modelLabel } from "../../../shared/app-ui-helpers.js";
 import type { ModelRef } from "../../../shared/domain/model-ref";
 import type { AgentDto } from "../../../shared/ipc/dto";
+import { TagList } from "../shared/TagList";
 import { Card } from "../ui/card";
 import { AgentCardMenu } from "./AgentCardMenu";
 
@@ -19,6 +20,7 @@ type AgentCardProps = {
   onDelete: (agent: AgentDto) => void;
   onMenuToggle: (event: SyntheticEvent<HTMLDetailsElement>) => void;
   onSetArchived: (params: { agentId: string; archived: boolean }) => void;
+  onTagClick: (tag: string) => void;
 };
 
 export const AgentCard = ({
@@ -29,6 +31,7 @@ export const AgentCard = ({
   onDelete,
   onMenuToggle,
   onSetArchived,
+  onTagClick,
 }: AgentCardProps): JSX.Element => (
   <Card
     aria-label={`Open agent ${agent.name}`}
@@ -61,14 +64,7 @@ export const AgentCard = ({
 
     {agent.tags.length > 0 ? (
       <div className="agent-card-tags">
-        {agent.tags.slice(0, 3).map((tag) => (
-          <span className="agent-tag" key={tag}>
-            {tag}
-          </span>
-        ))}
-        {agent.tags.length > 3 ? (
-          <span className="agent-tag council-tag-more">+{agent.tags.length - 3}</span>
-        ) : null}
+        <TagList limit={3} onTagClick={onTagClick} tags={agent.tags} />
       </div>
     ) : null}
 

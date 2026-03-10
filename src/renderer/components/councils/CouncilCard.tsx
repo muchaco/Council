@@ -6,6 +6,7 @@ import type {
 } from "react";
 
 import type { CouncilDto } from "../../../shared/ipc/dto";
+import { TagList } from "../shared/TagList";
 import { Badge } from "../ui/badge";
 import { Card, CardContent, CardHeader } from "../ui/card";
 import { CouncilCardMenu } from "./CouncilCardMenu";
@@ -21,6 +22,7 @@ type CouncilCardProps = {
   onMenuSummaryKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => void;
   onMenuToggle: (event: SyntheticEvent<HTMLDetailsElement>) => void;
   onSetArchived: (params: { councilId: string; archived: boolean }) => void;
+  onTagClick: (tag: string) => void;
 };
 
 export const CouncilCard = ({
@@ -34,6 +36,7 @@ export const CouncilCard = ({
   onMenuSummaryKeyDown,
   onMenuToggle,
   onSetArchived,
+  onTagClick,
 }: CouncilCardProps): JSX.Element => {
   const runtimeStatus = council.started ? (council.paused ? "paused" : "running") : "stopped";
 
@@ -84,19 +87,7 @@ export const CouncilCard = ({
         </div>
         {council.tags.length > 0 ? (
           <div className="flex flex-wrap gap-1.5 mt-3">
-            {council.tags.slice(0, 3).map((tag) => (
-              <span
-                className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-secondary text-secondary-foreground"
-                key={tag}
-              >
-                {tag}
-              </span>
-            ))}
-            {council.tags.length > 3 ? (
-              <span className="inline-flex px-2 py-0.5 rounded text-xs font-medium bg-secondary text-secondary-foreground">
-                +{council.tags.length - 3}
-              </span>
-            ) : null}
+            <TagList limit={3} onTagClick={onTagClick} tags={council.tags} />
           </div>
         ) : null}
         <div className="council-card-footer">

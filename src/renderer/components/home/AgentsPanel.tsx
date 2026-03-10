@@ -8,6 +8,7 @@ import type {
 import {
   DEFAULT_AGENT_HOME_LIST_FILTERS,
   applyAgentArchivedListUpdate,
+  commitTagFilterDraft,
   formatHomeListTotal,
   hasActiveAgentHomeListFilters,
 } from "../../../shared/app-ui-helpers.js";
@@ -55,6 +56,7 @@ export const AgentsPanel = ({
   );
   const [searchText, setSearchText] = useState(DEFAULT_AGENT_HOME_LIST_FILTERS.searchText);
   const [tagFilter, setTagFilter] = useState(DEFAULT_AGENT_HOME_LIST_FILTERS.tagFilter);
+  const [tagFilterDraft, setTagFilterDraft] = useState(DEFAULT_AGENT_HOME_LIST_FILTERS.tagFilter);
   const [archivedFilter, setArchivedFilter] = useState<AgentArchivedFilter>(
     DEFAULT_AGENT_HOME_LIST_FILTERS.archivedFilter,
   );
@@ -141,9 +143,25 @@ export const AgentsPanel = ({
   const clearFilters = useCallback((): void => {
     setSearchText(DEFAULT_AGENT_HOME_LIST_FILTERS.searchText);
     setTagFilter(DEFAULT_AGENT_HOME_LIST_FILTERS.tagFilter);
+    setTagFilterDraft(DEFAULT_AGENT_HOME_LIST_FILTERS.tagFilter);
     setArchivedFilter(DEFAULT_AGENT_HOME_LIST_FILTERS.archivedFilter);
     setSortBy(DEFAULT_AGENT_HOME_LIST_FILTERS.sortBy);
     setSortDirection(DEFAULT_AGENT_HOME_LIST_FILTERS.sortDirection);
+  }, []);
+
+  const commitTagFilter = useCallback(
+    (nextDraft?: string): void => {
+      const resolvedDraft = nextDraft ?? tagFilterDraft;
+      const nextFilter = commitTagFilterDraft(resolvedDraft);
+      setTagFilterDraft(nextFilter);
+      setTagFilter(nextFilter);
+    },
+    [tagFilterDraft],
+  );
+
+  const applyTagFilterFromCard = useCallback((tag: string): void => {
+    setTagFilterDraft(tag);
+    setTagFilter(commitTagFilterDraft(tag));
   }, []);
 
   const handleMenuToggle = (event: SyntheticEvent<HTMLDetailsElement>): void => {
@@ -246,11 +264,16 @@ export const AgentsPanel = ({
         metaLabel={isLoading ? "Loading agents..." : totalLabel}
         onAction={onOpenAgentEditor}
         onClearFilters={clearFilters}
+        onCommitTagFilter={() => commitTagFilter()}
         onSetArchivedFilter={(value) => setArchivedFilter(value as AgentArchivedFilter)}
         onSetSearchText={setSearchText}
         onSetSortBy={(value) => setSortBy(value as AgentSortField)}
         onSetSortDirection={(value) => setSortDirection(value as SortDirection)}
-        onSetTagFilter={setTagFilter}
+        onSetTagFilterDraft={setTagFilterDraft}
+        onTagFilterRemove={() => {
+          setTagFilterDraft("");
+          setTagFilter("");
+        }}
         searchAriaLabel="Search agents"
         searchPlaceholder="Search name or prompt"
         searchText={searchText}
@@ -265,6 +288,7 @@ export const AgentsPanel = ({
         ]}
         sortDirectionValue={sortDirection}
         tagFilter={tagFilter}
+        tagFilterDraft={tagFilterDraft}
         toolbarClassName="home-list-toolbar-agents"
       />
 
@@ -291,6 +315,7 @@ export const AgentsPanel = ({
             onDelete={setPendingDelete}
             onMenuToggle={handleMenuToggle}
             onSetArchived={setArchivedFromList}
+            onTagClick={applyTagFilterFromCard}
           />
         ))}
         {hasMore ? (

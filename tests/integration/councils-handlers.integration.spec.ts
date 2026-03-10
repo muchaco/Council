@@ -436,6 +436,66 @@ describe("councils handlers", () => {
     expect(page2._unsafeUnwrap().hasMore).toBe(false);
   });
 
+  itReq(FILE_REQUIREMENT_IDS, "filters councils by exact tag matches only", async () => {
+    const slice = createSlice();
+
+    await slice.saveCouncil({
+      webContentsId: 204,
+      draft: {
+        viewKind: "councilCreate",
+        id: null,
+        title: "Research Council",
+        topic: "Tag exact match",
+        goal: null,
+        mode: "manual",
+        tags: ["research"],
+        memberAgentIds: [PRIMARY_AGENT_ID],
+        memberColorsByAgentId: {},
+        conductorModelRefOrNull: null,
+      },
+    });
+    await slice.saveCouncil({
+      webContentsId: 204,
+      draft: {
+        viewKind: "councilCreate",
+        id: null,
+        title: "Research Notes Council",
+        topic: "Nearby tag",
+        goal: null,
+        mode: "manual",
+        tags: ["research-notes"],
+        memberAgentIds: [PRIMARY_AGENT_ID],
+        memberColorsByAgentId: {},
+        conductorModelRefOrNull: null,
+      },
+    });
+
+    const tagFiltered = await slice.listCouncils({
+      webContentsId: 204,
+      searchText: "",
+      tagFilter: "RESEARCH",
+      archivedFilter: "all",
+      sortBy: "updatedAt",
+      sortDirection: "desc",
+      page: 1,
+    });
+    expect(tagFiltered.isOk()).toBe(true);
+    expect(tagFiltered._unsafeUnwrap().items).toHaveLength(1);
+    expect(tagFiltered._unsafeUnwrap().items[0]?.title).toBe("Research Council");
+
+    const partialTagFiltered = await slice.listCouncils({
+      webContentsId: 204,
+      searchText: "",
+      tagFilter: "research-note",
+      archivedFilter: "all",
+      sortBy: "updatedAt",
+      sortDirection: "desc",
+      page: 1,
+    });
+    expect(partialTagFiltered.isOk()).toBe(true);
+    expect(partialTagFiltered._unsafeUnwrap().items).toHaveLength(0);
+  });
+
   itReq(
     FILE_REQUIREMENT_IDS,
     "keeps created councils not-started and enforces topic-required create flow",

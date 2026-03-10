@@ -1,8 +1,13 @@
 import { Plus } from "lucide-react";
 
+import {
+  buildTagEditorHelperText,
+  resolveTagEditorInputKeyAction,
+} from "../../../shared/app-ui-helpers.js";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { TagList } from "./TagList";
 
 type FilterOption = {
   value: string;
@@ -24,14 +29,17 @@ type HomeListToolbarProps = {
   sortDirectionOptions: ReadonlyArray<FilterOption>;
   sortDirectionValue: string;
   tagFilter: string;
+  tagFilterDraft: string;
   toolbarClassName: string;
   onAction: () => void;
   onClearFilters: () => void;
+  onCommitTagFilter: () => void;
   onSetArchivedFilter: (value: string) => void;
   onSetSearchText: (value: string) => void;
   onSetSortBy: (value: string) => void;
   onSetSortDirection: (value: string) => void;
-  onSetTagFilter: (value: string) => void;
+  onSetTagFilterDraft: (value: string) => void;
+  onTagFilterRemove: () => void;
 };
 
 export const HomeListToolbar = ({
@@ -49,14 +57,17 @@ export const HomeListToolbar = ({
   sortDirectionOptions,
   sortDirectionValue,
   tagFilter,
+  tagFilterDraft,
   toolbarClassName,
   onAction,
   onClearFilters,
+  onCommitTagFilter,
   onSetArchivedFilter,
   onSetSearchText,
   onSetSortBy,
   onSetSortDirection,
-  onSetTagFilter,
+  onSetTagFilterDraft,
+  onTagFilterRemove,
 }: HomeListToolbarProps): JSX.Element => (
   <div className={`home-list-toolbar ${toolbarClassName}`}>
     <div aria-live="polite" className="home-list-toolbar-meta">
@@ -70,13 +81,50 @@ export const HomeListToolbar = ({
         placeholder={searchPlaceholder}
         value={searchText}
       />
-      <Input
-        aria-label="Filter by tag"
-        className="home-list-toolbar-tag"
-        onChange={(event) => onSetTagFilter(event.target.value)}
-        placeholder="Filter by tag"
-        value={tagFilter}
-      />
+      <div className="space-y-2">
+        {tagFilter.length > 0 ? (
+          <TagList
+            emptyLabel="No active tag filter"
+            onTagRemove={onTagFilterRemove}
+            tags={[tagFilter]}
+          />
+        ) : null}
+        <div className="flex gap-2">
+          <Input
+            aria-label="Filter by exact tag"
+            className="home-list-toolbar-tag"
+            onChange={(event) => onSetTagFilterDraft(event.target.value)}
+            onKeyDown={(event) => {
+              const action = resolveTagEditorInputKeyAction({
+                key: event.key,
+                draftValue: tagFilterDraft,
+                committedTags: tagFilter.length > 0 ? [tagFilter] : [],
+              });
+              if (action === "none") {
+                return;
+              }
+              event.preventDefault();
+              if (action === "submit") {
+                onCommitTagFilter();
+                return;
+              }
+              if (action === "clearDraft") {
+                onSetTagFilterDraft("");
+                return;
+              }
+              onTagFilterRemove();
+            }}
+            placeholder="Filter by exact tag"
+            value={tagFilterDraft}
+          />
+          <Button onClick={onCommitTagFilter} type="button" variant="outline">
+            Apply tag
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {buildTagEditorHelperText({ mode: "filter", slotsRemaining: 0 })}
+        </p>
+      </div>
     </div>
     <div className="home-list-toolbar-fields">
       <Button disabled={!hasActiveFilters} onClick={onClearFilters} type="button" variant="outline">

@@ -7,6 +7,7 @@ import type {
 
 import {
   DEFAULT_COUNCIL_HOME_LIST_FILTERS,
+  commitTagFilterDraft,
   formatHomeListTotal,
   hasActiveCouncilHomeListFilters,
 } from "../../../shared/app-ui-helpers.js";
@@ -54,6 +55,7 @@ export const CouncilsPanel = ({
   );
   const [searchText, setSearchText] = useState(DEFAULT_COUNCIL_HOME_LIST_FILTERS.searchText);
   const [tagFilter, setTagFilter] = useState(DEFAULT_COUNCIL_HOME_LIST_FILTERS.tagFilter);
+  const [tagFilterDraft, setTagFilterDraft] = useState(DEFAULT_COUNCIL_HOME_LIST_FILTERS.tagFilter);
   const [archivedFilter, setArchivedFilter] = useState<CouncilArchivedFilter>(
     DEFAULT_COUNCIL_HOME_LIST_FILTERS.archivedFilter,
   );
@@ -141,9 +143,25 @@ export const CouncilsPanel = ({
   const clearFilters = useCallback((): void => {
     setSearchText(DEFAULT_COUNCIL_HOME_LIST_FILTERS.searchText);
     setTagFilter(DEFAULT_COUNCIL_HOME_LIST_FILTERS.tagFilter);
+    setTagFilterDraft(DEFAULT_COUNCIL_HOME_LIST_FILTERS.tagFilter);
     setArchivedFilter(DEFAULT_COUNCIL_HOME_LIST_FILTERS.archivedFilter);
     setSortBy(DEFAULT_COUNCIL_HOME_LIST_FILTERS.sortBy);
     setSortDirection(DEFAULT_COUNCIL_HOME_LIST_FILTERS.sortDirection);
+  }, []);
+
+  const commitTagFilter = useCallback(
+    (nextDraft?: string): void => {
+      const resolvedDraft = nextDraft ?? tagFilterDraft;
+      const nextFilter = commitTagFilterDraft(resolvedDraft);
+      setTagFilterDraft(nextFilter);
+      setTagFilter(nextFilter);
+    },
+    [tagFilterDraft],
+  );
+
+  const applyTagFilterFromCard = useCallback((tag: string): void => {
+    setTagFilterDraft(tag);
+    setTagFilter(commitTagFilterDraft(tag));
   }, []);
 
   const handleMenuKeyDown = (event: ReactKeyboardEvent<HTMLDetailsElement>): void => {
@@ -301,11 +319,16 @@ export const CouncilsPanel = ({
         metaLabel={isLoading ? "Loading councils..." : totalLabel}
         onAction={onOpenCouncilEditor}
         onClearFilters={clearFilters}
+        onCommitTagFilter={() => commitTagFilter()}
         onSetArchivedFilter={(value) => setArchivedFilter(value as CouncilArchivedFilter)}
         onSetSearchText={setSearchText}
         onSetSortBy={(value) => setSortBy(value as CouncilSortField)}
         onSetSortDirection={(value) => setSortDirection(value as SortDirection)}
-        onSetTagFilter={setTagFilter}
+        onSetTagFilterDraft={setTagFilterDraft}
+        onTagFilterRemove={() => {
+          setTagFilterDraft("");
+          setTagFilter("");
+        }}
         searchAriaLabel="Search councils"
         searchPlaceholder="Search title or topic"
         searchText={searchText}
@@ -320,6 +343,7 @@ export const CouncilsPanel = ({
         ]}
         sortDirectionValue={sortDirection}
         tagFilter={tagFilter}
+        tagFilterDraft={tagFilterDraft}
         toolbarClassName="home-list-toolbar-councils"
       />
 
@@ -344,6 +368,7 @@ export const CouncilsPanel = ({
             onMenuSummaryKeyDown={handleMenuSummaryKeyDown}
             onMenuToggle={handleMenuToggle}
             onSetArchived={setArchivedFromList}
+            onTagClick={applyTagFilterFromCard}
           />
         ))}
         {hasMore ? (

@@ -156,6 +156,19 @@ describe("agents handlers", () => {
         modelRefOrNull: null,
       },
     });
+    await slice.saveAgent({
+      webContentsId: 11,
+      draft: {
+        viewKind: "agentEdit",
+        id: null,
+        name: "Research Notes",
+        systemPrompt: "Stores notes",
+        verbosity: null,
+        temperature: null,
+        tags: ["research-notes"],
+        modelRefOrNull: null,
+      },
+    });
 
     const textFiltered = await slice.listAgents({
       webContentsId: 11,
@@ -182,6 +195,18 @@ describe("agents handlers", () => {
     expect(tagFiltered.isOk()).toBe(true);
     expect(tagFiltered._unsafeUnwrap().items).toHaveLength(1);
     expect(tagFiltered._unsafeUnwrap().items[0]?.name).toBe("Researcher");
+
+    const partialTagFiltered = await slice.listAgents({
+      webContentsId: 11,
+      searchText: "",
+      tagFilter: "research-note",
+      archivedFilter: "all",
+      sortBy: "updatedAt",
+      sortDirection: "desc",
+      page: 1,
+    });
+    expect(partialTagFiltered.isOk()).toBe(true);
+    expect(partialTagFiltered._unsafeUnwrap().items).toHaveLength(0);
   });
 
   itReq(FILE_REQUIREMENT_IDS, "blocks saving agent with invalid model config", async () => {
