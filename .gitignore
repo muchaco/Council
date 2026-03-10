@@ -5,3 +5,4 @@ coverage/
 *.log
 .agents/
 localhost_5173_*.png
+artifacts/electron-tool/*.png
