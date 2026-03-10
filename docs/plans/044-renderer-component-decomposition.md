@@ -97,6 +97,7 @@ Decompose the renderer from a monolithic `src/renderer/App.tsx` into screen-leve
   - `src/renderer/components/shared/HomeListToolbar.tsx`
   - `src/renderer/components/shared/EditableConfigFieldRow.tsx`
   - `src/renderer/components/shared/TagsEditor.tsx`
+  - `src/renderer/components/shared/DetailScreenShell.tsx`
   - home panel wrappers `src/renderer/components/home/CouncilsPanel.tsx` and `src/renderer/components/home/AgentsPanel.tsx`
 - Council View leaf extraction is in progress and now includes:
   - `src/renderer/components/council-view/CouncilViewHeader.tsx`
@@ -116,7 +117,6 @@ Decompose the renderer from a monolithic `src/renderer/App.tsx` into screen-leve
 
 ### Still left to implement
 - Optional cleanup still available if repetition becomes clearer after the council-view cuts:
-  - `DetailScreenShell.tsx`
 - Focused direct tests remain optional follow-up only if any new pure helpers are extracted from the remaining council-view work.
 - If the final renderer-only cleanup is split further, keep commits behavior-preserving and continue using the existing validation/traceability/status refresh workflow after each slice.
 

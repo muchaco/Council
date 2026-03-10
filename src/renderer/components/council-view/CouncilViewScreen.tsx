@@ -25,6 +25,7 @@ import {
 } from "../../../shared/council-view-transcript.js";
 import type { CouncilDto, GetCouncilViewResponse } from "../../../shared/ipc/dto";
 import { ConfirmDialog } from "../../ConfirmDialog";
+import { DetailScreenShell } from "../shared/DetailScreenShell";
 import { AutopilotLimitDialog } from "./AutopilotLimitDialog";
 import { ConfigTab, type CouncilConfigEditState } from "./ConfigTab";
 import { CouncilRuntimeAlerts } from "./CouncilRuntimeAlerts";
@@ -669,28 +670,20 @@ export const CouncilViewScreen = ({
   }
   if (state.status === "loading") {
     return (
-      <main className="shell">
-        <header className="section-header">
-          <button className="secondary" onClick={() => void leaveSafely()} type="button">
-            Back
-          </button>
-          <h1>Council View</h1>
-        </header>
-        <p className="status">Loading council view...</p>
-      </main>
+      <DetailScreenShell
+        onBack={() => void leaveSafely()}
+        statusMessage="Loading council view..."
+        title="Council View"
+      />
     );
   }
   if (state.status === "error") {
     return (
-      <main className="shell">
-        <header className="section-header">
-          <button className="secondary" onClick={() => void leaveSafely()} type="button">
-            Back
-          </button>
-          <h1>Council View</h1>
-        </header>
-        <p className="status">Error: {state.message}</p>
-      </main>
+      <DetailScreenShell
+        onBack={() => void leaveSafely()}
+        statusMessage={`Error: ${state.message}`}
+        title="Council View"
+      />
     );
   }
 

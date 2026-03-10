@@ -13,6 +13,7 @@ import type {
   GetCouncilEditorViewResponse,
 } from "../../../shared/ipc/dto";
 import { ConfirmDialog } from "../../ConfirmDialog";
+import { DetailScreenShell } from "../shared/DetailScreenShell";
 import { ModelSelectField } from "../shared/ModelSelectField";
 
 type CouncilEditorDraft = {
@@ -371,28 +372,20 @@ export const CouncilEditorScreen = ({
   }
   if (state.status === "loading") {
     return (
-      <main className="shell">
-        <header className="section-header">
-          <button className="secondary" onClick={() => close()} type="button">
-            Back
-          </button>
-          <h1>{councilId === null ? "New Council" : "Edit Council"}</h1>
-        </header>
-        <p className="status">Loading council editor...</p>
-      </main>
+      <DetailScreenShell
+        onBack={() => close()}
+        statusMessage="Loading council editor..."
+        title={councilId === null ? "New Council" : "Edit Council"}
+      />
     );
   }
   if (state.status === "error") {
     return (
-      <main className="shell">
-        <header className="section-header">
-          <button className="secondary" onClick={() => close()} type="button">
-            Back
-          </button>
-          <h1>Council Editor</h1>
-        </header>
-        <p className="status">Error: {state.message}</p>
-      </main>
+      <DetailScreenShell
+        onBack={() => close()}
+        statusMessage={`Error: ${state.message}`}
+        title="Council Editor"
+      />
     );
   }
 

@@ -8,6 +8,7 @@ import {
 } from "../../../shared/app-ui-helpers.js";
 import type { GetAgentEditorViewResponse } from "../../../shared/ipc/dto";
 import { ConfirmDialog } from "../../ConfirmDialog";
+import { DetailScreenShell } from "../shared/DetailScreenShell";
 import { ModelSelectField } from "../shared/ModelSelectField";
 import { Button } from "../ui/button";
 
@@ -293,28 +294,20 @@ export const AgentEditorScreen = ({
   }
   if (state.status === "loading") {
     return (
-      <main className="shell">
-        <header className="section-header">
-          <button className="secondary" onClick={() => close()} type="button">
-            Back
-          </button>
-          <h1>{agentId === null ? "New Agent" : "Edit Agent"}</h1>
-        </header>
-        <p className="status">Loading agent editor...</p>
-      </main>
+      <DetailScreenShell
+        onBack={() => close()}
+        statusMessage="Loading agent editor..."
+        title={agentId === null ? "New Agent" : "Edit Agent"}
+      />
     );
   }
   if (state.status === "error") {
     return (
-      <main className="shell">
-        <header className="section-header">
-          <button className="secondary" onClick={() => close()} type="button">
-            Back
-          </button>
-          <h1>Agent Editor</h1>
-        </header>
-        <p className="status">Error: {state.message}</p>
-      </main>
+      <DetailScreenShell
+        onBack={() => close()}
+        statusMessage={`Error: ${state.message}`}
+        title="Agent Editor"
+      />
     );
   }
 
