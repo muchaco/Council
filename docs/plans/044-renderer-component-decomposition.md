@@ -114,11 +114,13 @@ Decompose the renderer from a monolithic `src/renderer/App.tsx` into screen-leve
   - `src/renderer/components/council-view/ConductorComposerCard.tsx`
   - `src/renderer/components/council-view/MembersCard.tsx`
   - `src/renderer/components/council-view/AddMemberPanel.tsx`
+  - `src/renderer/components/council-view/CouncilViewDialogs.tsx`
+  - `src/renderer/components/council-view/councilViewScreenDerivedState.ts`
 - Required validation/traceability/status updates were run and refreshed for the behavior-preserving decomposition pass.
 
 ### Still left to implement
 - Optional cleanup still available if repetition becomes clearer after the council-view cuts:
-- `src/renderer/components/council-view/CouncilViewScreen.tsx` remains the main remaining oversized renderer screen and is the best target for the next behavior-preserving decomposition slice.
+- `src/renderer/components/council-view/CouncilViewScreen.tsx` is smaller but still the main remaining oversized renderer screen and is the best target for the next behavior-preserving decomposition slice.
 - Focused direct tests remain optional follow-up only if any new pure helpers are extracted from the remaining council-view work.
 - If the final renderer-only cleanup is split further, keep commits behavior-preserving and continue using the existing validation/traceability/status refresh workflow after each slice.
 

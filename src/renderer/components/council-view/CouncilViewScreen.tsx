@@ -10,28 +10,16 @@ import {
   type CouncilRuntimeErrorDto,
   readCouncilRuntimeErrorDetails,
 } from "../../../shared/council-runtime-error-normalization.js";
-import {
-  buildAutopilotRecoveryNotice,
-  buildManualRetryNotice,
-} from "../../../shared/council-view-autopilot-recovery";
-import { resolveCouncilViewRuntimeControls } from "../../../shared/council-view-runtime-controls.js";
-import {
-  COUNCIL_VIEW_EXIT_CONFIRMATION_MESSAGE,
-  buildCouncilViewExitPlan,
-} from "../../../shared/council-view-runtime-guards";
-import {
-  resolveThinkingPlaceholderSpeakerId,
-  shouldRenderInlineThinkingCancel,
-} from "../../../shared/council-view-transcript.js";
+import { buildCouncilViewExitPlan } from "../../../shared/council-view-runtime-guards";
 import type { CouncilDto, GetCouncilViewResponse } from "../../../shared/ipc/dto";
-import { ConfirmDialog } from "../../ConfirmDialog";
 import { DetailScreenShell } from "../shared/DetailScreenShell";
-import { AutopilotLimitDialog } from "./AutopilotLimitDialog";
 import { ConfigTab, type CouncilConfigEditState } from "./ConfigTab";
 import { CouncilRuntimeAlerts } from "./CouncilRuntimeAlerts";
+import { CouncilViewDialogs } from "./CouncilViewDialogs";
 import { CouncilViewHeader } from "./CouncilViewHeader";
 import { CouncilViewTabs } from "./CouncilViewTabs";
 import { DiscussionTab } from "./DiscussionTab";
+import { deriveCouncilViewScreenState } from "./councilViewScreenDerivedState";
 
 type CouncilViewTab = "discussion" | "config";
 
@@ -688,96 +676,40 @@ export const CouncilViewScreen = ({
   }
 
   const council = state.source.council;
-  const availableAgentById = new Map(
-    state.source.availableAgents.map((agent) => [agent.id, agent]),
-  );
-  const memberNameById = new Map(
-    state.source.availableAgents.map((agent) => [agent.id, agent.name]),
-  );
-  const archivedMemberIds = council.memberAgentIds.filter(
-    (memberAgentId) => availableAgentById.get(memberAgentId)?.archived === true,
-  );
-  const hasArchivedMembers = archivedMemberIds.length > 0;
-  const archivedMemberNames = archivedMemberIds.map(
-    (memberAgentId) => memberNameById.get(memberAgentId) ?? memberAgentId,
-  );
-  const runtimeControls = resolveCouncilViewRuntimeControls({
-    mode: council.mode,
-    started: council.started,
-    paused: council.paused,
-    archived: council.archived,
-    messageCount: state.source.messages.length,
-  });
-  const generationRunning = state.source.generation.status === "running";
-  const generationActive = generationRunning || state.isGeneratingManualTurn;
-  const manualSpeakerDisabledReason = council.archived
-    ? "Archived councils are read-only."
-    : hasArchivedMembers
-      ? "Restore or remove archived members before selecting the next speaker."
-      : !council.started
-        ? "Start the council before selecting the next speaker."
-        : generationRunning || state.isGeneratingManualTurn
-          ? "Wait for the current generation to finish."
-          : null;
-  const pausedNextSpeakerId =
-    council.mode === "autopilot" && council.paused
-      ? state.source.generation.plannedNextSpeakerAgentId
-      : null;
-  const pausedNextSpeakerName =
-    pausedNextSpeakerId === null
-      ? null
-      : (memberNameById.get(pausedNextSpeakerId) ?? pausedNextSpeakerId);
-  const thinkingSpeakerId = resolveThinkingPlaceholderSpeakerId({
-    generation: state.source.generation,
-    pendingManualMemberAgentId: state.pendingManualMemberAgentId,
-  });
-  const thinkingSpeakerName =
-    thinkingSpeakerId === null
-      ? null
-      : (memberNameById.get(thinkingSpeakerId) ?? thinkingSpeakerId);
-  const thinkingSpeakerColor =
-    thinkingSpeakerId === null
-      ? null
-      : (council.memberColorsByAgentId[thinkingSpeakerId] ?? MEMBER_COLOR_PALETTE[0] ?? "#0a5c66");
-  const showInlineThinkingCancel = shouldRenderInlineThinkingCancel({
+  const {
+    archivedMemberNames,
+    autopilotRecoveryNotice,
+    autopilotSubmitLabel,
+    canEditMembers,
     generationActive,
-    thinkingSpeakerId,
-  });
-  const autopilotRecoveryNotice = buildAutopilotRecoveryNotice({
-    council: { mode: council.mode, started: council.started, paused: council.paused },
+    generationRunning,
+    hasArchivedMembers,
+    manualRetryNotice,
+    manualSpeakerDisabledReason,
+    memberIdsWithMessages,
+    memberNameById,
+    pausedNextSpeakerName,
+    runtimeControls,
+    showInlineThinkingCancel,
+    startDisabled,
+    startDisabledReason,
+    thinkingSpeakerColor,
+    thinkingSpeakerName,
+  } = deriveCouncilViewScreenState({
+    autopilotLimitAction,
+    availableAgents: state.source.availableAgents,
+    council,
+    generation: state.source.generation,
+    isConfigEditing: state.isConfigEditing,
+    isGeneratingManualTurn: state.isGeneratingManualTurn,
+    isResuming: state.isResuming,
+    isStarting: state.isStarting,
+    memberPalette: MEMBER_COLOR_PALETTE,
+    messages: state.source.messages,
+    pendingManualMemberAgentId: state.pendingManualMemberAgentId,
     runtimeError: state.runtimeError,
   });
-  const manualRetryNotice = buildManualRetryNotice({
-    council: { mode: council.mode },
-    runtimeError: state.runtimeError,
-  });
-  const autopilotSubmitLabel =
-    autopilotLimitAction === "start"
-      ? state.isStarting
-        ? "Starting..."
-        : "Start"
-      : state.isResuming
-        ? "Resuming..."
-        : "Resume";
-  const startDisabled =
-    state.isStarting ||
-    council.invalidConfig ||
-    hasArchivedMembers ||
-    autopilotLimitAction !== null ||
-    state.isConfigEditing;
-  const startDisabledReason = council.invalidConfig
-    ? "Fix the model config before starting."
-    : hasArchivedMembers
-      ? "Restore or remove archived members before starting."
-      : undefined;
   const runtimeBriefing = state.source.briefing;
-  const canEditMembers =
-    !council.archived && (!council.started || council.paused || council.mode === "manual");
-  const memberIdsWithMessages = new Set(
-    state.source.messages
-      .filter((message) => message.senderKind === "member" && message.senderAgentId !== null)
-      .map((message) => message.senderAgentId as string),
-  );
 
   return (
     <main className="main-content">
@@ -924,42 +856,36 @@ export const CouncilViewScreen = ({
           />
         )}
 
-        <ConfirmDialog
-          cancelLabel="Stay"
-          confirmLabel="Leave"
-          confirmTone="danger"
-          message={COUNCIL_VIEW_EXIT_CONFIRMATION_MESSAGE}
-          onCancel={() =>
-            setState((current) =>
-              current.status !== "ready" ? current : { ...current, showLeaveDialog: false },
-            )
-          }
-          onConfirm={() => {
-            const exitPlan = buildCouncilViewExitPlan(
-              state.source.council,
-              state.source.generation,
-            );
-            void executeLeave({ exitPlan });
-          }}
-          open={state.showLeaveDialog}
-          title="Leave Council View?"
-        />
-        <ConfirmDialog
-          confirmLabel="Remove"
-          confirmTone="danger"
-          message={
+        <CouncilViewDialogs
+          autopilotLimitAction={autopilotLimitAction}
+          leaveDialogOpen={state.showLeaveDialog}
+          memberRemoveDialogOpen={state.showMemberRemoveDialog}
+          memberRemoveMessage={
             state.pendingMemberRemovalId === null
               ? ""
               : `Remove ${memberNameById.get(state.pendingMemberRemovalId) ?? "this member"}? You can add them again later.`
           }
-          onCancel={() =>
+          onCancelLeave={() =>
+            setState((current) =>
+              current.status !== "ready" ? current : { ...current, showLeaveDialog: false },
+            )
+          }
+          onCancelMemberRemove={() =>
             setState((current) =>
               current.status !== "ready"
                 ? current
                 : { ...current, pendingMemberRemovalId: null, showMemberRemoveDialog: false },
             )
           }
-          onConfirm={() => {
+          onCloseAutopilotDialog={() => setAutopilotLimitAction(null)}
+          onConfirmLeave={() => {
+            const exitPlan = buildCouncilViewExitPlan(
+              state.source.council,
+              state.source.generation,
+            );
+            void executeLeave({ exitPlan });
+          }}
+          onConfirmMemberRemove={() => {
             if (state.pendingMemberRemovalId === null) {
               return;
             }
@@ -975,14 +901,7 @@ export const CouncilViewScreen = ({
               successMessage: "Member removed.",
             });
           }}
-          open={state.showMemberRemoveDialog}
-          title="Remove member?"
-        />
-
-        <AutopilotLimitDialog
-          action={autopilotLimitAction}
-          onClose={() => setAutopilotLimitAction(null)}
-          onSubmit={(maxTurns) => void submitAutopilotLimitModal(maxTurns)}
+          onSubmitAutopilotDialog={(maxTurns) => void submitAutopilotLimitModal(maxTurns)}
           submitLabel={autopilotSubmitLabel}
         />
       </div>
