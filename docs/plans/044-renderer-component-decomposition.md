@@ -135,6 +135,7 @@ Decompose the renderer from a monolithic `src/renderer/App.tsx` into screen-leve
 ### Plan closure
 - Plan 044 implementation is complete. `src/renderer/App.tsx` is a lightweight screen switcher, screen-specific state lives with the extracted screen containers, and the remaining Council View composition now sits in `src/renderer/components/council-view/CouncilViewReadyScreen.tsx` so `src/renderer/components/council-view/CouncilViewScreen.tsx` is a thin lifecycle/action shell.
 - No additional renderer decomposition work is required to satisfy this plan. Future renderer cleanup can proceed only as separate follow-up work if new repetition appears elsewhere.
+- Closing diagnostics were refreshed in `scripts/diagnostics/scenarios/council-view-transcript.json` and `scripts/diagnostics/scenarios/council-view-right-panel.json` so the required Council View Electron checks open councils through the current card-based home list surface.
 - No focused test files changed for the closing slice because the work is a behavior-preserving component boundary refactor; equivalence is verified through the required validation, traceability, and Electron diagnostic command set.
 
 ## Proposed component ownership model

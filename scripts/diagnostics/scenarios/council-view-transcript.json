@@ -13,9 +13,11 @@
     { "action": "click", "selector": "button:has-text('Councils')" },
     { "action": "waitForText", "text": "Transcript Scenario" },
     {
-      "action": "click",
-      "selector": "button.home-list-row:has-text('Transcript Scenario')"
+      "action": "evaluate",
+      "saveAs": "openedTranscriptScenarioCouncil",
+      "expression": "() => { const card = Array.from(document.querySelectorAll('[data-council-card-id]')).find((node) => node.textContent?.includes('Transcript Scenario')); if (!(card instanceof HTMLElement)) { return false; } card.click(); return true; }"
     },
+    { "action": "assertSaved", "key": "openedTranscriptScenarioCouncil", "equals": true },
     { "action": "waitForText", "text": "Transcript" },
     {
       "action": "waitForText",

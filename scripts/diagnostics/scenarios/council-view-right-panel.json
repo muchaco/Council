@@ -13,9 +13,11 @@
     { "action": "click", "selector": "button:has-text('Councils')" },
     { "action": "waitForText", "text": "Right Panel Scenario" },
     {
-      "action": "click",
-      "selector": "button.home-list-row:has-text('Right Panel Scenario')"
+      "action": "evaluate",
+      "saveAs": "openedRightPanelScenarioCouncil",
+      "expression": "() => { const card = Array.from(document.querySelectorAll('[data-council-card-id]')).find((node) => node.textContent?.includes('Right Panel Scenario')); if (!(card instanceof HTMLElement)) { return false; } card.click(); return true; }"
     },
+    { "action": "assertSaved", "key": "openedRightPanelScenarioCouncil", "equals": true },
     { "action": "waitForText", "text": "Briefing" },
     { "action": "waitForText", "text": "Members" },
     { "action": "waitForText", "text": "Conductor message" },
