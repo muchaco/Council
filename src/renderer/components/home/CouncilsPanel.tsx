@@ -1,4 +1,3 @@
-import { Plus } from "lucide-react";
 import type {
   KeyboardEvent as ReactKeyboardEvent,
   MouseEvent as ReactMouseEvent,
@@ -13,10 +12,9 @@ import type {
   SortDirection,
 } from "../../../shared/ipc/dto";
 import { CouncilCard } from "../councils/CouncilCard";
+import { HomeListToolbar } from "../shared/HomeListToolbar";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
-import { Input } from "../ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 
 type CouncilsPanelProps = {
   archivedFilter: CouncilArchivedFilter;
@@ -99,79 +97,40 @@ export const CouncilsPanel = ({
       id="home-panel-councils"
       role="tabpanel"
     >
-      <div className="home-list-toolbar home-list-toolbar-councils">
-        <div aria-live="polite" className="home-list-toolbar-meta">
-          {isLoading ? "Loading councils..." : totalLabel}
-        </div>
-        <div className="home-list-toolbar-fields home-list-toolbar-fields-wide">
-          <Input
-            aria-label="Search councils"
-            className="home-list-toolbar-search"
-            onChange={(event) => onSetSearchText(event.target.value)}
-            placeholder="Search title or topic"
-            value={searchText}
-          />
-          <Input
-            aria-label="Filter by tag"
-            className="home-list-toolbar-tag"
-            onChange={(event) => onSetTagFilter(event.target.value)}
-            placeholder="Filter by tag"
-            value={tagFilter}
-          />
-        </div>
-        <div className="home-list-toolbar-fields">
-          <Button
-            disabled={!hasActiveFilters}
-            onClick={onClearFilters}
-            type="button"
-            variant="outline"
-          >
-            Clear filters
-          </Button>
-          <Select
-            value={archivedFilter}
-            onValueChange={(value) => onSetArchivedFilter(value as CouncilArchivedFilter)}
-          >
-            <SelectTrigger className="home-list-toolbar-select">
-              <SelectValue placeholder="Filter status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All councils</SelectItem>
-              <SelectItem value="active">Active only</SelectItem>
-              <SelectItem value="archived">Archived only</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={sortBy} onValueChange={(value) => onSetSortBy(value as CouncilSortField)}>
-            <SelectTrigger className="home-list-toolbar-select">
-              <SelectValue placeholder="Sort by" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="updatedAt">Last modified</SelectItem>
-              <SelectItem value="createdAt">Date created</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select
-            value={sortDirection}
-            onValueChange={(value) => onSetSortDirection(value as SortDirection)}
-          >
-            <SelectTrigger className="home-list-toolbar-select home-list-toolbar-select-sm">
-              <SelectValue placeholder="Order" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="desc">Newest first</SelectItem>
-              <SelectItem value="asc">Oldest first</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <Button
-          className="home-list-toolbar-action gap-2"
-          onClick={onOpenCouncilEditor}
-          type="button"
-        >
-          <Plus className="h-4 w-4" />
-          New Council
-        </Button>
-      </div>
+      <HomeListToolbar
+        actionLabel="New Council"
+        archivedFilterValue={archivedFilter}
+        archivedOptions={[
+          { value: "all", label: "All councils" },
+          { value: "active", label: "Active only" },
+          { value: "archived", label: "Archived only" },
+        ]}
+        hasActiveFilters={hasActiveFilters}
+        isLoading={isLoading}
+        metaLabel={isLoading ? "Loading councils..." : totalLabel}
+        onAction={onOpenCouncilEditor}
+        onClearFilters={onClearFilters}
+        onSetArchivedFilter={(value) => onSetArchivedFilter(value as CouncilArchivedFilter)}
+        onSetSearchText={onSetSearchText}
+        onSetSortBy={(value) => onSetSortBy(value as CouncilSortField)}
+        onSetSortDirection={(value) => onSetSortDirection(value as SortDirection)}
+        onSetTagFilter={onSetTagFilter}
+        searchAriaLabel="Search councils"
+        searchPlaceholder="Search title or topic"
+        searchText={searchText}
+        sortByOptions={[
+          { value: "updatedAt", label: "Last modified" },
+          { value: "createdAt", label: "Date created" },
+        ]}
+        sortByValue={sortBy}
+        sortDirectionOptions={[
+          { value: "desc", label: "Newest first" },
+          { value: "asc", label: "Oldest first" },
+        ]}
+        sortDirectionValue={sortDirection}
+        tagFilter={tagFilter}
+        toolbarClassName="home-list-toolbar-councils"
+      />
 
       {error !== null ? <p className="text-muted-foreground italic">Error: {error}</p> : null}
       {!isLoading && councils.length === 0 ? (

@@ -1,4 +1,3 @@
-import { Plus } from "lucide-react";
 import type {
   KeyboardEvent as ReactKeyboardEvent,
   MouseEvent as ReactMouseEvent,
@@ -14,10 +13,9 @@ import type {
   SortDirection,
 } from "../../../shared/ipc/dto";
 import { AgentCard } from "../agents/AgentCard";
+import { HomeListToolbar } from "../shared/HomeListToolbar";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
-import { Input } from "../ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 
 type AgentsPanelProps = {
   agents: ReadonlyArray<AgentDto>;
@@ -94,79 +92,40 @@ export const AgentsPanel = ({
       id="home-panel-agents"
       role="tabpanel"
     >
-      <div className="home-list-toolbar home-list-toolbar-agents">
-        <div aria-live="polite" className="home-list-toolbar-meta">
-          {isLoading ? "Loading agents..." : totalLabel}
-        </div>
-        <div className="home-list-toolbar-fields home-list-toolbar-fields-wide">
-          <Input
-            aria-label="Search agents"
-            className="home-list-toolbar-search"
-            onChange={(event) => onSetSearchText(event.target.value)}
-            placeholder="Search name or prompt"
-            value={searchText}
-          />
-          <Input
-            aria-label="Filter by tag"
-            className="home-list-toolbar-tag"
-            onChange={(event) => onSetTagFilter(event.target.value)}
-            placeholder="Filter by tag"
-            value={tagFilter}
-          />
-        </div>
-        <div className="home-list-toolbar-fields">
-          <Button
-            disabled={!hasActiveFilters}
-            onClick={onClearFilters}
-            type="button"
-            variant="outline"
-          >
-            Clear filters
-          </Button>
-          <Select
-            value={archivedFilter}
-            onValueChange={(value) => onSetArchivedFilter(value as AgentArchivedFilter)}
-          >
-            <SelectTrigger className="home-list-toolbar-select">
-              <SelectValue placeholder="Filter status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All agents</SelectItem>
-              <SelectItem value="active">Active only</SelectItem>
-              <SelectItem value="archived">Archived only</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={sortBy} onValueChange={(value) => onSetSortBy(value as AgentSortField)}>
-            <SelectTrigger className="home-list-toolbar-select">
-              <SelectValue placeholder="Sort by" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="updatedAt">Last modified</SelectItem>
-              <SelectItem value="createdAt">Date created</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select
-            value={sortDirection}
-            onValueChange={(value) => onSetSortDirection(value as SortDirection)}
-          >
-            <SelectTrigger className="home-list-toolbar-select home-list-toolbar-select-sm">
-              <SelectValue placeholder="Order" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="desc">Newest first</SelectItem>
-              <SelectItem value="asc">Oldest first</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <Button
-          className="home-list-toolbar-action gap-2"
-          onClick={onOpenAgentEditor}
-          type="button"
-        >
-          <Plus className="h-4 w-4" />
-          New Agent
-        </Button>
-      </div>
+      <HomeListToolbar
+        actionLabel="New Agent"
+        archivedFilterValue={archivedFilter}
+        archivedOptions={[
+          { value: "all", label: "All agents" },
+          { value: "active", label: "Active only" },
+          { value: "archived", label: "Archived only" },
+        ]}
+        hasActiveFilters={hasActiveFilters}
+        isLoading={isLoading}
+        metaLabel={isLoading ? "Loading agents..." : totalLabel}
+        onAction={onOpenAgentEditor}
+        onClearFilters={onClearFilters}
+        onSetArchivedFilter={(value) => onSetArchivedFilter(value as AgentArchivedFilter)}
+        onSetSearchText={onSetSearchText}
+        onSetSortBy={(value) => onSetSortBy(value as AgentSortField)}
+        onSetSortDirection={(value) => onSetSortDirection(value as SortDirection)}
+        onSetTagFilter={onSetTagFilter}
+        searchAriaLabel="Search agents"
+        searchPlaceholder="Search name or prompt"
+        searchText={searchText}
+        sortByOptions={[
+          { value: "updatedAt", label: "Last modified" },
+          { value: "createdAt", label: "Date created" },
+        ]}
+        sortByValue={sortBy}
+        sortDirectionOptions={[
+          { value: "desc", label: "Newest first" },
+          { value: "asc", label: "Oldest first" },
+        ]}
+        sortDirectionValue={sortDirection}
+        tagFilter={tagFilter}
+        toolbarClassName="home-list-toolbar-agents"
+      />
 
       {error !== null ? <p className="status">Error: {error}</p> : null}
       {isLoading && agents.length > 0 ? (
