@@ -100,6 +100,7 @@ Decompose the renderer from a monolithic `src/renderer/App.tsx` into screen-leve
   - `src/renderer/components/council-view/CouncilViewTabs.tsx`
   - `src/renderer/components/council-view/CouncilRuntimeAlerts.tsx`
   - `src/renderer/components/council-view/DiscussionTab.tsx`
+  - `src/renderer/components/council-view/ConfigTab.tsx`
   - `src/renderer/components/council-view/TranscriptCard.tsx`
   - `src/renderer/components/council-view/AutopilotLimitDialog.tsx`
   - `src/renderer/components/council-view/TranscriptMessageRow.tsx`
@@ -111,20 +112,13 @@ Decompose the renderer from a monolithic `src/renderer/App.tsx` into screen-leve
 - Required validation/traceability/status updates were run and refreshed for the behavior-preserving decomposition pass.
 
 ### Still left to implement
-- Split `src/renderer/components/council-view/CouncilViewScreen.tsx` into the narrower plan-target components:
-  - `ConfigTab.tsx`
-- Push the remaining ephemeral council-view subtree state down to the narrowest safe scope after those component cuts are in place:
-  - conductor draft
-  - transcript refs/focus handling
-  - add-member open/search state
-  - config inline edit buffers + discard dialog state
-  - autopilot dialog form state
 - Optional cleanup still available if repetition becomes clearer after the council-view cuts:
   - `DetailScreenShell.tsx`
   - `HomeListToolbar.tsx`
   - `EditableConfigFieldRow.tsx`
   - `TagsEditor.tsx`
 - Focused direct tests remain optional follow-up only if any new pure helpers are extracted from the remaining council-view work.
+- If the final renderer-only cleanup is split further, keep commits behavior-preserving and continue using the existing validation/traceability/status refresh workflow after each slice.
 
 ## Proposed component ownership model
 

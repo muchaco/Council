@@ -1,9 +1,11 @@
-import type { JSX } from "react";
+import { useEffect, useState } from "react";
 
 import {
   AUTOPILOT_MAX_TURNS_MAX,
   AUTOPILOT_MAX_TURNS_MIN,
-  type AutopilotLimitModalState,
+  type AutopilotLimitModalAction,
+  createAutopilotLimitModalState,
+  resolveAutopilotMaxTurns,
 } from "../../../shared/app-ui-helpers.js";
 import { Button } from "../ui/button";
 import {
@@ -18,26 +20,41 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 
 type AutopilotLimitDialogProps = {
-  modal: AutopilotLimitModalState | null;
+  action: AutopilotLimitModalAction | null;
   onClose: () => void;
-  onLimitTurnsChange: (checked: boolean) => void;
-  onMaxTurnsInputChange: (value: string) => void;
-  onSubmit: () => void;
+  onSubmit: (maxTurns: number | null) => void;
   submitLabel: string;
 };
 
 export const AutopilotLimitDialog = ({
-  modal,
+  action,
   onClose,
-  onLimitTurnsChange,
-  onMaxTurnsInputChange,
   onSubmit,
   submitLabel,
 }: AutopilotLimitDialogProps): JSX.Element => {
-  const title = modal?.action === "start" ? "Start Autopilot" : "Resume Autopilot";
+  const [modalState, setModalState] = useState(() => createAutopilotLimitModalState("start"));
+
+  useEffect(() => {
+    if (action === null) {
+      return;
+    }
+    setModalState(createAutopilotLimitModalState(action));
+  }, [action]);
+
+  useEffect(() => {
+    if (action === null) {
+      return;
+    }
+    const focusTarget = document.querySelector<HTMLElement>(
+      "#autopilot-max-turns-input:not(:disabled), #autopilot-limit-toggle",
+    );
+    focusTarget?.focus();
+  }, [action]);
+
+  const title = action === "start" ? "Start Autopilot" : "Resume Autopilot";
 
   return (
-    <Dialog onOpenChange={(open) => (!open ? onClose() : undefined)} open={modal !== null}>
+    <Dialog onOpenChange={(open) => (!open ? onClose() : undefined)} open={action !== null}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
@@ -46,10 +63,16 @@ export const AutopilotLimitDialog = ({
         <div className="space-y-4 py-4">
           <div className="flex items-center space-x-2">
             <input
-              checked={modal?.limitTurns ?? false}
+              checked={modalState.limitTurns}
               className="h-4 w-4 rounded border-gray-300"
               id="autopilot-limit-toggle"
-              onChange={(event) => onLimitTurnsChange(event.target.checked)}
+              onChange={(event) =>
+                setModalState((current) => ({
+                  ...current,
+                  limitTurns: event.target.checked,
+                  validationMessage: "",
+                }))
+              }
               type="checkbox"
             />
             <Label htmlFor="autopilot-limit-toggle">Limit turns</Label>
@@ -59,24 +82,44 @@ export const AutopilotLimitDialog = ({
               Max turns ({AUTOPILOT_MAX_TURNS_MIN}-{AUTOPILOT_MAX_TURNS_MAX})
             </Label>
             <Input
-              disabled={!(modal?.limitTurns ?? false)}
+              disabled={!modalState.limitTurns}
               id="autopilot-max-turns-input"
               min={AUTOPILOT_MAX_TURNS_MIN}
-              onChange={(event) => onMaxTurnsInputChange(event.target.value)}
+              onChange={(event) =>
+                setModalState((current) => ({
+                  ...current,
+                  maxTurnsInput: event.target.value,
+                  validationMessage: "",
+                }))
+              }
               placeholder="e.g. 12"
               type="number"
-              value={modal?.maxTurnsInput ?? ""}
+              value={modalState.maxTurnsInput}
             />
           </div>
-          {modal?.validationMessage ? (
-            <p className="text-sm text-muted-foreground">{modal.validationMessage}</p>
+          {modalState.validationMessage ? (
+            <p className="text-sm text-muted-foreground">{modalState.validationMessage}</p>
           ) : null}
         </div>
         <DialogFooter className="flex gap-2">
           <Button onClick={onClose} variant="secondary">
             Cancel
           </Button>
-          <Button onClick={onSubmit}>{submitLabel}</Button>
+          <Button
+            onClick={() => {
+              const resolved = resolveAutopilotMaxTurns(modalState);
+              if (!resolved.ok) {
+                setModalState((current) => ({
+                  ...current,
+                  validationMessage: resolved.validationMessage,
+                }));
+                return;
+              }
+              onSubmit(resolved.maxTurns);
+            }}
+          >
+            {submitLabel}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

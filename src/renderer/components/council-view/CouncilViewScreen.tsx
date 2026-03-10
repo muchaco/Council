@@ -1,28 +1,15 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   type AutopilotLimitModalAction,
-  type AutopilotLimitModalState,
   COUNCIL_CONFIG_MAX_TAGS,
-  appendCouncilConfigTag,
-  councilModelLabel,
-  createAutopilotLimitModalState,
-  isModelSelectionInCatalog,
   normalizeTagsDraft,
-  parseCouncilConfigTags,
-  resolveAutopilotMaxTurns,
   toModelRef,
-  toModelSelectionValue,
 } from "../../../shared/app-ui-helpers.js";
 import {
   type CouncilRuntimeErrorDto,
   readCouncilRuntimeErrorDetails,
 } from "../../../shared/council-runtime-error-normalization.js";
-import {
-  resolveInlineConfigEditKeyboardAction,
-  resolveTranscriptFocusIndex,
-} from "../../../shared/council-view-accessibility.js";
 import {
   buildAutopilotRecoveryNotice,
   buildManualRetryNotice,
@@ -38,30 +25,14 @@ import {
 } from "../../../shared/council-view-transcript.js";
 import type { CouncilDto, GetCouncilViewResponse } from "../../../shared/ipc/dto";
 import { ConfirmDialog } from "../../ConfirmDialog";
-import { Badge } from "../ui/badge";
-import { Button } from "../ui/button";
-import { Card } from "../ui/card";
-import { Input } from "../ui/input";
-import { Label } from "../ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "../ui/select";
-import { Textarea } from "../ui/textarea";
 import { AutopilotLimitDialog } from "./AutopilotLimitDialog";
+import { ConfigTab, type CouncilConfigEditState } from "./ConfigTab";
 import { CouncilRuntimeAlerts } from "./CouncilRuntimeAlerts";
 import { CouncilViewHeader } from "./CouncilViewHeader";
 import { CouncilViewTabs } from "./CouncilViewTabs";
 import { DiscussionTab } from "./DiscussionTab";
 
 type CouncilViewTab = "discussion" | "config";
-type CouncilConfigField = "topic" | "goal" | "tags" | "conductorModel";
-type CouncilConfigEditState = { field: CouncilConfigField; draftValue: string };
 
 type CouncilViewState =
   | { status: "loading" }
@@ -79,18 +50,10 @@ type CouncilViewState =
       isLeavingView: boolean;
       showLeaveDialog: boolean;
       activeTab: CouncilViewTab;
-      configEdit: CouncilConfigEditState | null;
-      configTagInput: string;
-      showConfigDiscardDialog: boolean;
-      showConfigDeleteDialog: boolean;
-      isSavingConfigField: boolean;
-      isRefreshingConfigModels: boolean;
+      isConfigEditing: boolean;
       isSavingMembers: boolean;
-      showAddMemberPanel: boolean;
-      addMemberSearchText: string;
       showMemberRemoveDialog: boolean;
       pendingMemberRemovalId: string | null;
-      conductorDraft: string;
       runtimeError: CouncilRuntimeErrorDto | null;
       message: string;
     }
@@ -106,24 +69,6 @@ const MEMBER_COLOR_PALETTE: ReadonlyArray<string> = [
   "#166534",
   "#7c2d12",
 ];
-
-const toCouncilConfigFieldDisplayValue = (params: {
-  council: CouncilDto;
-  field: CouncilConfigField;
-}): string => {
-  switch (params.field) {
-    case "topic":
-      return params.council.topic;
-    case "goal":
-      return params.council.goal ?? "";
-    case "tags":
-      return params.council.tags.join(", ");
-    case "conductorModel":
-      return toModelSelectionValue(params.council.conductorModelRefOrNull);
-    default:
-      return "";
-  }
-};
 
 const createReadyCouncilViewState = (
   source: GetCouncilViewResponse,
@@ -142,18 +87,10 @@ const createReadyCouncilViewState = (
   isLeavingView: false,
   showLeaveDialog: false,
   activeTab: options?.activeTab ?? "discussion",
-  configEdit: null,
-  configTagInput: "",
-  showConfigDiscardDialog: false,
-  showConfigDeleteDialog: false,
-  isSavingConfigField: false,
-  isRefreshingConfigModels: false,
+  isConfigEditing: false,
   isSavingMembers: false,
-  showAddMemberPanel: false,
-  addMemberSearchText: "",
   showMemberRemoveDialog: false,
   pendingMemberRemovalId: null,
-  conductorDraft: "",
   runtimeError: options?.runtimeError ?? null,
   message: "",
 });
@@ -172,13 +109,8 @@ export const CouncilViewScreen = ({
   pushToast,
 }: CouncilViewScreenProps): JSX.Element | null => {
   const [state, setState] = useState<CouncilViewState>({ status: "loading" });
-  const [autopilotLimitModal, setAutopilotLimitModal] = useState<AutopilotLimitModalState | null>(
-    null,
-  );
-  const transcriptRowRefs = useRef<Array<HTMLElement | null>>([]);
-  const chatEndRef = useRef<HTMLDivElement | null>(null);
-  const councilConfigEditContainerRef = useRef<HTMLDivElement | null>(null);
-  const councilConfigEditInputRef = useRef<HTMLElement | null>(null);
+  const [autopilotLimitAction, setAutopilotLimitAction] =
+    useState<AutopilotLimitModalAction | null>(null);
 
   const loadCouncilView = useCallback(
     async (
@@ -223,53 +155,6 @@ export const CouncilViewScreen = ({
   }, [isActive, state]);
 
   useEffect(() => {
-    if (autopilotLimitModal === null) {
-      return;
-    }
-    const focusTarget = document.querySelector<HTMLElement>(
-      "#autopilot-max-turns-input:not(:disabled), #autopilot-limit-toggle",
-    );
-    focusTarget?.focus();
-  }, [autopilotLimitModal]);
-
-  useEffect(() => {
-    if (state.status !== "ready" || state.configEdit === null) {
-      return;
-    }
-    councilConfigEditInputRef.current?.focus();
-  }, [state]);
-
-  useEffect(() => {
-    if (
-      state.status !== "ready" ||
-      state.activeTab !== "config" ||
-      state.configEdit === null ||
-      state.showConfigDiscardDialog
-    ) {
-      return;
-    }
-    const onPointerDown = (event: MouseEvent): void => {
-      const target = event.target;
-      if (!(target instanceof Node)) {
-        return;
-      }
-      if (councilConfigEditContainerRef.current?.contains(target) === true) {
-        return;
-      }
-      closeCouncilConfigEdit(false);
-    };
-    window.addEventListener("mousedown", onPointerDown);
-    return () => window.removeEventListener("mousedown", onPointerDown);
-  }, [state]);
-
-  useLayoutEffect(() => {
-    if (!isActive || state.status !== "ready") {
-      return;
-    }
-    chatEndRef.current?.scrollIntoView({ behavior: "auto" });
-  }, [isActive, state]);
-
-  useEffect(() => {
     if (!isActive || state.status !== "ready") {
       return;
     }
@@ -281,7 +166,7 @@ export const CouncilViewScreen = ({
       council.paused ||
       council.archived ||
       generation.status === "running" ||
-      state.configEdit !== null
+      state.isConfigEditing
     ) {
       return;
     }
@@ -301,7 +186,7 @@ export const CouncilViewScreen = ({
   }, [councilId, isActive, loadCouncilView, pushToast, state]);
 
   const completeClose = async (): Promise<void> => {
-    setAutopilotLimitModal(null);
+    setAutopilotLimitAction(null);
     onClose();
   };
 
@@ -363,7 +248,7 @@ export const CouncilViewScreen = ({
   };
 
   const openAutopilotLimitModal = (action: AutopilotLimitModalAction): void => {
-    setAutopilotLimitModal(createAutopilotLimitModalState(action));
+    setAutopilotLimitAction(action);
   };
 
   const executeStartCouncilRuntime = async (maxTurns: number | null): Promise<void> => {
@@ -443,24 +328,17 @@ export const CouncilViewScreen = ({
     await loadCouncilView(councilId);
   };
 
-  const submitAutopilotLimitModal = async (): Promise<void> => {
-    if (autopilotLimitModal === null) {
+  const submitAutopilotLimitModal = async (maxTurns: number | null): Promise<void> => {
+    if (autopilotLimitAction === null) {
       return;
     }
-    const resolved = resolveAutopilotMaxTurns(autopilotLimitModal);
-    if (!resolved.ok) {
-      setAutopilotLimitModal((current) =>
-        current === null ? current : { ...current, validationMessage: resolved.validationMessage },
-      );
-      return;
-    }
-    const action = autopilotLimitModal.action;
-    setAutopilotLimitModal(null);
+    const action = autopilotLimitAction;
+    setAutopilotLimitAction(null);
     if (action === "start") {
-      await executeStartCouncilRuntime(resolved.maxTurns);
+      await executeStartCouncilRuntime(maxTurns);
       return;
     }
-    await executeResumeCouncilRuntime(resolved.maxTurns);
+    await executeResumeCouncilRuntime(maxTurns);
   };
 
   const startCouncilRuntime = async (): Promise<void> => {
@@ -474,66 +352,11 @@ export const CouncilViewScreen = ({
     await executeStartCouncilRuntime(null);
   };
 
-  const handleTranscriptRowKeyDown = (
-    event: ReactKeyboardEvent<HTMLElement>,
-    currentIndex: number,
-    totalRows: number,
-  ): void => {
-    const nextIndex = resolveTranscriptFocusIndex({
-      currentIndex,
-      key: event.key,
-      totalItems: totalRows,
-    });
-    if (nextIndex === null || nextIndex === currentIndex) {
-      return;
-    }
-    event.preventDefault();
-    transcriptRowRefs.current[nextIndex]?.focus();
-  };
-
-  const openCouncilConfigEdit = (field: CouncilConfigField): void => {
-    setState((current) => {
-      if (current.status !== "ready") {
-        return current;
-      }
-      return {
-        ...current,
-        configEdit: {
-          field,
-          draftValue: toCouncilConfigFieldDisplayValue({ council: current.source.council, field }),
-        },
-        configTagInput: "",
-        showConfigDiscardDialog: false,
-      };
-    });
-  };
-
-  const hasConfigEditChanges = (current: Extract<CouncilViewState, { status: "ready" }>): boolean =>
-    current.configEdit !== null &&
-    current.configEdit.draftValue !==
-      toCouncilConfigFieldDisplayValue({
-        council: current.source.council,
-        field: current.configEdit.field,
-      });
-
-  const closeCouncilConfigEdit = (forceDiscard: boolean): void => {
-    setState((current) => {
-      if (current.status !== "ready" || current.configEdit === null) {
-        return current;
-      }
-      if (!forceDiscard && hasConfigEditChanges(current)) {
-        return { ...current, showConfigDiscardDialog: true };
-      }
-      return { ...current, configEdit: null, configTagInput: "", showConfigDiscardDialog: false };
-    });
-  };
-
-  const saveCouncilConfigEdit = async (): Promise<void> => {
-    if (state.status !== "ready" || state.configEdit === null || state.isSavingConfigField) {
-      return;
+  const saveCouncilConfigEdit = async (configEdit: CouncilConfigEditState): Promise<boolean> => {
+    if (state.status !== "ready") {
+      return false;
     }
     const currentCouncil = state.source.council;
-    const configEdit = state.configEdit;
     const nextTopic = configEdit.field === "topic" ? configEdit.draftValue : currentCouncil.topic;
     const nextGoal =
       configEdit.field === "goal" ? configEdit.draftValue : (currentCouncil.goal ?? "");
@@ -542,7 +365,9 @@ export const CouncilViewScreen = ({
     const nextModelSelection =
       configEdit.field === "conductorModel"
         ? configEdit.draftValue
-        : toModelSelectionValue(currentCouncil.conductorModelRefOrNull);
+        : currentCouncil.conductorModelRefOrNull === null
+          ? ""
+          : `${currentCouncil.conductorModelRefOrNull.providerId}:${currentCouncil.conductorModelRefOrNull.modelId}`;
     const normalizedTagsResult = normalizeTagsDraft({
       tagsInput: nextTagsInput,
       maxTags: COUNCIL_CONFIG_MAX_TAGS,
@@ -554,11 +379,8 @@ export const CouncilViewScreen = ({
           ? current
           : { ...current, message: normalizedTagsResult.message },
       );
-      return;
+      return false;
     }
-    setState((current) =>
-      current.status !== "ready" ? current : { ...current, isSavingConfigField: true, message: "" },
-    );
     const result = await window.api.councils.save({
       viewKind: "councilView",
       id: currentCouncil.id,
@@ -574,98 +396,35 @@ export const CouncilViewScreen = ({
     if (!result.ok) {
       pushToast("error", result.error.userMessage);
       setState((current) =>
-        current.status !== "ready"
-          ? current
-          : { ...current, isSavingConfigField: false, message: result.error.userMessage },
+        current.status !== "ready" ? current : { ...current, message: result.error.userMessage },
       );
-      return;
+      return false;
     }
     pushToast("info", "Council config saved.");
-    await loadCouncilView(councilId);
-    setState((current) =>
-      current.status !== "ready"
-        ? current
-        : {
-            ...current,
-            activeTab: "config",
-            configEdit: null,
-            configTagInput: "",
-            showConfigDiscardDialog: false,
-            isSavingConfigField: false,
-          },
-    );
-  };
-
-  const addTagToCouncilConfigEdit = (): void => {
-    if (state.status !== "ready" || state.configEdit?.field !== "tags") {
-      return;
-    }
-    const currentTags = parseCouncilConfigTags(state.configEdit.draftValue);
-    const result = appendCouncilConfigTag({
-      currentTags,
-      tagInput: state.configTagInput,
-      maxTags: COUNCIL_CONFIG_MAX_TAGS,
-    });
-    if (!result.ok) {
-      pushToast("warning", result.message);
-      return;
-    }
-    setState((current) =>
-      current.status !== "ready" || current.configEdit?.field !== "tags"
-        ? current
-        : {
-            ...current,
-            configEdit: { ...current.configEdit, draftValue: result.tags.join(", ") },
-            configTagInput: "",
-          },
-    );
-  };
-
-  const removeTagFromCouncilConfigEdit = (tagToRemove: string): void => {
-    setState((current) => {
-      if (current.status !== "ready" || current.configEdit?.field !== "tags") {
-        return current;
-      }
-      const nextTags = parseCouncilConfigTags(current.configEdit.draftValue).filter(
-        (tag) => tag.toLowerCase() !== tagToRemove.toLowerCase(),
-      );
-      return { ...current, configEdit: { ...current.configEdit, draftValue: nextTags.join(", ") } };
-    });
+    await loadCouncilView(councilId, { preserveActiveTab: "config" });
+    return true;
   };
 
   const refreshCouncilViewConfigModels = async (): Promise<void> => {
     if (state.status !== "ready") {
       return;
     }
-    setState((current) =>
-      current.status !== "ready"
-        ? current
-        : { ...current, isRefreshingConfigModels: true, message: "" },
-    );
     const result = await window.api.councils.refreshModelCatalog({ viewKind: "councilView" });
     if (!result.ok) {
       pushToast("error", result.error.userMessage);
       setState((current) =>
-        current.status !== "ready"
-          ? current
-          : { ...current, isRefreshingConfigModels: false, message: result.error.userMessage },
+        current.status !== "ready" ? current : { ...current, message: result.error.userMessage },
       );
       return;
     }
     pushToast("info", "Council model options refreshed.");
-    await loadCouncilView(councilId);
-    setState((current) =>
-      current.status !== "ready"
-        ? current
-        : { ...current, activeTab: "config", isRefreshingConfigModels: false },
-    );
+    await loadCouncilView(councilId, { preserveActiveTab: "config" });
   };
 
   const saveCouncilViewMembers = async (params: {
     memberAgentIds: ReadonlyArray<string>;
     memberColorsByAgentId: Readonly<Record<string, string>>;
     successMessage: string;
-    keepAddPanelOpen?: boolean;
   }): Promise<void> => {
     if (state.status !== "ready") {
       return;
@@ -704,7 +463,6 @@ export const CouncilViewScreen = ({
             ...current,
             activeTab: "discussion",
             isSavingMembers: false,
-            showAddMemberPanel: params.keepAddPanelOpen ?? false,
             showMemberRemoveDialog: false,
             pendingMemberRemovalId: null,
           },
@@ -725,7 +483,6 @@ export const CouncilViewScreen = ({
         [params.memberAgentId]: params.color,
       },
       successMessage: "Member color updated.",
-      keepAddPanelOpen: state.showAddMemberPanel,
     });
   };
 
@@ -746,7 +503,6 @@ export const CouncilViewScreen = ({
         [memberAgentId]: defaultColor,
       },
       successMessage: "Member added.",
-      keepAddPanelOpen: true,
     });
   };
 
@@ -790,14 +546,14 @@ export const CouncilViewScreen = ({
     await loadCouncilView(councilId);
   };
 
-  const injectConductorMessage = async (): Promise<void> => {
+  const injectConductorMessage = async (content: string): Promise<boolean> => {
     if (state.status !== "ready") {
-      return;
+      return false;
     }
-    const content = state.conductorDraft.trim();
-    if (content.length === 0) {
+    const trimmedContent = content.trim();
+    if (trimmedContent.length === 0) {
       pushToast("warning", "Conductor message cannot be empty.");
-      return;
+      return false;
     }
     setState((current) =>
       current.status !== "ready"
@@ -807,7 +563,7 @@ export const CouncilViewScreen = ({
     const result = await window.api.councils.injectConductorMessage({
       viewKind: "councilView",
       id: councilId,
-      content,
+      content: trimmedContent,
     });
     if (!result.ok) {
       pushToast("error", result.error.userMessage);
@@ -816,10 +572,11 @@ export const CouncilViewScreen = ({
           ? current
           : { ...current, isInjectingConductor: false, message: result.error.userMessage },
       );
-      return;
+      return false;
     }
     pushToast("info", "Conductor message added.");
     await loadCouncilView(councilId);
+    return true;
   };
 
   const cancelCouncilGeneration = async (): Promise<void> => {
@@ -891,16 +648,10 @@ export const CouncilViewScreen = ({
       return;
     }
     pushToast("info", archived ? "Council archived." : "Council restored.");
-    await loadCouncilView(councilId);
-    setState((current) =>
-      current.status !== "ready" ? current : { ...current, activeTab: "config" },
-    );
+    await loadCouncilView(councilId, { preserveActiveTab: "config" });
   };
 
   const deleteCouncilFromView = async (council: CouncilDto): Promise<void> => {
-    setState((current) =>
-      current.status !== "ready" ? current : { ...current, showConfigDeleteDialog: false },
-    );
     const result = await window.api.councils.delete({ id: council.id });
     if (!result.ok) {
       pushToast("error", result.error.userMessage);
@@ -1008,7 +759,7 @@ export const CouncilViewScreen = ({
     runtimeError: state.runtimeError,
   });
   const autopilotSubmitLabel =
-    autopilotLimitModal?.action === "start"
+    autopilotLimitAction === "start"
       ? state.isStarting
         ? "Starting..."
         : "Start"
@@ -1019,27 +770,13 @@ export const CouncilViewScreen = ({
     state.isStarting ||
     council.invalidConfig ||
     hasArchivedMembers ||
-    autopilotLimitModal !== null ||
-    state.configEdit !== null;
+    autopilotLimitAction !== null ||
+    state.isConfigEditing;
   const startDisabledReason = council.invalidConfig
     ? "Fix the model config before starting."
     : hasArchivedMembers
       ? "Restore or remove archived members before starting."
       : undefined;
-  const transcriptRowCount = state.source.messages.length + (thinkingSpeakerName === null ? 0 : 1);
-  const configEditField = state.configEdit?.field ?? null;
-  const configEditDraftValue = state.configEdit?.draftValue ?? "";
-  const configEditTags =
-    configEditField === "tags" ? parseCouncilConfigTags(configEditDraftValue) : [];
-  const councilViewConductorSelectValue =
-    configEditDraftValue.length > 0 ? configEditDraftValue : "__global_default__";
-  const hasUnavailableConductorSelectionInView = !isModelSelectionInCatalog({
-    modelSelection:
-      configEditField === "conductorModel"
-        ? configEditDraftValue
-        : toModelSelectionValue(council.conductorModelRefOrNull),
-    modelCatalog: state.source.modelCatalog,
-  });
   const runtimeBriefing = state.source.briefing;
   const canEditMembers =
     !council.archived && (!council.started || council.paused || council.mode === "manual");
@@ -1048,28 +785,15 @@ export const CouncilViewScreen = ({
       .filter((message) => message.senderKind === "member" && message.senderAgentId !== null)
       .map((message) => message.senderAgentId as string),
   );
-  const addMemberSearch = state.addMemberSearchText.trim().toLowerCase();
-  const addableAgents = state.source.availableAgents.filter(
-    (agent) =>
-      !council.memberAgentIds.includes(agent.id) &&
-      !agent.archived &&
-      (addMemberSearch.length === 0 ||
-        agent.name.toLowerCase().includes(addMemberSearch) ||
-        agent.id.toLowerCase().includes(addMemberSearch)),
-  );
-  const addMemberEmptyStateMessage =
-    addMemberSearch.length > 0
-      ? "No active agents match that search."
-      : "No active agents are available to add.";
 
   return (
     <main className="main-content">
       <div className="main-content-inner">
         <CouncilViewHeader
-          autopilotLimitModalOpen={autopilotLimitModal !== null}
+          autopilotLimitModalOpen={autopilotLimitAction !== null}
           autopilotMaxTurns={council.autopilotMaxTurns}
           autopilotTurnsCompleted={council.autopilotTurnsCompleted}
-          cancelDisabled={state.isCancellingGeneration || state.configEdit !== null}
+          cancelDisabled={state.isCancellingGeneration || state.isConfigEditing}
           canShowRuntimeBlockBadge={
             (runtimeControls.canStart || runtimeControls.canResume) &&
             (council.invalidConfig || hasArchivedMembers)
@@ -1086,7 +810,7 @@ export const CouncilViewScreen = ({
           onPause={() => void pauseCouncilRuntime()}
           onResume={() => openAutopilotLimitModal("resume")}
           onStart={() => void startCouncilRuntime()}
-          pauseDisabled={state.isPausing || state.configEdit !== null}
+          pauseDisabled={state.isPausing || state.isConfigEditing}
           paused={council.paused}
           pausedNextSpeakerName={pausedNextSpeakerName}
           resumeDisabledReason={
@@ -1111,8 +835,8 @@ export const CouncilViewScreen = ({
         />
         <CouncilViewTabs
           activeTab={state.activeTab}
-          disableConfigTab={state.configEdit !== null && state.activeTab !== "config"}
-          disableDiscussionTab={state.configEdit !== null && state.activeTab !== "discussion"}
+          disableConfigTab={state.isConfigEditing && state.activeTab !== "config"}
+          disableDiscussionTab={state.isConfigEditing && state.activeTab !== "discussion"}
           onSelectTab={(activeTab) =>
             setState((current) =>
               current.status !== "ready" ? current : { ...current, activeTab },
@@ -1131,19 +855,14 @@ export const CouncilViewScreen = ({
 
         {state.activeTab === "discussion" ? (
           <DiscussionTab
-            addMemberEmptyStateMessage={addMemberEmptyStateMessage}
-            addMemberSearchText={state.addMemberSearchText}
-            addableAgents={addableAgents}
             autopilotRecoveryNotice={autopilotRecoveryNotice}
-            availableAgentById={availableAgentById}
+            availableAgents={state.source.availableAgents}
             briefing={runtimeBriefing}
             canEditMembers={canEditMembers}
-            chatEndRef={chatEndRef}
             conductorDisabled={generationRunning || council.archived}
-            conductorDraft={state.conductorDraft}
             council={council}
             isCancellingGeneration={state.isCancellingGeneration}
-            isConfigEditing={state.configEdit !== null}
+            isConfigEditing={state.isConfigEditing}
             isGeneratingManualTurn={state.isGeneratingManualTurn}
             isInjectingConductor={state.isInjectingConductor}
             isSavingMembers={state.isSavingMembers}
@@ -1156,18 +875,8 @@ export const CouncilViewScreen = ({
             messages={state.source.messages}
             onAddMember={(memberAgentId) => void addCouncilViewMember(memberAgentId)}
             onCancelGeneration={() => void cancelCouncilGeneration()}
-            onChangeConductorDraft={(value) =>
-              setState((current) =>
-                current.status !== "ready" ? current : { ...current, conductorDraft: value },
-              )
-            }
             onGenerateManualTurn={(memberAgentId) => void generateManualTurn(memberAgentId)}
             onMemberColorChange={(params) => void setCouncilViewMemberColor(params)}
-            onMemberSearchTextChange={(value) =>
-              setState((current) =>
-                current.status !== "ready" ? current : { ...current, addMemberSearchText: value },
-              )
-            }
             onRequestRemoveMember={(memberAgentId) =>
               setState((current) =>
                 current.status !== "ready"
@@ -1180,21 +889,7 @@ export const CouncilViewScreen = ({
               )
             }
             onStartDiscussion={() => void startCouncilRuntime()}
-            onSubmitConductor={() => void injectConductorMessage()}
-            onToggleAddMemberPanel={() =>
-              setState((current) =>
-                current.status !== "ready"
-                  ? current
-                  : { ...current, showAddMemberPanel: !current.showAddMemberPanel },
-              )
-            }
-            onTranscriptRowKeyDown={(event, currentIndex) =>
-              handleTranscriptRowKeyDown(event, currentIndex, transcriptRowCount)
-            }
-            registerTranscriptRowRef={(currentIndex, element) => {
-              transcriptRowRefs.current[currentIndex] = element;
-            }}
-            showAddMemberPanel={state.showAddMemberPanel}
+            onSubmitConductor={injectConductorMessage}
             showEmptyStateStart={runtimeControls.showEmptyStateStart}
             showInlineThinkingCancel={showInlineThinkingCancel}
             startDisabled={startDisabled}
@@ -1203,378 +898,37 @@ export const CouncilViewScreen = ({
             thinkingSpeakerName={thinkingSpeakerName}
           />
         ) : (
-          <section
-            aria-labelledby="council-view-tab-config"
-            className="space-y-6"
-            id="council-view-panel-config"
-            role="tabpanel"
-          >
-            <Card className="p-6">
-              <div className="space-y-6" ref={councilConfigEditContainerRef}>
-                <h2 className="mb-6 text-xl font-medium">Configuration</h2>
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium">Topic</Label>
-                  {configEditField === "topic" ? (
-                    <div className="space-y-3">
-                      <Textarea
-                        onChange={(event) =>
-                          setState((current) =>
-                            current.status !== "ready" || current.configEdit === null
-                              ? current
-                              : {
-                                  ...current,
-                                  configEdit: {
-                                    ...current.configEdit,
-                                    draftValue: event.target.value,
-                                  },
-                                },
-                          )
-                        }
-                        onKeyDown={(event) => {
-                          const action = resolveInlineConfigEditKeyboardAction({
-                            key: event.key,
-                            shiftKey: event.shiftKey,
-                          });
-                          if (action === "none") {
-                            return;
-                          }
-                          event.preventDefault();
-                          if (action === "save") {
-                            void saveCouncilConfigEdit();
-                          } else {
-                            closeCouncilConfigEdit(false);
-                          }
-                        }}
-                        ref={(element) => {
-                          councilConfigEditInputRef.current = element;
-                        }}
-                        rows={4}
-                        value={configEditDraftValue}
-                      />
-                      <div className="flex justify-end">
-                        <Button
-                          disabled={state.isSavingConfigField}
-                          onClick={() => void saveCouncilConfigEdit()}
-                        >
-                          {state.isSavingConfigField ? "Saving..." : "Save"}
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-start justify-between gap-4 rounded-lg bg-muted/50 p-3">
-                      <p className="flex-1 text-sm">{council.topic}</p>
-                      <Button
-                        aria-label="Edit topic"
-                        disabled={state.configEdit !== null || council.archived}
-                        onClick={() => openCouncilConfigEdit("topic")}
-                        size="sm"
-                        variant="ghost"
-                      >
-                        ✎
-                      </Button>
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium">Goal</Label>
-                  {configEditField === "goal" ? (
-                    <div className="space-y-3">
-                      <Textarea
-                        onChange={(event) =>
-                          setState((current) =>
-                            current.status !== "ready" || current.configEdit === null
-                              ? current
-                              : {
-                                  ...current,
-                                  configEdit: {
-                                    ...current.configEdit,
-                                    draftValue: event.target.value,
-                                  },
-                                },
-                          )
-                        }
-                        onKeyDown={(event) => {
-                          const action = resolveInlineConfigEditKeyboardAction({
-                            key: event.key,
-                            shiftKey: event.shiftKey,
-                          });
-                          if (action === "none") {
-                            return;
-                          }
-                          event.preventDefault();
-                          if (action === "save") {
-                            void saveCouncilConfigEdit();
-                          } else {
-                            closeCouncilConfigEdit(false);
-                          }
-                        }}
-                        ref={(element) => {
-                          councilConfigEditInputRef.current = element;
-                        }}
-                        rows={3}
-                        value={configEditDraftValue}
-                      />
-                      <div className="flex justify-end">
-                        <Button
-                          disabled={state.isSavingConfigField}
-                          onClick={() => void saveCouncilConfigEdit()}
-                        >
-                          {state.isSavingConfigField ? "Saving..." : "Save"}
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-start justify-between gap-4 rounded-lg bg-muted/50 p-3">
-                      <p className="flex-1 text-sm">{council.goal ?? "None set"}</p>
-                      <Button
-                        aria-label="Edit goal"
-                        disabled={state.configEdit !== null || council.archived}
-                        onClick={() => openCouncilConfigEdit("goal")}
-                        size="sm"
-                        variant="ghost"
-                      >
-                        ✎
-                      </Button>
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium">Tags</Label>
-                  {configEditField === "tags" ? (
-                    <div className="space-y-3">
-                      <div className="flex flex-wrap gap-2">
-                        {configEditTags.map((tag) => (
-                          <Badge className="gap-1" key={tag} variant="secondary">
-                            {tag}
-                            <button
-                              aria-label={`Remove tag ${tag}`}
-                              className="ml-1 hover:text-destructive"
-                              onClick={() => removeTagFromCouncilConfigEdit(tag)}
-                              type="button"
-                            >
-                              ×
-                            </button>
-                          </Badge>
-                        ))}
-                        {configEditTags.length === 0 ? (
-                          <span className="text-sm italic text-muted-foreground">No tags yet</span>
-                        ) : null}
-                      </div>
-                      <div className="flex gap-2">
-                        <Input
-                          onChange={(event) =>
-                            setState((current) =>
-                              current.status !== "ready"
-                                ? current
-                                : { ...current, configTagInput: event.target.value },
-                            )
-                          }
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter") {
-                              event.preventDefault();
-                              addTagToCouncilConfigEdit();
-                            }
-                            if (event.key === "Escape") {
-                              event.preventDefault();
-                              closeCouncilConfigEdit(false);
-                            }
-                          }}
-                          placeholder="Add tag"
-                          value={state.configTagInput}
-                        />
-                        <Button
-                          disabled={!state.configTagInput.trim()}
-                          onClick={addTagToCouncilConfigEdit}
-                          variant="outline"
-                        >
-                          Add
-                        </Button>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Press Enter to add. Max {COUNCIL_CONFIG_MAX_TAGS} tags.
-                      </p>
-                      <div className="flex justify-end">
-                        <Button
-                          disabled={state.isSavingConfigField}
-                          onClick={() => void saveCouncilConfigEdit()}
-                        >
-                          {state.isSavingConfigField ? "Saving..." : "Save"}
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-start justify-between gap-4 rounded-lg bg-muted/50 p-3">
-                      <div className="flex flex-1 flex-wrap gap-2">
-                        {council.tags.length > 0 ? (
-                          council.tags.map((tag) => (
-                            <Badge key={tag} variant="secondary">
-                              {tag}
-                            </Badge>
-                          ))
-                        ) : (
-                          <span className="text-sm italic text-muted-foreground">None</span>
-                        )}
-                      </div>
-                      <Button
-                        aria-label="Edit tags"
-                        disabled={state.configEdit !== null || council.archived}
-                        onClick={() => openCouncilConfigEdit("tags")}
-                        size="sm"
-                        variant="ghost"
-                      >
-                        ✎
-                      </Button>
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium">Conductor Model</Label>
-                  {configEditField === "conductorModel" ? (
-                    <div className="space-y-3">
-                      <div className="flex gap-2">
-                        <Select
-                          onValueChange={(value) =>
-                            setState((current) =>
-                              current.status !== "ready" || current.configEdit === null
-                                ? current
-                                : {
-                                    ...current,
-                                    configEdit: {
-                                      ...current.configEdit,
-                                      draftValue: value === "__global_default__" ? "" : value,
-                                    },
-                                  },
-                            )
-                          }
-                          value={councilViewConductorSelectValue}
-                        >
-                          <SelectTrigger
-                            className="flex-1"
-                            ref={(element) => {
-                              councilConfigEditInputRef.current = element;
-                            }}
-                          >
-                            <SelectValue placeholder="Select model" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {hasUnavailableConductorSelectionInView ? (
-                              <SelectItem value={configEditDraftValue}>
-                                Unavailable ({configEditDraftValue})
-                              </SelectItem>
-                            ) : null}
-                            <SelectItem value="__global_default__">Global default</SelectItem>
-                            {Object.entries(state.source.modelCatalog.modelsByProvider).map(
-                              ([providerId, modelIds]) => (
-                                <SelectGroup key={providerId}>
-                                  <SelectLabel>{providerId}</SelectLabel>
-                                  {modelIds.map((modelId) => (
-                                    <SelectItem
-                                      key={`${providerId}:${modelId}`}
-                                      value={`${providerId}:${modelId}`}
-                                    >
-                                      {modelId}
-                                    </SelectItem>
-                                  ))}
-                                </SelectGroup>
-                              ),
-                            )}
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          aria-label="Refresh council conductor model options"
-                          className="shrink-0"
-                          disabled={
-                            state.isRefreshingConfigModels || !state.source.canRefreshModels
-                          }
-                          onClick={() => void refreshCouncilViewConfigModels()}
-                          size="icon"
-                          title="Refresh models"
-                          type="button"
-                          variant="ghost"
-                        >
-                          ⟳
-                        </Button>
-                      </div>
-                      <div className="flex justify-end">
-                        <Button
-                          disabled={state.isSavingConfigField}
-                          onClick={() => void saveCouncilConfigEdit()}
-                        >
-                          {state.isSavingConfigField ? "Saving..." : "Save"}
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between gap-4 rounded-lg bg-muted/50 p-3">
-                      <div className="flex flex-1 items-center gap-2">
-                        <p className="text-sm">
-                          {councilModelLabel(council, state.source.globalDefaultModelRef)}
-                        </p>
-                        {council.invalidConfig ? (
-                          <Badge variant="destructive">Invalid config</Badge>
-                        ) : null}
-                      </div>
-                      <Button
-                        aria-label="Edit conductor model"
-                        disabled={state.configEdit !== null || council.archived}
-                        onClick={() => openCouncilConfigEdit("conductorModel")}
-                        size="sm"
-                        variant="ghost"
-                      >
-                        ✎
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </Card>
-            <Card className="p-6">
-              <h3 className="mb-4 font-medium">Actions</h3>
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  disabled={state.configEdit !== null || state.isExportingTranscript}
-                  onClick={() => void exportCouncilTranscript()}
-                  variant="outline"
-                >
-                  {state.isExportingTranscript ? "Exporting..." : "Export Transcript"}
-                </Button>
-                <Button
-                  disabled={
-                    state.configEdit !== null ||
-                    (!council.archived &&
-                      council.mode === "autopilot" &&
-                      council.started &&
-                      !council.paused)
-                  }
-                  onClick={() => void setCouncilArchivedFromView(council, !council.archived)}
-                  title={
-                    !council.archived &&
-                    council.mode === "autopilot" &&
-                    council.started &&
-                    !council.paused
-                      ? "Pause Autopilot before archiving this council."
-                      : undefined
-                  }
-                  variant="outline"
-                >
-                  {council.archived ? "Restore Council" : "Archive Council"}
-                </Button>
-                <Button
-                  disabled={state.configEdit !== null}
-                  onClick={() =>
-                    setState((current) =>
-                      current.status !== "ready"
-                        ? current
-                        : { ...current, showConfigDeleteDialog: true },
-                    )
-                  }
-                  variant="destructive"
-                >
-                  Delete Council
-                </Button>
-              </div>
-            </Card>
-          </section>
+          <ConfigTab
+            archiveDisabled={
+              !council.archived &&
+              council.mode === "autopilot" &&
+              council.started &&
+              !council.paused
+            }
+            archiveDisabledReason={
+              !council.archived &&
+              council.mode === "autopilot" &&
+              council.started &&
+              !council.paused
+                ? "Pause Autopilot before archiving this council."
+                : undefined
+            }
+            canRefreshModels={state.source.canRefreshModels}
+            council={council}
+            globalDefaultModelRef={state.source.globalDefaultModelRef}
+            isExportingTranscript={state.isExportingTranscript}
+            modelCatalog={state.source.modelCatalog}
+            onDeleteCouncil={() => deleteCouncilFromView(council)}
+            onEditingChange={(isConfigEditing) =>
+              setState((current) =>
+                current.status !== "ready" ? current : { ...current, isConfigEditing },
+              )
+            }
+            onExportTranscript={exportCouncilTranscript}
+            onRefreshModelCatalog={refreshCouncilViewConfigModels}
+            onSaveField={saveCouncilConfigEdit}
+            onToggleArchived={(archived) => setCouncilArchivedFromView(council, archived)}
+          />
         )}
 
         <ConfirmDialog
@@ -1596,25 +950,6 @@ export const CouncilViewScreen = ({
           }}
           open={state.showLeaveDialog}
           title="Leave Council View?"
-        />
-        <ConfirmDialog
-          cancelLabel="Keep editing"
-          confirmLabel="Discard"
-          confirmTone="danger"
-          message="Your changes will be lost."
-          onCancel={() => {
-            setState((current) =>
-              current.status !== "ready" ? current : { ...current, showConfigDiscardDialog: false },
-            );
-            window.setTimeout(() => {
-              councilConfigEditInputRef.current?.focus();
-            }, 0);
-          }}
-          onConfirm={() => {
-            closeCouncilConfigEdit(true);
-          }}
-          open={state.showConfigDiscardDialog}
-          title="Discard changes?"
         />
         <ConfirmDialog
           confirmLabel="Remove"
@@ -1650,40 +985,11 @@ export const CouncilViewScreen = ({
           open={state.showMemberRemoveDialog}
           title="Remove member?"
         />
-        <ConfirmDialog
-          confirmLabel="Delete"
-          confirmTone="danger"
-          message={`Delete council "${council.title}" permanently?`}
-          onCancel={() =>
-            setState((current) =>
-              current.status !== "ready" ? current : { ...current, showConfigDeleteDialog: false },
-            )
-          }
-          onConfirm={() => {
-            void deleteCouncilFromView(council);
-          }}
-          open={state.showConfigDeleteDialog}
-          title="Delete council?"
-        />
 
         <AutopilotLimitDialog
-          modal={autopilotLimitModal}
-          onClose={() => setAutopilotLimitModal(null)}
-          onLimitTurnsChange={(checked) =>
-            setAutopilotLimitModal((current) =>
-              current === null
-                ? current
-                : { ...current, limitTurns: checked, validationMessage: "" },
-            )
-          }
-          onMaxTurnsInputChange={(value) =>
-            setAutopilotLimitModal((current) =>
-              current === null
-                ? current
-                : { ...current, maxTurnsInput: value, validationMessage: "" },
-            )
-          }
-          onSubmit={() => void submitAutopilotLimitModal()}
+          action={autopilotLimitAction}
+          onClose={() => setAutopilotLimitAction(null)}
+          onSubmit={(maxTurns) => void submitAutopilotLimitModal(maxTurns)}
           submitLabel={autopilotSubmitLabel}
         />
       </div>

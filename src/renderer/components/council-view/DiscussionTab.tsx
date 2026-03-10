@@ -1,4 +1,4 @@
-import type { JSX, MutableRefObject, KeyboardEvent as ReactKeyboardEvent } from "react";
+import type { JSX } from "react";
 
 import type { CouncilRuntimeNotice } from "../../../shared/council-view-autopilot-recovery.js";
 import type {
@@ -13,16 +13,11 @@ import { MembersCard } from "./MembersCard";
 import { TranscriptCard } from "./TranscriptCard";
 
 type DiscussionTabProps = {
-  addMemberEmptyStateMessage: string;
-  addMemberSearchText: string;
-  addableAgents: ReadonlyArray<CouncilAgentOptionDto>;
   autopilotRecoveryNotice: CouncilRuntimeNotice | null;
-  availableAgentById: ReadonlyMap<string, CouncilAgentOptionDto>;
+  availableAgents: ReadonlyArray<CouncilAgentOptionDto>;
   briefing: CouncilRuntimeBriefingDto | null;
   canEditMembers: boolean;
-  chatEndRef: MutableRefObject<HTMLDivElement | null>;
   conductorDisabled: boolean;
-  conductorDraft: string;
   council: CouncilDto;
   isCancellingGeneration: boolean;
   isConfigEditing: boolean;
@@ -38,17 +33,11 @@ type DiscussionTabProps = {
   messages: ReadonlyArray<CouncilMessageDto>;
   onAddMember: (memberAgentId: string) => void;
   onCancelGeneration: () => void;
-  onChangeConductorDraft: (value: string) => void;
   onGenerateManualTurn: (memberAgentId: string) => void;
   onMemberColorChange: (params: { memberAgentId: string; color: string }) => void;
-  onMemberSearchTextChange: (value: string) => void;
   onRequestRemoveMember: (memberAgentId: string) => void;
   onStartDiscussion: () => void;
-  onSubmitConductor: () => void;
-  onToggleAddMemberPanel: () => void;
-  onTranscriptRowKeyDown: (event: ReactKeyboardEvent<HTMLElement>, currentIndex: number) => void;
-  registerTranscriptRowRef: (currentIndex: number, element: HTMLElement | null) => void;
-  showAddMemberPanel: boolean;
+  onSubmitConductor: (content: string) => Promise<boolean>;
   showEmptyStateStart: boolean;
   showInlineThinkingCancel: boolean;
   startDisabled: boolean;
@@ -58,16 +47,11 @@ type DiscussionTabProps = {
 };
 
 export const DiscussionTab = ({
-  addMemberEmptyStateMessage,
-  addMemberSearchText,
-  addableAgents,
   autopilotRecoveryNotice,
-  availableAgentById,
+  availableAgents,
   briefing,
   canEditMembers,
-  chatEndRef,
   conductorDisabled,
-  conductorDraft,
   council,
   isCancellingGeneration,
   isConfigEditing,
@@ -83,17 +67,11 @@ export const DiscussionTab = ({
   messages,
   onAddMember,
   onCancelGeneration,
-  onChangeConductorDraft,
   onGenerateManualTurn,
   onMemberColorChange,
-  onMemberSearchTextChange,
   onRequestRemoveMember,
   onStartDiscussion,
   onSubmitConductor,
-  onToggleAddMemberPanel,
-  onTranscriptRowKeyDown,
-  registerTranscriptRowRef,
-  showAddMemberPanel,
   showEmptyStateStart,
   showInlineThinkingCancel,
   startDisabled,
@@ -110,7 +88,6 @@ export const DiscussionTab = ({
     <div className="space-y-6">
       <TranscriptCard
         autopilotRecoveryNotice={autopilotRecoveryNotice}
-        chatEndRef={chatEndRef}
         councilMode={council.mode}
         isCancellingGeneration={isCancellingGeneration}
         isConfigEditing={isConfigEditing}
@@ -120,8 +97,6 @@ export const DiscussionTab = ({
         messages={messages}
         onCancelGeneration={onCancelGeneration}
         onStartDiscussion={onStartDiscussion}
-        onTranscriptRowKeyDown={onTranscriptRowKeyDown}
-        registerTranscriptRowRef={registerTranscriptRowRef}
         showEmptyStateStart={showEmptyStateStart}
         showInlineThinkingCancel={showInlineThinkingCancel}
         startDisabled={startDisabled}
@@ -131,10 +106,9 @@ export const DiscussionTab = ({
       />
 
       <ConductorComposerCard
-        conductorDraft={conductorDraft}
+        key={`${council.id}:${messages.length}:${council.turnCount}`}
         disabled={conductorDisabled}
         isInjectingConductor={isInjectingConductor}
-        onChangeDraft={onChangeConductorDraft}
         onSubmit={onSubmitConductor}
       />
     </div>
@@ -143,10 +117,8 @@ export const DiscussionTab = ({
       <BriefingCard briefing={briefing} />
 
       <MembersCard
-        addMemberEmptyStateMessage={addMemberEmptyStateMessage}
-        addMemberSearchText={addMemberSearchText}
-        addableAgents={addableAgents}
-        availableAgentById={availableAgentById}
+        key={council.memberAgentIds.join("|")}
+        availableAgents={availableAgents}
         canEditMembers={canEditMembers}
         council={council}
         isGeneratingManualTurn={isGeneratingManualTurn}
@@ -158,10 +130,7 @@ export const DiscussionTab = ({
         onAddMember={onAddMember}
         onGenerateManualTurn={onGenerateManualTurn}
         onMemberColorChange={onMemberColorChange}
-        onMemberSearchTextChange={onMemberSearchTextChange}
         onRequestRemoveMember={onRequestRemoveMember}
-        onToggleAddMemberPanel={onToggleAddMemberPanel}
-        showAddMemberPanel={showAddMemberPanel}
       />
     </div>
   </section>
