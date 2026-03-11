@@ -2,10 +2,10 @@ import { describe, expect } from "vitest";
 import {
   DEFAULT_AGENT_HOME_LIST_FILTERS,
   DEFAULT_COUNCIL_HOME_LIST_FILTERS,
+  appendCommittedTagFilter,
   appendCouncilConfigTag,
   appendTagToDraft,
   applyAgentArchivedListUpdate,
-  applyCommittedTagFilter,
   buildInvalidConfigBadgeAriaLabel,
   buildProviderConfiguredBadgeAriaLabel,
   buildProviderConnectionTestButtonAriaLabel,
@@ -18,6 +18,7 @@ import {
   normalizeTagsDraft,
   parseCouncilConfigTags,
   parseTagDraft,
+  removeCommittedTagFilter,
   removeTagFromDraft,
   resolveAutopilotMaxTurns,
   resolveConfirmDialogKeyboardAction,
@@ -464,9 +465,24 @@ describe("app ui helpers", () => {
         }),
       ).toBe("removeLastTag");
       expect(commitTagFilterDraft("  ops  ")).toBe("ops");
-      expect(applyCommittedTagFilter("  ops  ")).toEqual({
-        draftValue: "",
-        tagFilter: "ops",
+      expect(
+        appendCommittedTagFilter({
+          currentTagFilter: "ops",
+          tagInput: "research",
+        }),
+      ).toEqual({
+        ok: true,
+        tagFilter: "ops, research",
+        tags: ["ops", "research"],
+      });
+      expect(
+        removeCommittedTagFilter({
+          currentTagFilter: "ops, research",
+          tagToRemove: "ops",
+        }),
+      ).toEqual({
+        tagFilter: "research",
+        tags: ["research"],
       });
       expect(buildTagEditorHelperText({ slotsRemaining: 2 })).toBe(
         "Press Enter or comma to add. Backspace removes the last tag. 2 slots left.",

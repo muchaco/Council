@@ -6,7 +6,7 @@ import {
   buildAvailableModelKeys,
   isModelConfigInvalid,
 } from "../../../shared/domain/model-ref.js";
-import { type Tag, addTag } from "../../../shared/domain/tag.js";
+import { type Tag, addTag, tagsMatchAllFilters } from "../../../shared/domain/tag.js";
 import type {
   AgentDto,
   DeleteAgentResponse,
@@ -212,7 +212,7 @@ export const createAgentsSlice = (
     page,
   }) => {
     const normalizedSearch = searchText.trim().toLowerCase();
-    const normalizedTagFilter = tagFilter.trim().toLowerCase();
+    const normalizedTagFilter = tagFilter.trim();
 
     return hydrate()
       .andThen(() =>
@@ -241,7 +241,7 @@ export const createAgentsSlice = (
               includesInsensitive(agent.systemPrompt, normalizedSearch);
             const matchesTag =
               normalizedTagFilter.length === 0 ||
-              agent.tags.some((tag) => tag.toLowerCase() === normalizedTagFilter);
+              tagsMatchAllFilters(agent.tags, normalizedTagFilter);
             return matchesSearch && matchesTag;
           })
           .sort((left, right) => {

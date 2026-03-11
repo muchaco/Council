@@ -50,3 +50,18 @@ export const tagMatchesFilter = (tag: Tag, filterRaw: string): boolean => {
   }
   return tag.toLowerCase() === normalizedFilter;
 };
+
+export const parseTagFilterValues = (filterRaw: string): ReadonlyArray<string> =>
+  filterRaw
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter((value, index, allValues) => value.length > 0 && allValues.indexOf(value) === index);
+
+export const tagsMatchAllFilters = (tags: ReadonlyArray<Tag>, filterRaw: string): boolean => {
+  const filters = parseTagFilterValues(filterRaw);
+  if (filters.length === 0) {
+    return true;
+  }
+
+  return filters.every((filter) => tags.some((tag) => tag.toLowerCase() === filter));
+};

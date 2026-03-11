@@ -129,7 +129,7 @@ describe("ipc validators", () => {
     const parsed = LIST_AGENTS_REQUEST_SCHEMA.safeParse({
       viewKind: "agentsList",
       searchText: "planner",
-      tagFilter: "research",
+      tagFilter: "research, ops",
       archivedFilter: "all",
       sortBy: "updatedAt",
       sortDirection: "desc",
@@ -190,7 +190,7 @@ describe("ipc validators", () => {
     const parsed = LIST_COUNCILS_REQUEST_SCHEMA.safeParse({
       viewKind: "councilsList",
       searchText: "strategy",
-      tagFilter: "ops",
+      tagFilter: "ops, research",
       archivedFilter: "all",
       sortBy: "updatedAt",
       sortDirection: "desc",

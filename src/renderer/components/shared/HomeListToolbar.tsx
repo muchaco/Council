@@ -24,7 +24,7 @@ type HomeListToolbarProps = {
   sortByValue: string;
   sortDirectionOptions: ReadonlyArray<FilterOption>;
   sortDirectionValue: string;
-  tagFilter: string;
+  tagFilter: ReadonlyArray<string>;
   tagFilterDraft: string;
   toolbarClassName: string;
   onAction: () => void;
@@ -35,7 +35,7 @@ type HomeListToolbarProps = {
   onSetSortBy: (value: string) => void;
   onSetSortDirection: (value: string) => void;
   onSetTagFilterDraft: (value: string) => void;
-  onTagFilterRemove: () => void;
+  onTagFilterRemove: (tag: string) => void;
 };
 
 export const HomeListToolbar = ({
@@ -78,7 +78,7 @@ export const HomeListToolbar = ({
         value={searchText}
       />
       <TagsEditor
-        helperText="Only committed chips filter the list. Exact match only."
+        helperText="Only committed chips filter the list. Exact match only, and all chips must match."
         inputAriaLabel="Filter by exact tag"
         inputPlaceholder="Filter by exact tag"
         inputValue={tagFilterDraft}
@@ -87,9 +87,14 @@ export const HomeListToolbar = ({
         onAdd={onCommitTagFilter}
         onInputChange={onSetTagFilterDraft}
         onInputEscape={() => onSetTagFilterDraft("")}
-        onRemoveLastTag={onTagFilterRemove}
-        onRemoveTag={() => onTagFilterRemove()}
-        tags={tagFilter.length > 0 ? [tagFilter] : []}
+        onRemoveLastTag={() => {
+          const lastTag = tagFilter.at(-1);
+          if (lastTag !== undefined) {
+            onTagFilterRemove(lastTag);
+          }
+        }}
+        onRemoveTag={onTagFilterRemove}
+        tags={tagFilter}
       />
     </div>
     <div className="home-list-toolbar-fields">

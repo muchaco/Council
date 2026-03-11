@@ -1,5 +1,5 @@
 import type { ModelRef } from "./domain/model-ref.js";
-import { TAG_MAX_PER_OBJECT, type Tag, addTag } from "./domain/tag.js";
+import { TAG_MAX_PER_OBJECT, type Tag, addTag, createTag } from "./domain/tag.js";
 import type {
   AgentArchivedFilter,
   AgentDto,
@@ -484,6 +484,61 @@ export const applyCommittedTagFilter = (
   draftValue: "",
   tagFilter: commitTagFilterDraft(draftValue),
 });
+
+export const appendCommittedTagFilter = (params: {
+  currentTagFilter: string;
+  tagInput: string;
+}):
+  | {
+      ok: true;
+      tagFilter: string;
+      tags: ReadonlyArray<string>;
+    }
+  | {
+      ok: false;
+      message: string;
+    } => {
+  const currentTags = parseTagDraft(params.currentTagFilter);
+  const candidate = createTag(params.tagInput);
+  if (candidate.isErr()) {
+    return {
+      ok: false,
+      message: toTagValidationMessage(candidate.error, COUNCIL_CONFIG_MAX_TAGS),
+    };
+  }
+
+  if (currentTags.some((tag) => tag.toLowerCase() === candidate.value.toLowerCase())) {
+    return {
+      ok: false,
+      message: "Tags must be unique.",
+    };
+  }
+
+  const tags = [...currentTags, candidate.value];
+  return {
+    ok: true,
+    tagFilter: serializeTagDraft(tags),
+    tags,
+  };
+};
+
+export const removeCommittedTagFilter = (params: {
+  currentTagFilter: string;
+  tagToRemove: string;
+}): {
+  tagFilter: string;
+  tags: ReadonlyArray<string>;
+} => {
+  const result = removeTagFromDraft({
+    currentDraftValue: params.currentTagFilter,
+    tagToRemove: params.tagToRemove,
+  });
+
+  return {
+    tagFilter: result.draftValue,
+    tags: result.tags,
+  };
+};
 
 export const resolveTagEditorInputKeyAction = (params: {
   key: string;

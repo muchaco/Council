@@ -78,7 +78,7 @@ const COUNCIL_ARCHIVED_FILTER_SCHEMA = z.enum(COUNCIL_ARCHIVED_FILTERS);
 export const LIST_AGENTS_REQUEST_SCHEMA = z.object({
   viewKind: z.literal("agentsList"),
   searchText: z.string().max(200),
-  tagFilter: z.string().max(20),
+  tagFilter: z.string().max(200),
   archivedFilter: AGENT_ARCHIVED_FILTER_SCHEMA,
   sortBy: AGENT_SORT_FIELD_SCHEMA,
   sortDirection: SORT_DIRECTION_SCHEMA,
@@ -113,7 +113,7 @@ export const SET_AGENT_ARCHIVED_REQUEST_SCHEMA = z.object({
 export const LIST_COUNCILS_REQUEST_SCHEMA = z.object({
   viewKind: z.literal("councilsList"),
   searchText: z.string().max(200),
-  tagFilter: z.string().max(20),
+  tagFilter: z.string().max(200),
   archivedFilter: COUNCIL_ARCHIVED_FILTER_SCHEMA,
   sortBy: COUNCIL_SORT_FIELD_SCHEMA,
   sortDirection: SORT_DIRECTION_SCHEMA,

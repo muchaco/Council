@@ -7,9 +7,11 @@ import type {
 
 import {
   DEFAULT_COUNCIL_HOME_LIST_FILTERS,
-  applyCommittedTagFilter,
+  appendCommittedTagFilter,
   formatHomeListTotal,
   hasActiveCouncilHomeListFilters,
+  parseTagDraft,
+  removeCommittedTagFilter,
 } from "../../../shared/app-ui-helpers.js";
 import {
   isCardOpenInteractionTarget,
@@ -152,17 +154,34 @@ export const CouncilsPanel = ({
   const commitTagFilter = useCallback(
     (nextDraft?: string): void => {
       const resolvedDraft = nextDraft ?? tagFilterDraft;
-      const nextFilter = applyCommittedTagFilter(resolvedDraft);
-      setTagFilterDraft(nextFilter.draftValue);
+      const nextFilter = appendCommittedTagFilter({
+        currentTagFilter: tagFilter,
+        tagInput: resolvedDraft,
+      });
+      if (!nextFilter.ok) {
+        pushToast("warning", nextFilter.message);
+        return;
+      }
+      setTagFilterDraft("");
       setTagFilter(nextFilter.tagFilter);
     },
-    [tagFilterDraft],
+    [pushToast, tagFilter, tagFilterDraft],
   );
 
-  const applyTagFilterFromCard = useCallback((tag: string): void => {
-    setTagFilterDraft("");
-    setTagFilter(tag);
-  }, []);
+  const applyTagFilterFromCard = useCallback(
+    (tag: string): void => {
+      const nextFilter = appendCommittedTagFilter({
+        currentTagFilter: tagFilter,
+        tagInput: tag,
+      });
+      if (!nextFilter.ok) {
+        return;
+      }
+      setTagFilterDraft("");
+      setTagFilter(nextFilter.tagFilter);
+    },
+    [tagFilter],
+  );
 
   const handleMenuKeyDown = (event: ReactKeyboardEvent<HTMLDetailsElement>): void => {
     if (event.key !== "Escape" || !event.currentTarget.open) {
@@ -325,9 +344,12 @@ export const CouncilsPanel = ({
         onSetSortBy={(value) => setSortBy(value as CouncilSortField)}
         onSetSortDirection={(value) => setSortDirection(value as SortDirection)}
         onSetTagFilterDraft={setTagFilterDraft}
-        onTagFilterRemove={() => {
-          setTagFilterDraft("");
-          setTagFilter("");
+        onTagFilterRemove={(tag) => {
+          const nextFilter = removeCommittedTagFilter({
+            currentTagFilter: tagFilter,
+            tagToRemove: tag,
+          });
+          setTagFilter(nextFilter.tagFilter);
         }}
         searchAriaLabel="Search councils"
         searchPlaceholder="Search title or topic"
@@ -342,7 +364,7 @@ export const CouncilsPanel = ({
           { value: "asc", label: "Oldest first" },
         ]}
         sortDirectionValue={sortDirection}
-        tagFilter={tagFilter}
+        tagFilter={parseTagDraft(tagFilter)}
         tagFilterDraft={tagFilterDraft}
         toolbarClassName="home-list-toolbar-councils"
       />

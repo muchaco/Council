@@ -152,7 +152,7 @@ describe("agents handlers", () => {
         systemPrompt: "Finds facts",
         verbosity: null,
         temperature: null,
-        tags: ["research"],
+        tags: ["research", "ops"],
         modelRefOrNull: null,
       },
     });
@@ -207,6 +207,31 @@ describe("agents handlers", () => {
     });
     expect(partialTagFiltered.isOk()).toBe(true);
     expect(partialTagFiltered._unsafeUnwrap().items).toHaveLength(0);
+
+    const multiTagFiltered = await slice.listAgents({
+      webContentsId: 11,
+      searchText: "",
+      tagFilter: "research, ops",
+      archivedFilter: "all",
+      sortBy: "updatedAt",
+      sortDirection: "desc",
+      page: 1,
+    });
+    expect(multiTagFiltered.isOk()).toBe(true);
+    expect(multiTagFiltered._unsafeUnwrap().items).toHaveLength(1);
+    expect(multiTagFiltered._unsafeUnwrap().items[0]?.name).toBe("Researcher");
+
+    const missingMultiTagFiltered = await slice.listAgents({
+      webContentsId: 11,
+      searchText: "",
+      tagFilter: "research, strategy",
+      archivedFilter: "all",
+      sortBy: "updatedAt",
+      sortDirection: "desc",
+      page: 1,
+    });
+    expect(missingMultiTagFiltered.isOk()).toBe(true);
+    expect(missingMultiTagFiltered._unsafeUnwrap().items).toHaveLength(0);
   });
 
   itReq(FILE_REQUIREMENT_IDS, "blocks saving agent with invalid model config", async () => {

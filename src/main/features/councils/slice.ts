@@ -38,7 +38,7 @@ import {
   buildAvailableModelKeys,
   isModelConfigInvalid,
 } from "../../../shared/domain/model-ref.js";
-import { type Tag, addTag } from "../../../shared/domain/tag.js";
+import { type Tag, addTag, tagsMatchAllFilters } from "../../../shared/domain/tag.js";
 import type {
   AdvanceAutopilotTurnResponse,
   CancelCouncilGenerationResponse,
@@ -989,7 +989,7 @@ export const createCouncilsSlice = (
           modelContext.modelCatalog.modelsByProvider,
         );
         const normalizedSearch = searchText.trim().toLowerCase();
-        const normalizedTagFilter = tagFilter.trim().toLowerCase();
+        const normalizedTagFilter = tagFilter.trim();
 
         const filtered = Array.from(records.values())
           .filter((council) => {
@@ -1007,7 +1007,7 @@ export const createCouncilsSlice = (
               includesInsensitive(council.topic, normalizedSearch);
             const matchesTag =
               normalizedTagFilter.length === 0 ||
-              council.tags.some((tag) => tag.toLowerCase() === normalizedTagFilter);
+              tagsMatchAllFilters(council.tags, normalizedTagFilter);
 
             return matchesSearch && matchesTag;
           })

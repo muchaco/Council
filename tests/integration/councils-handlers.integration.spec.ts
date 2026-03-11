@@ -448,7 +448,7 @@ describe("councils handlers", () => {
         topic: "Tag exact match",
         goal: null,
         mode: "manual",
-        tags: ["research"],
+        tags: ["research", "ops"],
         memberAgentIds: [PRIMARY_AGENT_ID],
         memberColorsByAgentId: {},
         conductorModelRefOrNull: null,
@@ -494,6 +494,31 @@ describe("councils handlers", () => {
     });
     expect(partialTagFiltered.isOk()).toBe(true);
     expect(partialTagFiltered._unsafeUnwrap().items).toHaveLength(0);
+
+    const multiTagFiltered = await slice.listCouncils({
+      webContentsId: 204,
+      searchText: "",
+      tagFilter: "research, ops",
+      archivedFilter: "all",
+      sortBy: "updatedAt",
+      sortDirection: "desc",
+      page: 1,
+    });
+    expect(multiTagFiltered.isOk()).toBe(true);
+    expect(multiTagFiltered._unsafeUnwrap().items).toHaveLength(1);
+    expect(multiTagFiltered._unsafeUnwrap().items[0]?.title).toBe("Research Council");
+
+    const missingMultiTagFiltered = await slice.listCouncils({
+      webContentsId: 204,
+      searchText: "",
+      tagFilter: "research, strategy",
+      archivedFilter: "all",
+      sortBy: "updatedAt",
+      sortDirection: "desc",
+      page: 1,
+    });
+    expect(missingMultiTagFiltered.isOk()).toBe(true);
+    expect(missingMultiTagFiltered._unsafeUnwrap().items).toHaveLength(0);
   });
 
   itReq(
