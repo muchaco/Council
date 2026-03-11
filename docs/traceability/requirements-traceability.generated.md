@@ -1,12 +1,12 @@
 # Test-to-Requirement Index (Generated)
 
-Generated at: 2026-03-11T15:57:32.213Z
+Generated at: 2026-03-11T20:58:18.869Z
 
 ## Summary
 
 - Spec files tracked: 34
-- Test cases tracked: 211
-- Annotated test cases: 211
+- Test cases tracked: 213
+- Annotated test cases: 213
 - Unmapped test cases: 0
 - Unique mapped requirement IDs: 198
 
@@ -110,7 +110,9 @@ Generated at: 2026-03-11T15:57:32.213Z
   - [itReq] `formats home list totals for councils and agents` -> U3.3, U4.2
   - [itReq] `applies immediate agent archive list updates for every archived filter state` -> R1.20, R1.21, R1.22, R1.24, R1.27, U4.2, U4.5, U4.6
   - [itReq] `resolves agent home-list clear filters state and defaults` -> R1.17, R1.19, R1.22, R1.27, U4.2
+  - [itReq] `resolves agent toolbar draft and applied query state` -> R1.17, R1.19, R1.22, R1.27, U4.2
   - [itReq] `resolves council home-list clear filters state and defaults` -> R2.22, R2.24, U3.2
+  - [itReq] `resolves council toolbar draft and applied query state` -> R2.22, R2.24, U3.3
   - [itReq] `normalizes council config tags from draft text` -> U10.11
   - [itReq] `appends council config tags with ui-friendly validation` -> U10.11
   - [itReq] `normalizes renderer tag drafts with shared tag rules` -> R5.3, R5.6

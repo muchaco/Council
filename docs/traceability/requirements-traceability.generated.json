@@ -1,9 +1,9 @@
 {
-  "generatedAtUtc": "2026-03-11T15:57:32.213Z",
+  "generatedAtUtc": "2026-03-11T20:58:18.869Z",
   "summary": {
     "specFilesTracked": 34,
-    "testCasesTracked": 211,
-    "annotatedTestCases": 211,
+    "testCasesTracked": 213,
+    "annotatedTestCases": 213,
     "unmappedTestCases": 0,
     "mappedRequirementIds": 198
   },
@@ -3751,11 +3751,31 @@
           "source": "itReq"
         },
         {
+          "name": "resolves agent toolbar draft and applied query state",
+          "requirementIds": [
+            "R1.17",
+            "R1.19",
+            "R1.22",
+            "R1.27",
+            "U4.2"
+          ],
+          "source": "itReq"
+        },
+        {
           "name": "resolves council home-list clear filters state and defaults",
           "requirementIds": [
             "R2.22",
             "R2.24",
             "U3.2"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "resolves council toolbar draft and applied query state",
+          "requirementIds": [
+            "R2.22",
+            "R2.24",
+            "U3.3"
           ],
           "source": "itReq"
         },
@@ -3826,8 +3846,8 @@
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 18,
-      "totalTestCount": 18
+      "itReqInvocationCount": 20,
+      "totalTestCount": 20
     },
     {
       "filePath": "tests/unit/council-runtime-conductor.spec.ts",
