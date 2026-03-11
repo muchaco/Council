@@ -92,12 +92,14 @@ This document defines user-facing UX behavior for Council. It complements the Fu
 
 ### 3.2 Controls
 - **U3.3** Controls at the top of the list:
-  - Search input (Title, Topic substring match, case-insensitive)
-  - Tag filter input with inline committed chips; typing text alone does not filter until committed with Enter or comma
+  - A compact shared toolbar with: search input, filter button, refresh button, and trailing primary CTA `New`
+  - Search input is draft-based; typing alone does not query until the user presses Enter or activates refresh
+  - Filter button opens a compact popover containing tag filters, archived filter, and sort controls (Created/Modified asc/desc)
+  - Tag filtering inside the popover uses inline committed chips; typing text alone does not filter until committed with Enter or comma
   - Multiple committed tag chips are allowed and use exact-match, case-insensitive AND semantics
-  - Archived filter (Active only, Archived only, All)
-  - Sort control (Created asc/desc, Modified asc/desc)
-  - Primary CTA: "New Council"
+  - Popover footer provides `Apply` and `Reset`; `Apply` runs the same query action as refresh, while `Reset` clears popover-owned filters/sort while preserving search text
+  - Refresh receives an accent treatment whenever the draft query differs from the applied query
+  - Filter button shows a small active indicator when the applied popover state is not the default query
   - No "Refresh models" action in Councils list top controls
   **[1.00]**
 
@@ -134,12 +136,14 @@ This document defines user-facing UX behavior for Council. It complements the Fu
 
 ### 4.2 Controls
 - **U4.2** Controls at the top:
-  - Search input (Name + System Prompt substring match)
-  - Tag filter input with inline committed chips; typing text alone does not filter until committed with Enter or comma
+  - A compact shared toolbar with: search input, filter button, refresh button, and trailing primary CTA `New`
+  - Search input is draft-based; typing alone does not query until the user presses Enter or activates refresh
+  - Filter button opens a compact popover containing tag filters, archived filter, and sort controls (Created/Modified asc/desc)
+  - Tag filtering inside the popover uses inline committed chips; typing text alone does not filter until committed with Enter or comma
   - Multiple committed tag chips are allowed and use exact-match, case-insensitive AND semantics
-  - Archived status filter (Active only, Archived only, All)
-  - Sort (Created, Modified asc/desc)
-  - Primary CTA: "New Agent"
+  - Popover footer provides `Apply` and `Reset`; `Apply` runs the same query action as refresh, while `Reset` clears popover-owned filters/sort while preserving search text
+  - Refresh receives an accent treatment whenever the draft query differs from the applied query
+  - Filter button shows a small active indicator when the applied popover state is not the default query
   - No "Refresh models" action in Agents list top controls
   **[1.00]**
 

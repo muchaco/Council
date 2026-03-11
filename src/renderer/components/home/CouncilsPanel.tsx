@@ -6,12 +6,15 @@ import type {
 } from "react";
 
 import {
+  type CouncilHomeListFilters,
   DEFAULT_COUNCIL_HOME_LIST_FILTERS,
   appendCommittedTagFilter,
   formatHomeListTotal,
-  hasActiveCouncilHomeListFilters,
+  hasAppliedCouncilHomeListPopoverFilters,
+  hasPendingCouncilHomeListQueryChanges,
   parseTagDraft,
   removeCommittedTagFilter,
+  resetCouncilHomeListPopoverFilters,
 } from "../../../shared/app-ui-helpers.js";
 import {
   isCardOpenInteractionTarget,
@@ -51,16 +54,14 @@ export const CouncilsPanel = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<CouncilSortField>(DEFAULT_COUNCIL_HOME_LIST_FILTERS.sortBy);
-  const [sortDirection, setSortDirection] = useState<SortDirection>(
-    DEFAULT_COUNCIL_HOME_LIST_FILTERS.sortDirection,
+  const [draftFilters, setDraftFilters] = useState<CouncilHomeListFilters>(
+    DEFAULT_COUNCIL_HOME_LIST_FILTERS,
   );
-  const [searchText, setSearchText] = useState(DEFAULT_COUNCIL_HOME_LIST_FILTERS.searchText);
-  const [tagFilter, setTagFilter] = useState(DEFAULT_COUNCIL_HOME_LIST_FILTERS.tagFilter);
-  const [tagFilterDraft, setTagFilterDraft] = useState(DEFAULT_COUNCIL_HOME_LIST_FILTERS.tagFilter);
-  const [archivedFilter, setArchivedFilter] = useState<CouncilArchivedFilter>(
-    DEFAULT_COUNCIL_HOME_LIST_FILTERS.archivedFilter,
+  const [appliedFilters, setAppliedFilters] = useState<CouncilHomeListFilters>(
+    DEFAULT_COUNCIL_HOME_LIST_FILTERS,
   );
+  const [tagFilterDraft, setTagFilterDraft] = useState("");
+  const [refreshVersion, setRefreshVersion] = useState(0);
   const [exportingCouncilId, setExportingCouncilId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<CouncilDto | null>(null);
 
@@ -74,11 +75,11 @@ export const CouncilsPanel = ({
       setError(null);
       const result = await window.api.councils.list({
         viewKind: "councilsList",
-        searchText,
-        tagFilter,
-        archivedFilter,
-        sortBy,
-        sortDirection,
+        searchText: appliedFilters.searchText,
+        tagFilter: appliedFilters.tagFilter,
+        archivedFilter: appliedFilters.archivedFilter,
+        sortBy: appliedFilters.sortBy,
+        sortDirection: appliedFilters.sortDirection,
         page: params.page,
       });
       if (!result.ok) {
@@ -98,15 +99,16 @@ export const CouncilsPanel = ({
       setIsLoading(false);
       setIsLoadingMore(false);
     },
-    [archivedFilter, onTotalChange, pushToast, searchText, sortBy, sortDirection, tagFilter],
+    [appliedFilters, onTotalChange, pushToast],
   );
 
   useEffect(() => {
     if (!isActive) {
       return;
     }
+    void refreshVersion;
     void loadCouncils({ page: 1, append: false });
-  }, [isActive, loadCouncils]);
+  }, [isActive, loadCouncils, refreshVersion]);
 
   useEffect(() => {
     if (!isActive) {
@@ -130,32 +132,38 @@ export const CouncilsPanel = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isActive]);
 
-  const hasActiveFilters = useMemo(
+  const hasPendingChanges = useMemo(
     () =>
-      hasActiveCouncilHomeListFilters({
-        searchText,
-        tagFilter,
-        archivedFilter,
-        sortBy,
-        sortDirection,
+      hasPendingCouncilHomeListQueryChanges({
+        draft: draftFilters,
+        applied: appliedFilters,
       }),
-    [archivedFilter, searchText, sortBy, sortDirection, tagFilter],
+    [appliedFilters, draftFilters],
   );
 
-  const clearFilters = useCallback((): void => {
-    setSearchText(DEFAULT_COUNCIL_HOME_LIST_FILTERS.searchText);
-    setTagFilter(DEFAULT_COUNCIL_HOME_LIST_FILTERS.tagFilter);
-    setTagFilterDraft(DEFAULT_COUNCIL_HOME_LIST_FILTERS.tagFilter);
-    setArchivedFilter(DEFAULT_COUNCIL_HOME_LIST_FILTERS.archivedFilter);
-    setSortBy(DEFAULT_COUNCIL_HOME_LIST_FILTERS.sortBy);
-    setSortDirection(DEFAULT_COUNCIL_HOME_LIST_FILTERS.sortDirection);
-  }, []);
+  const hasAppliedPopoverFilters = useMemo(
+    () => hasAppliedCouncilHomeListPopoverFilters(appliedFilters),
+    [appliedFilters],
+  );
+
+  const refreshCouncils = useCallback((): void => {
+    setAppliedFilters(draftFilters);
+    setRefreshVersion((current) => current + 1);
+  }, [draftFilters]);
+
+  const resetFilters = useCallback((): void => {
+    const nextFilters = resetCouncilHomeListPopoverFilters(draftFilters.searchText);
+    setTagFilterDraft("");
+    setDraftFilters(nextFilters);
+    setAppliedFilters(nextFilters);
+    setRefreshVersion((current) => current + 1);
+  }, [draftFilters.searchText]);
 
   const commitTagFilter = useCallback(
     (nextDraft?: string): void => {
       const resolvedDraft = nextDraft ?? tagFilterDraft;
       const nextFilter = appendCommittedTagFilter({
-        currentTagFilter: tagFilter,
+        currentTagFilter: draftFilters.tagFilter,
         tagInput: resolvedDraft,
       });
       if (!nextFilter.ok) {
@@ -163,24 +171,33 @@ export const CouncilsPanel = ({
         return;
       }
       setTagFilterDraft("");
-      setTagFilter(nextFilter.tagFilter);
+      setDraftFilters((current) => ({
+        ...current,
+        tagFilter: nextFilter.tagFilter,
+      }));
     },
-    [pushToast, tagFilter, tagFilterDraft],
+    [draftFilters.tagFilter, pushToast, tagFilterDraft],
   );
 
   const applyTagFilterFromCard = useCallback(
     (tag: string): void => {
       const nextFilter = appendCommittedTagFilter({
-        currentTagFilter: tagFilter,
+        currentTagFilter: draftFilters.tagFilter,
         tagInput: tag,
       });
       if (!nextFilter.ok) {
         return;
       }
+      const nextDraft = {
+        ...draftFilters,
+        tagFilter: nextFilter.tagFilter,
+      } satisfies CouncilHomeListFilters;
       setTagFilterDraft("");
-      setTagFilter(nextFilter.tagFilter);
+      setDraftFilters(nextDraft);
+      setAppliedFilters(nextDraft);
+      setRefreshVersion((current) => current + 1);
     },
-    [tagFilter],
+    [draftFilters],
   );
 
   const handleMenuKeyDown = (event: ReactKeyboardEvent<HTMLDetailsElement>): void => {
@@ -311,9 +328,9 @@ export const CouncilsPanel = ({
 
   const totalLabel = formatHomeListTotal({ total, singularLabel: "council" });
   const emptyMessage =
-    archivedFilter === "archived"
+    appliedFilters.archivedFilter === "archived"
       ? "No archived councils found."
-      : archivedFilter === "active"
+      : appliedFilters.archivedFilter === "active"
         ? "No active councils found."
         : "No councils yet. Create your first council to get started.";
 
@@ -326,47 +343,74 @@ export const CouncilsPanel = ({
       role="tabpanel"
     >
       <HomeListToolbar
-        actionLabel="New Council"
-        archivedFilterValue={archivedFilter}
+        actionAriaLabel="Create new council"
+        actionLabel="New"
+        archivedFilterValue={draftFilters.archivedFilter}
         archivedOptions={[
           { value: "all", label: "All councils" },
           { value: "active", label: "Active only" },
           { value: "archived", label: "Archived only" },
         ]}
-        hasActiveFilters={hasActiveFilters}
+        hasAppliedPopoverFilters={hasAppliedPopoverFilters}
+        hasPendingChanges={hasPendingChanges}
         isLoading={isLoading}
         metaLabel={isLoading ? "Loading councils..." : totalLabel}
         onAction={onOpenCouncilEditor}
-        onClearFilters={clearFilters}
+        onApplyFilters={refreshCouncils}
         onCommitTagFilter={() => commitTagFilter()}
-        onSetArchivedFilter={(value) => setArchivedFilter(value as CouncilArchivedFilter)}
-        onSetSearchText={setSearchText}
-        onSetSortBy={(value) => setSortBy(value as CouncilSortField)}
-        onSetSortDirection={(value) => setSortDirection(value as SortDirection)}
+        onRefresh={refreshCouncils}
+        onResetFilters={resetFilters}
+        onSetArchivedFilter={(value) =>
+          setDraftFilters((current) => ({
+            ...current,
+            archivedFilter: value as CouncilArchivedFilter,
+          }))
+        }
+        onSetSearchText={(value) =>
+          setDraftFilters((current) => ({
+            ...current,
+            searchText: value,
+          }))
+        }
+        onSetSortBy={(value) =>
+          setDraftFilters((current) => ({
+            ...current,
+            sortBy: value as CouncilSortField,
+          }))
+        }
+        onSetSortDirection={(value) =>
+          setDraftFilters((current) => ({
+            ...current,
+            sortDirection: value as SortDirection,
+          }))
+        }
         onSetTagFilterDraft={setTagFilterDraft}
         onTagFilterRemove={(tag) => {
           const nextFilter = removeCommittedTagFilter({
-            currentTagFilter: tagFilter,
+            currentTagFilter: draftFilters.tagFilter,
             tagToRemove: tag,
           });
-          setTagFilter(nextFilter.tagFilter);
+          setDraftFilters((current) => ({
+            ...current,
+            tagFilter: nextFilter.tagFilter,
+          }));
         }}
+        popoverTitle="Council filters"
         searchAriaLabel="Search councils"
         searchPlaceholder="Search title or topic"
-        searchText={searchText}
+        searchText={draftFilters.searchText}
         sortByOptions={[
           { value: "updatedAt", label: "Last modified" },
           { value: "createdAt", label: "Date created" },
         ]}
-        sortByValue={sortBy}
+        sortByValue={draftFilters.sortBy}
         sortDirectionOptions={[
           { value: "desc", label: "Newest first" },
           { value: "asc", label: "Oldest first" },
         ]}
-        sortDirectionValue={sortDirection}
-        tagFilter={parseTagDraft(tagFilter)}
+        sortDirectionValue={draftFilters.sortDirection}
+        tagFilter={parseTagDraft(draftFilters.tagFilter)}
         tagFilterDraft={tagFilterDraft}
-        toolbarClassName="home-list-toolbar-councils"
       />
 
       {error !== null ? <p className="text-muted-foreground italic">Error: {error}</p> : null}

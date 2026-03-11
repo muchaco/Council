@@ -6,13 +6,16 @@ import type {
 } from "react";
 
 import {
+  type AgentHomeListFilters,
   DEFAULT_AGENT_HOME_LIST_FILTERS,
   appendCommittedTagFilter,
   applyAgentArchivedListUpdate,
   formatHomeListTotal,
-  hasActiveAgentHomeListFilters,
+  hasAppliedAgentHomeListPopoverFilters,
+  hasPendingAgentHomeListQueryChanges,
   parseTagDraft,
   removeCommittedTagFilter,
+  resetAgentHomeListPopoverFilters,
 } from "../../../shared/app-ui-helpers.js";
 import type { ModelRef } from "../../../shared/domain/model-ref";
 import {
@@ -52,16 +55,14 @@ export const AgentsPanel = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<AgentSortField>(DEFAULT_AGENT_HOME_LIST_FILTERS.sortBy);
-  const [sortDirection, setSortDirection] = useState<SortDirection>(
-    DEFAULT_AGENT_HOME_LIST_FILTERS.sortDirection,
+  const [draftFilters, setDraftFilters] = useState<AgentHomeListFilters>(
+    DEFAULT_AGENT_HOME_LIST_FILTERS,
   );
-  const [searchText, setSearchText] = useState(DEFAULT_AGENT_HOME_LIST_FILTERS.searchText);
-  const [tagFilter, setTagFilter] = useState(DEFAULT_AGENT_HOME_LIST_FILTERS.tagFilter);
-  const [tagFilterDraft, setTagFilterDraft] = useState(DEFAULT_AGENT_HOME_LIST_FILTERS.tagFilter);
-  const [archivedFilter, setArchivedFilter] = useState<AgentArchivedFilter>(
-    DEFAULT_AGENT_HOME_LIST_FILTERS.archivedFilter,
+  const [appliedFilters, setAppliedFilters] = useState<AgentHomeListFilters>(
+    DEFAULT_AGENT_HOME_LIST_FILTERS,
   );
+  const [tagFilterDraft, setTagFilterDraft] = useState("");
+  const [refreshVersion, setRefreshVersion] = useState(0);
   const [globalDefaultModel, setGlobalDefaultModel] = useState<ModelRef | null>(null);
   const [pendingDelete, setPendingDelete] = useState<AgentDto | null>(null);
 
@@ -75,11 +76,11 @@ export const AgentsPanel = ({
       setError(null);
       const result = await window.api.agents.list({
         viewKind: "agentsList",
-        searchText,
-        tagFilter,
-        archivedFilter,
-        sortBy,
-        sortDirection,
+        searchText: appliedFilters.searchText,
+        tagFilter: appliedFilters.tagFilter,
+        archivedFilter: appliedFilters.archivedFilter,
+        sortBy: appliedFilters.sortBy,
+        sortDirection: appliedFilters.sortDirection,
         page: params.page,
       });
       if (!result.ok) {
@@ -100,7 +101,7 @@ export const AgentsPanel = ({
       setIsLoading(false);
       setIsLoadingMore(false);
     },
-    [archivedFilter, onTotalChange, pushToast, searchText, sortBy, sortDirection, tagFilter],
+    [appliedFilters, onTotalChange, pushToast],
   );
 
   useEffect(() => {
@@ -108,7 +109,8 @@ export const AgentsPanel = ({
       return;
     }
     void loadAgents({ page: 1, append: false });
-  }, [isActive, loadAgents]);
+    void refreshVersion;
+  }, [isActive, loadAgents, refreshVersion]);
 
   useEffect(() => {
     if (!isActive) {
@@ -130,32 +132,38 @@ export const AgentsPanel = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isActive]);
 
-  const hasActiveFilters = useMemo(
+  const hasPendingChanges = useMemo(
     () =>
-      hasActiveAgentHomeListFilters({
-        searchText,
-        tagFilter,
-        archivedFilter,
-        sortBy,
-        sortDirection,
+      hasPendingAgentHomeListQueryChanges({
+        draft: draftFilters,
+        applied: appliedFilters,
       }),
-    [archivedFilter, searchText, sortBy, sortDirection, tagFilter],
+    [appliedFilters, draftFilters],
   );
 
-  const clearFilters = useCallback((): void => {
-    setSearchText(DEFAULT_AGENT_HOME_LIST_FILTERS.searchText);
-    setTagFilter(DEFAULT_AGENT_HOME_LIST_FILTERS.tagFilter);
-    setTagFilterDraft(DEFAULT_AGENT_HOME_LIST_FILTERS.tagFilter);
-    setArchivedFilter(DEFAULT_AGENT_HOME_LIST_FILTERS.archivedFilter);
-    setSortBy(DEFAULT_AGENT_HOME_LIST_FILTERS.sortBy);
-    setSortDirection(DEFAULT_AGENT_HOME_LIST_FILTERS.sortDirection);
-  }, []);
+  const hasAppliedPopoverFilters = useMemo(
+    () => hasAppliedAgentHomeListPopoverFilters(appliedFilters),
+    [appliedFilters],
+  );
+
+  const refreshAgents = useCallback((): void => {
+    setAppliedFilters(draftFilters);
+    setRefreshVersion((current) => current + 1);
+  }, [draftFilters]);
+
+  const resetFilters = useCallback((): void => {
+    const nextFilters = resetAgentHomeListPopoverFilters(draftFilters.searchText);
+    setTagFilterDraft("");
+    setDraftFilters(nextFilters);
+    setAppliedFilters(nextFilters);
+    setRefreshVersion((current) => current + 1);
+  }, [draftFilters.searchText]);
 
   const commitTagFilter = useCallback(
     (nextDraft?: string): void => {
       const resolvedDraft = nextDraft ?? tagFilterDraft;
       const nextFilter = appendCommittedTagFilter({
-        currentTagFilter: tagFilter,
+        currentTagFilter: draftFilters.tagFilter,
         tagInput: resolvedDraft,
       });
       if (!nextFilter.ok) {
@@ -163,24 +171,33 @@ export const AgentsPanel = ({
         return;
       }
       setTagFilterDraft("");
-      setTagFilter(nextFilter.tagFilter);
+      setDraftFilters((current) => ({
+        ...current,
+        tagFilter: nextFilter.tagFilter,
+      }));
     },
-    [pushToast, tagFilter, tagFilterDraft],
+    [draftFilters.tagFilter, pushToast, tagFilterDraft],
   );
 
   const applyTagFilterFromCard = useCallback(
     (tag: string): void => {
       const nextFilter = appendCommittedTagFilter({
-        currentTagFilter: tagFilter,
+        currentTagFilter: draftFilters.tagFilter,
         tagInput: tag,
       });
       if (!nextFilter.ok) {
         return;
       }
+      const nextDraft = {
+        ...draftFilters,
+        tagFilter: nextFilter.tagFilter,
+      } satisfies AgentHomeListFilters;
       setTagFilterDraft("");
-      setTagFilter(nextFilter.tagFilter);
+      setDraftFilters(nextDraft);
+      setAppliedFilters(nextDraft);
+      setRefreshVersion((current) => current + 1);
     },
-    [tagFilter],
+    [draftFilters],
   );
 
   const handleMenuToggle = (event: SyntheticEvent<HTMLDetailsElement>): void => {
@@ -224,7 +241,7 @@ export const AgentsPanel = ({
         agents: current,
         agentId: params.agentId,
         archived: params.archived,
-        archivedFilter,
+        archivedFilter: appliedFilters.archivedFilter,
       }),
     );
     const result = await window.api.agents.setArchived({
@@ -256,9 +273,9 @@ export const AgentsPanel = ({
 
   const totalLabel = formatHomeListTotal({ total, singularLabel: "agent" });
   const emptyMessage =
-    archivedFilter === "archived"
+    appliedFilters.archivedFilter === "archived"
       ? "No archived agents found."
-      : archivedFilter === "active"
+      : appliedFilters.archivedFilter === "active"
         ? "No active agents found."
         : "No agents yet. Create your first agent.";
 
@@ -271,47 +288,74 @@ export const AgentsPanel = ({
       role="tabpanel"
     >
       <HomeListToolbar
-        actionLabel="New Agent"
-        archivedFilterValue={archivedFilter}
+        actionAriaLabel="Create new agent"
+        actionLabel="New"
+        archivedFilterValue={draftFilters.archivedFilter}
         archivedOptions={[
           { value: "all", label: "All agents" },
           { value: "active", label: "Active only" },
           { value: "archived", label: "Archived only" },
         ]}
-        hasActiveFilters={hasActiveFilters}
+        hasAppliedPopoverFilters={hasAppliedPopoverFilters}
+        hasPendingChanges={hasPendingChanges}
         isLoading={isLoading}
         metaLabel={isLoading ? "Loading agents..." : totalLabel}
         onAction={onOpenAgentEditor}
-        onClearFilters={clearFilters}
+        onApplyFilters={refreshAgents}
         onCommitTagFilter={() => commitTagFilter()}
-        onSetArchivedFilter={(value) => setArchivedFilter(value as AgentArchivedFilter)}
-        onSetSearchText={setSearchText}
-        onSetSortBy={(value) => setSortBy(value as AgentSortField)}
-        onSetSortDirection={(value) => setSortDirection(value as SortDirection)}
+        onRefresh={refreshAgents}
+        onResetFilters={resetFilters}
+        onSetArchivedFilter={(value) =>
+          setDraftFilters((current) => ({
+            ...current,
+            archivedFilter: value as AgentArchivedFilter,
+          }))
+        }
+        onSetSearchText={(value) =>
+          setDraftFilters((current) => ({
+            ...current,
+            searchText: value,
+          }))
+        }
+        onSetSortBy={(value) =>
+          setDraftFilters((current) => ({
+            ...current,
+            sortBy: value as AgentSortField,
+          }))
+        }
+        onSetSortDirection={(value) =>
+          setDraftFilters((current) => ({
+            ...current,
+            sortDirection: value as SortDirection,
+          }))
+        }
         onSetTagFilterDraft={setTagFilterDraft}
         onTagFilterRemove={(tag) => {
           const nextFilter = removeCommittedTagFilter({
-            currentTagFilter: tagFilter,
+            currentTagFilter: draftFilters.tagFilter,
             tagToRemove: tag,
           });
-          setTagFilter(nextFilter.tagFilter);
+          setDraftFilters((current) => ({
+            ...current,
+            tagFilter: nextFilter.tagFilter,
+          }));
         }}
+        popoverTitle="Agent filters"
         searchAriaLabel="Search agents"
         searchPlaceholder="Search name or prompt"
-        searchText={searchText}
+        searchText={draftFilters.searchText}
         sortByOptions={[
           { value: "updatedAt", label: "Last modified" },
           { value: "createdAt", label: "Date created" },
         ]}
-        sortByValue={sortBy}
+        sortByValue={draftFilters.sortBy}
         sortDirectionOptions={[
           { value: "desc", label: "Newest first" },
           { value: "asc", label: "Oldest first" },
         ]}
-        sortDirectionValue={sortDirection}
-        tagFilter={parseTagDraft(tagFilter)}
+        sortDirectionValue={draftFilters.sortDirection}
+        tagFilter={parseTagDraft(draftFilters.tagFilter)}
         tagFilterDraft={tagFilterDraft}
-        toolbarClassName="home-list-toolbar-agents"
       />
 
       {error !== null ? <p className="status">Error: {error}</p> : null}

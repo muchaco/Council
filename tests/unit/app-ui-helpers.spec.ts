@@ -14,12 +14,18 @@ import {
   formatHomeListTotal,
   hasActiveAgentHomeListFilters,
   hasActiveCouncilHomeListFilters,
+  hasAppliedAgentHomeListPopoverFilters,
+  hasAppliedCouncilHomeListPopoverFilters,
+  hasPendingAgentHomeListQueryChanges,
+  hasPendingCouncilHomeListQueryChanges,
   isModelSelectionInCatalog,
   normalizeTagsDraft,
   parseCouncilConfigTags,
   parseTagDraft,
   removeCommittedTagFilter,
   removeTagFromDraft,
+  resetAgentHomeListPopoverFilters,
+  resetCouncilHomeListPopoverFilters,
   resolveAutopilotMaxTurns,
   resolveConfirmDialogKeyboardAction,
   resolveDisclosureKeyboardAction,
@@ -297,6 +303,44 @@ describe("app ui helpers", () => {
   );
 
   itReq(
+    ["R1.17", "R1.19", "R1.22", "R1.27", "U4.2"],
+    "resolves agent toolbar draft and applied query state",
+    () => {
+      expect(
+        hasPendingAgentHomeListQueryChanges({
+          draft: DEFAULT_AGENT_HOME_LIST_FILTERS,
+          applied: DEFAULT_AGENT_HOME_LIST_FILTERS,
+        }),
+      ).toBe(false);
+      expect(
+        hasPendingAgentHomeListQueryChanges({
+          draft: {
+            ...DEFAULT_AGENT_HOME_LIST_FILTERS,
+            searchText: " planner ",
+          },
+          applied: DEFAULT_AGENT_HOME_LIST_FILTERS,
+        }),
+      ).toBe(true);
+      expect(
+        hasAppliedAgentHomeListPopoverFilters({
+          ...DEFAULT_AGENT_HOME_LIST_FILTERS,
+          searchText: "planner",
+        }),
+      ).toBe(false);
+      expect(
+        hasAppliedAgentHomeListPopoverFilters({
+          ...DEFAULT_AGENT_HOME_LIST_FILTERS,
+          archivedFilter: "active",
+        }),
+      ).toBe(true);
+      expect(resetAgentHomeListPopoverFilters("draft search")).toEqual({
+        ...DEFAULT_AGENT_HOME_LIST_FILTERS,
+        searchText: "draft search",
+      });
+    },
+  );
+
+  itReq(
     ["R2.22", "R2.24", "U3.2"],
     "resolves council home-list clear filters state and defaults",
     () => {
@@ -331,6 +375,44 @@ describe("app ui helpers", () => {
           sortDirection: "asc",
         }),
       ).toBe(true);
+    },
+  );
+
+  itReq(
+    ["R2.22", "R2.24", "U3.3"],
+    "resolves council toolbar draft and applied query state",
+    () => {
+      expect(
+        hasPendingCouncilHomeListQueryChanges({
+          draft: DEFAULT_COUNCIL_HOME_LIST_FILTERS,
+          applied: DEFAULT_COUNCIL_HOME_LIST_FILTERS,
+        }),
+      ).toBe(false);
+      expect(
+        hasPendingCouncilHomeListQueryChanges({
+          draft: {
+            ...DEFAULT_COUNCIL_HOME_LIST_FILTERS,
+            sortBy: "createdAt",
+          },
+          applied: DEFAULT_COUNCIL_HOME_LIST_FILTERS,
+        }),
+      ).toBe(true);
+      expect(
+        hasAppliedCouncilHomeListPopoverFilters({
+          ...DEFAULT_COUNCIL_HOME_LIST_FILTERS,
+          searchText: "delivery",
+        }),
+      ).toBe(false);
+      expect(
+        hasAppliedCouncilHomeListPopoverFilters({
+          ...DEFAULT_COUNCIL_HOME_LIST_FILTERS,
+          tagFilter: "ops",
+        }),
+      ).toBe(true);
+      expect(resetCouncilHomeListPopoverFilters("search string")).toEqual({
+        ...DEFAULT_COUNCIL_HOME_LIST_FILTERS,
+        searchText: "search string",
+      });
     },
   );
 

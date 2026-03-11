@@ -10,10 +10,15 @@ import { Badge } from "../ui/badge";
 import { Input } from "../ui/input";
 
 type TagsEditorProps = {
+  className?: string;
   disabled?: boolean;
   errorText?: string;
+  fieldClassName?: string;
   helperText?: string;
+  helperTextClassName?: string;
+  helperTextHidden?: boolean;
   inputAriaLabel?: string;
+  inputClassName?: string;
   inputId?: string;
   inputPlaceholder?: string;
   inputValue: string;
@@ -29,10 +34,15 @@ type TagsEditorProps = {
 };
 
 export const TagsEditor = ({
+  className,
   disabled = false,
   errorText,
+  fieldClassName,
   helperText,
+  helperTextClassName,
+  helperTextHidden = false,
   inputAriaLabel,
+  inputClassName,
   inputId,
   inputPlaceholder = "Add tag",
   inputValue,
@@ -57,13 +67,15 @@ export const TagsEditor = ({
     });
 
   return (
-    <div className="space-y-2">
+    <div className={cn("space-y-2", className)}>
       <div
         className={cn(
           "flex min-h-10 w-full flex-wrap items-center gap-2 rounded-md border border-input bg-background px-3 py-2 ring-offset-background",
           isInteractive && "focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
           !isInteractive && "cursor-not-allowed opacity-50",
+          fieldClassName,
         )}
+        role="presentation"
         onMouseDown={(event) => {
           if (!isInteractive) {
             return;
@@ -103,7 +115,10 @@ export const TagsEditor = ({
         ))}
         <Input
           aria-label={inputAriaLabel}
-          className="h-auto min-w-[8ch] flex-1 border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          className={cn(
+            "h-auto min-w-[8ch] flex-1 border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0",
+            inputClassName,
+          )}
           disabled={!isInteractive}
           id={inputId}
           onChange={(event) => onInputChange(event.target.value)}
@@ -132,9 +147,17 @@ export const TagsEditor = ({
           value={inputValue}
         />
       </div>
-      <p className={`text-xs ${errorText ? "text-destructive" : "text-muted-foreground"}`}>
-        {errorText ?? resolvedHelperText}
-      </p>
+      {helperTextHidden ? null : (
+        <p
+          className={cn(
+            "text-xs",
+            errorText ? "text-destructive" : "text-muted-foreground",
+            helperTextClassName,
+          )}
+        >
+          {errorText ?? resolvedHelperText}
+        </p>
+      )}
     </div>
   );
 };

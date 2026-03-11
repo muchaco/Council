@@ -47,6 +47,14 @@ export type CouncilHomeListFilters = {
   sortDirection: SortDirection;
 };
 
+type ComparableHomeListFilters<TArchivedFilter extends string, TSortField extends string> = {
+  searchText: string;
+  tagFilter: string;
+  archivedFilter: TArchivedFilter;
+  sortBy: TSortField;
+  sortDirection: SortDirection;
+};
+
 export const AUTOPILOT_MAX_TURNS_MIN = 1;
 export const AUTOPILOT_MAX_TURNS_MAX = 200;
 export const AUTOPILOT_DEFAULT_MAX_TURNS = "12";
@@ -70,6 +78,36 @@ export const DEFAULT_COUNCIL_HOME_LIST_FILTERS: CouncilHomeListFilters = {
 
 const normalizeHomeListText = (value: string): string => value.trim();
 
+const normalizeComparableHomeListFilters = <
+  TArchivedFilter extends string,
+  TSortField extends string,
+>(
+  filters: ComparableHomeListFilters<TArchivedFilter, TSortField>,
+): ComparableHomeListFilters<TArchivedFilter, TSortField> => ({
+  ...filters,
+  searchText: normalizeHomeListText(filters.searchText),
+  tagFilter: normalizeHomeListText(filters.tagFilter),
+});
+
+const areComparableHomeListFiltersEqual = <
+  TArchivedFilter extends string,
+  TSortField extends string,
+>(
+  left: ComparableHomeListFilters<TArchivedFilter, TSortField>,
+  right: ComparableHomeListFilters<TArchivedFilter, TSortField>,
+): boolean => {
+  const normalizedLeft = normalizeComparableHomeListFilters(left);
+  const normalizedRight = normalizeComparableHomeListFilters(right);
+
+  return (
+    normalizedLeft.searchText === normalizedRight.searchText &&
+    normalizedLeft.tagFilter === normalizedRight.tagFilter &&
+    normalizedLeft.archivedFilter === normalizedRight.archivedFilter &&
+    normalizedLeft.sortBy === normalizedRight.sortBy &&
+    normalizedLeft.sortDirection === normalizedRight.sortDirection
+  );
+};
+
 export const hasActiveAgentHomeListFilters = (filters: AgentHomeListFilters): boolean =>
   normalizeHomeListText(filters.searchText) !== DEFAULT_AGENT_HOME_LIST_FILTERS.searchText ||
   normalizeHomeListText(filters.tagFilter) !== DEFAULT_AGENT_HOME_LIST_FILTERS.tagFilter ||
@@ -83,6 +121,38 @@ export const hasActiveCouncilHomeListFilters = (filters: CouncilHomeListFilters)
   filters.archivedFilter !== DEFAULT_COUNCIL_HOME_LIST_FILTERS.archivedFilter ||
   filters.sortBy !== DEFAULT_COUNCIL_HOME_LIST_FILTERS.sortBy ||
   filters.sortDirection !== DEFAULT_COUNCIL_HOME_LIST_FILTERS.sortDirection;
+
+export const hasPendingAgentHomeListQueryChanges = (params: {
+  draft: AgentHomeListFilters;
+  applied: AgentHomeListFilters;
+}): boolean => !areComparableHomeListFiltersEqual(params.draft, params.applied);
+
+export const hasPendingCouncilHomeListQueryChanges = (params: {
+  draft: CouncilHomeListFilters;
+  applied: CouncilHomeListFilters;
+}): boolean => !areComparableHomeListFiltersEqual(params.draft, params.applied);
+
+export const hasAppliedAgentHomeListPopoverFilters = (filters: AgentHomeListFilters): boolean =>
+  normalizeHomeListText(filters.tagFilter) !== DEFAULT_AGENT_HOME_LIST_FILTERS.tagFilter ||
+  filters.archivedFilter !== DEFAULT_AGENT_HOME_LIST_FILTERS.archivedFilter ||
+  filters.sortBy !== DEFAULT_AGENT_HOME_LIST_FILTERS.sortBy ||
+  filters.sortDirection !== DEFAULT_AGENT_HOME_LIST_FILTERS.sortDirection;
+
+export const hasAppliedCouncilHomeListPopoverFilters = (filters: CouncilHomeListFilters): boolean =>
+  normalizeHomeListText(filters.tagFilter) !== DEFAULT_COUNCIL_HOME_LIST_FILTERS.tagFilter ||
+  filters.archivedFilter !== DEFAULT_COUNCIL_HOME_LIST_FILTERS.archivedFilter ||
+  filters.sortBy !== DEFAULT_COUNCIL_HOME_LIST_FILTERS.sortBy ||
+  filters.sortDirection !== DEFAULT_COUNCIL_HOME_LIST_FILTERS.sortDirection;
+
+export const resetAgentHomeListPopoverFilters = (searchText: string): AgentHomeListFilters => ({
+  ...DEFAULT_AGENT_HOME_LIST_FILTERS,
+  searchText,
+});
+
+export const resetCouncilHomeListPopoverFilters = (searchText: string): CouncilHomeListFilters => ({
+  ...DEFAULT_COUNCIL_HOME_LIST_FILTERS,
+  searchText,
+});
 
 export const toModelSelectionValue = (modelRefOrNull: ModelRef | null): string =>
   modelRefOrNull === null ? "" : `${modelRefOrNull.providerId}:${modelRefOrNull.modelId}`;
