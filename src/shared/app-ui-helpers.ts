@@ -475,6 +475,16 @@ export const removeTagFromDraft = (params: {
 
 export const commitTagFilterDraft = (draftValue: string): string => draftValue.trim();
 
+export const applyCommittedTagFilter = (
+  draftValue: string,
+): {
+  draftValue: string;
+  tagFilter: string;
+} => ({
+  draftValue: "",
+  tagFilter: commitTagFilterDraft(draftValue),
+});
+
 export const resolveTagEditorInputKeyAction = (params: {
   key: string;
   draftValue: string;

@@ -8,7 +8,7 @@ import type {
 import {
   DEFAULT_AGENT_HOME_LIST_FILTERS,
   applyAgentArchivedListUpdate,
-  commitTagFilterDraft,
+  applyCommittedTagFilter,
   formatHomeListTotal,
   hasActiveAgentHomeListFilters,
 } from "../../../shared/app-ui-helpers.js";
@@ -152,16 +152,16 @@ export const AgentsPanel = ({
   const commitTagFilter = useCallback(
     (nextDraft?: string): void => {
       const resolvedDraft = nextDraft ?? tagFilterDraft;
-      const nextFilter = commitTagFilterDraft(resolvedDraft);
-      setTagFilterDraft(nextFilter);
-      setTagFilter(nextFilter);
+      const nextFilter = applyCommittedTagFilter(resolvedDraft);
+      setTagFilterDraft(nextFilter.draftValue);
+      setTagFilter(nextFilter.tagFilter);
     },
     [tagFilterDraft],
   );
 
   const applyTagFilterFromCard = useCallback((tag: string): void => {
-    setTagFilterDraft(tag);
-    setTagFilter(commitTagFilterDraft(tag));
+    setTagFilterDraft("");
+    setTagFilter(tag);
   }, []);
 
   const handleMenuToggle = (event: SyntheticEvent<HTMLDetailsElement>): void => {

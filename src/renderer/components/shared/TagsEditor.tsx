@@ -64,6 +64,22 @@ export const TagsEditor = ({
           isInteractive && "focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
           !isInteractive && "cursor-not-allowed opacity-50",
         )}
+        onMouseDown={(event) => {
+          if (!isInteractive) {
+            return;
+          }
+          const target = event.target;
+          if (
+            target instanceof HTMLElement &&
+            (target.tagName === "INPUT" ||
+              target.tagName === "BUTTON" ||
+              target.closest("button") !== null)
+          ) {
+            return;
+          }
+          event.preventDefault();
+          inputRef.current?.focus();
+        }}
       >
         {tags.map((tag) => (
           <Badge className="gap-1.5" key={tag} variant="secondary">
@@ -76,6 +92,7 @@ export const TagsEditor = ({
                 onClick={(event) => {
                   event.stopPropagation();
                   onRemoveTag(tag);
+                  inputRef.current?.focus();
                 }}
                 type="button"
               >

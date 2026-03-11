@@ -7,7 +7,7 @@ import type {
 
 import {
   DEFAULT_COUNCIL_HOME_LIST_FILTERS,
-  commitTagFilterDraft,
+  applyCommittedTagFilter,
   formatHomeListTotal,
   hasActiveCouncilHomeListFilters,
 } from "../../../shared/app-ui-helpers.js";
@@ -152,16 +152,16 @@ export const CouncilsPanel = ({
   const commitTagFilter = useCallback(
     (nextDraft?: string): void => {
       const resolvedDraft = nextDraft ?? tagFilterDraft;
-      const nextFilter = commitTagFilterDraft(resolvedDraft);
-      setTagFilterDraft(nextFilter);
-      setTagFilter(nextFilter);
+      const nextFilter = applyCommittedTagFilter(resolvedDraft);
+      setTagFilterDraft(nextFilter.draftValue);
+      setTagFilter(nextFilter.tagFilter);
     },
     [tagFilterDraft],
   );
 
   const applyTagFilterFromCard = useCallback((tag: string): void => {
-    setTagFilterDraft(tag);
-    setTagFilter(commitTagFilterDraft(tag));
+    setTagFilterDraft("");
+    setTagFilter(tag);
   }, []);
 
   const handleMenuKeyDown = (event: ReactKeyboardEvent<HTMLDetailsElement>): void => {
