@@ -1,6 +1,9 @@
 {
   "seedCouncilOk": true,
   "openedRightPanelScenarioCouncil": true,
-  "addedMemberFromPanel": true,
-  "memberCountAfterAdd": 3
+  "filledAddMemberModalSearch": true,
+  "addMemberDialogShowsSingleFilteredRow": 1,
+  "addedMemberFromModal": true,
+  "memberCountAfterAdd": 3,
+  "transcriptVisibleWhileConfigOpen": true
 }

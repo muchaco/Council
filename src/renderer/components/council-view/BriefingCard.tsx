@@ -7,12 +7,12 @@ type BriefingCardProps = {
 };
 
 export const BriefingCard = ({ briefing }: BriefingCardProps): JSX.Element => (
-  <Card className="p-6">
-    <h2 className="mb-4 text-xl font-medium">Briefing</h2>
+  <Card className="p-4 sm:p-5">
+    <h2 className="mb-3 text-lg font-medium">Briefing</h2>
     {briefing === null ? (
       <p className="text-sm italic text-muted-foreground">Briefing not generated yet.</p>
     ) : (
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div>
           <p className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Summary</p>
           <p className="text-sm">{briefing.briefing}</p>

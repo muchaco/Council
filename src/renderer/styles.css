@@ -125,6 +125,10 @@
   margin: 0 auto;
 }
 
+.main-content-inner[data-screen="council-view"] {
+  max-width: 84rem;
+}
+
 /* Home top navigation */
 .home-topbar {
   margin-bottom: 1.75rem;

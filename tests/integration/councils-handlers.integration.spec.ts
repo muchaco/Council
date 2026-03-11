@@ -101,9 +101,11 @@ const FILE_REQUIREMENT_IDS = [
 ] as const;
 
 type TestAvailableAgent = {
+  description: string;
   id: string;
   name: string;
   systemPrompt: string;
+  tags: ReadonlyArray<string>;
   verbosity: string | null;
   modelRefOrNull: { providerId: string; modelId: string } | null;
   invalidConfig: boolean;
@@ -113,9 +115,14 @@ type TestAvailableAgent = {
 const createAvailableAgent = (
   overrides: Partial<TestAvailableAgent> & Pick<TestAvailableAgent, "id" | "name">,
 ): TestAvailableAgent => ({
+  description:
+    overrides.description ??
+    overrides.systemPrompt ??
+    `You are ${overrides.name}, a helpful council member.`,
   id: overrides.id,
   name: overrides.name,
   systemPrompt: overrides.systemPrompt ?? `You are ${overrides.name}, a helpful council member.`,
+  tags: overrides.tags ?? [],
   verbosity: overrides.verbosity ?? null,
   modelRefOrNull: overrides.modelRefOrNull ?? null,
   invalidConfig: overrides.invalidConfig ?? false,
@@ -436,90 +443,94 @@ describe("councils handlers", () => {
     expect(page2._unsafeUnwrap().hasMore).toBe(false);
   });
 
-  itReq(FILE_REQUIREMENT_IDS, "filters councils by exact tag matches only", async () => {
-    const slice = createSlice();
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "filters councils by committed exact-match tag chips with AND semantics",
+    async () => {
+      const slice = createSlice();
 
-    await slice.saveCouncil({
-      webContentsId: 204,
-      draft: {
-        viewKind: "councilCreate",
-        id: null,
-        title: "Research Council",
-        topic: "Tag exact match",
-        goal: null,
-        mode: "manual",
-        tags: ["research", "ops"],
-        memberAgentIds: [PRIMARY_AGENT_ID],
-        memberColorsByAgentId: {},
-        conductorModelRefOrNull: null,
-      },
-    });
-    await slice.saveCouncil({
-      webContentsId: 204,
-      draft: {
-        viewKind: "councilCreate",
-        id: null,
-        title: "Research Notes Council",
-        topic: "Nearby tag",
-        goal: null,
-        mode: "manual",
-        tags: ["research-notes"],
-        memberAgentIds: [PRIMARY_AGENT_ID],
-        memberColorsByAgentId: {},
-        conductorModelRefOrNull: null,
-      },
-    });
+      await slice.saveCouncil({
+        webContentsId: 204,
+        draft: {
+          viewKind: "councilCreate",
+          id: null,
+          title: "Research Council",
+          topic: "Tag exact match",
+          goal: null,
+          mode: "manual",
+          tags: ["research", "ops"],
+          memberAgentIds: [PRIMARY_AGENT_ID],
+          memberColorsByAgentId: {},
+          conductorModelRefOrNull: null,
+        },
+      });
+      await slice.saveCouncil({
+        webContentsId: 204,
+        draft: {
+          viewKind: "councilCreate",
+          id: null,
+          title: "Research Notes Council",
+          topic: "Nearby tag",
+          goal: null,
+          mode: "manual",
+          tags: ["research-notes"],
+          memberAgentIds: [PRIMARY_AGENT_ID],
+          memberColorsByAgentId: {},
+          conductorModelRefOrNull: null,
+        },
+      });
 
-    const tagFiltered = await slice.listCouncils({
-      webContentsId: 204,
-      searchText: "",
-      tagFilter: "RESEARCH",
-      archivedFilter: "all",
-      sortBy: "updatedAt",
-      sortDirection: "desc",
-      page: 1,
-    });
-    expect(tagFiltered.isOk()).toBe(true);
-    expect(tagFiltered._unsafeUnwrap().items).toHaveLength(1);
-    expect(tagFiltered._unsafeUnwrap().items[0]?.title).toBe("Research Council");
+      const tagFiltered = await slice.listCouncils({
+        webContentsId: 204,
+        searchText: "",
+        tagFilter: "RESEARCH",
+        archivedFilter: "all",
+        sortBy: "updatedAt",
+        sortDirection: "desc",
+        page: 1,
+      });
+      expect(tagFiltered.isOk()).toBe(true);
+      expect(tagFiltered._unsafeUnwrap().items).toHaveLength(1);
+      expect(tagFiltered._unsafeUnwrap().items[0]?.title).toBe("Research Council");
 
-    const partialTagFiltered = await slice.listCouncils({
-      webContentsId: 204,
-      searchText: "",
-      tagFilter: "research-note",
-      archivedFilter: "all",
-      sortBy: "updatedAt",
-      sortDirection: "desc",
-      page: 1,
-    });
-    expect(partialTagFiltered.isOk()).toBe(true);
-    expect(partialTagFiltered._unsafeUnwrap().items).toHaveLength(0);
+      const partialTagFiltered = await slice.listCouncils({
+        webContentsId: 204,
+        searchText: "",
+        tagFilter: "research-note",
+        archivedFilter: "all",
+        sortBy: "updatedAt",
+        sortDirection: "desc",
+        page: 1,
+      });
+      expect(partialTagFiltered.isOk()).toBe(true);
+      expect(partialTagFiltered._unsafeUnwrap().items).toHaveLength(0);
 
-    const multiTagFiltered = await slice.listCouncils({
-      webContentsId: 204,
-      searchText: "",
-      tagFilter: "research, ops",
-      archivedFilter: "all",
-      sortBy: "updatedAt",
-      sortDirection: "desc",
-      page: 1,
-    });
-    expect(multiTagFiltered.isOk()).toBe(true);
-    expect(multiTagFiltered._unsafeUnwrap().items).toHaveLength(1);
-    expect(multiTagFiltered._unsafeUnwrap().items[0]?.title).toBe("Research Council");
+      const multiTagFiltered = await slice.listCouncils({
+        webContentsId: 204,
+        searchText: "",
+        tagFilter: "research, ops",
+        archivedFilter: "all",
+        sortBy: "updatedAt",
+        sortDirection: "desc",
+        page: 1,
+      });
+      expect(multiTagFiltered.isOk()).toBe(true);
+      expect(multiTagFiltered._unsafeUnwrap().items).toHaveLength(1);
+      expect(multiTagFiltered._unsafeUnwrap().items[0]?.title).toBe("Research Council");
 
-    const missingMultiTagFiltered = await slice.listCouncils({
-      webContentsId: 204,
-      searchText: "",
-      tagFilter: "research, strategy",
-      archivedFilter: "all",
-      sortBy: "updatedAt",
-      sortDirection: "desc",
-      page: 1,
-    });
-    expect(missingMultiTagFiltered.isOk()).toBe(true);
-    expect(missingMultiTagFiltered._unsafeUnwrap().items).toHaveLength(0);
-  });
+      const missingMultiTagFiltered = await slice.listCouncils({
+        webContentsId: 204,
+        searchText: "",
+        tagFilter: "research, strategy",
+        archivedFilter: "all",
+        sortBy: "updatedAt",
+        sortDirection: "desc",
+        page: 1,
+      });
+      expect(missingMultiTagFiltered.isOk()).toBe(true);
+      expect(missingMultiTagFiltered._unsafeUnwrap().items).toHaveLength(0);
+    },
+  );
 
   itReq(
     FILE_REQUIREMENT_IDS,

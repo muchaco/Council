@@ -2,5 +2,9 @@
   "activeTabAfterArrowRight": "Agents",
   "activeTabAfterArrowLeft": "Councils",
   "testDisabledInitially": true,
-  "testEnabledAfterDraftChange": false
+  "testEnabledAfterDraftChange": false,
+  "seedCouncilCreateMember": true,
+  "filledCouncilCreateModalSearch": true,
+  "addedMemberFromCouncilCreateModal": true,
+  "selectedMembersAfterModalAdd": true
 }

@@ -18,8 +18,8 @@ export const ConductorComposerCard = ({
   const [draft, setDraft] = useState("");
 
   return (
-    <Card className="p-6">
-      <h2 className="mb-4 text-xl font-medium">Conductor Message</h2>
+    <Card className="p-4 sm:p-5">
+      <h2 className="mb-3 text-lg font-medium">Conductor Message</h2>
       <Textarea
         disabled={disabled}
         onChange={(event) => setDraft(event.target.value)}
@@ -27,7 +27,7 @@ export const ConductorComposerCard = ({
         rows={4}
         value={draft}
       />
-      <div className="mt-4 flex justify-end">
+      <div className="mt-3 flex justify-end">
         <Button
           disabled={disabled || !draft.trim() || isInjectingConductor}
           onClick={() => {

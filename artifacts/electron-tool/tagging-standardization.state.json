@@ -1,0 +1,28 @@
+{
+  "seedTaggingStandardization": {
+    "unique": 1773237728874,
+    "seedAgentId": "4a48bb11-a0dc-4759-9b59-ae8aa08ccfc2",
+    "seedCouncilId": "e0a44e61-357b-4e5e-a940-2e3aae2ea8ab"
+  },
+  "agentTaggingFlow": {
+    "betaFilterApplied": true,
+    "clearedAfterBetaCommit": true,
+    "followUpChipApplied": true,
+    "betaChipStillPresent": true,
+    "clearedAfterSecondCommit": true,
+    "researchFilterApplied": true
+  },
+  "councilTaggingFlow": {
+    "opsFilterApplied": true,
+    "clearedAfterOpsCommit": true,
+    "handoffChipApplied": true,
+    "opsChipStillPresent": true,
+    "clearedAfterSecondCommit": true,
+    "strategyFilterApplied": true
+  },
+  "configTaggingFlow": {
+    "configTagVisible": true,
+    "strategyRemoved": true,
+    "configNotFilterChip": true
+  }
+}

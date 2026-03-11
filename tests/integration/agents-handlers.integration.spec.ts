@@ -128,111 +128,115 @@ describe("agents handlers", () => {
     expect(page2._unsafeUnwrap().hasMore).toBe(false);
   });
 
-  itReq(FILE_REQUIREMENT_IDS, "filters by text and tag", async () => {
-    const slice = createSlice();
-    await slice.saveAgent({
-      webContentsId: 11,
-      draft: {
-        viewKind: "agentEdit",
-        id: null,
-        name: "Planner",
-        systemPrompt: "Creates plans",
-        verbosity: null,
-        temperature: null,
-        tags: ["plan"],
-        modelRefOrNull: null,
-      },
-    });
-    await slice.saveAgent({
-      webContentsId: 11,
-      draft: {
-        viewKind: "agentEdit",
-        id: null,
-        name: "Researcher",
-        systemPrompt: "Finds facts",
-        verbosity: null,
-        temperature: null,
-        tags: ["research", "ops"],
-        modelRefOrNull: null,
-      },
-    });
-    await slice.saveAgent({
-      webContentsId: 11,
-      draft: {
-        viewKind: "agentEdit",
-        id: null,
-        name: "Research Notes",
-        systemPrompt: "Stores notes",
-        verbosity: null,
-        temperature: null,
-        tags: ["research-notes"],
-        modelRefOrNull: null,
-      },
-    });
+  itReq(
+    FILE_REQUIREMENT_IDS,
+    "filters agents by text and committed exact-match tag chips with AND semantics",
+    async () => {
+      const slice = createSlice();
+      await slice.saveAgent({
+        webContentsId: 11,
+        draft: {
+          viewKind: "agentEdit",
+          id: null,
+          name: "Planner",
+          systemPrompt: "Creates plans",
+          verbosity: null,
+          temperature: null,
+          tags: ["plan"],
+          modelRefOrNull: null,
+        },
+      });
+      await slice.saveAgent({
+        webContentsId: 11,
+        draft: {
+          viewKind: "agentEdit",
+          id: null,
+          name: "Researcher",
+          systemPrompt: "Finds facts",
+          verbosity: null,
+          temperature: null,
+          tags: ["research", "ops"],
+          modelRefOrNull: null,
+        },
+      });
+      await slice.saveAgent({
+        webContentsId: 11,
+        draft: {
+          viewKind: "agentEdit",
+          id: null,
+          name: "Research Notes",
+          systemPrompt: "Stores notes",
+          verbosity: null,
+          temperature: null,
+          tags: ["research-notes"],
+          modelRefOrNull: null,
+        },
+      });
 
-    const textFiltered = await slice.listAgents({
-      webContentsId: 11,
-      searchText: "plan",
-      tagFilter: "",
-      archivedFilter: "all",
-      sortBy: "updatedAt",
-      sortDirection: "desc",
-      page: 1,
-    });
-    expect(textFiltered.isOk()).toBe(true);
-    expect(textFiltered._unsafeUnwrap().items).toHaveLength(1);
-    expect(textFiltered._unsafeUnwrap().items[0]?.name).toBe("Planner");
+      const textFiltered = await slice.listAgents({
+        webContentsId: 11,
+        searchText: "plan",
+        tagFilter: "",
+        archivedFilter: "all",
+        sortBy: "updatedAt",
+        sortDirection: "desc",
+        page: 1,
+      });
+      expect(textFiltered.isOk()).toBe(true);
+      expect(textFiltered._unsafeUnwrap().items).toHaveLength(1);
+      expect(textFiltered._unsafeUnwrap().items[0]?.name).toBe("Planner");
 
-    const tagFiltered = await slice.listAgents({
-      webContentsId: 11,
-      searchText: "",
-      tagFilter: "RESEARCH",
-      archivedFilter: "all",
-      sortBy: "updatedAt",
-      sortDirection: "desc",
-      page: 1,
-    });
-    expect(tagFiltered.isOk()).toBe(true);
-    expect(tagFiltered._unsafeUnwrap().items).toHaveLength(1);
-    expect(tagFiltered._unsafeUnwrap().items[0]?.name).toBe("Researcher");
+      const tagFiltered = await slice.listAgents({
+        webContentsId: 11,
+        searchText: "",
+        tagFilter: "RESEARCH",
+        archivedFilter: "all",
+        sortBy: "updatedAt",
+        sortDirection: "desc",
+        page: 1,
+      });
+      expect(tagFiltered.isOk()).toBe(true);
+      expect(tagFiltered._unsafeUnwrap().items).toHaveLength(1);
+      expect(tagFiltered._unsafeUnwrap().items[0]?.name).toBe("Researcher");
 
-    const partialTagFiltered = await slice.listAgents({
-      webContentsId: 11,
-      searchText: "",
-      tagFilter: "research-note",
-      archivedFilter: "all",
-      sortBy: "updatedAt",
-      sortDirection: "desc",
-      page: 1,
-    });
-    expect(partialTagFiltered.isOk()).toBe(true);
-    expect(partialTagFiltered._unsafeUnwrap().items).toHaveLength(0);
+      const partialTagFiltered = await slice.listAgents({
+        webContentsId: 11,
+        searchText: "",
+        tagFilter: "research-note",
+        archivedFilter: "all",
+        sortBy: "updatedAt",
+        sortDirection: "desc",
+        page: 1,
+      });
+      expect(partialTagFiltered.isOk()).toBe(true);
+      expect(partialTagFiltered._unsafeUnwrap().items).toHaveLength(0);
 
-    const multiTagFiltered = await slice.listAgents({
-      webContentsId: 11,
-      searchText: "",
-      tagFilter: "research, ops",
-      archivedFilter: "all",
-      sortBy: "updatedAt",
-      sortDirection: "desc",
-      page: 1,
-    });
-    expect(multiTagFiltered.isOk()).toBe(true);
-    expect(multiTagFiltered._unsafeUnwrap().items).toHaveLength(1);
-    expect(multiTagFiltered._unsafeUnwrap().items[0]?.name).toBe("Researcher");
+      const multiTagFiltered = await slice.listAgents({
+        webContentsId: 11,
+        searchText: "",
+        tagFilter: "research, ops",
+        archivedFilter: "all",
+        sortBy: "updatedAt",
+        sortDirection: "desc",
+        page: 1,
+      });
+      expect(multiTagFiltered.isOk()).toBe(true);
+      expect(multiTagFiltered._unsafeUnwrap().items).toHaveLength(1);
+      expect(multiTagFiltered._unsafeUnwrap().items[0]?.name).toBe("Researcher");
 
-    const missingMultiTagFiltered = await slice.listAgents({
-      webContentsId: 11,
-      searchText: "",
-      tagFilter: "research, strategy",
-      archivedFilter: "all",
-      sortBy: "updatedAt",
-      sortDirection: "desc",
-      page: 1,
-    });
-    expect(missingMultiTagFiltered.isOk()).toBe(true);
-    expect(missingMultiTagFiltered._unsafeUnwrap().items).toHaveLength(0);
-  });
+      const missingMultiTagFiltered = await slice.listAgents({
+        webContentsId: 11,
+        searchText: "",
+        tagFilter: "research, strategy",
+        archivedFilter: "all",
+        sortBy: "updatedAt",
+        sortDirection: "desc",
+        page: 1,
+      });
+      expect(missingMultiTagFiltered.isOk()).toBe(true);
+      expect(missingMultiTagFiltered._unsafeUnwrap().items).toHaveLength(0);
+    },
+  );
 
   itReq(FILE_REQUIREMENT_IDS, "blocks saving agent with invalid model config", async () => {
     const slice = createAgentsSlice({

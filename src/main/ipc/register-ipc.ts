@@ -144,9 +144,11 @@ export const registerIpcHandlers = (): {
         return okAsync(
           loadAgentsResult.value
             .map((agent) => ({
+              description: agent.systemPrompt,
               id: agent.id,
               name: agent.name,
               systemPrompt: agent.systemPrompt,
+              tags: agent.tags,
               verbosity: agent.verbosity,
               modelRefOrNull: agent.modelRefOrNull,
               invalidConfig: isModelConfigInvalid({

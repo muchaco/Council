@@ -7,7 +7,12 @@ import {
   parseTagDraft,
   removeTagFromDraft,
 } from "../../../shared/app-ui-helpers.js";
+import {
+  filterAddableAgents,
+  resolveAddableAgentsEmptyStateMessage,
+} from "../../../shared/council-view-add-member-dialog.js";
 import type { CouncilMode } from "../../../shared/ipc/dto";
+import { AddMemberDialog } from "../council-view/AddMemberDialog";
 import { DetailScreenShell } from "../shared/DetailScreenShell";
 import { ModelSelectField } from "../shared/ModelSelectField";
 import { TagsEditor } from "../shared/TagsEditor";
@@ -34,6 +39,8 @@ export const CouncilEditorScreen = ({
   const [state, setState] = useState<CouncilEditorState>({ status: "loading" });
   const [tagInput, setTagInput] = useState("");
   const [tagMessage, setTagMessage] = useState("");
+  const [memberSearchText, setMemberSearchText] = useState("");
+  const [showAddMemberDialog, setShowAddMemberDialog] = useState(false);
   const hasUnsavedDraft =
     state.status === "ready" &&
     getCouncilEditorDraftFingerprint(state.draft) !== state.initialFingerprint;
@@ -92,6 +99,8 @@ export const CouncilEditorScreen = ({
     }
     setTagInput("");
     setTagMessage("");
+    setMemberSearchText("");
+    setShowAddMemberDialog(false);
     void loadCouncilEditor(councilId);
   }, [councilId, isActive, loadCouncilEditor]);
 
@@ -164,6 +173,15 @@ export const CouncilEditorScreen = ({
     globalDefaultModelRef: state.source.globalDefaultModelRef,
   });
   const draftTags = parseTagDraft(state.draft.tagsInput);
+  const availableAgentById = new Map(
+    state.source.availableAgents.map((agent) => [agent.id, agent]),
+  );
+  const addableAgents = filterAddableAgents({
+    availableAgents: state.source.availableAgents,
+    memberAgentIds: state.draft.selectedMemberIds,
+    searchText: memberSearchText,
+  });
+  const addableAgentsEmptyStateMessage = resolveAddableAgentsEmptyStateMessage(memberSearchText);
 
   return (
     <main className="shell">
@@ -277,34 +295,71 @@ export const CouncilEditorScreen = ({
           tags={draftTags}
         />
 
-        <p className="field">Members</p>
+        <div className="field flex items-center justify-between gap-3">
+          <span>Members</span>
+          <button
+            className="secondary"
+            disabled={state.showRemoveMemberDialog}
+            onClick={() => setShowAddMemberDialog(true)}
+            type="button"
+          >
+            Add Member
+          </button>
+        </div>
+        <AddMemberDialog
+          addableAgents={addableAgents}
+          canEditMembers={!state.showRemoveMemberDialog}
+          emptyStateMessage={addableAgentsEmptyStateMessage}
+          isOpen={showAddMemberDialog}
+          isSavingMembers={false}
+          onAddMember={(memberAgentId) => {
+            toggleCouncilMember(memberAgentId);
+            setMemberSearchText("");
+            setShowAddMemberDialog(false);
+          }}
+          onOpenChange={(open) => {
+            setShowAddMemberDialog(open);
+            if (!open) {
+              setMemberSearchText("");
+            }
+          }}
+          onSearchTextChange={setMemberSearchText}
+          searchText={memberSearchText}
+        />
         <div className="list-grid">
-          {state.source.availableAgents.map((agent) => (
-            <label className="list-row" key={agent.id}>
-              <div>
-                <strong>{agent.name}</strong>
-                {agent.archived ? (
-                  <p className="text-sm text-amber-700">
-                    Archived - cannot be added as a new member.
-                  </p>
-                ) : null}
-                {agent.invalidConfig ? (
-                  <p className="text-sm text-muted-foreground">
-                    Invalid config (can still be selected)
-                  </p>
-                ) : null}
+          {state.draft.selectedMemberIds.map((memberAgentId) => {
+            const agent = availableAgentById.get(memberAgentId);
+            const memberName = agent?.name ?? memberAgentId;
+
+            return (
+              <div className="list-row" key={memberAgentId}>
+                <div>
+                  <strong>{memberName}</strong>
+                  {agent?.archived ? (
+                    <p className="text-sm text-amber-700">
+                      Archived - cannot be kept for new saves.
+                    </p>
+                  ) : null}
+                  {agent?.invalidConfig ? (
+                    <p className="text-sm text-muted-foreground">
+                      Invalid config (can still be selected)
+                    </p>
+                  ) : null}
+                </div>
+                <button
+                  className="secondary"
+                  disabled={state.showRemoveMemberDialog}
+                  onClick={() => toggleCouncilMember(memberAgentId)}
+                  type="button"
+                >
+                  Remove
+                </button>
               </div>
-              <input
-                checked={state.draft.selectedMemberIds.includes(agent.id)}
-                disabled={
-                  state.showRemoveMemberDialog ||
-                  (agent.archived && !state.draft.selectedMemberIds.includes(agent.id))
-                }
-                onChange={() => toggleCouncilMember(agent.id)}
-                type="checkbox"
-              />
-            </label>
-          ))}
+            );
+          })}
+          {state.draft.selectedMemberIds.length === 0 ? (
+            <p className="status-line">No members selected yet.</p>
+          ) : null}
         </div>
 
         <ModelSelectField

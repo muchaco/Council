@@ -35,10 +35,40 @@
     { "action": "assertSaved", "key": "testEnabledAfterDraftChange", "equals": false },
     { "action": "click", "selector": "button:has-text('Councils')" },
     { "action": "waitForText", "text": "New Council" },
+    {
+      "action": "evaluate",
+      "saveAs": "seedCouncilCreateMember",
+      "expression": "async () => { const settings = await window.api.settings.getView({ viewKind: 'settings' }); if (!settings.ok) { throw new Error(settings.error.userMessage); } const modelEntry = Object.entries(settings.value.modelCatalog.modelsByProvider).find(([, models]) => Array.isArray(models) && models.length > 0); const modelRefOrNull = modelEntry === undefined ? null : { providerId: modelEntry[0], modelId: modelEntry[1][0] }; const name = `Council Create Modal Member ${Date.now()}`; const saved = await window.api.agents.save({ viewKind: 'agentEdit', id: null, name, systemPrompt: 'Scenario helper for council create modal.', verbosity: null, temperature: null, tags: ['scenario', 'picker'], modelRefOrNull }); if (!saved.ok) { throw new Error(saved.error.userMessage); } window.__councilCreateModalMemberName = name; return true; }"
+    },
+    { "action": "assertSaved", "key": "seedCouncilCreateMember", "equals": true },
     { "action": "click", "selector": "button:has-text('New Council')" },
     {
       "action": "waitForText",
       "text": "Title, Topic, and at least one Member are required before save."
+    },
+    { "action": "click", "selector": "button:has-text('Add Member')" },
+    { "action": "waitForText", "text": "Search active agents" },
+    {
+      "action": "evaluate",
+      "saveAs": "filledCouncilCreateModalSearch",
+      "expression": "() => { const input = document.querySelector('#council-view-add-member-search'); if (!(input instanceof HTMLInputElement)) { return false; } const searchText = window.__councilCreateModalMemberName; if (typeof searchText !== 'string') { return false; } const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value'); descriptor?.set?.call(input, searchText); input.dispatchEvent(new Event('input', { bubbles: true })); input.dispatchEvent(new Event('change', { bubbles: true })); return input.value === searchText; }"
+    },
+    { "action": "assertSaved", "key": "filledCouncilCreateModalSearch", "equals": true },
+    {
+      "action": "evaluate",
+      "saveAs": "addedMemberFromCouncilCreateModal",
+      "expression": "() => { const row = document.querySelector('[data-add-member-option-id]'); if (!(row instanceof HTMLElement)) { return false; } const button = Array.from(row.querySelectorAll('button')).find((node) => node.textContent?.trim() === 'Add'); if (!(button instanceof HTMLButtonElement)) { return false; } button.click(); return true; }"
+    },
+    { "action": "assertSaved", "key": "addedMemberFromCouncilCreateModal", "equals": true },
+    {
+      "action": "evaluate",
+      "saveAs": "selectedMembersAfterModalAdd",
+      "expression": "() => Array.from(document.querySelectorAll('.list-row strong')).some((node) => (node.textContent ?? '').includes('Council Create Modal Member'))"
+    },
+    {
+      "action": "assertSaved",
+      "key": "selectedMembersAfterModalAdd",
+      "equals": true
     },
     { "action": "click", "selector": "button:has-text('Back')" },
     { "action": "screenshot", "file": "councils-ui.png", "fullPage": true }

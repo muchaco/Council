@@ -92,7 +92,7 @@ export const useCouncilViewDialogHandlers = ({
   );
 
   const onSelectTab = useCallback(
-    (activeTab: "discussion" | "config") => {
+    (activeTab: "overview" | "config") => {
       setState((current) => (current.status !== "ready" ? current : { ...current, activeTab }));
     },
     [setState],

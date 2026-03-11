@@ -1,20 +1,20 @@
 # Test-to-Requirement Index (Generated)
 
-Generated at: 2026-03-10T13:31:54.027Z
+Generated at: 2026-03-11T15:57:32.213Z
 
 ## Summary
 
-- Spec files tracked: 33
-- Test cases tracked: 206
-- Annotated test cases: 206
+- Spec files tracked: 34
+- Test cases tracked: 211
+- Annotated test cases: 211
 - Unmapped test cases: 0
-- Unique mapped requirement IDs: 195
+- Unique mapped requirement IDs: 198
 
 ## Index
 
 - `tests/integration/agents-handlers.integration.spec.ts`
   - [itReq] `creates and lists agents with pagination` -> R1.1, R1.12, R1.13, R1.14, R1.15, R1.16, R1.17, R1.18, R1.19, R1.2, R1.20, R1.21, R1.22, R1.23, R1.24, R1.25, R1.27, R1.4, R1.5, R1.8, R1.9, R6.1, R6.2, R6.3, R6.4, U4.1, U4.2, U4.3, U4.4, U4.5, U4.6, U6.1, U6.11, U6.12, U6.13, U6.2, U6.4, U6.6
-  - [itReq] `filters by text and tag` -> R1.1, R1.12, R1.13, R1.14, R1.15, R1.16, R1.17, R1.18, R1.19, R1.2, R1.20, R1.21, R1.22, R1.23, R1.24, R1.25, R1.27, R1.4, R1.5, R1.8, R1.9, R6.1, R6.2, R6.3, R6.4, U4.1, U4.2, U4.3, U4.4, U4.5, U4.6, U6.1, U6.11, U6.12, U6.13, U6.2, U6.4, U6.6
+  - [itReq] `filters agents by text and committed exact-match tag chips with AND semantics` -> R1.1, R1.12, R1.13, R1.14, R1.15, R1.16, R1.17, R1.18, R1.19, R1.2, R1.20, R1.21, R1.22, R1.23, R1.24, R1.25, R1.27, R1.4, R1.5, R1.8, R1.9, R6.1, R6.2, R6.3, R6.4, U4.1, U4.2, U4.3, U4.4, U4.5, U4.6, U6.1, U6.11, U6.12, U6.13, U6.2, U6.4, U6.6
   - [itReq] `blocks saving agent with invalid model config` -> R1.1, R1.12, R1.13, R1.14, R1.15, R1.16, R1.17, R1.18, R1.19, R1.2, R1.20, R1.21, R1.22, R1.23, R1.24, R1.25, R1.27, R1.4, R1.5, R1.8, R1.9, R6.1, R6.2, R6.3, R6.4, U4.1, U4.2, U4.3, U4.4, U4.5, U4.6, U6.1, U6.11, U6.12, U6.13, U6.2, U6.4, U6.6
   - [itReq] `deletes existing agent` -> R1.1, R1.12, R1.13, R1.14, R1.15, R1.16, R1.17, R1.18, R1.19, R1.2, R1.20, R1.21, R1.22, R1.23, R1.24, R1.25, R1.27, R1.4, R1.5, R1.8, R1.9, R6.1, R6.2, R6.3, R6.4, U4.1, U4.2, U4.3, U4.4, U4.5, U4.6, U6.1, U6.11, U6.12, U6.13, U6.2, U6.4, U6.6
   - [itReq] `blocks delete when agent is referenced by council` -> R1.1, R1.12, R1.13, R1.14, R1.15, R1.16, R1.17, R1.18, R1.19, R1.2, R1.20, R1.21, R1.22, R1.23, R1.24, R1.25, R1.27, R1.4, R1.5, R1.8, R1.9, R6.1, R6.2, R6.3, R6.4, U4.1, U4.2, U4.3, U4.4, U4.5, U4.6, U6.1, U6.11, U6.12, U6.13, U6.2, U6.4, U6.6
@@ -29,6 +29,7 @@ Generated at: 2026-03-10T13:31:54.027Z
   - [itReq] `passes for baseline source tree` -> A3, IMPL-005
 - `tests/integration/councils-handlers.integration.spec.ts`
   - [itReq] `creates councils and paginates list results` -> E1, E2, E4, F1, R1.11, R1.23, R1.24, R1.26, R1.3, R1.6, R1.7, R1.8, R2.1, R2.10, R2.11, R2.12, R2.13, R2.14, R2.15, R2.16, R2.17, R2.18, R2.19, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.29, R3.3, R3.30, R3.31, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R4.18, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U16.1, U16.2, U16.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
+  - [itReq] `filters councils by committed exact-match tag chips with AND semantics` -> E1, E2, E4, F1, R1.11, R1.23, R1.24, R1.26, R1.3, R1.6, R1.7, R1.8, R2.1, R2.10, R2.11, R2.12, R2.13, R2.14, R2.15, R2.16, R2.17, R2.18, R2.19, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.29, R3.3, R3.30, R3.31, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R4.18, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U16.1, U16.2, U16.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
   - [itReq] `keeps created councils not-started and enforces topic-required create flow` -> E1, E2, E4, F1, R1.11, R1.23, R1.24, R1.26, R1.3, R1.6, R1.7, R1.8, R2.1, R2.10, R2.11, R2.12, R2.13, R2.14, R2.15, R2.16, R2.17, R2.18, R2.19, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.29, R3.3, R3.30, R3.31, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R4.18, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U16.1, U16.2, U16.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
   - [itReq] `blocks runtime and config mutation while archived then allows restore edits` -> E1, E2, E4, F1, R1.11, R1.23, R1.24, R1.26, R1.3, R1.6, R1.7, R1.8, R2.1, R2.10, R2.11, R2.12, R2.13, R2.14, R2.15, R2.16, R2.17, R2.18, R2.19, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.29, R3.3, R3.30, R3.31, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R4.18, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U16.1, U16.2, U16.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
   - [itReq] `blocks start for councils with missing topic even if legacy data exists` -> E1, E2, E4, F1, R1.11, R1.23, R1.24, R1.26, R1.3, R1.6, R1.7, R1.8, R2.1, R2.10, R2.11, R2.12, R2.13, R2.14, R2.15, R2.16, R2.17, R2.18, R2.19, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.29, R3.3, R3.30, R3.31, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R4.18, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U16.1, U16.2, U16.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
@@ -113,6 +114,8 @@ Generated at: 2026-03-10T13:31:54.027Z
   - [itReq] `normalizes council config tags from draft text` -> U10.11
   - [itReq] `appends council config tags with ui-friendly validation` -> U10.11
   - [itReq] `normalizes renderer tag drafts with shared tag rules` -> R5.3, R5.6
+  - [itReq] `applies shared chip-editor add and remove helpers across tag surfaces` -> R1.15, R2.20, R5.3, R5.6, U10.10, U10.11
+  - [itReq] `resolves inline tag editor keyboard behavior and committed chip helper messaging` -> R5.7, R5.8, U10.11
   - [itReq] `maps confirmation-dialog keyboard actions` -> U11.2, U15.2
   - [itReq] `maps list disclosure keyboard close action` -> U15.2
   - [itReq] `builds descriptive accessibility labels for badges and tooltip controls` -> U15.3
@@ -148,6 +151,9 @@ Generated at: 2026-03-10T13:31:54.027Z
   - [itReq] `maps inline config edit keyboard shortcuts` -> U10.7, U15.2
   - [itReq] `builds descriptive aria labels with identity and message details` -> U15.3, U15.4
   - [itReq] `builds explicit aria label for manual speaker action button` -> U13.1, U15.3, U9.8
+- `tests/unit/council-view-add-member-dialog-state.spec.ts`
+  - [itReq] `filters addable council members by title description and tags` -> U7.1, U9.7
+  - [itReq] `excludes archived agents and resolves modal empty-state copy` -> U9.7
 - `tests/unit/council-view-autopilot-recovery.spec.ts`
   - [itReq] `builds autopilot recovery notice from normalized runtime error` -> R3.24, U12.6
   - [itReq] `returns null when message is empty` -> U12.6

@@ -50,8 +50,8 @@ export const TranscriptCard = ({
   const transcriptRowCount = messages.length + (thinkingSpeakerName === null ? 0 : 1);
 
   return (
-    <Card className="p-6">
-      <h2 className="mb-4 text-xl font-medium">Transcript</h2>
+    <Card className="p-4 sm:p-5">
+      <h2 className="mb-3 text-lg font-medium">Transcript</h2>
       {autopilotRecoveryNotice !== null ? (
         <div className="mb-4 rounded-lg bg-muted p-3">
           <p className="font-medium text-sm">{autopilotRecoveryNotice.title}</p>
@@ -65,7 +65,7 @@ export const TranscriptCard = ({
         </div>
       ) : null}
       {messages.length === 0 && thinkingSpeakerName === null ? (
-        <div className="rounded-lg bg-muted/50 py-12 text-center">
+        <div className="rounded-lg bg-muted/50 py-10 text-center">
           <p className="mb-4 text-muted-foreground">
             {councilMode === "manual"
               ? "No messages yet. Choose the next speaker from Members."
@@ -82,7 +82,7 @@ export const TranscriptCard = ({
           ) : null}
         </div>
       ) : (
-        <div className="max-h-[500px] space-y-3 overflow-y-auto pr-2">
+        <div className="max-h-[560px] space-y-3 overflow-y-auto pr-1">
           {messages.map((message, index) => (
             <TranscriptMessageRow
               index={index}

@@ -220,8 +220,10 @@ export const COUNCIL_SORT_FIELDS = ["createdAt", "updatedAt"] as const;
 export type CouncilSortField = (typeof COUNCIL_SORT_FIELDS)[number];
 
 export type CouncilAgentOptionDto = {
+  description: string;
   id: string;
   name: string;
+  tags: ReadonlyArray<string>;
   invalidConfig: boolean;
   archived: boolean;
 };

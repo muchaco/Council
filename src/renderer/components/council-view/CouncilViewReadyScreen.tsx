@@ -8,6 +8,7 @@ import { CouncilViewDialogs } from "./CouncilViewDialogs";
 import { CouncilViewHeader } from "./CouncilViewHeader";
 import { CouncilViewTabs } from "./CouncilViewTabs";
 import { DiscussionTab } from "./DiscussionTab";
+import { OverviewTab } from "./OverviewTab";
 import { deriveCouncilViewScreenState } from "./councilViewScreenDerivedState";
 import { type CouncilViewReadyState, MEMBER_COLOR_PALETTE } from "./councilViewScreenState";
 
@@ -30,7 +31,7 @@ type CouncilViewReadyScreenProps = {
   onRequestRemoveMember: (memberAgentId: string) => void;
   onResume: () => void;
   onSaveField: (configEdit: CouncilConfigEditState) => Promise<boolean>;
-  onSelectTab: (activeTab: "discussion" | "config") => void;
+  onSelectTab: (activeTab: "overview" | "config") => void;
   onStart: () => void;
   onSubmitAutopilotDialog: (maxTurns: number | null) => void;
   onSubmitConductor: (content: string) => Promise<boolean>;
@@ -103,7 +104,7 @@ export const CouncilViewReadyScreen = ({
 
   return (
     <main className="main-content">
-      <div className="main-content-inner">
+      <div className="main-content-inner" data-screen="council-view">
         <CouncilViewHeader
           autopilotLimitModalOpen={autopilotLimitAction !== null}
           autopilotMaxTurns={council.autopilotMaxTurns}
@@ -148,13 +149,6 @@ export const CouncilViewReadyScreen = ({
           title={council.title}
           turnCount={council.turnCount}
         />
-        <CouncilViewTabs
-          activeTab={state.activeTab}
-          disableConfigTab={state.isConfigEditing && state.activeTab !== "config"}
-          disableDiscussionTab={state.isConfigEditing && state.activeTab !== "discussion"}
-          onSelectTab={onSelectTab}
-        />
-
         <CouncilRuntimeAlerts
           archived={council.archived}
           archivedMemberNames={archivedMemberNames}
@@ -164,31 +158,74 @@ export const CouncilViewReadyScreen = ({
           showMessage={state.message.length > 0 && autopilotRecoveryNotice === null}
         />
 
-        {state.activeTab === "discussion" ? (
+        <section className="grid grid-cols-1 gap-4 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start">
+          <div className="space-y-4 lg:sticky lg:top-0">
+            <CouncilViewTabs
+              activeTab={state.activeTab}
+              disableConfigTab={state.isConfigEditing && state.activeTab !== "config"}
+              disableOverviewTab={state.isConfigEditing && state.activeTab !== "overview"}
+              onSelectTab={onSelectTab}
+            />
+
+            {state.activeTab === "overview" ? (
+              <OverviewTab
+                availableAgents={state.source.availableAgents}
+                briefing={state.source.briefing}
+                canEditMembers={canEditMembers}
+                council={council}
+                isGeneratingManualTurn={state.isGeneratingManualTurn}
+                isSavingMembers={state.isSavingMembers}
+                manualSpeakerDisabledReason={manualSpeakerDisabledReason}
+                memberIdsWithMessages={memberIdsWithMessages}
+                memberNameById={memberNameById}
+                memberPalette={MEMBER_COLOR_PALETTE}
+                onAddMember={onAddMember}
+                onGenerateManualTurn={onGenerateManualTurn}
+                onMemberColorChange={onUpdateMemberColor}
+                onRequestRemoveMember={onRequestRemoveMember}
+              />
+            ) : (
+              <ConfigTab
+                archiveDisabled={
+                  !council.archived &&
+                  council.mode === "autopilot" &&
+                  council.started &&
+                  !council.paused
+                }
+                archiveDisabledReason={
+                  !council.archived &&
+                  council.mode === "autopilot" &&
+                  council.started &&
+                  !council.paused
+                    ? "Pause Autopilot before archiving this council."
+                    : undefined
+                }
+                canRefreshModels={state.source.canRefreshModels}
+                council={council}
+                globalDefaultModelRef={state.source.globalDefaultModelRef}
+                isExportingTranscript={state.isExportingTranscript}
+                modelCatalog={state.source.modelCatalog}
+                onDeleteCouncil={onDeleteCouncil}
+                onEditingChange={onConfigEditingChange}
+                onExportTranscript={onExportTranscript}
+                onRefreshModelCatalog={onRefreshModelCatalog}
+                onSaveField={onSaveField}
+                onToggleArchived={onToggleArchived}
+              />
+            )}
+          </div>
+
           <DiscussionTab
             autopilotRecoveryNotice={autopilotRecoveryNotice}
-            availableAgents={state.source.availableAgents}
-            briefing={state.source.briefing}
-            canEditMembers={canEditMembers}
             conductorDisabled={generationRunning || council.archived}
             council={council}
             isCancellingGeneration={state.isCancellingGeneration}
             isConfigEditing={state.isConfigEditing}
-            isGeneratingManualTurn={state.isGeneratingManualTurn}
             isInjectingConductor={state.isInjectingConductor}
-            isSavingMembers={state.isSavingMembers}
             isStarting={state.isStarting}
             manualRetryNotice={manualRetryNotice}
-            manualSpeakerDisabledReason={manualSpeakerDisabledReason}
-            memberIdsWithMessages={memberIdsWithMessages}
-            memberNameById={memberNameById}
-            memberPalette={MEMBER_COLOR_PALETTE}
             messages={state.source.messages}
-            onAddMember={onAddMember}
             onCancelGeneration={onCancelGeneration}
-            onGenerateManualTurn={onGenerateManualTurn}
-            onMemberColorChange={onUpdateMemberColor}
-            onRequestRemoveMember={onRequestRemoveMember}
             onStartDiscussion={onStart}
             onSubmitConductor={onSubmitConductor}
             showEmptyStateStart={runtimeControls.showEmptyStateStart}
@@ -198,35 +235,7 @@ export const CouncilViewReadyScreen = ({
             thinkingSpeakerColor={thinkingSpeakerColor}
             thinkingSpeakerName={thinkingSpeakerName}
           />
-        ) : (
-          <ConfigTab
-            archiveDisabled={
-              !council.archived &&
-              council.mode === "autopilot" &&
-              council.started &&
-              !council.paused
-            }
-            archiveDisabledReason={
-              !council.archived &&
-              council.mode === "autopilot" &&
-              council.started &&
-              !council.paused
-                ? "Pause Autopilot before archiving this council."
-                : undefined
-            }
-            canRefreshModels={state.source.canRefreshModels}
-            council={council}
-            globalDefaultModelRef={state.source.globalDefaultModelRef}
-            isExportingTranscript={state.isExportingTranscript}
-            modelCatalog={state.source.modelCatalog}
-            onDeleteCouncil={onDeleteCouncil}
-            onEditingChange={onConfigEditingChange}
-            onExportTranscript={onExportTranscript}
-            onRefreshModelCatalog={onRefreshModelCatalog}
-            onSaveField={onSaveField}
-            onToggleArchived={onToggleArchived}
-          />
-        )}
+        </section>
 
         <CouncilViewDialogs
           autopilotLimitAction={autopilotLimitAction}

@@ -1,12 +1,18 @@
 import { useMemo, useState } from "react";
 
+import { MessageSquare, Plus, Trash2 } from "lucide-react";
 import { buildManualSpeakerSelectionAriaLabel } from "../../../shared/council-view-accessibility.js";
+import {
+  filterAddableAgents,
+  resolveAddableAgentsEmptyStateMessage,
+} from "../../../shared/council-view-add-member-dialog.js";
+import { resolveTranscriptAvatarInitials } from "../../../shared/council-view-transcript.js";
 import type { CouncilAgentOptionDto, CouncilDto } from "../../../shared/ipc/dto";
 import { ColorPicker } from "../ColorPicker";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
-import { AddMemberPanel } from "./AddMemberPanel";
+import { AddMemberDialog } from "./AddMemberDialog";
 
 type MembersCardProps = {
   availableAgents: ReadonlyArray<CouncilAgentOptionDto>;
@@ -39,58 +45,60 @@ export const MembersCard = ({
   onMemberColorChange,
   onRequestRemoveMember,
 }: MembersCardProps): JSX.Element => {
-  const [showAddMemberPanel, setShowAddMemberPanel] = useState(false);
+  const [showAddMemberDialog, setShowAddMemberDialog] = useState(false);
   const [searchText, setSearchText] = useState("");
   const availableAgentById = useMemo(
     () => new Map(availableAgents.map((agent) => [agent.id, agent])),
     [availableAgents],
   );
-  const normalizedSearchText = searchText.trim().toLowerCase();
   const addableAgents = useMemo(
     () =>
-      availableAgents.filter(
-        (agent) =>
-          !council.memberAgentIds.includes(agent.id) &&
-          !agent.archived &&
-          (normalizedSearchText.length === 0 ||
-            agent.name.toLowerCase().includes(normalizedSearchText) ||
-            agent.id.toLowerCase().includes(normalizedSearchText)),
-      ),
-    [availableAgents, council.memberAgentIds, normalizedSearchText],
+      filterAddableAgents({
+        availableAgents,
+        memberAgentIds: council.memberAgentIds,
+        searchText,
+      }),
+    [availableAgents, council.memberAgentIds, searchText],
   );
-  const emptyStateMessage =
-    normalizedSearchText.length > 0
-      ? "No active agents match that search."
-      : "No active agents are available to add.";
+  const emptyStateMessage = resolveAddableAgentsEmptyStateMessage(searchText);
+
   return (
-    <Card className="p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-xl font-medium">Members ({council.memberAgentIds.length})</h2>
+    <Card className="p-4 sm:p-5">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h2 className="text-lg font-medium">Members ({council.memberAgentIds.length})</h2>
         <Button
+          aria-label="Add member"
           disabled={isSavingMembers || council.archived}
-          onClick={() => setShowAddMemberPanel((current) => !current)}
-          size="sm"
+          className="h-9 w-9"
+          onClick={() => setShowAddMemberDialog(true)}
+          size="icon"
           title={!canEditMembers ? "Members cannot be edited right now." : undefined}
           variant="outline"
         >
-          {showAddMemberPanel ? "Close" : "Add Member"}
+          <Plus className="h-4 w-4" />
         </Button>
       </div>
-      {showAddMemberPanel ? (
-        <AddMemberPanel
-          addableAgents={addableAgents}
-          canEditMembers={canEditMembers}
-          emptyStateMessage={emptyStateMessage}
-          isSavingMembers={isSavingMembers}
-          onAddMember={(memberAgentId) => {
-            onAddMember(memberAgentId);
+      <AddMemberDialog
+        addableAgents={addableAgents}
+        canEditMembers={canEditMembers}
+        emptyStateMessage={emptyStateMessage}
+        isOpen={showAddMemberDialog}
+        isSavingMembers={isSavingMembers}
+        onAddMember={(memberAgentId) => {
+          onAddMember(memberAgentId);
+          setSearchText("");
+          setShowAddMemberDialog(false);
+        }}
+        onOpenChange={(open) => {
+          setShowAddMemberDialog(open);
+          if (!open) {
             setSearchText("");
-          }}
-          onSearchTextChange={setSearchText}
-          searchText={searchText}
-        />
-      ) : null}
-      <div className="space-y-3">
+          }
+        }}
+        onSearchTextChange={setSearchText}
+        searchText={searchText}
+      />
+      <div className="space-y-2.5">
         {council.memberAgentIds.map((memberAgentId) => {
           const memberName = memberNameById.get(memberAgentId) ?? memberAgentId;
           const memberAgent = availableAgentById.get(memberAgentId);
@@ -112,15 +120,25 @@ export const MembersCard = ({
           const removeReasonId = `member-remove-reason-${memberAgentId}`;
 
           return (
-            <div className="flex items-center gap-3 rounded-lg bg-muted/30 p-3" key={memberAgentId}>
-              <Avatar style={{ backgroundColor: memberColor }}>
+            <div
+              className="flex items-center gap-3 rounded-lg bg-muted/30 p-2.5"
+              key={memberAgentId}
+            >
+              <Avatar
+                className="border-2 border-background shadow-sm"
+                style={{
+                  backgroundColor: memberColor,
+                  boxShadow: `0 0 0 2px ${memberColor}33, 0 0 0 4px ${memberColor}14`,
+                }}
+              >
                 <AvatarFallback className="text-xs font-medium text-white">
-                  {memberName.slice(0, 2).toUpperCase()}
+                  {resolveTranscriptAvatarInitials(memberName)}
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{memberName}</p>
-                <p className="truncate text-xs text-muted-foreground">{memberAgentId}</p>
+                <p className="truncate text-sm font-medium" title={memberName}>
+                  {memberName}
+                </p>
                 {memberArchived ? (
                   <p className="text-xs text-amber-700">
                     Archived - restore or remove before runtime.
@@ -139,24 +157,27 @@ export const MembersCard = ({
                 {council.mode === "manual" ? (
                   <Button
                     aria-label={buildManualSpeakerSelectionAriaLabel(memberName)}
+                    className="h-9 w-9 shrink-0"
                     disabled={manualSpeakerDisabledReason !== null}
                     onClick={() => onGenerateManualTurn(memberAgentId)}
-                    size="sm"
+                    size="icon"
                     title={manualSpeakerDisabledReason ?? undefined}
                     variant="outline"
                   >
-                    {isGeneratingManualTurn ? "Generating..." : "Speak"}
+                    <MessageSquare className="h-4 w-4" />
                   </Button>
                 ) : null}
                 <Button
                   aria-describedby={removeDisabledReason === null ? undefined : removeReasonId}
-                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  aria-label={`Remove ${memberName}`}
+                  className="h-9 w-9 shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
                   disabled={removeDisabledReason !== null}
                   onClick={() => onRequestRemoveMember(memberAgentId)}
-                  size="sm"
+                  size="icon"
+                  title={removeDisabledReason ?? `Remove ${memberName}`}
                   variant="ghost"
                 >
-                  Remove
+                  <Trash2 className="h-4 w-4" />
                 </Button>
                 {removeDisabledReason === null ? null : (
                   <p className="sr-only" id={removeReasonId}>

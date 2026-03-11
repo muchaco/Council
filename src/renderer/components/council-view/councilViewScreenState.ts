@@ -1,7 +1,7 @@
 import type { CouncilRuntimeErrorDto } from "../../../shared/council-runtime-error-normalization.js";
 import type { GetCouncilViewResponse } from "../../../shared/ipc/dto";
 
-export type CouncilViewTab = "discussion" | "config";
+export type CouncilViewTab = "overview" | "config";
 
 export type CouncilViewState =
   | { status: "loading" }
@@ -57,7 +57,7 @@ export const createReadyCouncilViewState = (
   isExportingTranscript: false,
   isLeavingView: false,
   showLeaveDialog: false,
-  activeTab: options?.activeTab ?? "discussion",
+  activeTab: options?.activeTab ?? "overview",
   isConfigEditing: false,
   isSavingMembers: false,
   showMemberRemoveDialog: false,

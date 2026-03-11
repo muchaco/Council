@@ -69,9 +69,11 @@ const createHandlers = (options?: {
     listAvailableAgents: () =>
       okAsync([
         {
+          description: "You are Planner, a structured operator.",
           id: "00000000-0000-4000-8000-000000000101",
           name: "Planner",
           systemPrompt: "You are Planner, a structured operator.",
+          tags: ["planning"],
           verbosity: null,
           modelRefOrNull: null,
           invalidConfig: false,

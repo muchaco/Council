@@ -93,7 +93,8 @@ This document defines user-facing UX behavior for Council. It complements the Fu
 ### 3.2 Controls
 - **U3.3** Controls at the top of the list:
   - Search input (Title, Topic substring match, case-insensitive)
-  - Tag filter input (exact match, case-insensitive)
+  - Tag filter input with inline committed chips; typing text alone does not filter until committed with Enter or comma
+  - Multiple committed tag chips are allowed and use exact-match, case-insensitive AND semantics
   - Archived filter (Active only, Archived only, All)
   - Sort control (Created asc/desc, Modified asc/desc)
   - Primary CTA: "New Council"
@@ -134,7 +135,8 @@ This document defines user-facing UX behavior for Council. It complements the Fu
 ### 4.2 Controls
 - **U4.2** Controls at the top:
   - Search input (Name + System Prompt substring match)
-  - Tag filter input (exact match, case-insensitive)
+  - Tag filter input with inline committed chips; typing text alone does not filter until committed with Enter or comma
+  - Multiple committed tag chips are allowed and use exact-match, case-insensitive AND semantics
   - Archived status filter (Active only, Archived only, All)
   - Sort (Created, Modified asc/desc)
   - Primary CTA: "New Agent"
@@ -237,6 +239,7 @@ This document defines user-facing UX behavior for Council. It complements the Fu
   - Title (required)
   - Mode selection (Autopilot or Manual) required, cannot change after creation
   - Members (required at least 1)
+    - Member add uses the same modal picker pattern as Council View
   - Member colors palette selection per Member
   - Tags (0..3)
   - Topic (required at creation)
@@ -252,10 +255,10 @@ This document defines user-facing UX behavior for Council. It complements the Fu
 
 ### 8.1 Layout
 - **U8.1** Two-column layout:
-  - Left: Chat transcript + composer area
-  - Right: Fixed-width panel with tabs:
-    - Tab 1: Briefing & Members
+  - Left: Fixed-width utility panel with tabs:
+    - Tab 1: Overview (Briefing + Members)
     - Tab 2: Config
+  - Right: Chat transcript + composer area that stays visible while the left panel switches tabs
   **[1.00]**
 
 ### 8.2 Top bar
@@ -302,10 +305,10 @@ This document defines user-facing UX behavior for Council. It complements the Fu
 
 ---
 
-## 9. Right Panel Tab 1: Briefing & Members
+## 9. Left Utility Tab 1: Overview
 
 ### 9.1 Briefing section
-- **U9.1** Briefing is always visible when this tab is active. Shows:
+- **U9.1** Briefing is always visible when the `Overview` tab is active. Shows:
   - TLDR (latest only)
   - Goal status indicator
   - If goal reached: prominent banner or callout within the section
@@ -326,9 +329,10 @@ This document defines user-facing UX behavior for Council. It complements the Fu
   - If member has messages: remove is disabled, tooltip explains.
   - Otherwise: remove opens confirmation dialog.
   **[1.00]**
-- **U9.7** Add Member opens a subpanel (within the right panel) that contains:
+- **U9.7** Add Member opens a modal that contains:
   - Search input over Agents
-  - Results list with add buttons
+  - Simple results list with add buttons
+  - Search over agent title, description, and tags
   - Ability to assign color on add or after add via chip
   **[0.85]**
 
@@ -337,7 +341,7 @@ This document defines user-facing UX behavior for Council. It complements the Fu
 
 ---
 
-## 10. Right Panel Tab 2: Config
+## 10. Left Utility Tab 2: Config
 
 ### 10.1 Contents
 - **U10.1** Config tab contains:
@@ -371,8 +375,9 @@ This document defines user-facing UX behavior for Council. It complements the Fu
 ### 10.3 Tags editor behavior
 - **U10.10** Tags are entered as free text, max 3, 1..20 chars each. **[1.00]**
 - **U10.11** Tag editing UI:
-  - Existing tags shown as chips with remove icons.
-  - Add input allows typing then Enter to add.
+  - Existing tags are shown as inline chips inside the same input field, each with a remove icon.
+  - Typing followed by Enter or comma commits the current draft into a chip and clears the draft text.
+  - Backspace with an empty draft removes the last committed chip.
   - No suggestions dropdown.
   **[1.00]**
 
@@ -505,7 +510,7 @@ These are the remaining places where UX decisions conflict slightly with the fun
 
 A build satisfies this UX spec if:
 - Home uses tabs, not a sidebar, and Council View is full-screen with Back.
-- Council View uses right panel tabs: Briefing & Members, Config.
+- Council View uses left utility tabs: Overview, Config, while chat stays visible on the right.
 - Config contains Topic, Goal, Tags, Conductor model, and actions.
 - Inline editing is pencil-only, multiline, single active editor, Enter saves, Shift+Enter newline, click-out prompts discard confirmation.
 - Member color is editable in Members list; remove is hover-only with confirmation; blocked removals show disabled button + tooltip.

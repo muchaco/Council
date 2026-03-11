@@ -48,7 +48,7 @@ export const useCouncilViewMemberActions = ({
         ? current
         : {
             ...current,
-            activeTab: "discussion",
+            activeTab: "overview",
             isSavingMembers: false,
             showMemberRemoveDialog: false,
             pendingMemberRemovalId: null,

@@ -206,8 +206,8 @@ export function ColorPicker({
         id={id}
         type="button"
         className={cn(
-          "flex h-8 w-10 items-center justify-center rounded-md border border-input bg-background",
-          "transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "flex h-9 w-9 items-center justify-center rounded-lg border-2 border-input/80 bg-background shadow-sm",
+          "transition-colors hover:border-foreground/30 hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           "disabled:cursor-not-allowed disabled:opacity-50",
         )}
         onClick={() => {
@@ -224,7 +224,7 @@ export function ColorPicker({
         aria-label={`${label}: ${colorNames[value] ?? value}`}
       >
         <span
-          className="h-4 w-4 rounded-full border border-black/10"
+          className="h-5 w-5 rounded-full border-2 border-background shadow-[0_0_0_2px_rgba(15,23,42,0.18)]"
           style={{ backgroundColor: value }}
         />
       </button>

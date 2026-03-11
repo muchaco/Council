@@ -354,8 +354,10 @@ const toCouncilRuntimeBriefingDto = (
 };
 
 const toCouncilAgentOptionDto = (agent: CouncilRuntimeAgentRecord): CouncilAgentOptionDto => ({
+  description: agent.systemPrompt,
   id: agent.id,
   name: agent.name,
+  tags: agent.tags,
   invalidConfig: agent.invalidConfig,
   archived: agent.archived,
 });

@@ -441,7 +441,7 @@ describe("app ui helpers", () => {
 
   itReq(
     ["R5.7", "R5.8", "U10.11"],
-    "resolves shared tag editor keyboard and helper messaging",
+    "resolves inline tag editor keyboard behavior and committed chip helper messaging",
     () => {
       expect(
         resolveTagEditorInputKeyAction({

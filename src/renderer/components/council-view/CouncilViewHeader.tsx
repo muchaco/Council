@@ -75,8 +75,8 @@ export const CouncilViewHeader = ({
   title,
   turnCount,
 }: CouncilViewHeaderProps): JSX.Element => (
-  <header className="mb-6">
-    <div className="mb-6 flex items-center justify-between">
+  <header className="mb-4">
+    <div className="mb-4 flex items-center justify-between gap-3">
       <Button className="gap-2" disabled={isLeavingView} onClick={onBack} variant="outline">
         <ChevronLeft className="h-4 w-4" />
         {isLeavingView ? "Leaving..." : "Back"}
@@ -113,8 +113,8 @@ export const CouncilViewHeader = ({
         ) : null}
       </div>
     </div>
-    <h1 className="mb-2 text-3xl">{title}</h1>
-    <div className="flex items-center gap-4 text-sm text-muted-foreground">
+    <h1 className="mb-2 text-2xl">{title}</h1>
+    <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
       <Badge className="capitalize" variant="outline">
         {mode}
       </Badge>
