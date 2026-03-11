@@ -1,5 +1,6 @@
 import { Filter, RefreshCw, Search } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
@@ -19,7 +20,6 @@ type HomeListToolbarProps = {
   hasAppliedPopoverFilters: boolean;
   hasPendingChanges: boolean;
   isLoading: boolean;
-  metaLabel: string;
   popoverTitle: string;
   searchAriaLabel: string;
   searchPlaceholder: string;
@@ -51,7 +51,6 @@ export const HomeListToolbar = ({
   hasAppliedPopoverFilters,
   hasPendingChanges,
   isLoading,
-  metaLabel,
   popoverTitle,
   searchAriaLabel,
   searchPlaceholder,
@@ -75,8 +74,65 @@ export const HomeListToolbar = ({
   onTagFilterRemove,
 }: HomeListToolbarProps): JSX.Element => {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+  const [popoverPosition, setPopoverPosition] = useState<{
+    top: number;
+    left: number;
+    width: number;
+    visibility: "visible" | "hidden";
+  }>({
+    top: 0,
+    left: 0,
+    width: 320,
+    visibility: "hidden",
+  });
   const popoverId = useId();
   const popoverRef = useRef<HTMLDivElement | null>(null);
+  const filterButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  useLayoutEffect(() => {
+    if (!isPopoverOpen) {
+      return;
+    }
+
+    const updatePosition = (): void => {
+      const button = filterButtonRef.current;
+      const popover = popoverRef.current;
+      if (button === null || popover === null) {
+        return;
+      }
+
+      const buttonRect = button.getBoundingClientRect();
+      const popoverWidth = Math.min(416, window.innerWidth - 32);
+      const popoverHeight = popover.offsetHeight;
+      const horizontalPadding = 16;
+      const defaultLeft = buttonRect.right - popoverWidth;
+      const left = Math.max(
+        horizontalPadding,
+        Math.min(defaultLeft, window.innerWidth - popoverWidth - horizontalPadding),
+      );
+      const spaceBelow = window.innerHeight - buttonRect.bottom;
+      const top =
+        spaceBelow >= popoverHeight + 12 || buttonRect.top <= popoverHeight + 24
+          ? buttonRect.bottom + 10
+          : buttonRect.top - popoverHeight - 10;
+
+      setPopoverPosition({
+        top: Math.max(12, top),
+        left,
+        width: popoverWidth,
+        visibility: "visible",
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [isPopoverOpen]);
 
   useEffect(() => {
     if (!isPopoverOpen) {
@@ -112,16 +168,13 @@ export const HomeListToolbar = ({
 
   return (
     <div className="home-list-toolbar" data-home-list-toolbar="true">
-      <div aria-live="polite" className="home-list-toolbar-meta">
-        {metaLabel}
-      </div>
       <div className="home-list-toolbar-row">
         <div className="home-list-toolbar-search-form">
           <div className="home-list-toolbar-search-shell">
             <Search aria-hidden="true" className="home-list-toolbar-search-icon" />
             <Input
               aria-label={searchAriaLabel}
-              className="home-list-toolbar-search-input"
+              className="home-list-toolbar-search-input focus-visible:ring-0 focus-visible:ring-offset-0"
               onChange={(event) => onSetSearchText(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key !== "Enter") {
@@ -146,6 +199,7 @@ export const HomeListToolbar = ({
               aria-label={`${popoverTitle} filter and sort options`}
               className="home-list-toolbar-icon-button"
               data-home-list-filter-button="true"
+              ref={filterButtonRef}
               onClick={() => setIsPopoverOpen((current) => !current)}
               size="icon"
               title={`${popoverTitle} filter and sort options`}
@@ -158,111 +212,119 @@ export const HomeListToolbar = ({
               ) : null}
             </Button>
 
-            {isPopoverOpen ? (
-              <div
-                aria-label={`${popoverTitle} filter and sort options`}
-                className="home-list-toolbar-popover"
-                data-home-list-filter-popover="true"
-                id={popoverId}
-              >
-                <div className="home-list-toolbar-popover-header">
-                  <h3>{popoverTitle}</h3>
-                </div>
-
-                <div className="home-list-toolbar-popover-section">
-                  <label className="home-list-toolbar-popover-label" htmlFor={`${popoverId}-tags`}>
-                    Tags
-                  </label>
-                  <TagsEditor
-                    className="space-y-0"
-                    fieldClassName="home-list-toolbar-tags-field"
-                    helperTextHidden
-                    inputAriaLabel={`${popoverTitle} tag filter`}
-                    inputClassName="min-w-[6ch]"
-                    inputId={`${popoverId}-tags`}
-                    inputPlaceholder="Add tag"
-                    inputValue={tagFilterDraft}
-                    maxTags={3}
-                    mode="filter"
-                    onAdd={onCommitTagFilter}
-                    onInputChange={onSetTagFilterDraft}
-                    onInputEscape={() => onSetTagFilterDraft("")}
-                    onRemoveLastTag={() => {
-                      const lastTag = tagFilter.at(-1);
-                      if (lastTag !== undefined) {
-                        onTagFilterRemove(lastTag);
-                      }
-                    }}
-                    onRemoveTag={onTagFilterRemove}
-                    tags={tagFilter}
-                  />
-                </div>
-
-                <div className="home-list-toolbar-popover-grid">
-                  <label className="home-list-toolbar-popover-field">
-                    <span className="home-list-toolbar-popover-label">Status</span>
-                    <select
-                      data-home-list-status-filter="true"
-                      value={archivedFilterValue}
-                      onChange={(event) => onSetArchivedFilter(event.target.value)}
-                    >
-                      {archivedOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="home-list-toolbar-popover-field">
-                    <span className="home-list-toolbar-popover-label">Sort by</span>
-                    <select
-                      data-home-list-sort-by="true"
-                      value={sortByValue}
-                      onChange={(event) => onSetSortBy(event.target.value)}
-                    >
-                      {sortByOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="home-list-toolbar-popover-field home-list-toolbar-popover-field-full">
-                    <span className="home-list-toolbar-popover-label">Order</span>
-                    <select
-                      data-home-list-sort-direction="true"
-                      value={sortDirectionValue}
-                      onChange={(event) => onSetSortDirection(event.target.value)}
-                    >
-                      {sortDirectionOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-
-                <div className="home-list-toolbar-popover-footer">
-                  <Button onClick={onResetFilters} type="button" variant="outline">
-                    Reset
-                  </Button>
-                  <Button
-                    className="home-list-toolbar-popover-apply"
-                    disabled={isLoading}
-                    onClick={() => {
-                      onApplyFilters();
-                      setIsPopoverOpen(false);
-                    }}
-                    type="button"
+            {isPopoverOpen
+              ? createPortal(
+                  <div
+                    aria-label={`${popoverTitle} filter and sort options`}
+                    className="home-list-toolbar-popover"
+                    data-home-list-filter-popover="true"
+                    id={popoverId}
+                    ref={popoverRef}
+                    style={popoverPosition}
                   >
-                    Apply
-                  </Button>
-                </div>
-              </div>
-            ) : null}
+                    <div className="home-list-toolbar-popover-header">
+                      <h3>{popoverTitle}</h3>
+                    </div>
+
+                    <div className="home-list-toolbar-popover-section">
+                      <label
+                        className="home-list-toolbar-popover-label"
+                        htmlFor={`${popoverId}-tags`}
+                      >
+                        Tags
+                      </label>
+                      <TagsEditor
+                        className="space-y-0"
+                        fieldClassName="home-list-toolbar-tags-field"
+                        helperTextHidden
+                        inputAriaLabel={`${popoverTitle} tag filter`}
+                        inputClassName="min-w-[6ch]"
+                        inputId={`${popoverId}-tags`}
+                        inputPlaceholder="Add tag"
+                        inputValue={tagFilterDraft}
+                        maxTags={3}
+                        mode="filter"
+                        onAdd={onCommitTagFilter}
+                        onInputChange={onSetTagFilterDraft}
+                        onInputEscape={() => onSetTagFilterDraft("")}
+                        onRemoveLastTag={() => {
+                          const lastTag = tagFilter.at(-1);
+                          if (lastTag !== undefined) {
+                            onTagFilterRemove(lastTag);
+                          }
+                        }}
+                        onRemoveTag={onTagFilterRemove}
+                        tags={tagFilter}
+                      />
+                    </div>
+
+                    <div className="home-list-toolbar-popover-grid">
+                      <label className="home-list-toolbar-popover-field">
+                        <span className="home-list-toolbar-popover-label">Status</span>
+                        <select
+                          data-home-list-status-filter="true"
+                          value={archivedFilterValue}
+                          onChange={(event) => onSetArchivedFilter(event.target.value)}
+                        >
+                          {archivedOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="home-list-toolbar-popover-field">
+                        <span className="home-list-toolbar-popover-label">Sort by</span>
+                        <select
+                          data-home-list-sort-by="true"
+                          value={sortByValue}
+                          onChange={(event) => onSetSortBy(event.target.value)}
+                        >
+                          {sortByOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="home-list-toolbar-popover-field home-list-toolbar-popover-field-full">
+                        <span className="home-list-toolbar-popover-label">Order</span>
+                        <select
+                          data-home-list-sort-direction="true"
+                          value={sortDirectionValue}
+                          onChange={(event) => onSetSortDirection(event.target.value)}
+                        >
+                          {sortDirectionOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+
+                    <div className="home-list-toolbar-popover-footer">
+                      <Button onClick={onResetFilters} type="button" variant="outline">
+                        Reset
+                      </Button>
+                      <Button
+                        className="home-list-toolbar-popover-apply"
+                        disabled={isLoading}
+                        onClick={() => {
+                          onApplyFilters();
+                          setIsPopoverOpen(false);
+                        }}
+                        type="button"
+                      >
+                        Apply
+                      </Button>
+                    </div>
+                  </div>,
+                  document.body,
+                )
+              : null}
           </div>
 
           <Button

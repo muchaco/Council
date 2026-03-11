@@ -9,7 +9,6 @@ import {
   type CouncilHomeListFilters,
   DEFAULT_COUNCIL_HOME_LIST_FILTERS,
   appendCommittedTagFilter,
-  formatHomeListTotal,
   hasAppliedCouncilHomeListPopoverFilters,
   hasPendingCouncilHomeListQueryChanges,
   parseTagDraft,
@@ -50,7 +49,6 @@ export const CouncilsPanel = ({
   const [councils, setCouncils] = useState<ReadonlyArray<CouncilDto>>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
-  const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +92,6 @@ export const CouncilsPanel = ({
       );
       setPage(result.value.page);
       setHasMore(result.value.hasMore);
-      setTotal(result.value.total);
       onTotalChange(result.value.total);
       setIsLoading(false);
       setIsLoadingMore(false);
@@ -326,7 +323,6 @@ export const CouncilsPanel = ({
     await loadCouncils({ page: 1, append: false });
   };
 
-  const totalLabel = formatHomeListTotal({ total, singularLabel: "council" });
   const emptyMessage =
     appliedFilters.archivedFilter === "archived"
       ? "No archived councils found."
@@ -354,7 +350,6 @@ export const CouncilsPanel = ({
         hasAppliedPopoverFilters={hasAppliedPopoverFilters}
         hasPendingChanges={hasPendingChanges}
         isLoading={isLoading}
-        metaLabel={isLoading ? "Loading councils..." : totalLabel}
         onAction={onOpenCouncilEditor}
         onApplyFilters={refreshCouncils}
         onCommitTagFilter={() => commitTagFilter()}

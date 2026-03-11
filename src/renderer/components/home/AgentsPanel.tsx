@@ -10,7 +10,6 @@ import {
   DEFAULT_AGENT_HOME_LIST_FILTERS,
   appendCommittedTagFilter,
   applyAgentArchivedListUpdate,
-  formatHomeListTotal,
   hasAppliedAgentHomeListPopoverFilters,
   hasPendingAgentHomeListQueryChanges,
   parseTagDraft,
@@ -51,7 +50,6 @@ export const AgentsPanel = ({
   const [agents, setAgents] = useState<ReadonlyArray<AgentDto>>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
-  const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -95,7 +93,6 @@ export const AgentsPanel = ({
       );
       setPage(result.value.page);
       setHasMore(result.value.hasMore);
-      setTotal(result.value.total);
       onTotalChange(result.value.total);
       setGlobalDefaultModel(result.value.globalDefaultModelRef);
       setIsLoading(false);
@@ -271,7 +268,6 @@ export const AgentsPanel = ({
     await loadAgents({ page: 1, append: false });
   };
 
-  const totalLabel = formatHomeListTotal({ total, singularLabel: "agent" });
   const emptyMessage =
     appliedFilters.archivedFilter === "archived"
       ? "No archived agents found."
@@ -299,7 +295,6 @@ export const AgentsPanel = ({
         hasAppliedPopoverFilters={hasAppliedPopoverFilters}
         hasPendingChanges={hasPendingChanges}
         isLoading={isLoading}
-        metaLabel={isLoading ? "Loading agents..." : totalLabel}
         onAction={onOpenAgentEditor}
         onApplyFilters={refreshAgents}
         onCommitTagFilter={() => commitTagFilter()}
