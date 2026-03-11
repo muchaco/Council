@@ -464,10 +464,10 @@ describe("app ui helpers", () => {
       ).toBe("removeLastTag");
       expect(commitTagFilterDraft("  ops  ")).toBe("ops");
       expect(buildTagEditorHelperText({ slotsRemaining: 2 })).toBe(
-        "Press Enter to add. Backspace removes the last tag. 2 slots left.",
+        "Press Enter or comma to add. Backspace removes the last tag. 2 slots left.",
       );
       expect(buildTagEditorHelperText({ mode: "filter", slotsRemaining: 0 })).toBe(
-        "Exact match only. Press Enter to commit the filter.",
+        "Exact match only. Press Enter or comma to commit the filter.",
       );
     },
   );

@@ -480,7 +480,7 @@ export const resolveTagEditorInputKeyAction = (params: {
   draftValue: string;
   committedTags: ReadonlyArray<string>;
 }): "submit" | "clearDraft" | "removeLastTag" | "none" => {
-  if (params.key === "Enter") {
+  if (params.key === "Enter" || params.key === ",") {
     return "submit";
   }
   if (params.key === "Escape") {
@@ -502,8 +502,8 @@ export const buildTagEditorHelperText = (params: {
   const maxTags = params.maxTags ?? COUNCIL_CONFIG_MAX_TAGS;
   const prefix =
     params.mode === "filter"
-      ? "Exact match only. Press Enter to commit the filter"
-      : "Press Enter to add. Backspace removes the last tag";
+      ? "Exact match only. Press Enter or comma to commit the filter"
+      : "Press Enter or comma to add. Backspace removes the last tag";
 
   if (params.mode === "filter") {
     return `${prefix}.`;
