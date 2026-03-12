@@ -58,6 +58,33 @@ const primaryCouncil = {
   updatedAtUtc: "2026-03-12T11:45:00.000Z",
 } as const;
 
+const currentAgentExecutionSnapshot = {
+  kind: "agent" as const,
+  draft: {
+    id: PRIMARY_AGENT_ID,
+    modelSelection: "",
+    name: primaryAgent.name,
+    systemPrompt: primaryAgent.systemPrompt,
+    tagsInput: primaryAgent.tags.join(", "),
+    temperature: String(primaryAgent.temperature),
+    verbosity: primaryAgent.verbosity ?? "",
+  },
+};
+
+const currentCouncilExecutionSnapshot = {
+  kind: "council" as const,
+  draft: {
+    conductorModelSelection: "",
+    goal: primaryCouncil.goal ?? "",
+    id: PRIMARY_COUNCIL_ID,
+    mode: primaryCouncil.mode,
+    selectedMemberIds: primaryCouncil.memberAgentIds,
+    tagsInput: primaryCouncil.tags.join(", "),
+    title: primaryCouncil.title,
+    topic: primaryCouncil.topic,
+  },
+};
+
 type AgentEditorViewAgent = Omit<typeof primaryAgent, "archived"> & { archived: boolean };
 type CouncilEditorViewCouncil = Omit<typeof primaryCouncil, "archived"> & { archived: boolean };
 
@@ -65,11 +92,15 @@ const createAssistantSliceDeps = (options?: {
   events?: Array<Record<string, unknown>>;
   agentEditorViewAgent?: AgentEditorViewAgent | null;
   councilEditorViewCouncil?: CouncilEditorViewCouncil | null;
+  saveAgentError?: { kind: string; userMessage: string; devMessage: string };
+  saveCouncilError?: { kind: string; userMessage: string; devMessage: string };
   onGetSettingsView?: (request: { viewKind: string }) => void;
   onPlannerRequest?: (request: {
     modelRef: { providerId: string; modelId: string };
     userRequest: string;
   }) => void;
+  onSaveAgent?: (request: { draft: Record<string, unknown> }) => void;
+  onSaveCouncil?: (request: { draft: Record<string, unknown> }) => void;
   plannerDelayMs?: number;
   plannerResponse?: string;
   globalDefaultModelRef?: { providerId: string; modelId: string } | null;
@@ -131,6 +162,41 @@ const createAssistantSliceDeps = (options?: {
       globalDefaultModelRef: null,
       canRefreshModels: true,
     }),
+  saveAgent: ({ draft }: { draft: Record<string, unknown> }) => {
+    options?.onSaveAgent?.({ draft });
+    if (options?.saveAgentError !== undefined) {
+      return ResultAsync.fromPromise(
+        Promise.reject(options.saveAgentError),
+        (error) => error as never,
+      );
+    }
+
+    const agentId = typeof draft.id === "string" ? draft.id : PRIMARY_AGENT_ID;
+    const name = typeof draft.name === "string" ? draft.name : primaryAgent.name;
+    return okAsync({
+      agent: {
+        ...primaryAgent,
+        id: agentId,
+        name,
+        systemPrompt:
+          typeof draft.systemPrompt === "string" ? draft.systemPrompt : primaryAgent.systemPrompt,
+        verbosity:
+          typeof draft.verbosity === "string" || draft.verbosity === null
+            ? (draft.verbosity as string | null)
+            : primaryAgent.verbosity,
+        temperature:
+          typeof draft.temperature === "number" || draft.temperature === null
+            ? (draft.temperature as number | null)
+            : primaryAgent.temperature,
+        tags: Array.isArray(draft.tags) ? (draft.tags as ReadonlyArray<string>) : primaryAgent.tags,
+        modelRefOrNull:
+          draft.modelRefOrNull === null ||
+          (typeof draft.modelRefOrNull === "object" && draft.modelRefOrNull !== null)
+            ? (draft.modelRefOrNull as typeof primaryAgent.modelRefOrNull)
+            : primaryAgent.modelRefOrNull,
+      },
+    });
+  },
   listCouncils: () =>
     okAsync({
       items: [primaryCouncil],
@@ -169,6 +235,45 @@ const createAssistantSliceDeps = (options?: {
       globalDefaultModelRef: null,
       canRefreshModels: true,
     }),
+  saveCouncil: ({ draft }: { draft: Record<string, unknown> }) => {
+    options?.onSaveCouncil?.({ draft });
+    if (options?.saveCouncilError !== undefined) {
+      return ResultAsync.fromPromise(
+        Promise.reject(options.saveCouncilError),
+        (error) => error as never,
+      );
+    }
+
+    const councilId = typeof draft.id === "string" ? draft.id : PRIMARY_COUNCIL_ID;
+    const title = typeof draft.title === "string" ? draft.title : primaryCouncil.title;
+    const mode: "autopilot" | "manual" =
+      draft.mode === "autopilot" || draft.mode === "manual" ? draft.mode : primaryCouncil.mode;
+    return okAsync({
+      council: {
+        ...primaryCouncil,
+        id: councilId,
+        title,
+        topic: typeof draft.topic === "string" ? draft.topic : primaryCouncil.topic,
+        goal:
+          typeof draft.goal === "string" || draft.goal === null
+            ? (draft.goal as string | null)
+            : primaryCouncil.goal,
+        mode,
+        tags: Array.isArray(draft.tags)
+          ? (draft.tags as ReadonlyArray<string>)
+          : primaryCouncil.tags,
+        memberAgentIds: Array.isArray(draft.memberAgentIds)
+          ? (draft.memberAgentIds as ReadonlyArray<string>)
+          : primaryCouncil.memberAgentIds,
+        conductorModelRefOrNull:
+          draft.conductorModelRefOrNull === null ||
+          (typeof draft.conductorModelRefOrNull === "object" &&
+            draft.conductorModelRefOrNull !== null)
+            ? (draft.conductorModelRefOrNull as typeof primaryCouncil.conductorModelRefOrNull)
+            : primaryCouncil.conductorModelRefOrNull,
+      },
+    });
+  },
   getCouncilView: ({ councilId }: { councilId: string }) =>
     okAsync({
       council:
@@ -300,6 +405,8 @@ const createDeferred = <T>() => {
 const createHandlers = (options?: {
   agentEditorViewAgent?: AgentEditorViewAgent | null;
   councilEditorViewCouncil?: CouncilEditorViewCouncil | null;
+  saveAgentError?: { kind: string; userMessage: string; devMessage: string };
+  saveCouncilError?: { kind: string; userMessage: string; devMessage: string };
   plannerResponse?: string;
   plannerDelayMs?: number;
   onPlannerRequest?: (request: {
@@ -307,6 +414,8 @@ const createHandlers = (options?: {
     userRequest: string;
   }) => void;
   onGetSettingsView?: (request: { viewKind: string }) => void;
+  onSaveAgent?: (request: { draft: Record<string, unknown> }) => void;
+  onSaveCouncil?: (request: { draft: Record<string, unknown> }) => void;
   globalDefaultModelRef?: { providerId: string; modelId: string } | null;
   globalDefaultModelInvalidConfig?: boolean;
 }) => {
@@ -661,6 +770,591 @@ describe("assistant ipc contract", () => {
   );
 
   itReq(
+    ["R9.11", "R9.17", "R9.18", "R9.22", "U18.8", "U18.10", "U18.11", "A3"],
+    "creates an agent through the authoritative save handler and waits for visible completion before success",
+    async () => {
+      const { handlers } = createHandlers({
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Create a new agent.",
+          plannedCalls: [
+            {
+              callId: "call-create-agent",
+              toolName: "createAgent",
+              rationale: "Create the requested agent.",
+              input: {
+                modelRefOrNull: {
+                  providerId: "gemini",
+                  modelId: "gemini-1.5-flash",
+                },
+                name: "Strategy Coach",
+                systemPrompt: "Coach the team toward practical next steps.",
+                tags: ["ops"],
+                temperature: 0.2,
+                verbosity: "concise",
+              },
+            },
+          ],
+        }),
+      });
+      const session = await handlers.createSession({ viewKind: "agentsList" }, 82);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Create a strategy coach agent.",
+          context: validContext,
+          response: null,
+        },
+        82,
+      );
+
+      const executed = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Create a strategy coach agent.",
+          context: validContext,
+          response: null,
+        },
+        82,
+      );
+      expect(executed.ok).toBe(true);
+      if (!executed.ok || executed.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(executed.value.result.outcome).toBe("partial");
+      expect(executed.value.result.executionResults).toMatchObject([
+        {
+          callId: "call-create-agent",
+          status: "reconciling",
+          toolName: "createAgent",
+          output: {
+            agentId: PRIMARY_AGENT_ID,
+            agentName: "Strategy Coach",
+            savedFields: {
+              name: "Strategy Coach",
+              modelRefOrNull: {
+                providerId: "gemini",
+                modelId: "gemini-1.5-flash",
+              },
+              systemPrompt: "Coach the team toward practical next steps.",
+              tags: ["ops"],
+              temperature: 0.2,
+              verbosity: "concise",
+            },
+          },
+        },
+      ]);
+
+      const reconciled = await handlers.completeReconciliation(
+        {
+          sessionId: session.value.session.sessionId,
+          reconciliations: [
+            {
+              callId: "call-create-agent",
+              toolName: "createAgent",
+              status: "completed",
+              failureMessage: null,
+              completion: null,
+            },
+          ],
+        },
+        82,
+      );
+      expect(reconciled.ok).toBe(true);
+      if (!reconciled.ok || reconciled.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(reconciled.value.result.outcome).toBe("success");
+      expect(reconciled.value.result.executionResults).toMatchObject([
+        {
+          callId: "call-create-agent",
+          status: "success",
+          toolName: "createAgent",
+          output: {
+            agentId: PRIMARY_AGENT_ID,
+            agentName: "Strategy Coach",
+            savedFields: {
+              name: "Strategy Coach",
+              modelRefOrNull: {
+                providerId: "gemini",
+                modelId: "gemini-1.5-flash",
+              },
+              systemPrompt: "Coach the team toward practical next steps.",
+              tags: ["ops"],
+              temperature: 0.2,
+              verbosity: "concise",
+            },
+          },
+        },
+      ]);
+    },
+  );
+
+  itReq(
+    ["R9.11", "R9.17", "R9.18", "R9.22", "A1", "A3"],
+    "returns authoritative saved council fields for update reconciliation",
+    async () => {
+      const savedDrafts: Array<Record<string, unknown>> = [];
+      const { handlers } = createHandlers({
+        onSaveCouncil: ({ draft }) => savedDrafts.push(draft),
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Update the saved council.",
+          plannedCalls: [
+            {
+              callId: "call-update-council",
+              toolName: "updateCouncilConfig",
+              rationale: "Update the saved council configuration.",
+              input: {
+                councilId: PRIMARY_COUNCIL_ID,
+                conductorModelRefOrNull: {
+                  providerId: "gemini",
+                  modelId: "gemini-1.5-flash",
+                },
+                memberAgentIds: [SECONDARY_AGENT_ID],
+                title: "Quarterly Council Revised",
+              },
+            },
+          ],
+        }),
+      });
+      const session = await handlers.createSession({ viewKind: "councilsList" }, 84);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Update the saved council.",
+          context: councilsListContext,
+          response: null,
+        },
+        84,
+      );
+
+      const executed = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Update the saved council.",
+          context: councilsListContext,
+          response: null,
+        },
+        84,
+      );
+      expect(executed.ok).toBe(true);
+      if (!executed.ok || executed.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(executed.value.result.outcome).toBe("partial");
+      expect(executed.value.result.executionResults).toMatchObject([
+        {
+          callId: "call-update-council",
+          status: "reconciling",
+          toolName: "updateCouncilConfig",
+          output: {
+            councilId: PRIMARY_COUNCIL_ID,
+            councilTitle: "Quarterly Council Revised",
+            savedFields: {
+              conductorModelRefOrNull: {
+                providerId: "gemini",
+                modelId: "gemini-1.5-flash",
+              },
+              goal: primaryCouncil.goal,
+              memberAgentIds: [SECONDARY_AGENT_ID],
+              mode: primaryCouncil.mode,
+              tags: primaryCouncil.tags,
+              title: "Quarterly Council Revised",
+              topic: primaryCouncil.topic,
+            },
+          },
+        },
+      ]);
+      expect(savedDrafts).toEqual([
+        expect.objectContaining({
+          id: PRIMARY_COUNCIL_ID,
+          memberAgentIds: [SECONDARY_AGENT_ID],
+          title: "Quarterly Council Revised",
+          viewKind: "councilView",
+        }),
+      ]);
+
+      const reconciled = await handlers.completeReconciliation(
+        {
+          sessionId: session.value.session.sessionId,
+          reconciliations: [
+            {
+              callId: "call-update-council",
+              toolName: "updateCouncilConfig",
+              status: "completed",
+              failureMessage: null,
+              completion: null,
+            },
+          ],
+        },
+        84,
+      );
+      expect(reconciled.ok).toBe(true);
+      if (!reconciled.ok || reconciled.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(reconciled.value.result.outcome).toBe("success");
+      expect(reconciled.value.result.executionResults).toMatchObject([
+        {
+          callId: "call-update-council",
+          status: "success",
+          toolName: "updateCouncilConfig",
+          output: {
+            councilId: PRIMARY_COUNCIL_ID,
+            councilTitle: "Quarterly Council Revised",
+            savedFields: {
+              conductorModelRefOrNull: {
+                providerId: "gemini",
+                modelId: "gemini-1.5-flash",
+              },
+              goal: primaryCouncil.goal,
+              memberAgentIds: [SECONDARY_AGENT_ID],
+              mode: primaryCouncil.mode,
+              tags: primaryCouncil.tags,
+              title: "Quarterly Council Revised",
+              topic: primaryCouncil.topic,
+            },
+          },
+        },
+      ]);
+    },
+  );
+
+  itReq(
+    ["R9.11", "R9.14", "R9.17", "R9.18", "R9.22", "A1", "A3"],
+    "patches the current council draft and then saves it through the normal save flow",
+    async () => {
+      const savedDrafts: Array<Record<string, unknown>> = [];
+      const councilDraftContext = {
+        ...validContext,
+        activeEntityId: PRIMARY_COUNCIL_ID,
+        contextLabel: "Council editor / Quarterly Council",
+        draftState: {
+          changedFields: ["title"],
+          dirty: true,
+          entityId: PRIMARY_COUNCIL_ID,
+          entityKind: "council" as const,
+          summary: "Council draft has 1 unsaved field change: title.",
+        },
+        listState: null,
+        viewKind: "councilCreate" as const,
+      };
+      const { handlers } = createHandlers({
+        onSaveCouncil: ({ draft }) => savedDrafts.push(draft),
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Update and save the current council draft.",
+          plannedCalls: [
+            {
+              callId: "call-patch-council",
+              toolName: "setCouncilDraftFields",
+              rationale: "Apply the requested council draft updates.",
+              input: {
+                title: "Quarterly Council Revised",
+              },
+            },
+            {
+              callId: "call-save-council",
+              toolName: "saveCouncilDraft",
+              rationale: "Save the current council draft.",
+              input: {
+                entityId: PRIMARY_COUNCIL_ID,
+              },
+            },
+          ],
+        }),
+      });
+      const session = await handlers.createSession({ viewKind: "councilCreate" }, 83);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Rename this council and save it.",
+          context: councilDraftContext,
+          executionSnapshot: currentCouncilExecutionSnapshot,
+          response: null,
+        },
+        83,
+      );
+
+      const executed = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Rename this council and save it.",
+          context: councilDraftContext,
+          executionSnapshot: currentCouncilExecutionSnapshot,
+          response: null,
+        },
+        83,
+      );
+      expect(executed.ok).toBe(true);
+      if (!executed.ok || executed.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(executed.value.result.outcome).toBe("partial");
+      expect(executed.value.result.executionResults).toMatchObject([
+        {
+          callId: "call-patch-council",
+          status: "reconciling",
+          toolName: "setCouncilDraftFields",
+        },
+        {
+          callId: "call-save-council",
+          status: "reconciling",
+          toolName: "saveCouncilDraft",
+        },
+      ]);
+      expect(savedDrafts).toEqual([
+        expect.objectContaining({
+          conductorModelRefOrNull: null,
+          goal: null,
+          memberAgentIds: primaryCouncil.memberAgentIds,
+          title: "Quarterly Council Revised",
+          topic: primaryCouncil.topic,
+          viewKind: "councilCreate",
+        }),
+      ]);
+
+      const reconciled = await handlers.completeReconciliation(
+        {
+          sessionId: session.value.session.sessionId,
+          reconciliations: [
+            {
+              callId: "call-patch-council",
+              toolName: "setCouncilDraftFields",
+              status: "completed",
+              failureMessage: null,
+              completion: {
+                output: {
+                  appliedFieldLabels: ["title"],
+                  entityId: PRIMARY_COUNCIL_ID,
+                  patch: {
+                    title: "Quarterly Council Revised",
+                  },
+                },
+                userSummary: "Updated the current council draft title.",
+              },
+            },
+            {
+              callId: "call-save-council",
+              toolName: "saveCouncilDraft",
+              status: "completed",
+              failureMessage: null,
+              completion: {
+                output: {
+                  councilId: PRIMARY_COUNCIL_ID,
+                  councilTitle: "Quarterly Council Revised",
+                  savedFields: {
+                    conductorModelRefOrNull: null,
+                    goal: null,
+                    memberAgentIds: primaryCouncil.memberAgentIds,
+                    mode: primaryCouncil.mode,
+                    tags: primaryCouncil.tags,
+                    title: "Quarterly Council Revised",
+                    topic: primaryCouncil.topic,
+                  },
+                },
+                userSummary: "Saved Quarterly Council Revised.",
+              },
+            },
+          ],
+        },
+        83,
+      );
+      expect(reconciled.ok).toBe(true);
+      if (!reconciled.ok || reconciled.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(reconciled.value.result.outcome).toBe("success");
+      expect(reconciled.value.result.executionResults).toMatchObject([
+        {
+          callId: "call-patch-council",
+          status: "success",
+          toolName: "setCouncilDraftFields",
+        },
+        {
+          callId: "call-save-council",
+          status: "success",
+          toolName: "saveCouncilDraft",
+          output: {
+            councilId: PRIMARY_COUNCIL_ID,
+            councilTitle: "Quarterly Council Revised",
+            savedFields: {
+              conductorModelRefOrNull: null,
+              goal: null,
+              memberAgentIds: primaryCouncil.memberAgentIds,
+              mode: primaryCouncil.mode,
+              tags: primaryCouncil.tags,
+              title: "Quarterly Council Revised",
+              topic: primaryCouncil.topic,
+            },
+          },
+          userSummary: "Saved Quarterly Council Revised.",
+        },
+      ]);
+    },
+  );
+
+  itReq(
+    ["R9.11", "R9.13", "R9.14", "U18.9", "A1", "A3"],
+    "requires confirmation before replacing a dirty draft with another assistant action",
+    async () => {
+      const dirtyAgentDraftContext = {
+        ...validContext,
+        activeEntityId: PRIMARY_AGENT_ID,
+        contextLabel: "Agent editor / Planner",
+        draftState: {
+          changedFields: ["name"],
+          dirty: true,
+          entityId: PRIMARY_AGENT_ID,
+          entityKind: "agent" as const,
+          summary: "Agent draft has 1 unsaved field change: name.",
+        },
+        listState: null,
+        viewKind: "agentEdit" as const,
+      };
+      const { handlers } = createHandlers({
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Create a new agent.",
+          plannedCalls: [
+            {
+              callId: "call-replace-draft",
+              toolName: "createAgent",
+              rationale: "Create a different agent.",
+              input: {
+                name: "Replacement Agent",
+                systemPrompt: "A new agent.",
+              },
+            },
+          ],
+        }),
+      });
+      const session = await handlers.createSession({ viewKind: "agentEdit" }, 84);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      const planned = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Create a new agent.",
+          context: dirtyAgentDraftContext,
+          response: null,
+        },
+        84,
+      );
+      expect(planned.ok).toBe(true);
+      if (!planned.ok) {
+        return;
+      }
+
+      expect(planned.value.result.kind).toBe("confirm");
+      if (planned.value.result.kind !== "confirm") {
+        return;
+      }
+
+      expect(planned.value.result.confirmation.draftImpact).toBe("replace-current-draft");
+      expect(planned.value.result.confirmation.scopeDescription).toContain("unsaved field change");
+    },
+  );
+
+  itReq(
+    ["R9.14", "R9.17", "R9.18", "R9.22", "U18.8", "A3"],
+    "surfaces safe validation blockers from the authoritative save rules",
+    async () => {
+      const { handlers } = createHandlers({
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Create a blocked agent.",
+          plannedCalls: [
+            {
+              callId: "call-blocked-agent",
+              toolName: "createAgent",
+              rationale: "Create the requested agent.",
+              input: {
+                name: "Blocked Agent",
+                systemPrompt: "Needs a bad model.",
+              },
+            },
+          ],
+        }),
+        saveAgentError: {
+          kind: "InvalidConfigError",
+          userMessage:
+            "Selected model configuration is invalid in this view. Refresh models or change the model.",
+          devMessage: "blocked for test",
+        },
+      });
+      const session = await handlers.createSession({ viewKind: "agentsList" }, 85);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Create a blocked agent.",
+          context: validContext,
+          response: null,
+        },
+        85,
+      );
+
+      const executed = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Create a blocked agent.",
+          context: validContext,
+          response: null,
+        },
+        85,
+      );
+      expect(executed.ok).toBe(true);
+      if (!executed.ok || executed.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(executed.value.result.outcome).toBe("failure");
+      expect(executed.value.result.executionResults).toMatchObject([
+        {
+          callId: "call-blocked-agent",
+          status: "failed",
+          toolName: "createAgent",
+          error: {
+            kind: "InvalidConfigError",
+            userMessage:
+              "Selected model configuration is invalid in this view. Refresh models or change the model.",
+          },
+        },
+      ]);
+    },
+  );
+
+  itReq(
     ["R9.11", "R9.14", "R9.22", "A1", "A3"],
     "fails current draft edits when the request targets a different editor entity",
     async () => {
@@ -958,6 +1652,158 @@ describe("assistant ipc contract", () => {
             kind: "ValidationError",
             userMessage:
               "Council mode is locked after creation. Open a new council draft to change the mode.",
+          },
+        },
+      ]);
+    },
+  );
+
+  itReq(
+    ["R9.11", "R9.14", "R9.17", "R9.22", "A1", "A3"],
+    "preserves model changes when rewriting a current-agent update into an in-place draft patch",
+    async () => {
+      const agentDraftContext = {
+        ...validContext,
+        activeEntityId: PRIMARY_AGENT_ID,
+        contextLabel: "Agent editor / Planner",
+        draftState: {
+          changedFields: [],
+          dirty: false,
+          entityId: PRIMARY_AGENT_ID,
+          entityKind: "agent" as const,
+          summary: "Agent draft matches the saved state.",
+        },
+        listState: null,
+        viewKind: "agentEdit" as const,
+      };
+      const { handlers } = createHandlers({
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Update the current agent.",
+          plannedCalls: [
+            {
+              callId: "call-update-agent",
+              toolName: "updateAgent",
+              rationale: "Update the open agent.",
+              input: {
+                agentId: PRIMARY_AGENT_ID,
+                modelRefOrNull: {
+                  providerId: "gemini",
+                  modelId: "gemini-1.5-flash",
+                },
+                name: "Planner Revised",
+              },
+            },
+          ],
+        }),
+      });
+      const session = await handlers.createSession({ viewKind: "agentEdit" }, 75);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      const planned = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Update this agent and set its model.",
+          context: agentDraftContext,
+          response: null,
+        },
+        75,
+      );
+      expect(planned.ok).toBe(true);
+      if (!planned.ok || planned.value.result.kind !== "execute") {
+        return;
+      }
+
+      expect(planned.value.result.plannedCalls).toMatchObject([
+        {
+          toolName: "setAgentDraftFields",
+          input: {
+            entityId: PRIMARY_AGENT_ID,
+            modelRefOrNull: {
+              providerId: "gemini",
+              modelId: "gemini-1.5-flash",
+            },
+            name: "Planner Revised",
+          },
+        },
+      ]);
+    },
+  );
+
+  itReq(
+    ["R9.11", "R9.14", "R9.17", "R9.22", "A1", "A3"],
+    "preserves conductor and member changes when rewriting a current-council update into an in-place draft patch",
+    async () => {
+      const councilDraftContext = {
+        ...validContext,
+        activeEntityId: PRIMARY_COUNCIL_ID,
+        contextLabel: "Council editor / Quarterly Council",
+        draftState: {
+          changedFields: [],
+          dirty: false,
+          entityId: PRIMARY_COUNCIL_ID,
+          entityKind: "council" as const,
+          summary: "Council draft matches the saved state.",
+        },
+        listState: null,
+        viewKind: "councilCreate" as const,
+      };
+      const { handlers } = createHandlers({
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Update the current council.",
+          plannedCalls: [
+            {
+              callId: "call-update-council",
+              toolName: "updateCouncilConfig",
+              rationale: "Update the open council.",
+              input: {
+                councilId: PRIMARY_COUNCIL_ID,
+                conductorModelRefOrNull: {
+                  providerId: "gemini",
+                  modelId: "gemini-1.5-flash",
+                },
+                memberAgentIds: [SECONDARY_AGENT_ID],
+                title: "Quarterly Council Revised",
+              },
+            },
+          ],
+        }),
+      });
+      const session = await handlers.createSession({ viewKind: "councilCreate" }, 76);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      const planned = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Update this council and change its members and conductor model.",
+          context: councilDraftContext,
+          response: null,
+        },
+        76,
+      );
+      expect(planned.ok).toBe(true);
+      if (!planned.ok || planned.value.result.kind !== "execute") {
+        return;
+      }
+
+      expect(planned.value.result.plannedCalls).toMatchObject([
+        {
+          toolName: "setCouncilDraftFields",
+          input: {
+            entityId: PRIMARY_COUNCIL_ID,
+            conductorModelRefOrNull: {
+              providerId: "gemini",
+              modelId: "gemini-1.5-flash",
+            },
+            memberAgentIds: [SECONDARY_AGENT_ID],
+            title: "Quarterly Council Revised",
           },
         },
       ]);

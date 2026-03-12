@@ -7,6 +7,7 @@ import {
   toModelRef,
 } from "../../../shared/app-ui-helpers.js";
 import type { CouncilMode } from "../../../shared/ipc/dto";
+import type { AssistantDraftReconciliation } from "../assistant/assistant-draft-adapters";
 import {
   type CouncilEditorDraft,
   type CouncilEditorState,
@@ -131,34 +132,54 @@ export const useCouncilEditorActions = ({
     );
   };
 
-  const save = async (): Promise<void> => {
+  const save = async (options?: {
+    closeOnSuccess?: boolean;
+    forAssistant?: boolean;
+  }): Promise<AssistantDraftReconciliation | undefined> => {
     if (state.status !== "ready") {
-      return;
+      return options?.forAssistant
+        ? {
+            completion: null,
+            failureMessage: "The current council editor is not ready to save yet.",
+            status: "failed",
+          }
+        : undefined;
     }
     if (state.draft.title.trim().length === 0) {
-      pushToast("warning", "Title is required.");
-      setState((current) =>
-        current.status !== "ready" ? current : { ...current, message: "Title is required." },
-      );
-      return;
+      const message = "Title is required.";
+      pushToast("warning", message);
+      setState((current) => (current.status !== "ready" ? current : { ...current, message }));
+      return options?.forAssistant
+        ? {
+            completion: null,
+            failureMessage: message,
+            status: "failed",
+          }
+        : undefined;
     }
     if (state.draft.topic.trim().length === 0) {
-      pushToast("warning", "Topic is required before saving a council.");
-      setState((current) =>
-        current.status !== "ready"
-          ? current
-          : { ...current, message: "Topic is required before saving a council." },
-      );
-      return;
+      const message = "Topic is required before saving a council.";
+      pushToast("warning", message);
+      setState((current) => (current.status !== "ready" ? current : { ...current, message }));
+      return options?.forAssistant
+        ? {
+            completion: null,
+            failureMessage: message,
+            status: "failed",
+          }
+        : undefined;
     }
     if (state.draft.selectedMemberIds.length === 0) {
-      pushToast("warning", "Select at least one member before saving.");
-      setState((current) =>
-        current.status !== "ready"
-          ? current
-          : { ...current, message: "Select at least one member before saving." },
-      );
-      return;
+      const message = "Select at least one member before saving.";
+      pushToast("warning", message);
+      setState((current) => (current.status !== "ready" ? current : { ...current, message }));
+      return options?.forAssistant
+        ? {
+            completion: null,
+            failureMessage: message,
+            status: "failed",
+          }
+        : undefined;
     }
     const normalizedTagsResult = normalizeTagsDraft({
       tagsInput: state.draft.tagsInput,
@@ -171,7 +192,13 @@ export const useCouncilEditorActions = ({
           ? current
           : { ...current, message: normalizedTagsResult.message },
       );
-      return;
+      return options?.forAssistant
+        ? {
+            completion: null,
+            failureMessage: normalizedTagsResult.message,
+            status: "failed",
+          }
+        : undefined;
     }
     setState((current) =>
       current.status !== "ready" ? current : { ...current, isSaving: true, message: "" },
@@ -195,10 +222,81 @@ export const useCouncilEditorActions = ({
           ? current
           : { ...current, isSaving: false, message: result.error.userMessage },
       );
-      return;
+      return options?.forAssistant
+        ? {
+            completion: null,
+            failureMessage: result.error.userMessage,
+            status: "failed",
+          }
+        : undefined;
     }
-    pushToast("info", "Council saved.");
-    close(true);
+
+    const closeOnSuccess = options?.closeOnSuccess ?? true;
+    if (closeOnSuccess) {
+      pushToast("info", "Council saved.");
+      close(true);
+      return options?.forAssistant
+        ? {
+            completion: {
+              output: {
+                councilId: result.value.council.id,
+                councilTitle: result.value.council.title,
+              },
+              userSummary: `Saved ${result.value.council.title}.`,
+            },
+            failureMessage: null,
+            status: "completed",
+          }
+        : undefined;
+    }
+
+    const refreshed = await window.api.councils.getEditorView({
+      viewKind: "councilCreate",
+      councilId: result.value.council.id,
+    });
+    if (!refreshed.ok) {
+      pushToast("error", refreshed.error.userMessage);
+      setState((current) =>
+        current.status !== "ready"
+          ? current
+          : { ...current, isSaving: false, message: refreshed.error.userMessage },
+      );
+      return options?.forAssistant
+        ? {
+            completion: null,
+            failureMessage: refreshed.error.userMessage,
+            status: "failed",
+          }
+        : undefined;
+    }
+
+    const refreshedDraft = toCouncilEditorDraft(refreshed.value.council);
+    setState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            source: refreshed.value,
+            draft: refreshedDraft,
+            initialFingerprint: getCouncilEditorDraftFingerprint(refreshedDraft),
+            isSaving: false,
+            message: "Council saved.",
+          },
+    );
+
+    return options?.forAssistant
+      ? {
+          completion: {
+            output: {
+              councilId: result.value.council.id,
+              councilTitle: result.value.council.title,
+            },
+            userSummary: `Saved ${result.value.council.title}.`,
+          },
+          failureMessage: null,
+          status: "completed",
+        }
+      : undefined;
   };
 
   const remove = async (): Promise<void> => {

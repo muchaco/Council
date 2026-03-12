@@ -3,7 +3,11 @@ import type {
   CouncilHomeListFilters,
 } from "../../../shared/app-ui-helpers.js";
 import { sanitizeAssistantContext } from "../../../shared/assistant/assistant-audit.js";
-import type { AssistantContextEnvelope, AssistantListState } from "../../../shared/ipc/dto.js";
+import type {
+  AssistantContextEnvelope,
+  AssistantExecutionSnapshot,
+  AssistantListState,
+} from "../../../shared/ipc/dto.js";
 
 export type AssistantHomeTab = "councils" | "agents" | "settings";
 
@@ -251,4 +255,26 @@ export const buildAssistantCouncilViewContext = (
     selectionIds: [],
     viewKind: "councilView",
   });
+};
+
+export const buildAssistantExecutionSnapshot = (params: {
+  agentEditorSnapshot: AssistantAgentEditorSnapshot | null;
+  councilEditorSnapshot: AssistantCouncilEditorSnapshot | null;
+  viewKind: AssistantContextEnvelope["viewKind"];
+}): AssistantExecutionSnapshot | null => {
+  if (params.viewKind === "agentEdit" && params.agentEditorSnapshot !== null) {
+    return {
+      kind: "agent",
+      draft: params.agentEditorSnapshot.draft,
+    };
+  }
+
+  if (params.viewKind === "councilCreate" && params.councilEditorSnapshot !== null) {
+    return {
+      kind: "council",
+      draft: params.councilEditorSnapshot.draft,
+    };
+  }
+
+  return null;
 };

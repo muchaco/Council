@@ -20,6 +20,8 @@ import type { AssistantCouncilEditorSnapshot } from "../assistant/assistant-cont
 import type {
   AssistantCouncilDraftAdapter,
   AssistantCouncilDraftPatch,
+  AssistantCouncilSaveAdapter,
+  AssistantDraftReconciliation,
 } from "../assistant/assistant-draft-adapters";
 import { AddMemberDialog } from "../council-view/AddMemberDialog";
 import { DetailScreenShell } from "../shared/DetailScreenShell";
@@ -29,6 +31,7 @@ import { CouncilEditorDialogs } from "./CouncilEditorDialogs";
 import {
   type CouncilEditorState,
   getCouncilEditorDraftFingerprint,
+  toCouncilEditorDraft,
 } from "./councilEditorScreenState";
 import { useCouncilEditorActions } from "./useCouncilEditorActions";
 
@@ -38,6 +41,7 @@ type CouncilEditorScreenProps = {
   isActive: boolean;
   onAssistantContextChange: (snapshot: AssistantCouncilEditorSnapshot | null) => void;
   onAssistantDraftAdapterChange: (adapter: AssistantCouncilDraftAdapter | null) => void;
+  onAssistantSaveAdapterChange: (adapter: AssistantCouncilSaveAdapter | null) => void;
   onClose: () => void;
   pushToast: (tone: "warning" | "error" | "info", message: string) => void;
 };
@@ -48,6 +52,7 @@ export const CouncilEditorScreen = ({
   isActive,
   onAssistantContextChange,
   onAssistantDraftAdapterChange,
+  onAssistantSaveAdapterChange,
   onClose,
   pushToast,
 }: CouncilEditorScreenProps): JSX.Element | null => {
@@ -155,6 +160,12 @@ export const CouncilEditorScreen = ({
       if (patch.tags !== undefined) {
         labels.push("tags");
       }
+      if (patch.memberAgentIds !== undefined) {
+        labels.push("members");
+      }
+      if (patch.conductorModelRefOrNull !== undefined) {
+        labels.push("conductor model");
+      }
       return labels;
     };
 
@@ -186,6 +197,17 @@ export const CouncilEditorScreen = ({
         ...(params.patch.goal === undefined ? {} : { goal: params.patch.goal ?? "" }),
         ...(params.patch.mode === undefined ? {} : { mode: params.patch.mode }),
         ...(params.patch.tags === undefined ? {} : { tagsInput: params.patch.tags.join(", ") }),
+        ...(params.patch.memberAgentIds === undefined
+          ? {}
+          : { selectedMemberIds: [...params.patch.memberAgentIds] }),
+        ...(params.patch.conductorModelRefOrNull === undefined
+          ? {}
+          : {
+              conductorModelSelection:
+                params.patch.conductorModelRefOrNull === null
+                  ? ""
+                  : `${params.patch.conductorModelRefOrNull.providerId}:${params.patch.conductorModelRefOrNull.modelId}`,
+            }),
       };
       const appliedFieldLabels = toAppliedFieldLabels(params.patch);
 
@@ -209,6 +231,65 @@ export const CouncilEditorScreen = ({
       onAssistantDraftAdapterChange(null);
     };
   }, [isActive, onAssistantDraftAdapterChange, state, updateDraft]);
+
+  useEffect(() => {
+    if (!isActive || state.status !== "ready") {
+      onAssistantSaveAdapterChange(null);
+      return;
+    }
+
+    onAssistantSaveAdapterChange(async (params) => {
+      if (params.entityId !== null && params.entityId !== state.draft.id) {
+        return {
+          completion: null,
+          failureMessage: "The current visible council draft does not match the requested target.",
+          status: "failed",
+        };
+      }
+
+      const refreshed = await window.api.councils.getEditorView({
+        viewKind: "councilCreate",
+        councilId: params.entityId,
+      });
+      if (!refreshed.ok) {
+        pushToast("error", refreshed.error.userMessage);
+        setState((current) =>
+          current.status !== "ready"
+            ? current
+            : { ...current, isSaving: false, message: refreshed.error.userMessage },
+        );
+        return {
+          completion: null,
+          failureMessage: refreshed.error.userMessage,
+          status: "failed",
+        };
+      }
+
+      const refreshedDraft = toCouncilEditorDraft(refreshed.value.council);
+      setState((current) =>
+        current.status !== "ready"
+          ? current
+          : {
+              ...current,
+              source: refreshed.value,
+              draft: refreshedDraft,
+              initialFingerprint: getCouncilEditorDraftFingerprint(refreshedDraft),
+              isSaving: false,
+              message: "Council saved.",
+            },
+      );
+
+      return {
+        completion: null,
+        failureMessage: null,
+        status: "completed",
+      };
+    });
+
+    return () => {
+      onAssistantSaveAdapterChange(null);
+    };
+  }, [isActive, onAssistantSaveAdapterChange, pushToast, state]);
 
   const addTag = (): void => {
     if (state.status !== "ready") {

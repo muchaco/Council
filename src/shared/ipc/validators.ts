@@ -221,6 +221,48 @@ const ASSISTANT_DRAFT_STATE_SCHEMA = z
   })
   .strict();
 
+const ASSISTANT_AGENT_DRAFT_EXECUTION_SNAPSHOT_SCHEMA = z
+  .object({
+    id: z.string().uuid().nullable(),
+    modelSelection: z.string().max(300),
+    name: z.string().max(120),
+    systemPrompt: z.string().max(10_000),
+    tagsInput: z.string().max(500),
+    temperature: z.string().max(50),
+    verbosity: z.string().max(200),
+  })
+  .strict();
+
+const ASSISTANT_COUNCIL_DRAFT_EXECUTION_SNAPSHOT_SCHEMA = z
+  .object({
+    conductorModelSelection: z.string().max(300),
+    goal: z.string().max(5_000),
+    id: z.string().uuid().nullable(),
+    mode: z.enum(["autopilot", "manual"]),
+    selectedMemberIds: z.array(z.string().uuid()).max(20),
+    tagsInput: z.string().max(500),
+    title: z.string().max(200),
+    topic: z.string().max(10_000),
+  })
+  .strict();
+
+const ASSISTANT_EXECUTION_SNAPSHOT_SCHEMA = z
+  .discriminatedUnion("kind", [
+    z
+      .object({
+        kind: z.literal("agent"),
+        draft: ASSISTANT_AGENT_DRAFT_EXECUTION_SNAPSHOT_SCHEMA,
+      })
+      .strict(),
+    z
+      .object({
+        kind: z.literal("council"),
+        draft: ASSISTANT_COUNCIL_DRAFT_EXECUTION_SNAPSHOT_SCHEMA,
+      })
+      .strict(),
+  ])
+  .nullable();
+
 const ASSISTANT_RUNTIME_STATE_SCHEMA = z
   .object({
     councilId: z.string().uuid(),
@@ -278,6 +320,7 @@ export const ASSISTANT_SUBMIT_REQUEST_SCHEMA = z
       .max(5_000)
       .transform((value) => sanitizeAssistantText(value)),
     context: ASSISTANT_CONTEXT_ENVELOPE_SCHEMA,
+    executionSnapshot: ASSISTANT_EXECUTION_SNAPSHOT_SCHEMA.optional(),
     response: ASSISTANT_USER_TURN_RESPONSE_SCHEMA.nullable(),
   })
   .strict();

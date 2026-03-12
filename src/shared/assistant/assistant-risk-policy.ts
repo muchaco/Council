@@ -17,11 +17,23 @@ export type AssistantConfirmationDecision = {
 
 export const classifyDirtyDraftImpact = (params: {
   context: AssistantContextEnvelope;
-  toolDefinition: Pick<AssistantToolDefinition, "reconciliation">;
+  toolDefinition: Pick<AssistantToolDefinition, "name" | "reconciliation">;
   plannedCall: Pick<AssistantPlannedToolCall, "input">;
 }): AssistantDraftImpact => {
   if (params.context.draftState === null || params.context.draftState.dirty === false) {
     return "none";
+  }
+
+  if (
+    (params.toolDefinition.name === "saveAgentDraft" &&
+      params.context.draftState.entityKind === "agent") ||
+    (params.toolDefinition.name === "saveCouncilDraft" &&
+      params.context.draftState.entityKind === "council")
+  ) {
+    const entityId = params.plannedCall.input.entityId;
+    if (typeof entityId !== "string" || entityId === params.context.draftState.entityId) {
+      return "modify-current-draft";
+    }
   }
 
   if (params.toolDefinition.reconciliation?.visibleTarget === "current-draft") {

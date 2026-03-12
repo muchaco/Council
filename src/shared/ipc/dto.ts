@@ -551,6 +551,37 @@ export type AssistantDraftState = {
   summary: string;
 };
 
+export type AssistantAgentDraftExecutionSnapshot = {
+  id: string | null;
+  modelSelection: string;
+  name: string;
+  systemPrompt: string;
+  tagsInput: string;
+  temperature: string;
+  verbosity: string;
+};
+
+export type AssistantCouncilDraftExecutionSnapshot = {
+  conductorModelSelection: string;
+  goal: string;
+  id: string | null;
+  mode: "autopilot" | "manual";
+  selectedMemberIds: ReadonlyArray<string>;
+  tagsInput: string;
+  title: string;
+  topic: string;
+};
+
+export type AssistantExecutionSnapshot =
+  | {
+      kind: "agent";
+      draft: AssistantAgentDraftExecutionSnapshot;
+    }
+  | {
+      kind: "council";
+      draft: AssistantCouncilDraftExecutionSnapshot;
+    };
+
 export type AssistantRuntimeState = {
   councilId: string;
   status: "idle" | "running" | "paused";
@@ -655,6 +686,7 @@ export type AssistantSubmitRequest = {
   sessionId: string;
   userRequest: string;
   context: AssistantContextEnvelope;
+  executionSnapshot?: AssistantExecutionSnapshot | null;
   response: AssistantUserTurnResponse | null;
 };
 

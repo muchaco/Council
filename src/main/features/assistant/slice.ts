@@ -1,5 +1,10 @@
 import { ResultAsync, okAsync } from "neverthrow";
 import {
+  COUNCIL_CONFIG_MAX_TAGS,
+  normalizeTagsDraft,
+  toModelRef,
+} from "../../../shared/app-ui-helpers.js";
+import {
   sanitizeAssistantContext,
   sanitizeAssistantPayload,
   summarizeAssistantUserRequest,
@@ -16,7 +21,10 @@ import {
 } from "../../../shared/assistant/assistant-plan-schema.js";
 import { tryBuildAssistantPlannerShortcut } from "../../../shared/assistant/assistant-planner-shortcuts.js";
 import { resolveAssistantReconciliationState } from "../../../shared/assistant/assistant-reconciliation.js";
-import { validateAssistantPlannedCall } from "../../../shared/assistant/assistant-risk-policy.js";
+import {
+  resolveAssistantConfirmationRequirement,
+  validateAssistantPlannedCall,
+} from "../../../shared/assistant/assistant-risk-policy.js";
 import {
   ASSISTANT_TOOL_DEFINITIONS,
   getAssistantToolDefinition,
@@ -29,8 +37,10 @@ import type {
   AssistantCloseSessionResponse,
   AssistantCompleteReconciliationRequest,
   AssistantCompleteReconciliationResponse,
+  AssistantConfirmationRequest,
   AssistantContextEnvelope,
   AssistantCreateSessionResponse,
+  AssistantExecutionSnapshot,
   AssistantPlanResult,
   AssistantPlannedToolCall,
   AssistantSessionDto,
@@ -45,6 +55,10 @@ import type {
   GetSettingsViewResponse,
   ListAgentsResponse,
   ListCouncilsResponse,
+  SaveAgentRequest,
+  SaveAgentResponse,
+  SaveCouncilRequest,
+  SaveCouncilResponse,
   ViewKind,
 } from "../../../shared/ipc/dto.js";
 import type { AssistantAuditService } from "../../services/assistant/assistant-audit-service.js";
@@ -80,6 +94,10 @@ type AssistantSliceDependencies = {
     webContentsId: number;
     agentId: string | null;
   }) => ResultAsync<GetAgentEditorViewResponse, DomainError>;
+  saveAgent: (params: {
+    webContentsId: number;
+    draft: SaveAgentRequest;
+  }) => ResultAsync<SaveAgentResponse, DomainError>;
   listCouncils: (params: {
     webContentsId: number;
     searchText: string;
@@ -93,6 +111,10 @@ type AssistantSliceDependencies = {
     webContentsId: number;
     councilId: string | null;
   }) => ResultAsync<GetCouncilEditorViewResponse, DomainError>;
+  saveCouncil: (params: {
+    webContentsId: number;
+    draft: SaveCouncilRequest;
+  }) => ResultAsync<SaveCouncilResponse, DomainError>;
   getCouncilView: (params: {
     webContentsId: number;
     councilId: string;
@@ -108,6 +130,25 @@ type PendingAssistantPlan = {
   planSummary: string;
   plannedCalls: ReadonlyArray<AssistantPlannedToolCall>;
 };
+
+const toSavedAgentFields = (agent: AgentDto) => ({
+  modelRefOrNull: agent.modelRefOrNull,
+  name: agent.name,
+  systemPrompt: agent.systemPrompt,
+  tags: agent.tags,
+  temperature: agent.temperature,
+  verbosity: agent.verbosity,
+});
+
+const toSavedCouncilFields = (council: CouncilDto) => ({
+  conductorModelRefOrNull: council.conductorModelRefOrNull,
+  goal: council.goal,
+  memberAgentIds: council.memberAgentIds,
+  mode: council.mode,
+  tags: council.tags,
+  title: council.title,
+  topic: council.topic,
+});
 
 type PendingAssistantClarification = {
   kind: "openCouncilView";
@@ -460,6 +501,354 @@ const summarizeDraftPatch = (params: {
 }): string =>
   `Updated the current ${params.entityLabel} draft ${params.appliedFieldLabels.join(", ")}.`;
 
+const parseAssistantAgentDraftForSave = (executionSnapshot: AssistantExecutionSnapshot | null) => {
+  if (executionSnapshot?.kind !== "agent") {
+    return {
+      ok: false as const,
+      message:
+        "The current visible agent draft details are unavailable. Please try again from the agent editor.",
+    };
+  }
+
+  const normalizedTagsResult = normalizeTagsDraft({
+    tagsInput: executionSnapshot.draft.tagsInput,
+    maxTags: COUNCIL_CONFIG_MAX_TAGS,
+  });
+  if (!normalizedTagsResult.ok) {
+    return {
+      ok: false as const,
+      message: normalizedTagsResult.message,
+    };
+  }
+
+  const parsedTemperature =
+    executionSnapshot.draft.temperature.trim().length === 0
+      ? null
+      : Number.parseFloat(executionSnapshot.draft.temperature);
+  if (Number.isNaN(parsedTemperature ?? 0)) {
+    return {
+      ok: false as const,
+      message: "Temperature must be a valid number.",
+    };
+  }
+
+  return {
+    ok: true as const,
+    draft: {
+      viewKind: "agentEdit" as const,
+      id: executionSnapshot.draft.id,
+      name: executionSnapshot.draft.name,
+      systemPrompt: executionSnapshot.draft.systemPrompt,
+      verbosity:
+        executionSnapshot.draft.verbosity.trim().length === 0
+          ? null
+          : executionSnapshot.draft.verbosity,
+      temperature: parsedTemperature,
+      tags: normalizedTagsResult.tags,
+      modelRefOrNull: toModelRef(executionSnapshot.draft.modelSelection),
+    } satisfies SaveAgentRequest,
+  };
+};
+
+const parseAssistantCouncilDraftForSave = (
+  executionSnapshot: AssistantExecutionSnapshot | null,
+) => {
+  if (executionSnapshot?.kind !== "council") {
+    return {
+      ok: false as const,
+      message:
+        "The current visible council draft details are unavailable. Please try again from the council editor.",
+    };
+  }
+
+  if (executionSnapshot.draft.title.trim().length === 0) {
+    return {
+      ok: false as const,
+      message: "Title is required.",
+    };
+  }
+  if (executionSnapshot.draft.topic.trim().length === 0) {
+    return {
+      ok: false as const,
+      message: "Topic is required before saving a council.",
+    };
+  }
+  if (executionSnapshot.draft.selectedMemberIds.length === 0) {
+    return {
+      ok: false as const,
+      message: "Select at least one member before saving.",
+    };
+  }
+
+  const normalizedTagsResult = normalizeTagsDraft({
+    tagsInput: executionSnapshot.draft.tagsInput,
+    maxTags: COUNCIL_CONFIG_MAX_TAGS,
+  });
+  if (!normalizedTagsResult.ok) {
+    return {
+      ok: false as const,
+      message: normalizedTagsResult.message,
+    };
+  }
+
+  return {
+    ok: true as const,
+    draft: {
+      viewKind: "councilCreate" as const,
+      id: executionSnapshot.draft.id,
+      title: executionSnapshot.draft.title,
+      topic: executionSnapshot.draft.topic,
+      goal: executionSnapshot.draft.goal.trim().length === 0 ? null : executionSnapshot.draft.goal,
+      mode: executionSnapshot.draft.mode,
+      tags: normalizedTagsResult.tags,
+      memberAgentIds: executionSnapshot.draft.selectedMemberIds,
+      memberColorsByAgentId: {},
+      conductorModelRefOrNull: toModelRef(executionSnapshot.draft.conductorModelSelection),
+    } satisfies SaveCouncilRequest,
+  };
+};
+
+const applyExecutionSnapshotPatch = (params: {
+  executionSnapshot: AssistantExecutionSnapshot | null;
+  plannedCall: AssistantPlannedToolCall;
+}): AssistantExecutionSnapshot | null => {
+  switch (params.plannedCall.toolName) {
+    case "setAgentDraftFields": {
+      if (params.executionSnapshot?.kind !== "agent") {
+        return params.executionSnapshot;
+      }
+
+      const patch = params.plannedCall.input as {
+        modelRefOrNull?: { modelId: string; providerId: string } | null;
+        name?: string;
+        systemPrompt?: string;
+        tags?: ReadonlyArray<string>;
+        temperature?: number | null;
+        verbosity?: string | null;
+      };
+      return {
+        kind: "agent",
+        draft: {
+          ...params.executionSnapshot.draft,
+          ...(patch.name === undefined ? {} : { name: patch.name }),
+          ...(patch.systemPrompt === undefined ? {} : { systemPrompt: patch.systemPrompt }),
+          ...(patch.verbosity === undefined ? {} : { verbosity: patch.verbosity ?? "" }),
+          ...(patch.temperature === undefined
+            ? {}
+            : { temperature: patch.temperature === null ? "" : String(patch.temperature) }),
+          ...(patch.tags === undefined ? {} : { tagsInput: patch.tags.join(", ") }),
+          ...(patch.modelRefOrNull === undefined
+            ? {}
+            : {
+                modelSelection:
+                  patch.modelRefOrNull === null
+                    ? ""
+                    : `${patch.modelRefOrNull.providerId}:${patch.modelRefOrNull.modelId}`,
+              }),
+        },
+      };
+    }
+    case "setCouncilDraftFields": {
+      if (params.executionSnapshot?.kind !== "council") {
+        return params.executionSnapshot;
+      }
+
+      const patch = params.plannedCall.input as {
+        conductorModelRefOrNull?: { modelId: string; providerId: string } | null;
+        goal?: string | null;
+        memberAgentIds?: ReadonlyArray<string>;
+        mode?: "autopilot" | "manual";
+        tags?: ReadonlyArray<string>;
+        title?: string;
+        topic?: string;
+      };
+      return {
+        kind: "council",
+        draft: {
+          ...params.executionSnapshot.draft,
+          ...(patch.title === undefined ? {} : { title: patch.title }),
+          ...(patch.topic === undefined ? {} : { topic: patch.topic }),
+          ...(patch.goal === undefined ? {} : { goal: patch.goal ?? "" }),
+          ...(patch.mode === undefined ? {} : { mode: patch.mode }),
+          ...(patch.tags === undefined ? {} : { tagsInput: patch.tags.join(", ") }),
+          ...(patch.memberAgentIds === undefined
+            ? {}
+            : { selectedMemberIds: [...patch.memberAgentIds] }),
+          ...(patch.conductorModelRefOrNull === undefined
+            ? {}
+            : {
+                conductorModelSelection:
+                  patch.conductorModelRefOrNull === null
+                    ? ""
+                    : `${patch.conductorModelRefOrNull.providerId}:${patch.conductorModelRefOrNull.modelId}`,
+              }),
+        },
+      };
+    }
+    default:
+      return params.executionSnapshot;
+  }
+};
+
+const buildDirtyDraftConfirmation = (params: {
+  context: AssistantContextEnvelope;
+  planSummary: string;
+  plannedCalls: ReadonlyArray<AssistantPlannedToolCall>;
+}): AssistantConfirmationRequest => {
+  const changedFieldExamples = params.context.draftState?.changedFields.slice(0, 3) ?? [];
+  return {
+    summary: `This would replace the current unsaved ${params.context.draftState?.entityKind ?? "draft"} before finishing: ${params.planSummary}`,
+    scopeDescription:
+      params.context.draftState?.summary ??
+      "The current editor has unsaved changes that would be displaced.",
+    affectedCount: 1,
+    examples:
+      changedFieldExamples.length > 0 ? changedFieldExamples : [params.context.contextLabel],
+    reversible: true,
+    draftImpact: "replace-current-draft",
+  };
+};
+
+const rewriteDirtyDraftPlannedCall = (params: {
+  context: AssistantContextEnvelope;
+  plannedCall: AssistantPlannedToolCall;
+}): AssistantPlannedToolCall => {
+  if (params.context.viewKind === "agentEdit") {
+    if (params.plannedCall.toolName === "createAgent" && params.context.activeEntityId === null) {
+      return {
+        callId: params.plannedCall.callId,
+        toolName: "saveAgentDraft",
+        rationale: "Save the current visible agent draft through the normal editor flow.",
+        input: {
+          entityId: params.context.activeEntityId,
+        },
+      };
+    }
+
+    if (
+      params.plannedCall.toolName === "updateAgent" &&
+      params.plannedCall.input.agentId === params.context.activeEntityId
+    ) {
+      const { agentId: _agentId, ...remainingInput } = params.plannedCall.input as Readonly<
+        Record<string, unknown>
+      >;
+      return {
+        callId: params.plannedCall.callId,
+        toolName: "setAgentDraftFields",
+        rationale: "Patch the current visible agent draft in place.",
+        input: {
+          ...remainingInput,
+          entityId: params.context.activeEntityId,
+        },
+      };
+    }
+  }
+
+  if (params.context.viewKind === "councilCreate") {
+    if (params.plannedCall.toolName === "createCouncil" && params.context.activeEntityId === null) {
+      return {
+        callId: params.plannedCall.callId,
+        toolName: "saveCouncilDraft",
+        rationale: "Save the current visible council draft through the normal editor flow.",
+        input: {
+          entityId: params.context.activeEntityId,
+        },
+      };
+    }
+
+    if (
+      params.plannedCall.toolName === "updateCouncilConfig" &&
+      params.plannedCall.input.councilId === params.context.activeEntityId
+    ) {
+      const { councilId: _councilId, ...remainingInput } = params.plannedCall.input as Readonly<
+        Record<string, unknown>
+      >;
+      return {
+        callId: params.plannedCall.callId,
+        toolName: "setCouncilDraftFields",
+        rationale: "Patch the current visible council draft in place.",
+        input: {
+          ...remainingInput,
+          entityId: params.context.activeEntityId,
+        },
+      };
+    }
+  }
+
+  return params.plannedCall;
+};
+
+const finalizePlannedDirective = (params: {
+  context: AssistantContextEnvelope;
+  plannedCalls: ReadonlyArray<AssistantPlannedToolCall>;
+  preferConfirmation: boolean;
+  sessionId: string;
+  summary: string;
+}): Extract<AssistantPlanResult, { kind: "confirm" | "execute" }> => {
+  const plannedCalls = params.plannedCalls.map((plannedCall) =>
+    rewriteDirtyDraftPlannedCall({
+      context: params.context,
+      plannedCall,
+    }),
+  );
+
+  const dirtyDraftReplacement = plannedCalls.find((plannedCall) => {
+    const validated = validateAssistantPlannedCall(plannedCall);
+    if (!validated.ok) {
+      return false;
+    }
+
+    return (
+      resolveAssistantConfirmationRequirement({
+        context: params.context,
+        plannedCall,
+        toolDefinition: validated.definition,
+      }).reason === "dirty-draft-replacement"
+    );
+  });
+
+  if (dirtyDraftReplacement !== undefined) {
+    return {
+      kind: "confirm",
+      sessionId: params.sessionId,
+      message: params.summary,
+      planSummary: params.summary,
+      plannedCalls,
+      confirmation: buildDirtyDraftConfirmation({
+        context: params.context,
+        planSummary: params.summary,
+        plannedCalls,
+      }),
+    };
+  }
+
+  if (params.preferConfirmation) {
+    return {
+      kind: "confirm",
+      sessionId: params.sessionId,
+      message: params.summary,
+      planSummary: params.summary,
+      plannedCalls,
+      confirmation: {
+        summary: params.summary,
+        scopeDescription: params.summary,
+        affectedCount: plannedCalls.length,
+        examples: plannedCalls.map((plannedCall) => plannedCall.toolName).slice(0, 3),
+        reversible: true,
+        draftImpact: "none",
+      },
+    };
+  }
+
+  return {
+    kind: "execute",
+    sessionId: params.sessionId,
+    message: params.summary,
+    planSummary: params.summary,
+    plannedCalls,
+  };
+};
+
 const createSuccessResult = (params: {
   callId: string;
   output: Readonly<Record<string, unknown>>;
@@ -798,6 +1187,7 @@ const executeSupportedTool = async (params: {
   abortSignal: AbortSignal;
   context: AssistantContextEnvelope;
   dependencies: AssistantSliceDependencies;
+  executionSnapshot: AssistantExecutionSnapshot | null;
   plannedCall: AssistantPlannedToolCall;
   webContentsId: number;
 }): Promise<AssistantToolExecutionResult> => {
@@ -980,6 +1370,332 @@ const executeSupportedTool = async (params: {
           appliedFieldLabels,
           entityLabel: "council",
         }),
+      });
+    }
+    case "saveAgentDraft": {
+      const requestedEntityId =
+        typeof params.plannedCall.input.entityId === "string"
+          ? params.plannedCall.input.entityId
+          : null;
+      if (
+        !isCurrentDraftTarget({
+          context: params.context,
+          entityId: requestedEntityId,
+          expectedViewKind: "agentEdit",
+        })
+      ) {
+        return createFailedToolResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+          error: createValidationToolError("I can only save the current visible agent draft."),
+        });
+      }
+
+      const editorView = await readResult(
+        params.dependencies.getAgentEditorView({
+          webContentsId: params.webContentsId,
+          agentId: params.context.activeEntityId,
+        }),
+      );
+      if ("status" in editorView) {
+        return editorView;
+      }
+
+      const guardMessage = getAgentDraftEditGuardMessage({
+        isArchived: editorView.agent?.archived === true,
+      });
+      if (guardMessage !== null) {
+        return createUnavailableCurrentDraftResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+          message: guardMessage,
+        });
+      }
+
+      const parsedDraft = parseAssistantAgentDraftForSave(params.executionSnapshot);
+      if (!parsedDraft.ok) {
+        return createFailedToolResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+          error: createValidationToolError(parsedDraft.message),
+        });
+      }
+
+      const response = await readResult(
+        params.dependencies.saveAgent({
+          webContentsId: params.webContentsId,
+          draft: parsedDraft.draft,
+        }),
+      );
+      if ("status" in response) {
+        return response;
+      }
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          agentId: response.agent.id,
+          agentName: response.agent.name,
+          savedFields: toSavedAgentFields(response.agent),
+        },
+        userSummary: `Saved ${response.agent.name}.`,
+      });
+    }
+    case "saveCouncilDraft": {
+      const requestedEntityId =
+        typeof params.plannedCall.input.entityId === "string"
+          ? params.plannedCall.input.entityId
+          : null;
+      if (
+        !isCurrentDraftTarget({
+          context: params.context,
+          entityId: requestedEntityId,
+          expectedViewKind: "councilCreate",
+        })
+      ) {
+        return createFailedToolResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+          error: createValidationToolError("I can only save the current visible council draft."),
+        });
+      }
+
+      const editorView = await readResult(
+        params.dependencies.getCouncilEditorView({
+          webContentsId: params.webContentsId,
+          councilId: params.context.activeEntityId,
+        }),
+      );
+      if ("status" in editorView) {
+        return editorView;
+      }
+
+      const guardMessage = getCouncilDraftEditGuardMessage({
+        isArchived: editorView.council?.archived === true,
+        isExistingCouncil: editorView.council !== null,
+        patch: {},
+      });
+      if (guardMessage !== null) {
+        return createUnavailableCurrentDraftResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+          message: guardMessage,
+        });
+      }
+
+      const parsedDraft = parseAssistantCouncilDraftForSave(params.executionSnapshot);
+      if (!parsedDraft.ok) {
+        return createFailedToolResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+          error: createValidationToolError(parsedDraft.message),
+        });
+      }
+
+      const response = await readResult(
+        params.dependencies.saveCouncil({
+          webContentsId: params.webContentsId,
+          draft: parsedDraft.draft,
+        }),
+      );
+      if ("status" in response) {
+        return response;
+      }
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          councilId: response.council.id,
+          councilTitle: response.council.title,
+          savedFields: toSavedCouncilFields(response.council),
+        },
+        userSummary: `Saved ${response.council.title}.`,
+      });
+    }
+    case "createAgent": {
+      const response = await readResult(
+        params.dependencies.saveAgent({
+          webContentsId: params.webContentsId,
+          draft: {
+            viewKind: "agentEdit",
+            id: null,
+            name: params.plannedCall.input.name as string,
+            systemPrompt: params.plannedCall.input.systemPrompt as string,
+            verbosity: (params.plannedCall.input.verbosity as string | null | undefined) ?? null,
+            temperature:
+              (params.plannedCall.input.temperature as number | null | undefined) ?? null,
+            tags: (params.plannedCall.input.tags as ReadonlyArray<string> | undefined) ?? [],
+            modelRefOrNull:
+              (params.plannedCall.input.modelRefOrNull as
+                | SaveAgentRequest["modelRefOrNull"]
+                | undefined) ?? null,
+          },
+        }),
+      );
+      if ("status" in response) {
+        return response;
+      }
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          agentId: response.agent.id,
+          agentName: response.agent.name,
+          savedFields: toSavedAgentFields(response.agent),
+        },
+        userSummary: `Created ${response.agent.name}.`,
+      });
+    }
+    case "createCouncil": {
+      const response = await readResult(
+        params.dependencies.saveCouncil({
+          webContentsId: params.webContentsId,
+          draft: {
+            viewKind: "councilCreate",
+            id: null,
+            title: params.plannedCall.input.title as string,
+            topic: params.plannedCall.input.topic as string,
+            goal: (params.plannedCall.input.goal as string | null | undefined) ?? null,
+            mode:
+              (params.plannedCall.input.mode as SaveCouncilRequest["mode"] | undefined) ?? "manual",
+            tags: (params.plannedCall.input.tags as ReadonlyArray<string> | undefined) ?? [],
+            memberAgentIds: params.plannedCall.input.memberAgentIds as ReadonlyArray<string>,
+            memberColorsByAgentId: {},
+            conductorModelRefOrNull:
+              (params.plannedCall.input.conductorModelRefOrNull as
+                | SaveCouncilRequest["conductorModelRefOrNull"]
+                | undefined) ?? null,
+          },
+        }),
+      );
+      if ("status" in response) {
+        return response;
+      }
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          councilId: response.council.id,
+          councilTitle: response.council.title,
+          savedFields: toSavedCouncilFields(response.council),
+        },
+        userSummary: `Created ${response.council.title}.`,
+      });
+    }
+    case "updateAgent": {
+      const parsedInput = validated.definition.inputSchema.parse(params.plannedCall.input);
+      const existing = await readResult(
+        params.dependencies.getAgentEditorView({
+          webContentsId: params.webContentsId,
+          agentId: parsedInput.agentId,
+        }),
+      );
+      if ("status" in existing) {
+        return existing;
+      }
+      if (existing.agent === null) {
+        return createFailedToolResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+          error: createValidationToolError("I could not find that agent."),
+        });
+      }
+
+      const response = await readResult(
+        params.dependencies.saveAgent({
+          webContentsId: params.webContentsId,
+          draft: {
+            viewKind: "agentEdit",
+            id: existing.agent.id,
+            name: parsedInput.name ?? existing.agent.name,
+            systemPrompt: parsedInput.systemPrompt ?? existing.agent.systemPrompt,
+            verbosity:
+              parsedInput.verbosity === undefined
+                ? existing.agent.verbosity
+                : parsedInput.verbosity,
+            temperature:
+              parsedInput.temperature === undefined
+                ? existing.agent.temperature
+                : parsedInput.temperature,
+            tags: parsedInput.tags ?? existing.agent.tags,
+            modelRefOrNull:
+              parsedInput.modelRefOrNull === undefined
+                ? existing.agent.modelRefOrNull
+                : parsedInput.modelRefOrNull,
+          },
+        }),
+      );
+      if ("status" in response) {
+        return response;
+      }
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          agentId: response.agent.id,
+          agentName: response.agent.name,
+          savedFields: toSavedAgentFields(response.agent),
+        },
+        userSummary: `Updated ${response.agent.name}.`,
+      });
+    }
+    case "updateCouncilConfig": {
+      const parsedInput = validated.definition.inputSchema.parse(params.plannedCall.input);
+      const existing = await readResult(
+        params.dependencies.getCouncilEditorView({
+          webContentsId: params.webContentsId,
+          councilId: parsedInput.councilId,
+        }),
+      );
+      if ("status" in existing) {
+        return existing;
+      }
+      if (existing.council === null) {
+        return createFailedToolResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+          error: createValidationToolError("I could not find that council."),
+        });
+      }
+
+      const response = await readResult(
+        params.dependencies.saveCouncil({
+          webContentsId: params.webContentsId,
+          draft: {
+            viewKind: "councilView",
+            id: existing.council.id,
+            title: parsedInput.title ?? existing.council.title,
+            topic: parsedInput.topic ?? existing.council.topic,
+            goal: parsedInput.goal === undefined ? existing.council.goal : parsedInput.goal,
+            mode: parsedInput.mode ?? existing.council.mode,
+            tags: parsedInput.tags ?? existing.council.tags,
+            memberAgentIds: parsedInput.memberAgentIds ?? existing.council.memberAgentIds,
+            memberColorsByAgentId: existing.council.memberColorsByAgentId,
+            conductorModelRefOrNull:
+              parsedInput.conductorModelRefOrNull === undefined
+                ? existing.council.conductorModelRefOrNull
+                : parsedInput.conductorModelRefOrNull,
+          },
+        }),
+      );
+      if ("status" in response) {
+        return response;
+      }
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          councilId: response.council.id,
+          councilTitle: response.council.title,
+          savedFields: toSavedCouncilFields(response.council),
+        },
+        userSummary: `Updated ${response.council.title}.`,
       });
     }
     case "navigateToHomeTab": {
@@ -1322,6 +2038,7 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
   const executePendingPlan = (params: {
     abortController: AbortController;
     context: AssistantContextEnvelope;
+    executionSnapshot: AssistantExecutionSnapshot | null;
     record: AssistantSessionRecord;
     sessionId: string;
     webContentsId: number;
@@ -1330,6 +2047,7 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
       (async () => {
         const executionResults: Array<AssistantToolExecutionResult> = [];
         const pendingPlan = params.record.pendingPlan;
+        let executionSnapshot = params.executionSnapshot;
         clearPendingPlan(params.record);
 
         if (pendingPlan === null) {
@@ -1366,10 +2084,18 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
             abortSignal: params.abortController.signal,
             context: params.context,
             dependencies,
+            executionSnapshot,
             plannedCall,
             webContentsId: params.webContentsId,
           });
           executionResults.push(result);
+
+          if (result.status === "success" || result.status === "reconciling") {
+            executionSnapshot = applyExecutionSnapshotPatch({
+              executionSnapshot,
+              plannedCall,
+            });
+          }
 
           if (result.status !== "success") {
             if (result.status === "reconciling") {
@@ -1521,22 +2247,22 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
                 },
               ];
 
-              params.record.pendingPlan = {
-                kind: "execute",
-                planSummary: `Open ${matchedCouncil.title}.`,
+              const finalizedPlan = finalizePlannedDirective({
+                context: params.context,
                 plannedCalls,
+                preferConfirmation: false,
+                sessionId: params.sessionId,
+                summary: `Open ${matchedCouncil.title}.`,
+              });
+              params.record.pendingPlan = {
+                kind: finalizedPlan.kind,
+                planSummary: finalizedPlan.planSummary,
+                plannedCalls: finalizedPlan.plannedCalls,
               };
               clearPendingClarification(params.record);
 
               return {
-                result: attachAssistantSessionToPlanResult({
-                  sessionId: params.sessionId,
-                  plannerResponse: {
-                    kind: "execute",
-                    summary: `Open ${matchedCouncil.title}.`,
-                    plannedCalls,
-                  },
-                }),
+                result: finalizedPlan,
               };
             });
         }
@@ -1559,22 +2285,22 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
             },
           ];
 
-          params.record.pendingPlan = {
-            kind: "execute",
-            planSummary: "Check the current council runtime status.",
+          const finalizedPlan = finalizePlannedDirective({
+            context: params.context,
             plannedCalls,
+            preferConfirmation: false,
+            sessionId: params.sessionId,
+            summary: "Check the current council runtime status.",
+          });
+          params.record.pendingPlan = {
+            kind: finalizedPlan.kind,
+            planSummary: finalizedPlan.planSummary,
+            plannedCalls: finalizedPlan.plannedCalls,
           };
           clearPendingClarification(params.record);
 
           return okAsync({
-            result: attachAssistantSessionToPlanResult({
-              sessionId: params.sessionId,
-              plannerResponse: {
-                kind: "execute",
-                summary: "Check the current council runtime status.",
-                plannedCalls,
-              },
-            }),
+            result: finalizedPlan,
           });
         }
 
@@ -1585,22 +2311,22 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
             userRequest: params.request.userRequest,
           });
           if (shortcutPlan !== null) {
-            params.record.pendingPlan = {
-              kind: "execute",
-              planSummary: shortcutPlan.summary,
+            const finalizedPlan = finalizePlannedDirective({
+              context: params.context,
               plannedCalls: shortcutPlan.plannedCalls,
+              preferConfirmation: false,
+              sessionId: params.sessionId,
+              summary: shortcutPlan.summary,
+            });
+            params.record.pendingPlan = {
+              kind: finalizedPlan.kind,
+              planSummary: finalizedPlan.planSummary,
+              plannedCalls: finalizedPlan.plannedCalls,
             };
             clearPendingClarification(params.record);
 
             return okAsync({
-              result: attachAssistantSessionToPlanResult({
-                sessionId: params.sessionId,
-                plannerResponse: {
-                  kind: "execute",
-                  summary: shortcutPlan.summary,
-                  plannedCalls: shortcutPlan.plannedCalls,
-                },
-              }),
+              result: finalizedPlan,
             });
           }
         }
@@ -1672,22 +2398,38 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
                     }
                   : null;
                 break;
-              case "confirm":
+              case "confirm": {
+                const finalizedPlan = finalizePlannedDirective({
+                  context: params.context,
+                  plannedCalls: parsed.plannedCalls,
+                  preferConfirmation: true,
+                  sessionId: params.sessionId,
+                  summary: parsed.summary,
+                });
                 clearPendingClarification(params.record);
                 params.record.pendingPlan = {
-                  kind: "confirm",
-                  planSummary: parsed.summary,
-                  plannedCalls: parsed.plannedCalls,
+                  kind: finalizedPlan.kind,
+                  planSummary: finalizedPlan.planSummary,
+                  plannedCalls: finalizedPlan.plannedCalls,
                 };
                 break;
-              case "execute":
+              }
+              case "execute": {
+                const finalizedPlan = finalizePlannedDirective({
+                  context: params.context,
+                  plannedCalls: parsed.plannedCalls,
+                  preferConfirmation: false,
+                  sessionId: params.sessionId,
+                  summary: parsed.summary,
+                });
                 clearPendingClarification(params.record);
                 params.record.pendingPlan = {
-                  kind: "execute",
-                  planSummary: parsed.summary,
-                  plannedCalls: parsed.plannedCalls,
+                  kind: finalizedPlan.kind,
+                  planSummary: finalizedPlan.planSummary,
+                  plannedCalls: finalizedPlan.plannedCalls,
                 };
                 break;
+              }
             }
 
             dependencies.auditService.record({
@@ -1700,10 +2442,22 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
               },
             });
 
+            if (parsed.kind === "clarify") {
+              return {
+                result: attachAssistantSessionToPlanResult({
+                  sessionId: params.sessionId,
+                  plannerResponse: parsed,
+                }),
+              };
+            }
+
             return {
-              result: attachAssistantSessionToPlanResult({
+              result: finalizePlannedDirective({
+                context: params.context,
+                plannedCalls: parsed.plannedCalls,
+                preferConfirmation: parsed.kind === "confirm",
                 sessionId: params.sessionId,
-                plannerResponse: parsed,
+                summary: parsed.summary,
               }),
             };
           })
@@ -1806,6 +2560,7 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
         ? executePendingPlan({
             abortController,
             context: sanitizedContext,
+            executionSnapshot: request.executionSnapshot ?? null,
             record,
             sessionId: request.sessionId,
             webContentsId,
@@ -1815,6 +2570,7 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
             ? executePendingPlan({
                 abortController,
                 context: sanitizedContext,
+                executionSnapshot: request.executionSnapshot ?? null,
                 record,
                 sessionId: request.sessionId,
                 webContentsId,

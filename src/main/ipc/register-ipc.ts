@@ -395,8 +395,10 @@ export const registerIpcHandlers = (): {
     auditService: assistantAuditService,
     listAgents: (params) => agentsSlice.listAgents(params),
     getAgentEditorView: (params) => agentsSlice.getEditorView(params),
+    saveAgent: (params) => agentsSlice.saveAgent(params),
     listCouncils: (params) => councilsSlice.listCouncils(params),
     getCouncilEditorView: (params) => councilsSlice.getEditorView(params),
+    saveCouncil: (params) => councilsSlice.saveCouncil(params),
     getCouncilView: (params) => councilsSlice.getCouncilView(params),
     planAssistantResponse: (request, abortSignal) =>
       aiService

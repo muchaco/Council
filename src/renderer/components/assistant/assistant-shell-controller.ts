@@ -2,6 +2,7 @@ import type {
   AssistantCompleteReconciliationResponse,
   AssistantContextEnvelope,
   AssistantCreateSessionResponse,
+  AssistantExecutionSnapshot,
   AssistantPlanResult,
   AssistantSubmitResponse,
   IpcResult,
@@ -56,6 +57,7 @@ type AssistantShellControllerDeps = {
   >;
   api: AssistantApi;
   getActiveAssistantContext: () => AssistantContextEnvelope;
+  getActiveAssistantExecutionSnapshot: () => AssistantExecutionSnapshot | null;
   getActiveAssistantScopeKey: () => string;
   getCurrentAssistantState: () => AssistantUiState;
   getStoredAssistantState: () => AssistantUiState;
@@ -319,6 +321,7 @@ export const createAssistantShellController = (deps: AssistantShellControllerDep
 
       const result = await deps.api.submit({
         context: requestContext,
+        executionSnapshot: deps.getActiveAssistantExecutionSnapshot(),
         response: params.response,
         sessionId,
         userRequest: initialRequest,
@@ -379,6 +382,7 @@ export const createAssistantShellController = (deps: AssistantShellControllerDep
 
         const finalResult = await deps.api.submit({
           context: requestContext,
+          executionSnapshot: deps.getActiveAssistantExecutionSnapshot(),
           response: null,
           sessionId,
           userRequest: initialRequest,

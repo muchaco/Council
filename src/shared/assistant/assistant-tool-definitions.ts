@@ -29,6 +29,36 @@ export const defineAssistantTool = <
   definition: AssistantToolDefinition<InputSchema, OutputSchema>,
 ) => definition;
 
+const MODEL_REF_SCHEMA = z
+  .object({
+    providerId: z.string().trim().min(1).max(50),
+    modelId: z.string().trim().min(1).max(200),
+  })
+  .strict();
+
+const SAVED_AGENT_FIELDS_SCHEMA = z
+  .object({
+    name: z.string().trim().min(1).max(120),
+    modelRefOrNull: MODEL_REF_SCHEMA.nullable(),
+    systemPrompt: z.string().trim().min(1).max(10_000),
+    tags: z.array(z.string().trim().min(1).max(20)).max(3),
+    temperature: z.number().min(0).max(2).nullable(),
+    verbosity: z.string().trim().max(200).nullable(),
+  })
+  .strict();
+
+const SAVED_COUNCIL_FIELDS_SCHEMA = z
+  .object({
+    conductorModelRefOrNull: MODEL_REF_SCHEMA.nullable(),
+    goal: z.string().trim().max(5_000).nullable(),
+    memberAgentIds: z.array(z.string().uuid()).min(1).max(20),
+    mode: z.enum(["autopilot", "manual"]),
+    tags: z.array(z.string().trim().min(1).max(20)).max(3),
+    title: z.string().trim().min(1).max(200),
+    topic: z.string().trim().min(1).max(10_000),
+  })
+  .strict();
+
 export const ASSISTANT_TOOL_DEFINITIONS: ReadonlyArray<AssistantToolDefinition> = [
   defineAssistantTool({
     name: "setAgentDraftFields",
@@ -47,6 +77,14 @@ export const ASSISTANT_TOOL_DEFINITIONS: ReadonlyArray<AssistantToolDefinition> 
         verbosity: z.string().trim().max(200).nullable().optional(),
         temperature: z.number().min(0).max(2).nullable().optional(),
         tags: z.array(z.string().trim().min(1).max(20)).max(3).optional(),
+        modelRefOrNull: z
+          .object({
+            providerId: z.string().trim().min(1).max(50),
+            modelId: z.string().trim().min(1).max(200),
+          })
+          .strict()
+          .nullable()
+          .optional(),
       })
       .strict()
       .refine(
@@ -55,7 +93,8 @@ export const ASSISTANT_TOOL_DEFINITIONS: ReadonlyArray<AssistantToolDefinition> 
           value.systemPrompt !== undefined ||
           value.verbosity !== undefined ||
           value.temperature !== undefined ||
-          value.tags !== undefined,
+          value.tags !== undefined ||
+          value.modelRefOrNull !== undefined,
         "At least one draft field must be provided.",
       ),
     outputSchema: z
@@ -69,6 +108,14 @@ export const ASSISTANT_TOOL_DEFINITIONS: ReadonlyArray<AssistantToolDefinition> 
             verbosity: z.string().trim().max(200).nullable().optional(),
             temperature: z.number().min(0).max(2).nullable().optional(),
             tags: z.array(z.string().trim().min(1).max(20)).max(3).optional(),
+            modelRefOrNull: z
+              .object({
+                providerId: z.string().trim().min(1).max(50),
+                modelId: z.string().trim().min(1).max(200),
+              })
+              .strict()
+              .nullable()
+              .optional(),
           })
           .strict(),
       })
@@ -96,6 +143,15 @@ export const ASSISTANT_TOOL_DEFINITIONS: ReadonlyArray<AssistantToolDefinition> 
         goal: z.string().trim().max(5_000).nullable().optional(),
         mode: z.enum(["autopilot", "manual"]).optional(),
         tags: z.array(z.string().trim().min(1).max(20)).max(3).optional(),
+        memberAgentIds: z.array(z.string().uuid()).min(1).max(20).optional(),
+        conductorModelRefOrNull: z
+          .object({
+            providerId: z.string().trim().min(1).max(50),
+            modelId: z.string().trim().min(1).max(200),
+          })
+          .strict()
+          .nullable()
+          .optional(),
       })
       .strict()
       .refine(
@@ -104,7 +160,9 @@ export const ASSISTANT_TOOL_DEFINITIONS: ReadonlyArray<AssistantToolDefinition> 
           value.topic !== undefined ||
           value.goal !== undefined ||
           value.mode !== undefined ||
-          value.tags !== undefined,
+          value.tags !== undefined ||
+          value.memberAgentIds !== undefined ||
+          value.conductorModelRefOrNull !== undefined,
         "At least one draft field must be provided.",
       ),
     outputSchema: z
@@ -118,6 +176,15 @@ export const ASSISTANT_TOOL_DEFINITIONS: ReadonlyArray<AssistantToolDefinition> 
             goal: z.string().trim().max(5_000).nullable().optional(),
             mode: z.enum(["autopilot", "manual"]).optional(),
             tags: z.array(z.string().trim().min(1).max(20)).max(3).optional(),
+            memberAgentIds: z.array(z.string().uuid()).min(1).max(20).optional(),
+            conductorModelRefOrNull: z
+              .object({
+                providerId: z.string().trim().min(1).max(50),
+                modelId: z.string().trim().min(1).max(200),
+              })
+              .strict()
+              .nullable()
+              .optional(),
           })
           .strict(),
       })
@@ -126,6 +193,243 @@ export const ASSISTANT_TOOL_DEFINITIONS: ReadonlyArray<AssistantToolDefinition> 
       visibleTarget: "current-draft",
       strategy: "patch-local",
       successCondition: "The current visible council draft shows the requested field changes.",
+    },
+  }),
+  defineAssistantTool({
+    name: "saveAgentDraft",
+    version: 1,
+    category: "commit",
+    risk: "write",
+    requiresConfirmation: false,
+    confirmationPolicy: "never",
+    description:
+      "Save the current visible agent draft through the normal editor save flow. Omit entityId to target the open editor.",
+    inputSchema: z
+      .object({
+        entityId: z.string().uuid().nullable().optional(),
+      })
+      .strict(),
+    outputSchema: z
+      .object({
+        agentId: z.string().uuid().nullable(),
+        agentName: z.string().trim().min(1).max(120).nullable(),
+        savedFields: SAVED_AGENT_FIELDS_SCHEMA,
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "detail-view",
+      strategy: "reload-entity",
+      successCondition:
+        "The current visible agent editor shows the saved data and no dirty draft remains.",
+    },
+  }),
+  defineAssistantTool({
+    name: "saveCouncilDraft",
+    version: 1,
+    category: "commit",
+    risk: "write",
+    requiresConfirmation: false,
+    confirmationPolicy: "never",
+    description:
+      "Save the current visible council draft through the normal editor save flow. Omit entityId to target the open editor.",
+    inputSchema: z
+      .object({
+        entityId: z.string().uuid().nullable().optional(),
+      })
+      .strict(),
+    outputSchema: z
+      .object({
+        councilId: z.string().uuid().nullable(),
+        councilTitle: z.string().trim().min(1).max(200).nullable(),
+        savedFields: SAVED_COUNCIL_FIELDS_SCHEMA,
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "detail-view",
+      strategy: "reload-entity",
+      successCondition:
+        "The current visible council editor shows the saved data and no dirty draft remains.",
+    },
+  }),
+  defineAssistantTool({
+    name: "createAgent",
+    version: 1,
+    category: "commit",
+    risk: "write",
+    requiresConfirmation: false,
+    confirmationPolicy: "when-dirty-draft-would-be-replaced",
+    description:
+      "Create a new agent when the request is not about the current open draft. Prefer saveAgentDraft for the visible editor.",
+    inputSchema: z
+      .object({
+        name: z.string().trim().min(1).max(120),
+        systemPrompt: z.string().trim().min(1).max(10_000),
+        verbosity: z.string().trim().max(200).nullable().optional(),
+        temperature: z.number().min(0).max(2).nullable().optional(),
+        tags: z.array(z.string().trim().min(1).max(20)).max(3).optional(),
+        modelRefOrNull: z
+          .object({
+            providerId: z.string().trim().min(1).max(50),
+            modelId: z.string().trim().min(1).max(200),
+          })
+          .strict()
+          .nullable()
+          .optional(),
+      })
+      .strict(),
+    outputSchema: z
+      .object({
+        agentId: z.string().uuid(),
+        agentName: z.string().trim().min(1).max(120),
+        savedFields: SAVED_AGENT_FIELDS_SCHEMA,
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "detail-view",
+      strategy: "navigate-and-load",
+      successCondition: "The created agent editor is visible with the saved data loaded.",
+    },
+  }),
+  defineAssistantTool({
+    name: "createCouncil",
+    version: 1,
+    category: "commit",
+    risk: "write",
+    requiresConfirmation: false,
+    confirmationPolicy: "when-dirty-draft-would-be-replaced",
+    description:
+      "Create a new council when the request is not about the current open draft. Prefer saveCouncilDraft for the visible editor.",
+    inputSchema: z
+      .object({
+        title: z.string().trim().min(1).max(200),
+        topic: z.string().trim().min(1).max(10_000),
+        goal: z.string().trim().max(5_000).nullable().optional(),
+        mode: z.enum(["autopilot", "manual"]).optional(),
+        tags: z.array(z.string().trim().min(1).max(20)).max(3).optional(),
+        memberAgentIds: z.array(z.string().uuid()).min(1).max(20),
+        conductorModelRefOrNull: z
+          .object({
+            providerId: z.string().trim().min(1).max(50),
+            modelId: z.string().trim().min(1).max(200),
+          })
+          .strict()
+          .nullable()
+          .optional(),
+      })
+      .strict(),
+    outputSchema: z
+      .object({
+        councilId: z.string().uuid(),
+        councilTitle: z.string().trim().min(1).max(200),
+        savedFields: SAVED_COUNCIL_FIELDS_SCHEMA,
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "detail-view",
+      strategy: "navigate-and-load",
+      successCondition: "The created council editor is visible with the saved data loaded.",
+    },
+  }),
+  defineAssistantTool({
+    name: "updateAgent",
+    version: 1,
+    category: "commit",
+    risk: "write",
+    requiresConfirmation: false,
+    confirmationPolicy: "when-dirty-draft-would-be-replaced",
+    description:
+      "Update a saved agent outside the current editor draft. Prefer patching the current draft in place when that draft is open.",
+    inputSchema: z
+      .object({
+        agentId: z.string().uuid(),
+        name: z.string().trim().min(1).max(120).optional(),
+        systemPrompt: z.string().trim().min(1).max(10_000).optional(),
+        verbosity: z.string().trim().max(200).nullable().optional(),
+        temperature: z.number().min(0).max(2).nullable().optional(),
+        tags: z.array(z.string().trim().min(1).max(20)).max(3).optional(),
+        modelRefOrNull: z
+          .object({
+            providerId: z.string().trim().min(1).max(50),
+            modelId: z.string().trim().min(1).max(200),
+          })
+          .strict()
+          .nullable()
+          .optional(),
+      })
+      .strict()
+      .refine(
+        (value) =>
+          value.name !== undefined ||
+          value.systemPrompt !== undefined ||
+          value.verbosity !== undefined ||
+          value.temperature !== undefined ||
+          value.tags !== undefined ||
+          value.modelRefOrNull !== undefined,
+        "At least one agent field must be provided.",
+      ),
+    outputSchema: z
+      .object({
+        agentId: z.string().uuid(),
+        agentName: z.string().trim().min(1).max(120),
+        savedFields: SAVED_AGENT_FIELDS_SCHEMA,
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "detail-view",
+      strategy: "reload-entity",
+      successCondition: "The updated agent is visibly loaded in the editor with saved data.",
+    },
+  }),
+  defineAssistantTool({
+    name: "updateCouncilConfig",
+    version: 1,
+    category: "commit",
+    risk: "write",
+    requiresConfirmation: false,
+    confirmationPolicy: "when-dirty-draft-would-be-replaced",
+    description:
+      "Update a saved council outside the current editor draft. Prefer patching the current draft in place when that draft is open.",
+    inputSchema: z
+      .object({
+        councilId: z.string().uuid(),
+        title: z.string().trim().min(1).max(200).optional(),
+        topic: z.string().trim().min(1).max(10_000).optional(),
+        goal: z.string().trim().max(5_000).nullable().optional(),
+        mode: z.enum(["autopilot", "manual"]).optional(),
+        tags: z.array(z.string().trim().min(1).max(20)).max(3).optional(),
+        memberAgentIds: z.array(z.string().uuid()).min(1).max(20).optional(),
+        conductorModelRefOrNull: z
+          .object({
+            providerId: z.string().trim().min(1).max(50),
+            modelId: z.string().trim().min(1).max(200),
+          })
+          .strict()
+          .nullable()
+          .optional(),
+      })
+      .strict()
+      .refine(
+        (value) =>
+          value.title !== undefined ||
+          value.topic !== undefined ||
+          value.goal !== undefined ||
+          value.mode !== undefined ||
+          value.tags !== undefined ||
+          value.memberAgentIds !== undefined ||
+          value.conductorModelRefOrNull !== undefined,
+        "At least one council field must be provided.",
+      ),
+    outputSchema: z
+      .object({
+        councilId: z.string().uuid(),
+        councilTitle: z.string().trim().min(1).max(200),
+        savedFields: SAVED_COUNCIL_FIELDS_SCHEMA,
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "detail-view",
+      strategy: "reload-entity",
+      successCondition: "The updated council is visibly loaded in the editor with saved data.",
     },
   }),
   defineAssistantTool({

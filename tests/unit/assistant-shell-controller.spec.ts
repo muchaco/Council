@@ -144,6 +144,7 @@ const createHarness = (params?: {
       submit,
     },
     getActiveAssistantContext: () => activeContext,
+    getActiveAssistantExecutionSnapshot: () => null,
     getActiveAssistantScopeKey: () => activeScopeKey,
     getCurrentAssistantState,
     getStoredAssistantState: () => state,
@@ -1013,6 +1014,7 @@ describe("assistant shell controller", () => {
       expect(createSession).toHaveBeenNthCalledWith(2, { viewKind: "councilView" });
       expect(submit).toHaveBeenLastCalledWith({
         context: createAssistantContext("councilView"),
+        executionSnapshot: null,
         response: null,
         sessionId: "session-2",
         userRequest: "What is the runtime status of this council?",

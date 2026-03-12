@@ -79,6 +79,7 @@ Current repository state snapshot:
 - Assistant Slice 2 review fixes are now implemented under `docs/plans/058-assistant-slice2-review-fixes.md`: the global modal still survives navigation, but renderer scope changes now close stale sessions, clear unsafe clarify/confirm follow-up state, Stop now fails closed even before a `sessionId` exists so pending session creation cannot revive cancelled work, delayed `createSession` and `submit` completions can no longer repopulate a stopped/closed/rebased modal, focus returns to the visible launcher/safe fallback, and assistant-specific Electron coverage now also proves stale request copy clears on scope rebase.
 - Assistant Slice 3 review fixes are now implemented under `docs/plans/059-assistant-slice3-review-fixes.md`: assistant planning now gates on the settings-backed global default model in main, navigation tools stay incomplete until typed renderer reconciliation acknowledgements confirm the visible destination, renderer navigation rebases now carry a typed pending-session handoff so the final reconciled result still lands before the old session is retired, follow-up turns recreate a main-owned session for the new scope, failed reconciliation downgrades the final outcome safely, and the clarify/read/navigation diagnostic scenario now seeds the global default model deterministically when one is available.
 - Assistant Slice 4 review fixes are now implemented under `docs/plans/060-assistant-slice4-review-fixes.md`: current-editor draft tools now accept omitted `entityId` values for the visible saved editor while still rejecting explicit scope mismatches, draft adapters treat `null` as the current visible draft target, draft reconciliation copy now reflects non-navigation work too, focused coverage now directly exercises `setCouncilDraftFields`, and renderer-shell coverage proves non-null draft completion metadata reaches `completeReconciliation`.
+- Assistant Slice 5 review fixes are now implemented under `docs/plans/061-assistant-slice5-review-fixes.md`: current agent/council draft saves now execute through authoritative main-owned save handlers before renderer reconciliation runs, renderer save reconciliation only reloads/navigates to confirm the visible clean state, execution-local draft snapshots carry forward in-flight draft patches before save, current-draft rewrites for `updateAgent` / `updateCouncilConfig` now preserve `modelRefOrNull`, `conductorModelRefOrNull`, and `memberAgentIds` instead of dropping them, renderer draft reconciliation treats model-only, conductor-only, and member-only in-place updates as visibly complete only after those fields match, commit-style create/update/save reconciliation now waits for the full authoritative saved editor payload (including text/tag/model/member fields) to be visibly present before final success, and `updateCouncilConfig` now saves existing councils with `councilView` semantics so member mutation guardrails cannot be bypassed.
 
 ## 2) Implementation Status by Requirement
 
@@ -146,8 +147,8 @@ Traceability source-of-truth is generated from test annotations and mapping conf
 Generated source-of-truth files:
 - `docs/traceability/requirements-traceability.generated.json`
 - `docs/traceability/requirements-traceability.generated.md`
-Last generated: 2026-03-12T14:16:40.011Z
-Coverage snapshot: 44 specs, 284 test entries, 225 mapped requirement IDs.
+Last generated: 2026-03-12T22:37:06.426Z
+Coverage snapshot: 45 specs, 300 test entries, 226 mapped requirement IDs.
 <!-- TRACEABILITY:END -->
 
 ## 4) Coverage Targets and Current State

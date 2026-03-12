@@ -1,14 +1,14 @@
 # Test-to-Requirement Index (Generated)
 
-Generated at: 2026-03-12T14:16:40.011Z
+Generated at: 2026-03-12T22:37:06.426Z
 
 ## Summary
 
-- Spec files tracked: 44
-- Test cases tracked: 284
-- Annotated test cases: 284
+- Spec files tracked: 45
+- Test cases tracked: 300
+- Annotated test cases: 300
 - Unmapped test cases: 0
-- Unique mapped requirement IDs: 225
+- Unique mapped requirement IDs: 226
 
 ## Index
 
@@ -28,9 +28,16 @@ Generated at: 2026-03-12T14:16:40.011Z
 - `tests/integration/assistant-ipc.contract.integration.spec.ts`
   - [itReq] `keeps current agent draft edits pending until renderer reconciliation acknowledges completion metadata` -> A1, A3, R9.11, R9.14, R9.17, R9.18, R9.22
   - [itReq] `keeps current council draft edits pending until renderer reconciliation acknowledges completion metadata` -> A1, A3, R9.11, R9.14, R9.17, R9.18, R9.22
+  - [itReq] `creates an agent through the authoritative save handler and waits for visible completion before success` -> A3, R9.11, R9.17, R9.18, R9.22, U18.10, U18.11, U18.8
+  - [itReq] `returns authoritative saved council fields for update reconciliation` -> A1, A3, R9.11, R9.17, R9.18, R9.22
+  - [itReq] `patches the current council draft and then saves it through the normal save flow` -> A1, A3, R9.11, R9.14, R9.17, R9.18, R9.22
+  - [itReq] `requires confirmation before replacing a dirty draft with another assistant action` -> A1, A3, R9.11, R9.13, R9.14, U18.9
+  - [itReq] `surfaces safe validation blockers from the authoritative save rules` -> A3, R9.14, R9.17, R9.18, R9.22, U18.8
   - [itReq] `fails current draft edits when the request targets a different editor entity` -> A1, A3, R9.11, R9.14, R9.22
   - [itReq] `fails current draft edits when the current agent editor is archived` -> A1, A3, R9.11, R9.14, R9.22
   - [itReq] `fails current draft edits when the current council editor is archived or mode-locked` -> A1, A3, R9.11, R9.14, R9.22
+  - [itReq] `preserves model changes when rewriting a current-agent update into an in-place draft patch` -> A1, A3, R9.11, R9.14, R9.17, R9.22
+  - [itReq] `preserves conductor and member changes when rewriting a current-council update into an in-place draft patch` -> A1, A3, R9.11, R9.14, R9.17, R9.22
   - [itReq] `uses the deterministic current agent draft shortcut when the request is explicit` -> A1, D5, R9.1, R9.11, R9.14, R9.17, U18.7
   - [itReq] `fails closed when the global default model is missing or invalid` -> A1, D1, D5, R9.3
   - [itReq] `passes the global default model through the planner request in main` -> A1, D1, D5, R9.3
@@ -171,12 +178,22 @@ Generated at: 2026-03-12T14:16:40.011Z
   - [itReq] `fails closed on invalid planner output` -> R9.17, R9.3, R9.4, R9.7, R9.8
 - `tests/unit/assistant-planner-shortcuts.spec.ts`
   - [itReq] `builds a deterministic current agent draft shortcut plan` -> A1, D5, R9.1, R9.11, R9.14, R9.17, U18.7
+  - [itReq] `builds a deterministic create agent shortcut plan for commit flows` -> A1, D5, R9.11, R9.14, R9.17, R9.22, U18.13
+  - [itReq] `builds a deterministic save current agent draft shortcut plan` -> A1, D5, R9.11, R9.17, R9.18, R9.22, U18.13
+  - [itReq] `builds a deterministic rename and save current council draft shortcut plan` -> A1, D5, R9.11, R9.17, R9.18, R9.22, U18.13
+  - [itReq] `builds a deterministic current council rename shortcut plan` -> A1, D5, R9.11, R9.17, R9.18, R9.22, U18.13
   - [itReq] `ignores unsupported shortcut requests` -> A1, D5, R9.1, R9.11, R9.14, R9.17, U18.7
 - `tests/unit/assistant-policy.spec.ts`
   - [itReq] `validates known assistant tool payloads against shared schemas` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
   - [itReq] `rejects unknown assistant tools` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
   - [itReq] `requires confirmation before replacing a dirty draft` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
+  - [itReq] `treats saving the current dirty draft as an in-place action` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
   - [itReq] `tracks visible reconciliation completion separately from mutation success` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
+- `tests/unit/assistant-reconciliation-helpers.spec.ts`
+  - [itReq] `requires matching model-only agent draft updates before reconciliation completes` -> A1, A3, R9.11, R9.17, R9.22
+  - [itReq] `requires authoritative saved agent model fields to become visible before reconciliation completes` -> A1, A3, R9.17, R9.18, R9.22
+  - [itReq] `requires matching council conductor and member updates before reconciliation completes` -> A1, A3, R9.11, R9.17, R9.22
+  - [itReq] `requires authoritative saved council conductor and member fields to become visible before reconciliation completes` -> A1, A3, R9.17, R9.18, R9.22
 - `tests/unit/assistant-renderer-context.spec.ts`
   - [itReq] `builds sanitized home context from the active list query` -> A3, D5, F2, R9.19, R9.4, U18.12
   - [itReq] `summarizes agent draft changes without exposing prompt bodies or raw paths` -> A3, D5, F2, R9.19, R9.4, U18.12

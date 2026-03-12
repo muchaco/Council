@@ -13,14 +13,25 @@ import {
   buildAssistantAgentEditorContext,
   buildAssistantCouncilEditorContext,
   buildAssistantCouncilViewContext,
+  buildAssistantExecutionSnapshot,
   buildAssistantHomeContext,
 } from "./components/assistant/assistant-context-builders";
 import type {
   AssistantAgentDraftAdapter,
   AssistantAgentDraftPatch,
+  AssistantAgentSaveAdapter,
   AssistantCouncilDraftAdapter,
   AssistantCouncilDraftPatch,
+  AssistantCouncilSaveAdapter,
 } from "./components/assistant/assistant-draft-adapters";
+import {
+  matchesAgentDraftPatch,
+  matchesCouncilDraftPatch,
+  matchesSavedAgentFields,
+  matchesSavedCouncilFields,
+  readSavedAgentFields,
+  readSavedCouncilFields,
+} from "./components/assistant/assistant-reconciliation-helpers";
 import { createAssistantShellController } from "./components/assistant/assistant-shell-controller";
 import {
   type AssistantUiState,
@@ -88,7 +99,9 @@ export const App = (): JSX.Element => {
   const activeAssistantScopeKeyRef = useRef<string | null>(null);
   const lastAssistantLauncherRef = useRef<HTMLButtonElement | null>(null);
   const agentDraftAdapterRef = useRef<AssistantAgentDraftAdapter | null>(null);
+  const agentSaveAdapterRef = useRef<AssistantAgentSaveAdapter | null>(null);
   const councilDraftAdapterRef = useRef<AssistantCouncilDraftAdapter | null>(null);
+  const councilSaveAdapterRef = useRef<AssistantCouncilSaveAdapter | null>(null);
   const homeTabAtDetailOpenRef = useRef<HomeTab>("councils");
   const { pushToast } = useToastQueue();
 
@@ -285,6 +298,16 @@ export const App = (): JSX.Element => {
 
   const getActiveAssistantContext = useCallback(() => activeAssistantContextRef.current, []);
 
+  const getActiveAssistantExecutionSnapshot = useCallback(
+    () =>
+      buildAssistantExecutionSnapshot({
+        agentEditorSnapshot: agentAssistantSnapshotRef.current,
+        councilEditorSnapshot: councilAssistantSnapshotRef.current,
+        viewKind: activeAssistantContextRef.current.viewKind,
+      }),
+    [],
+  );
+
   const getActiveAssistantScope = useCallback(
     (): string => activeAssistantScopeKeyRef.current ?? activeAssistantScopeKey,
     [activeAssistantScopeKey],
@@ -366,45 +389,6 @@ export const App = (): JSX.Element => {
       }
 
       return predicate();
-    },
-    [],
-  );
-
-  const matchesAgentDraftPatch = useCallback(
-    (snapshot: AssistantAgentEditorSnapshot | null, patch: AssistantAgentDraftPatch): boolean => {
-      if (snapshot === null) {
-        return false;
-      }
-
-      return (
-        (patch.name === undefined || snapshot.draft.name === patch.name) &&
-        (patch.systemPrompt === undefined || snapshot.draft.systemPrompt === patch.systemPrompt) &&
-        (patch.verbosity === undefined || snapshot.draft.verbosity === (patch.verbosity ?? "")) &&
-        (patch.temperature === undefined ||
-          snapshot.draft.temperature ===
-            (patch.temperature === null ? "" : String(patch.temperature))) &&
-        (patch.tags === undefined || snapshot.draft.tagsInput === patch.tags.join(", "))
-      );
-    },
-    [],
-  );
-
-  const matchesCouncilDraftPatch = useCallback(
-    (
-      snapshot: AssistantCouncilEditorSnapshot | null,
-      patch: AssistantCouncilDraftPatch,
-    ): boolean => {
-      if (snapshot === null) {
-        return false;
-      }
-
-      return (
-        (patch.title === undefined || snapshot.draft.title === patch.title) &&
-        (patch.topic === undefined || snapshot.draft.topic === patch.topic) &&
-        (patch.goal === undefined || snapshot.draft.goal === (patch.goal ?? "")) &&
-        (patch.mode === undefined || snapshot.draft.mode === patch.mode) &&
-        (patch.tags === undefined || snapshot.draft.tagsInput === patch.tags.join(", "))
-      );
     },
     [],
   );
@@ -581,6 +565,212 @@ export const App = (): JSX.Element => {
             });
             break;
           }
+          case "saveAgentDraft": {
+            const agentId = executionResult.output.agentId;
+            const savedFields = readSavedAgentFields(executionResult.output);
+            if (typeof agentId !== "string") {
+              reconciliations.push({
+                callId: executionResult.callId,
+                completion: null,
+                toolName: executionResult.toolName,
+                status: "failed",
+                failureMessage: "The current visible agent draft could not be reloaded safely.",
+              });
+              break;
+            }
+
+            const needsNavigation =
+              screenRef.current.kind !== "agentEditor" || screenRef.current.agentId !== agentId;
+            let applied = null;
+            if (needsNavigation) {
+              markPendingNavigationRebase({
+                destinationScopeKey: `agentEditor:${agentId}`,
+                destinationViewKind: "agentEdit",
+              });
+              openAgentEditor(agentId);
+            } else {
+              if (agentSaveAdapterRef.current === null) {
+                reconciliations.push({
+                  callId: executionResult.callId,
+                  completion: null,
+                  toolName: executionResult.toolName,
+                  status: "failed",
+                  failureMessage: "The current visible agent draft could not be refreshed safely.",
+                });
+                break;
+              }
+
+              applied = await agentSaveAdapterRef.current({ entityId: agentId });
+            }
+
+            const ready =
+              (applied === null || applied.status === "completed") &&
+              (await waitForAssistantUi(
+                () =>
+                  savedFields !== null &&
+                  screenRef.current.kind === "agentEditor" &&
+                  screenRef.current.agentId === agentId &&
+                  agentAssistantSnapshotRef.current !== null &&
+                  agentAssistantSnapshotRef.current.draft.id === agentId &&
+                  matchesSavedAgentFields(agentAssistantSnapshotRef.current, savedFields) &&
+                  buildAssistantAgentEditorContext(agentAssistantSnapshotRef.current).draftState
+                    ?.dirty === false,
+              ));
+            reconciliations.push({
+              callId: executionResult.callId,
+              completion: null,
+              toolName: executionResult.toolName,
+              status: ready ? "completed" : "failed",
+              failureMessage: ready
+                ? null
+                : (applied?.failureMessage ??
+                  "The current visible agent draft never reflected the saved state."),
+            });
+            break;
+          }
+          case "saveCouncilDraft": {
+            const councilId = executionResult.output.councilId;
+            const savedFields = readSavedCouncilFields(executionResult.output);
+            if (typeof councilId !== "string") {
+              reconciliations.push({
+                callId: executionResult.callId,
+                completion: null,
+                toolName: executionResult.toolName,
+                status: "failed",
+                failureMessage: "The current visible council draft could not be reloaded safely.",
+              });
+              break;
+            }
+
+            const needsNavigation =
+              screenRef.current.kind !== "councilEditor" ||
+              screenRef.current.councilId !== councilId;
+            let applied = null;
+            if (needsNavigation) {
+              markPendingNavigationRebase({
+                destinationScopeKey: `councilEditor:${councilId}`,
+                destinationViewKind: "councilCreate",
+              });
+              openCouncilEditor(councilId);
+            } else {
+              if (councilSaveAdapterRef.current === null) {
+                reconciliations.push({
+                  callId: executionResult.callId,
+                  completion: null,
+                  toolName: executionResult.toolName,
+                  status: "failed",
+                  failureMessage:
+                    "The current visible council draft could not be refreshed safely.",
+                });
+                break;
+              }
+
+              applied = await councilSaveAdapterRef.current({ entityId: councilId });
+            }
+
+            const ready =
+              (applied === null || applied.status === "completed") &&
+              (await waitForAssistantUi(
+                () =>
+                  savedFields !== null &&
+                  screenRef.current.kind === "councilEditor" &&
+                  screenRef.current.councilId === councilId &&
+                  councilAssistantSnapshotRef.current !== null &&
+                  councilAssistantSnapshotRef.current.draft.id === councilId &&
+                  matchesSavedCouncilFields(councilAssistantSnapshotRef.current, savedFields) &&
+                  buildAssistantCouncilEditorContext(councilAssistantSnapshotRef.current).draftState
+                    ?.dirty === false,
+              ));
+            reconciliations.push({
+              callId: executionResult.callId,
+              completion: null,
+              toolName: executionResult.toolName,
+              status: ready ? "completed" : "failed",
+              failureMessage: ready
+                ? null
+                : (applied?.failureMessage ??
+                  "The current visible council draft never reflected the saved state."),
+            });
+            break;
+          }
+          case "createAgent":
+          case "updateAgent": {
+            const agentId = executionResult.output.agentId;
+            const savedFields = readSavedAgentFields(executionResult.output);
+            if (typeof agentId !== "string") {
+              reconciliations.push({
+                callId: executionResult.callId,
+                completion: null,
+                toolName: executionResult.toolName,
+                status: "failed",
+                failureMessage: "The requested agent change could not be opened safely.",
+              });
+              break;
+            }
+
+            markPendingNavigationRebase({
+              destinationScopeKey: `agentEditor:${agentId}`,
+              destinationViewKind: "agentEdit",
+            });
+            openAgentEditor(agentId);
+            const ready = await waitForAssistantUi(
+              () =>
+                savedFields !== null &&
+                screenRef.current.kind === "agentEditor" &&
+                screenRef.current.agentId === agentId &&
+                agentAssistantSnapshotRef.current?.draft.id === agentId &&
+                matchesSavedAgentFields(agentAssistantSnapshotRef.current, savedFields) &&
+                buildAssistantAgentEditorContext(agentAssistantSnapshotRef.current).draftState
+                  ?.dirty === false,
+            );
+            reconciliations.push({
+              callId: executionResult.callId,
+              completion: null,
+              toolName: executionResult.toolName,
+              status: ready ? "completed" : "failed",
+              failureMessage: ready ? null : "The updated agent never became visibly ready.",
+            });
+            break;
+          }
+          case "createCouncil":
+          case "updateCouncilConfig": {
+            const councilId = executionResult.output.councilId;
+            const savedFields = readSavedCouncilFields(executionResult.output);
+            if (typeof councilId !== "string") {
+              reconciliations.push({
+                callId: executionResult.callId,
+                completion: null,
+                toolName: executionResult.toolName,
+                status: "failed",
+                failureMessage: "The requested council change could not be opened safely.",
+              });
+              break;
+            }
+
+            markPendingNavigationRebase({
+              destinationScopeKey: `councilEditor:${councilId}`,
+              destinationViewKind: "councilCreate",
+            });
+            openCouncilEditor(councilId);
+            const ready = await waitForAssistantUi(
+              () =>
+                savedFields !== null &&
+                screenRef.current.kind === "councilEditor" &&
+                screenRef.current.councilId === councilId &&
+                councilAssistantSnapshotRef.current?.draft.id === councilId &&
+                matchesSavedCouncilFields(councilAssistantSnapshotRef.current, savedFields) &&
+                buildAssistantCouncilEditorContext(councilAssistantSnapshotRef.current).draftState
+                  ?.dirty === false,
+            );
+            reconciliations.push({
+              callId: executionResult.callId,
+              completion: null,
+              toolName: executionResult.toolName,
+              status: ready ? "completed" : "failed",
+              failureMessage: ready ? null : "The updated council never became visibly ready.",
+            });
+            break;
+          }
           case "setAgentDraftFields": {
             const patch = executionResult.output.patch;
             if (
@@ -683,15 +873,7 @@ export const App = (): JSX.Element => {
 
       return reconciliations;
     },
-    [
-      matchesAgentDraftPatch,
-      matchesCouncilDraftPatch,
-      openAgentEditor,
-      openCouncilEditor,
-      openCouncilView,
-      updateAssistantState,
-      waitForAssistantUi,
-    ],
+    [openAgentEditor, openCouncilEditor, openCouncilView, updateAssistantState, waitForAssistantUi],
   );
 
   const assistantShellController = useMemo(
@@ -700,6 +882,7 @@ export const App = (): JSX.Element => {
         applyPlanResultEffects: applyAssistantPlanResultEffects,
         api: window.api.assistant,
         getActiveAssistantContext,
+        getActiveAssistantExecutionSnapshot,
         getActiveAssistantScopeKey: getActiveAssistantScope,
         getCurrentAssistantState,
         getStoredAssistantState,
@@ -710,6 +893,7 @@ export const App = (): JSX.Element => {
     [
       applyAssistantPlanResultEffects,
       getActiveAssistantContext,
+      getActiveAssistantExecutionSnapshot,
       getActiveAssistantScope,
       getCurrentAssistantState,
       getStoredAssistantState,
@@ -873,6 +1057,9 @@ export const App = (): JSX.Element => {
         onAssistantDraftAdapterChange={(adapter: AssistantAgentDraftAdapter | null) => {
           agentDraftAdapterRef.current = adapter;
         }}
+        onAssistantSaveAdapterChange={(adapter: AssistantAgentSaveAdapter | null) => {
+          agentSaveAdapterRef.current = adapter;
+        }}
         onClose={(tab) => closeToHome(tab)}
         pushToast={pushToast}
       />
@@ -884,6 +1071,9 @@ export const App = (): JSX.Element => {
         onAssistantContextChange={setCouncilAssistantSnapshot}
         onAssistantDraftAdapterChange={(adapter: AssistantCouncilDraftAdapter | null) => {
           councilDraftAdapterRef.current = adapter;
+        }}
+        onAssistantSaveAdapterChange={(adapter: AssistantCouncilSaveAdapter | null) => {
+          councilSaveAdapterRef.current = adapter;
         }}
         onClose={() => closeToHome("councils")}
         pushToast={pushToast}
