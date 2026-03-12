@@ -2,6 +2,7 @@ import type {
   AssistantConfirmationRequest,
   AssistantPlanResult,
   AssistantPlannedToolCall,
+  AssistantToolExecutionResult,
   ViewKind,
 } from "../../../shared/ipc/dto.js";
 
@@ -31,6 +32,7 @@ export type AssistantPhase =
     }
   | {
       destinationLabel: string | null;
+      executionResults: ReadonlyArray<AssistantToolExecutionResult>;
       plannedCalls: ReadonlyArray<AssistantPlannedToolCall>;
       status: "success" | "partial" | "failure" | "cancelled";
       summary: string;
@@ -43,6 +45,12 @@ export type AssistantUiState = {
   isCloseConfirmOpen: boolean;
   isOpen: boolean;
   messages: ReadonlyArray<AssistantConversationMessage>;
+  pendingSessionRebase: {
+    destinationScopeKey: string;
+    destinationViewKind: ViewKind;
+    sourceScopeKey: string;
+    sourceSessionId: string;
+  } | null;
   phase: AssistantPhase;
   scopeKey: string | null;
   sessionId: string | null;
@@ -67,6 +75,7 @@ export const createInitialAssistantUiState = (): AssistantUiState => ({
   isCloseConfirmOpen: false,
   isOpen: false,
   messages: [],
+  pendingSessionRebase: null,
   phase: { status: "idle" },
   scopeKey: null,
   sessionId: null,
@@ -130,6 +139,62 @@ export const closeAssistantUi = (state: AssistantUiState): AssistantUiState => {
   });
 };
 
+const matchesPendingSessionRebase = (params: {
+  asyncToken: number;
+  requestScopeKey: string;
+  sessionId: string;
+  state: AssistantUiState;
+}): boolean => {
+  const pendingSessionRebase = params.state.pendingSessionRebase;
+
+  return (
+    pendingSessionRebase !== null &&
+    params.state.asyncToken === params.asyncToken &&
+    pendingSessionRebase.sourceScopeKey === params.requestScopeKey &&
+    pendingSessionRebase.sourceSessionId === params.sessionId
+  );
+};
+
+export const finalizeAssistantPendingSessionRebase = (
+  state: AssistantUiState,
+): AssistantUiState => {
+  if (state.pendingSessionRebase === null) {
+    return state;
+  }
+
+  return {
+    ...state,
+    pendingSessionRebase: null,
+    scopeKey: state.pendingSessionRebase.destinationScopeKey,
+    sessionId: null,
+    sessionViewKind: state.pendingSessionRebase.destinationViewKind,
+  };
+};
+
+export const markAssistantPendingSessionRebase = (params: {
+  destinationScopeKey: string;
+  destinationViewKind: ViewKind;
+  sessionId: string;
+  state: AssistantUiState;
+}): AssistantUiState => {
+  const sourceScopeKey = params.state.pendingSessionRebase?.sourceScopeKey ?? params.state.scopeKey;
+  if (sourceScopeKey === null) {
+    return params.state;
+  }
+
+  return {
+    ...params.state,
+    pendingSessionRebase: {
+      destinationScopeKey: params.destinationScopeKey,
+      destinationViewKind: params.destinationViewKind,
+      sourceScopeKey,
+      sourceSessionId: params.sessionId,
+    },
+    scopeKey: params.destinationScopeKey,
+    sessionViewKind: params.destinationViewKind,
+  };
+};
+
 export const shouldApplyAssistantAsyncUpdate = (params: {
   asyncToken: number;
   requestScopeKey: string;
@@ -137,7 +202,9 @@ export const shouldApplyAssistantAsyncUpdate = (params: {
   state: AssistantUiState;
 }): boolean => {
   return (
-    shouldContinueAssistantPendingRequest(params) && params.state.sessionId === params.sessionId
+    (shouldContinueAssistantPendingRequest(params) &&
+      params.state.sessionId === params.sessionId) ||
+    matchesPendingSessionRebase(params)
   );
 };
 
@@ -179,6 +246,7 @@ export const applyAssistantStopResult = (params: {
     ],
     phase: {
       destinationLabel: null,
+      executionResults: [],
       plannedCalls: [],
       status: "cancelled",
       summary: "Stopped the current assistant request.",
@@ -262,6 +330,7 @@ export const applyAssistantPlanResult = (params: {
         },
       };
     case "result": {
+      const baseState = finalizeAssistantPendingSessionRebase(params.state);
       const tone =
         params.result.outcome === "success"
           ? "success"
@@ -270,14 +339,12 @@ export const applyAssistantPlanResult = (params: {
             : "default";
 
       return {
-        ...params.state,
+        ...baseState,
         activeRequestText: null,
-        messages: [
-          ...params.state.messages,
-          createMessage("assistant", params.result.message, tone),
-        ],
+        messages: [...baseState.messages, createMessage("assistant", params.result.message, tone)],
         phase: {
           destinationLabel: params.result.destinationLabel,
+          executionResults: params.result.executionResults,
           plannedCalls: params.result.plannedCalls,
           status: params.result.outcome,
           summary: params.result.message,

@@ -393,6 +393,40 @@ export const registerIpcHandlers = (): {
         viewKind,
       }),
     auditService: assistantAuditService,
+    listAgents: (params) => agentsSlice.listAgents(params),
+    getAgentEditorView: (params) => agentsSlice.getEditorView(params),
+    listCouncils: (params) => councilsSlice.listCouncils(params),
+    getCouncilEditorView: (params) => councilsSlice.getEditorView(params),
+    getCouncilView: (params) => councilsSlice.getCouncilView(params),
+    planAssistantResponse: (request, abortSignal) =>
+      aiService
+        .generateText(
+          {
+            providerId: request.modelRef.providerId,
+            modelId: request.modelRef.modelId,
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You are the Council desktop assistant planner. Reply with exactly one JSON object that matches the provided assistant planning schema. Use only the provided tools, preserve call ids, and prefer clarify over guessing when the request is underspecified.",
+              },
+              {
+                role: "user",
+                content: request.prompt,
+              },
+            ],
+            temperature: 0,
+          },
+          abortSignal,
+        )
+        .map((response) => response.text)
+        .mapErr((error) =>
+          domainError(
+            "ProviderError",
+            `Assistant planner request failed for ${error.providerId}:${error.modelId}: ${error.message}`,
+            "Assistant planning could not complete safely.",
+          ),
+        ),
   });
   const assistantHandlers = createAssistantIpcHandlers(assistantSlice);
   const agentsHandlers = createAgentsIpcHandlers(agentsSlice);
@@ -506,6 +540,9 @@ export const registerIpcHandlers = (): {
   );
   ipcMain.handle("assistant:close-session", async (event, payload) =>
     assistantHandlers.closeSession(payload, event.sender.id),
+  );
+  ipcMain.handle("assistant:complete-reconciliation", async (event, payload) =>
+    assistantHandlers.completeReconciliation(payload, event.sender.id),
   );
 
   return {

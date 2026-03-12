@@ -6,7 +6,9 @@ import {
   beginAssistantPlanning,
   closeAssistantUi,
   createInitialAssistantUiState,
+  finalizeAssistantPendingSessionRebase,
   isAssistantBusy,
+  markAssistantPendingSessionRebase,
   openAssistantForScope,
   rebaseAssistantForScopeChange,
   requiresAssistantCloseConfirmation,
@@ -72,7 +74,19 @@ describe("assistant ui state", () => {
         result: {
           destinationLabel: "Quarterly Council",
           error: null,
-          executionResults: [],
+          executionResults: [
+            {
+              callId: "call-1",
+              output: {
+                councilId: "00000000-0000-4000-8000-000000000010",
+                councilTitle: "Quarterly Council",
+              },
+              reconciliationState: "completed",
+              status: "success",
+              toolName: "openCouncilView",
+              userSummary: "Opened council view for Quarterly Council.",
+            },
+          ],
           kind: "result",
           message: "Opened Quarterly Council.",
           outcome: "success",
@@ -86,6 +100,10 @@ describe("assistant ui state", () => {
 
       expect(resultState.phase.status).toBe("success");
       expect(resultState.messages.at(-1)?.text).toBe("Opened Quarterly Council.");
+      if (resultState.phase.status !== "success") {
+        return;
+      }
+      expect(resultState.phase.executionResults).toHaveLength(1);
     },
   );
 
@@ -106,6 +124,78 @@ describe("assistant ui state", () => {
       expect(isAssistantBusy(planningPhase)).toBe(true);
       expect(requiresAssistantCloseConfirmation(planningPhase)).toBe(true);
       expect(requiresAssistantCloseConfirmation({ status: "idle" })).toBe(false);
+    },
+  );
+
+  itReq(
+    ["R9.17", "R9.18", "R9.21", "U18.7", "U18.10", "U18.11"],
+    "accepts finalized reconciliation results after the renderer rebases the active scope",
+    () => {
+      const openedState = openAssistantForScope({
+        scopeKey: "home:councils",
+        state: createInitialAssistantUiState(),
+      });
+      const planningState = beginAssistantPlanning({
+        requestText: "Open Quarterly Council",
+        responseLabel: null,
+        state: {
+          ...openedState,
+          sessionId: "session-1",
+          sessionViewKind: "councilsList",
+        },
+        userMessageText: "Open Quarterly Council",
+      });
+
+      const rebasedState = markAssistantPendingSessionRebase({
+        destinationScopeKey: "councilView:00000000-0000-4000-8000-000000000010",
+        destinationViewKind: "councilView",
+        sessionId: "session-1",
+        state: planningState,
+      });
+
+      expect(
+        shouldApplyAssistantAsyncUpdate({
+          asyncToken: planningState.asyncToken,
+          requestScopeKey: "home:councils",
+          sessionId: "session-1",
+          state: rebasedState,
+        }),
+      ).toBe(true);
+
+      const resultState = applyAssistantPlanResult({
+        requestText: "Open Quarterly Council",
+        result: {
+          destinationLabel: "Quarterly Council",
+          error: null,
+          executionResults: [
+            {
+              callId: "call-1",
+              output: {
+                councilId: "00000000-0000-4000-8000-000000000010",
+                councilTitle: "Quarterly Council",
+              },
+              reconciliationState: "completed",
+              status: "success",
+              toolName: "openCouncilView",
+              userSummary: "Opened council view for Quarterly Council.",
+            },
+          ],
+          kind: "result",
+          message: "Opened council view for Quarterly Council.",
+          outcome: "success",
+          planSummary: null,
+          plannedCalls: [],
+          requiresUserAction: false,
+          sessionId: "session-1",
+        },
+        state: rebasedState,
+      });
+
+      expect(resultState.phase.status).toBe("success");
+      expect(resultState.scopeKey).toBe("councilView:00000000-0000-4000-8000-000000000010");
+      expect(resultState.sessionViewKind).toBe("councilView");
+      expect(resultState.sessionId).toBeNull();
+      expect(resultState.pendingSessionRebase).toBeNull();
     },
   );
 
@@ -161,6 +251,32 @@ describe("assistant ui state", () => {
           state: rebasedState,
         }),
       ).toBe(false);
+    },
+  );
+
+  itReq(
+    ["R9.17", "R9.18", "R9.21", "U18.10", "U18.11", "U18.14"],
+    "finalizes a rebased session into the destination scope before follow-up work resumes",
+    () => {
+      const finalState = finalizeAssistantPendingSessionRebase({
+        ...createInitialAssistantUiState(),
+        asyncToken: 3,
+        isOpen: true,
+        pendingSessionRebase: {
+          destinationScopeKey: "agentEditor:00000000-0000-4000-8000-000000000101",
+          destinationViewKind: "agentEdit",
+          sourceScopeKey: "home:agents",
+          sourceSessionId: "session-1",
+        },
+        scopeKey: "agentEditor:00000000-0000-4000-8000-000000000101",
+        sessionId: "session-1",
+        sessionViewKind: "agentsList",
+      });
+
+      expect(finalState.scopeKey).toBe("agentEditor:00000000-0000-4000-8000-000000000101");
+      expect(finalState.sessionViewKind).toBe("agentEdit");
+      expect(finalState.sessionId).toBeNull();
+      expect(finalState.pendingSessionRebase).toBeNull();
     },
   );
 

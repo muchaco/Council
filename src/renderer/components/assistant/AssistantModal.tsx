@@ -172,6 +172,29 @@ export const AssistantModal = ({
               {state.phase.summary}
             </div>
           ) : null}
+
+          {state.phase.status === "success" ||
+          state.phase.status === "partial" ||
+          state.phase.status === "failure" ||
+          state.phase.status === "cancelled" ? (
+            <div className="mt-4 space-y-2 rounded-2xl border border-border bg-muted/20 p-4 text-sm">
+              {state.phase.executionResults.length === 0 ? (
+                <p className="text-muted-foreground">
+                  No tool output was recorded for this request.
+                </p>
+              ) : (
+                state.phase.executionResults.map((result) => (
+                  <div
+                    className="rounded-xl border border-border/70 bg-background px-3 py-2"
+                    key={result.callId}
+                  >
+                    <div className="font-medium text-foreground">{result.toolName}</div>
+                    <div className="text-muted-foreground">{result.userSummary}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : null}
         </div>
 
         <div className="border-t border-border/70 px-5 py-4 sm:px-6">

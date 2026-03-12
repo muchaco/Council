@@ -3,7 +3,241 @@ import { describe, expect } from "vitest";
 import { createAssistantIpcHandlers } from "../../src/main/features/assistant/ipc-handlers";
 import { createAssistantSlice } from "../../src/main/features/assistant/slice";
 import { createAssistantAuditService } from "../../src/main/services/assistant/assistant-audit-service";
+import type {
+  AssistantSubmitResponse,
+  AssistantToolExecutionResult,
+} from "../../src/shared/ipc/dto.js";
 import { itReq } from "../helpers/requirement-trace";
+
+const PRIMARY_AGENT_ID = "00000000-0000-4000-8000-000000000101";
+const SECONDARY_AGENT_ID = "00000000-0000-4000-8000-000000000102";
+const PRIMARY_COUNCIL_ID = "00000000-0000-4000-8000-000000000201";
+
+const primaryAgent = {
+  archived: false,
+  createdAtUtc: "2026-03-12T11:00:00.000Z",
+  id: PRIMARY_AGENT_ID,
+  invalidConfig: false,
+  modelRefOrNull: null,
+  name: "Planner",
+  systemPrompt: "Help with planning.",
+  tags: ["ops"],
+  temperature: 0.2,
+  updatedAtUtc: "2026-03-12T11:30:00.000Z",
+  verbosity: "concise",
+} as const;
+
+const secondaryAgent = {
+  ...primaryAgent,
+  id: SECONDARY_AGENT_ID,
+  name: "Researcher",
+  tags: ["research"],
+} as const;
+
+const primaryCouncil = {
+  archived: false,
+  autopilotMaxTurns: null,
+  autopilotTurnsCompleted: 0,
+  conductorModelRefOrNull: null,
+  createdAtUtc: "2026-03-12T10:00:00.000Z",
+  goal: null,
+  id: PRIMARY_COUNCIL_ID,
+  invalidConfig: false,
+  memberAgentIds: [PRIMARY_AGENT_ID, SECONDARY_AGENT_ID],
+  memberColorsByAgentId: {
+    [PRIMARY_AGENT_ID]: "#111111",
+    [SECONDARY_AGENT_ID]: "#222222",
+  },
+  mode: "manual" as const,
+  paused: false,
+  started: true,
+  tags: ["ops"],
+  title: "Quarterly Council",
+  topic: "Quarterly planning",
+  turnCount: 2,
+  updatedAtUtc: "2026-03-12T11:45:00.000Z",
+} as const;
+
+const createAssistantSliceDeps = (options?: {
+  events?: Array<Record<string, unknown>>;
+  onGetSettingsView?: (request: { viewKind: string }) => void;
+  onPlannerRequest?: (request: {
+    modelRef: { providerId: string; modelId: string };
+    userRequest: string;
+  }) => void;
+  plannerDelayMs?: number;
+  plannerResponse?: string;
+  globalDefaultModelRef?: { providerId: string; modelId: string } | null;
+  globalDefaultModelInvalidConfig?: boolean;
+}) => ({
+  nowUtc: () => "2026-03-12T12:00:00.000Z",
+  createSessionId: () => "00000000-0000-4000-8000-000000000001",
+  getSettingsView: ({ viewKind }: { viewKind: string }) => {
+    options?.onGetSettingsView?.({ viewKind });
+    return okAsync({
+      providers: [],
+      globalDefaultModelRef: options?.globalDefaultModelRef ?? {
+        providerId: "gemini",
+        modelId: "gemini-1.5-flash",
+      },
+      globalDefaultModelInvalidConfig: options?.globalDefaultModelInvalidConfig ?? false,
+      contextLastN: 24,
+      modelCatalog: {
+        snapshotId: `${viewKind}-snapshot-1`,
+        modelsByProvider: {
+          gemini: ["gemini-1.5-flash"],
+        },
+      },
+      canRefreshModels: true,
+    });
+  },
+  auditService: createAssistantAuditService({
+    info: () => {},
+    error: () => {},
+    logWideEvent: (entry) => options?.events?.push(entry),
+  }),
+  listAgents: () =>
+    okAsync({
+      items: [primaryAgent, secondaryAgent],
+      page: 1,
+      pageSize: 20,
+      total: 2,
+      hasMore: false,
+      modelCatalog: {
+        snapshotId: "agents-snapshot-1",
+        modelsByProvider: { gemini: ["gemini-1.5-flash"] },
+      },
+      globalDefaultModelRef: null,
+    }),
+  getAgentEditorView: ({ agentId }: { agentId: string | null }) =>
+    okAsync({
+      agent:
+        agentId === PRIMARY_AGENT_ID
+          ? primaryAgent
+          : agentId === SECONDARY_AGENT_ID
+            ? secondaryAgent
+            : null,
+      modelCatalog: {
+        snapshotId: "agents-snapshot-1",
+        modelsByProvider: { gemini: ["gemini-1.5-flash"] },
+      },
+      globalDefaultModelRef: null,
+      canRefreshModels: true,
+    }),
+  listCouncils: () =>
+    okAsync({
+      items: [primaryCouncil],
+      page: 1,
+      pageSize: 20,
+      total: 1,
+      hasMore: false,
+      modelCatalog: {
+        snapshotId: "councils-snapshot-1",
+        modelsByProvider: { gemini: ["gemini-1.5-flash"] },
+      },
+      globalDefaultModelRef: null,
+    }),
+  getCouncilEditorView: ({ councilId }: { councilId: string | null }) =>
+    okAsync({
+      council: councilId === PRIMARY_COUNCIL_ID ? primaryCouncil : null,
+      availableAgents: [
+        {
+          archived: false,
+          description: "Planning specialist",
+          id: PRIMARY_AGENT_ID,
+          invalidConfig: false,
+          name: "Planner",
+          tags: ["ops"],
+        },
+      ],
+      modelCatalog: {
+        snapshotId: "councils-snapshot-1",
+        modelsByProvider: { gemini: ["gemini-1.5-flash"] },
+      },
+      globalDefaultModelRef: null,
+      canRefreshModels: true,
+    }),
+  getCouncilView: ({ councilId }: { councilId: string }) =>
+    okAsync({
+      council:
+        councilId === PRIMARY_COUNCIL_ID ? primaryCouncil : { ...primaryCouncil, id: councilId },
+      availableAgents: [
+        {
+          archived: false,
+          description: "Planning specialist",
+          id: PRIMARY_AGENT_ID,
+          invalidConfig: false,
+          name: "Planner",
+          tags: ["ops"],
+        },
+      ],
+      messages: [
+        {
+          content: "Let us begin.",
+          councilId,
+          createdAtUtc: "2026-03-12T11:01:00.000Z",
+          id: "message-1",
+          senderAgentId: PRIMARY_AGENT_ID,
+          senderColor: "#111111",
+          senderKind: "member" as const,
+          senderName: "Planner",
+          sequenceNumber: 1,
+        },
+      ],
+      briefing: null,
+      generation: {
+        activeMemberAgentId: null,
+        kind: null,
+        plannedNextSpeakerAgentId: SECONDARY_AGENT_ID,
+        status: "idle" as const,
+      },
+      modelCatalog: {
+        snapshotId: "council-view-snapshot-1",
+        modelsByProvider: { gemini: ["gemini-1.5-flash"] },
+      },
+      globalDefaultModelRef: null,
+      canRefreshModels: true,
+    }),
+  planAssistantResponse:
+    options?.plannerResponse === undefined
+      ? undefined
+      : (
+          request: {
+            modelRef: { providerId: string; modelId: string };
+            userRequest: string;
+          },
+          abortSignal: AbortSignal,
+        ) =>
+          ResultAsync.fromPromise(
+            new Promise<string>((resolve, reject) => {
+              options.onPlannerRequest?.({
+                modelRef: request.modelRef,
+                userRequest: request.userRequest,
+              });
+              const timer = setTimeout(() => {
+                if (abortSignal.aborted) {
+                  reject(new Error("aborted"));
+                  return;
+                }
+                resolve(options.plannerResponse as string);
+              }, options.plannerDelayMs ?? 0);
+
+              abortSignal.addEventListener(
+                "abort",
+                () => {
+                  clearTimeout(timer);
+                  reject(new Error("aborted"));
+                },
+                { once: true },
+              );
+            }),
+            () => ({
+              kind: "InternalError" as const,
+              devMessage: "planner aborted",
+              userMessage: "planner aborted",
+            }),
+          ),
+});
 
 const FILE_REQUIREMENT_IDS = [
   "R9.3",
@@ -54,68 +288,16 @@ const createDeferred = <T>() => {
 const createHandlers = (options?: {
   plannerResponse?: string;
   plannerDelayMs?: number;
-  onPlannerRequest?: (request: { userRequest: string }) => void;
+  onPlannerRequest?: (request: {
+    modelRef: { providerId: string; modelId: string };
+    userRequest: string;
+  }) => void;
   onGetSettingsView?: (request: { viewKind: string }) => void;
+  globalDefaultModelRef?: { providerId: string; modelId: string } | null;
+  globalDefaultModelInvalidConfig?: boolean;
 }) => {
   const events: Array<Record<string, unknown>> = [];
-  const slice = createAssistantSlice({
-    nowUtc: () => "2026-03-12T12:00:00.000Z",
-    createSessionId: () => "00000000-0000-4000-8000-000000000001",
-    getSettingsView: ({ viewKind }) => {
-      options?.onGetSettingsView?.({ viewKind });
-      return okAsync({
-        providers: [],
-        globalDefaultModelRef: {
-          providerId: "gemini",
-          modelId: "gemini-1.5-flash",
-        },
-        globalDefaultModelInvalidConfig: false,
-        contextLastN: 24,
-        modelCatalog: {
-          snapshotId: `${viewKind}-snapshot-1`,
-          modelsByProvider: {
-            gemini: ["gemini-1.5-flash"],
-          },
-        },
-        canRefreshModels: true,
-      });
-    },
-    auditService: createAssistantAuditService({
-      info: () => {},
-      error: () => {},
-      logWideEvent: (entry) => events.push(entry),
-    }),
-    planAssistantResponse:
-      options?.plannerResponse === undefined
-        ? undefined
-        : (request, abortSignal) =>
-            ResultAsync.fromPromise(
-              new Promise<string>((resolve, reject) => {
-                options.onPlannerRequest?.({ userRequest: request.userRequest });
-                const timer = setTimeout(() => {
-                  if (abortSignal.aborted) {
-                    reject(new Error("aborted"));
-                    return;
-                  }
-                  resolve(options.plannerResponse as string);
-                }, options.plannerDelayMs ?? 0);
-
-                abortSignal.addEventListener(
-                  "abort",
-                  () => {
-                    clearTimeout(timer);
-                    reject(new Error("aborted"));
-                  },
-                  { once: true },
-                );
-              }),
-              () => ({
-                kind: "InternalError",
-                devMessage: "planner aborted",
-                userMessage: "planner aborted",
-              }),
-            ),
-  });
+  const slice = createAssistantSlice(createAssistantSliceDeps({ ...options, events }));
 
   return {
     handlers: createAssistantIpcHandlers(slice),
@@ -137,6 +319,55 @@ const validContext = {
   },
   draftState: null,
   runtimeState: null,
+};
+
+const councilsListContext = {
+  ...validContext,
+  viewKind: "councilsList" as const,
+  contextLabel: "Home / Councils",
+  listState: {
+    ...validContext.listState,
+    searchText: "",
+  },
+};
+
+const councilViewContext = {
+  ...validContext,
+  viewKind: "councilView" as const,
+  contextLabel: "Council view / Quarterly Council / overview",
+  activeEntityId: PRIMARY_COUNCIL_ID,
+  listState: null,
+  runtimeState: {
+    councilId: PRIMARY_COUNCIL_ID,
+    plannedNextSpeakerAgentId: SECONDARY_AGENT_ID,
+    status: "idle" as const,
+  },
+};
+
+const completeAllNavigationReconciliations = async (params: {
+  handlers: ReturnType<typeof createAssistantIpcHandlers>;
+  result: Extract<AssistantSubmitResponse["result"], { kind: "result" }>;
+  webContentsId: number;
+}) => {
+  return params.handlers.completeReconciliation(
+    {
+      sessionId: params.result.sessionId,
+      reconciliations: params.result.executionResults.flatMap(
+        (executionResult: AssistantToolExecutionResult) =>
+          executionResult.status === "reconciling"
+            ? [
+                {
+                  callId: executionResult.callId,
+                  toolName: executionResult.toolName,
+                  status: "completed" as const,
+                  failureMessage: null,
+                },
+              ]
+            : [],
+      ),
+    },
+    params.webContentsId,
+  );
 };
 
 describe("assistant ipc contract", () => {
@@ -188,6 +419,133 @@ describe("assistant ipc contract", () => {
     },
   );
 
+  itReq(
+    ["R9.3", "A1", "D1", "D5"],
+    "fails closed when the global default model is missing or invalid",
+    async () => {
+      const plannerRequests: Array<{
+        modelRef: { providerId: string; modelId: string };
+        userRequest: string;
+      }> = [];
+
+      const missingModelHandlers = createHandlers({
+        globalDefaultModelRef: null,
+        plannerResponse: JSON.stringify({ kind: "clarify", question: "unused" }),
+        onPlannerRequest: (request) => plannerRequests.push(request),
+      }).handlers;
+      const missingSession = await missingModelHandlers.createSession(
+        { viewKind: "agentsList" },
+        151,
+      );
+      expect(missingSession.ok).toBe(true);
+      if (!missingSession.ok) {
+        return;
+      }
+
+      const missingModelSubmit = await missingModelHandlers.submit(
+        {
+          sessionId: missingSession.value.session.sessionId,
+          userRequest: "Open the planner",
+          context: validContext,
+          response: null,
+        },
+        151,
+      );
+
+      expect(missingModelSubmit.ok).toBe(true);
+      if (!missingModelSubmit.ok || missingModelSubmit.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(missingModelSubmit.value.result.outcome).toBe("failure");
+      expect(missingModelSubmit.value.result.error?.kind).toBe("InvalidConfigError");
+      expect(missingModelSubmit.value.result.message).toBe(
+        "Assistant needs a valid global default model before it can plan.",
+      );
+
+      const invalidModelHandlers = createHandlers({
+        globalDefaultModelInvalidConfig: true,
+        plannerResponse: JSON.stringify({ kind: "clarify", question: "unused" }),
+        onPlannerRequest: (request) => plannerRequests.push(request),
+      }).handlers;
+      const invalidSession = await invalidModelHandlers.createSession(
+        { viewKind: "agentsList" },
+        152,
+      );
+      expect(invalidSession.ok).toBe(true);
+      if (!invalidSession.ok) {
+        return;
+      }
+
+      const invalidModelSubmit = await invalidModelHandlers.submit(
+        {
+          sessionId: invalidSession.value.session.sessionId,
+          userRequest: "Open the planner",
+          context: validContext,
+          response: null,
+        },
+        152,
+      );
+
+      expect(invalidModelSubmit.ok).toBe(true);
+      if (!invalidModelSubmit.ok || invalidModelSubmit.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(invalidModelSubmit.value.result.outcome).toBe("failure");
+      expect(invalidModelSubmit.value.result.error?.kind).toBe("InvalidConfigError");
+      expect(plannerRequests).toEqual([]);
+    },
+  );
+
+  itReq(
+    ["R9.3", "A1", "D1", "D5"],
+    "passes the global default model through the planner request in main",
+    async () => {
+      const plannerRequests: Array<{
+        modelRef: { providerId: string; modelId: string };
+        userRequest: string;
+      }> = [];
+      const { handlers } = createHandlers({
+        plannerResponse: JSON.stringify({
+          kind: "clarify",
+          question: "Which agent should I open?",
+        }),
+        onPlannerRequest: (request) => plannerRequests.push(request),
+        globalDefaultModelRef: {
+          providerId: "openrouter",
+          modelId: "gpt-4.1-mini",
+        },
+      });
+      const session = await handlers.createSession({ viewKind: "agentsList" }, 153);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      const submit = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Open the planner",
+          context: validContext,
+          response: null,
+        },
+        153,
+      );
+
+      expect(submit.ok).toBe(true);
+      expect(plannerRequests).toEqual([
+        {
+          modelRef: {
+            providerId: "openrouter",
+            modelId: "gpt-4.1-mini",
+          },
+          userRequest: "Open the planner",
+        },
+      ]);
+    },
+  );
+
   itReq(FILE_REQUIREMENT_IDS, "returns parsed planner clarify responses over IPC", async () => {
     const { handlers } = createHandlers({
       plannerResponse: JSON.stringify({
@@ -219,10 +577,709 @@ describe("assistant ipc contract", () => {
   });
 
   itReq(
+    ["R9.7", "R9.18", "R9.19", "R9.20", "A3", "D5"],
+    "loops clarification through the same session and then executes the stored plan",
+    async () => {
+      let plannerCallCount = 0;
+      const slice = createAssistantSlice({
+        ...createAssistantSliceDeps(),
+        planAssistantResponse: () => {
+          plannerCallCount += 1;
+          return okAsync(
+            plannerCallCount === 1
+              ? JSON.stringify({
+                  kind: "clarify",
+                  question: "Which council should I open?",
+                })
+              : JSON.stringify({
+                  kind: "execute",
+                  summary: "Open Quarterly Council.",
+                  plannedCalls: [
+                    {
+                      callId: "call-1",
+                      toolName: "openCouncilView",
+                      rationale: "Open the selected council.",
+                      input: {
+                        councilId: PRIMARY_COUNCIL_ID,
+                      },
+                    },
+                  ],
+                }),
+          );
+        },
+      });
+      const handlers = createAssistantIpcHandlers(slice);
+      const session = await handlers.createSession({ viewKind: "agentsList" }, 60);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      const firstSubmit = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Open the council",
+          context: validContext,
+          response: null,
+        },
+        60,
+      );
+      expect(firstSubmit.ok).toBe(true);
+      if (!firstSubmit.ok || firstSubmit.value.result.kind !== "clarify") {
+        return;
+      }
+
+      const secondSubmit = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Open the council",
+          context: validContext,
+          response: {
+            kind: "clarification",
+            text: "Quarterly Council",
+          },
+        },
+        60,
+      );
+      expect(secondSubmit.ok).toBe(true);
+      if (!secondSubmit.ok) {
+        return;
+      }
+      expect(secondSubmit.value.result).toMatchObject({
+        kind: "execute",
+        message: "Open Quarterly Council.",
+      });
+
+      const executeSubmit = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Open the council",
+          context: validContext,
+          response: null,
+        },
+        60,
+      );
+      expect(executeSubmit.ok).toBe(true);
+      if (!executeSubmit.ok || executeSubmit.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(executeSubmit.value.result.outcome).toBe("partial");
+      expect(executeSubmit.value.result.executionResults).toMatchObject([
+        {
+          status: "reconciling",
+          toolName: "openCouncilView",
+        },
+      ]);
+
+      const reconciled = await completeAllNavigationReconciliations({
+        handlers,
+        result: executeSubmit.value.result,
+        webContentsId: 60,
+      });
+      expect(reconciled.ok).toBe(true);
+      if (!reconciled.ok || reconciled.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(reconciled.value.result.outcome).toBe("success");
+      expect(reconciled.value.result.executionResults).toMatchObject([
+        {
+          status: "success",
+          toolName: "openCouncilView",
+          reconciliationState: "completed",
+        },
+      ]);
+    },
+  );
+
+  itReq(
+    ["R9.7", "R9.18", "R9.19", "R9.20", "A3", "D5"],
+    "resolves open council clarifications locally when the planner already asked for a council name",
+    async () => {
+      let plannerCallCount = 0;
+      const slice = createAssistantSlice({
+        ...createAssistantSliceDeps(),
+        planAssistantResponse: () => {
+          plannerCallCount += 1;
+          return okAsync(
+            JSON.stringify({
+              kind: "clarify",
+              question: "Which council would you like to open?",
+            }),
+          );
+        },
+      });
+      const handlers = createAssistantIpcHandlers(slice);
+      const session = await handlers.createSession({ viewKind: "councilsList" }, 160);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      const firstSubmit = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Open the council",
+          context: councilsListContext,
+          response: null,
+        },
+        160,
+      );
+      expect(firstSubmit.ok).toBe(true);
+      if (!firstSubmit.ok || firstSubmit.value.result.kind !== "clarify") {
+        return;
+      }
+
+      const secondSubmit = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Open the council",
+          context: councilsListContext,
+          response: {
+            kind: "clarification",
+            text: primaryCouncil.title,
+          },
+        },
+        160,
+      );
+      expect(secondSubmit.ok).toBe(true);
+      if (!secondSubmit.ok || secondSubmit.value.result.kind !== "execute") {
+        return;
+      }
+
+      expect(plannerCallCount).toBe(1);
+      expect(secondSubmit.value.result).toMatchObject({
+        kind: "execute",
+        message: `Open ${primaryCouncil.title}.`,
+        plannedCalls: [
+          {
+            toolName: "openCouncilView",
+            input: { councilId: PRIMARY_COUNCIL_ID },
+          },
+        ],
+      });
+    },
+  );
+
+  itReq(
+    ["R9.3", "R9.7", "R9.19", "A3", "D5"],
+    "blocks stored clarification follow-up turns when the global default model becomes invalid",
+    async () => {
+      let plannerCallCount = 0;
+      let settingsCallCount = 0;
+      const slice = createAssistantSlice({
+        ...createAssistantSliceDeps(),
+        getSettingsView: ({ viewKind }) => {
+          settingsCallCount += 1;
+          return okAsync({
+            providers: [],
+            globalDefaultModelRef:
+              settingsCallCount === 1
+                ? {
+                    providerId: "gemini",
+                    modelId: "gemini-1.5-flash",
+                  }
+                : null,
+            globalDefaultModelInvalidConfig: false,
+            contextLastN: 24,
+            modelCatalog: {
+              snapshotId: `${viewKind}-snapshot-1`,
+              modelsByProvider: {
+                gemini: ["gemini-1.5-flash"],
+              },
+            },
+            canRefreshModels: true,
+          });
+        },
+        planAssistantResponse: () => {
+          plannerCallCount += 1;
+          return okAsync(
+            JSON.stringify({
+              kind: "clarify",
+              question: "Which council would you like to open?",
+            }),
+          );
+        },
+      });
+      const handlers = createAssistantIpcHandlers(slice);
+      const session = await handlers.createSession({ viewKind: "councilsList" }, 161);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      const firstSubmit = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Open the council",
+          context: councilsListContext,
+          response: null,
+        },
+        161,
+      );
+      expect(firstSubmit.ok).toBe(true);
+      if (!firstSubmit.ok || firstSubmit.value.result.kind !== "clarify") {
+        return;
+      }
+
+      const secondSubmit = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Open the council",
+          context: councilsListContext,
+          response: {
+            kind: "clarification",
+            text: primaryCouncil.title,
+          },
+        },
+        161,
+      );
+      expect(secondSubmit.ok).toBe(true);
+      if (!secondSubmit.ok) {
+        return;
+      }
+
+      expect(plannerCallCount).toBe(1);
+      expect(secondSubmit.value.result).toMatchObject({
+        kind: "result",
+        outcome: "failure",
+        message: "Assistant needs a valid global default model before it can plan.",
+        error: {
+          kind: "InvalidConfigError",
+        },
+      });
+    },
+  );
+
+  itReq(
+    ["R9.3", "R9.7", "R9.18", "R9.19", "R9.20", "R9.22", "A1", "A3", "D5"],
+    "executes supported read and navigation tools into a final assistant result",
+    async () => {
+      const { handlers } = createHandlers({
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Review agents, inspect a council, then open it.",
+          plannedCalls: [
+            {
+              callId: "call-1",
+              toolName: "listAgents",
+              rationale: "Review matching agents.",
+              input: {
+                searchText: "plan",
+              },
+            },
+            {
+              callId: "call-2",
+              toolName: "getCouncilRuntimeState",
+              rationale: "Inspect runtime state.",
+              input: {
+                councilId: PRIMARY_COUNCIL_ID,
+              },
+            },
+            {
+              callId: "call-3",
+              toolName: "openCouncilView",
+              rationale: "Open the council.",
+              input: {
+                councilId: PRIMARY_COUNCIL_ID,
+              },
+            },
+          ],
+        }),
+      });
+      const session = await handlers.createSession({ viewKind: "agentsList" }, 61);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      const plan = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Review the planning council and open it",
+          context: validContext,
+          response: null,
+        },
+        61,
+      );
+      expect(plan.ok).toBe(true);
+      if (!plan.ok || plan.value.result.kind !== "execute") {
+        return;
+      }
+
+      const executed = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Review the planning council and open it",
+          context: validContext,
+          response: null,
+        },
+        61,
+      );
+      expect(executed.ok).toBe(true);
+      if (!executed.ok || executed.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(executed.value.result.outcome).toBe("partial");
+      expect(executed.value.result.executionResults).toMatchObject([
+        {
+          status: "success",
+          toolName: "listAgents",
+          output: {
+            total: 2,
+          },
+        },
+        {
+          status: "success",
+          toolName: "getCouncilRuntimeState",
+          output: {
+            councilId: PRIMARY_COUNCIL_ID,
+            runtimeStatus: "running",
+          },
+        },
+        {
+          status: "reconciling",
+          toolName: "openCouncilView",
+          output: {
+            councilId: PRIMARY_COUNCIL_ID,
+            councilTitle: "Quarterly Council",
+          },
+        },
+      ]);
+
+      const reconciled = await completeAllNavigationReconciliations({
+        handlers,
+        result: executed.value.result,
+        webContentsId: 61,
+      });
+      expect(reconciled.ok).toBe(true);
+      if (!reconciled.ok || reconciled.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(reconciled.value.result.outcome).toBe("success");
+      expect(reconciled.value.result.executionResults.at(-1)).toMatchObject({
+        status: "success",
+        toolName: "openCouncilView",
+        reconciliationState: "completed",
+      });
+    },
+  );
+
+  itReq(
+    ["R9.18", "R9.19", "R9.22", "U18.8", "U18.10", "U18.11", "A1", "D5"],
+    "uses the council runtime read tool for runtime-status follow-up questions on the open council",
+    async () => {
+      let plannerCallCount = 0;
+      const { handlers } = createHandlers({
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "This fallback planner response should not run.",
+          plannedCalls: [
+            {
+              callId: "call-fallback",
+              toolName: "listCouncils",
+              rationale: "Unexpected fallback",
+              input: {},
+            },
+          ],
+        }),
+        onPlannerRequest: () => {
+          plannerCallCount += 1;
+        },
+      });
+      const session = await handlers.createSession({ viewKind: "councilView" }, 62);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      const planned = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "What is the runtime status of this council?",
+          context: councilViewContext,
+          response: null,
+        },
+        62,
+      );
+      expect(planned.ok).toBe(true);
+      if (!planned.ok || planned.value.result.kind !== "execute") {
+        return;
+      }
+
+      expect(plannerCallCount).toBe(0);
+      expect(planned.value.result.plannedCalls).toMatchObject([
+        {
+          toolName: "getCouncilRuntimeState",
+          input: {
+            councilId: PRIMARY_COUNCIL_ID,
+          },
+        },
+      ]);
+
+      const executed = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "What is the runtime status of this council?",
+          context: councilViewContext,
+          response: null,
+        },
+        62,
+      );
+      expect(executed.ok).toBe(true);
+      if (!executed.ok || executed.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(executed.value.result.outcome).toBe("success");
+      expect(executed.value.result.executionResults).toMatchObject([
+        {
+          status: "success",
+          toolName: "getCouncilRuntimeState",
+          output: {
+            councilId: PRIMARY_COUNCIL_ID,
+            runtimeStatus: "running",
+          },
+          userSummary: "Quarterly Council is running with 2 turn(s) and 1 message(s).",
+        },
+      ]);
+    },
+  );
+
+  itReq(
+    ["R9.3", "R9.7", "R9.18", "R9.19", "R9.20", "R9.22", "A1", "A3", "D5"],
+    "supports the remaining phase 1 home, entity, and list read tools",
+    async () => {
+      const { handlers } = createHandlers({
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Review entities and return home.",
+          plannedCalls: [
+            {
+              callId: "call-1",
+              toolName: "navigateToHomeTab",
+              rationale: "Go to the agents tab.",
+              input: {
+                tab: "agentsList",
+              },
+            },
+            {
+              callId: "call-2",
+              toolName: "getAgent",
+              rationale: "Inspect the planner agent.",
+              input: {
+                agentId: PRIMARY_AGENT_ID,
+              },
+            },
+            {
+              callId: "call-3",
+              toolName: "openAgentEditor",
+              rationale: "Open the planner agent.",
+              input: {
+                agentId: PRIMARY_AGENT_ID,
+              },
+            },
+            {
+              callId: "call-4",
+              toolName: "listCouncils",
+              rationale: "Review active councils.",
+              input: {},
+            },
+            {
+              callId: "call-5",
+              toolName: "getCouncil",
+              rationale: "Inspect the current council.",
+              input: {
+                councilId: PRIMARY_COUNCIL_ID,
+              },
+            },
+            {
+              callId: "call-6",
+              toolName: "openCouncilEditor",
+              rationale: "Open the council editor.",
+              input: {
+                councilId: PRIMARY_COUNCIL_ID,
+              },
+            },
+          ],
+        }),
+      });
+      const session = await handlers.createSession({ viewKind: "agentsList" }, 62);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      const plan = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Inspect the planner agent and planning council",
+          context: validContext,
+          response: null,
+        },
+        62,
+      );
+      expect(plan.ok).toBe(true);
+      if (!plan.ok || plan.value.result.kind !== "execute") {
+        return;
+      }
+
+      const executed = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Inspect the planner agent and planning council",
+          context: validContext,
+          response: null,
+        },
+        62,
+      );
+      expect(executed.ok).toBe(true);
+      if (!executed.ok || executed.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(executed.value.result.outcome).toBe("partial");
+      expect(executed.value.result.executionResults).toMatchObject([
+        { status: "reconciling", toolName: "navigateToHomeTab" },
+        { status: "success", toolName: "getAgent", output: { agentId: PRIMARY_AGENT_ID } },
+        {
+          status: "reconciling",
+          toolName: "openAgentEditor",
+          output: { agentId: PRIMARY_AGENT_ID },
+        },
+        { status: "success", toolName: "listCouncils", output: { total: 1 } },
+        { status: "success", toolName: "getCouncil", output: { councilId: PRIMARY_COUNCIL_ID } },
+        {
+          status: "reconciling",
+          toolName: "openCouncilEditor",
+          output: { councilId: PRIMARY_COUNCIL_ID },
+        },
+      ]);
+
+      const reconciled = await completeAllNavigationReconciliations({
+        handlers,
+        result: executed.value.result,
+        webContentsId: 62,
+      });
+      expect(reconciled.ok).toBe(true);
+      if (!reconciled.ok || reconciled.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(reconciled.value.result.outcome).toBe("success");
+      expect(reconciled.value.result.executionResults).toMatchObject([
+        { status: "success", toolName: "navigateToHomeTab" },
+        { status: "success", toolName: "getAgent", output: { agentId: PRIMARY_AGENT_ID } },
+        { status: "success", toolName: "openAgentEditor", output: { agentId: PRIMARY_AGENT_ID } },
+        { status: "success", toolName: "listCouncils", output: { total: 1 } },
+        { status: "success", toolName: "getCouncil", output: { councilId: PRIMARY_COUNCIL_ID } },
+        {
+          status: "success",
+          toolName: "openCouncilEditor",
+          output: { councilId: PRIMARY_COUNCIL_ID },
+        },
+      ]);
+    },
+  );
+
+  itReq(
+    ["R9.17", "R9.18", "R9.22", "U18.8", "U18.10", "U18.11", "A3", "D5"],
+    "fails navigation reconciliation closed when the visible destination never appears",
+    async () => {
+      const { handlers } = createHandlers({
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Open the council.",
+          plannedCalls: [
+            {
+              callId: "call-1",
+              toolName: "openCouncilView",
+              rationale: "Open the council.",
+              input: {
+                councilId: PRIMARY_COUNCIL_ID,
+              },
+            },
+          ],
+        }),
+      });
+      const session = await handlers.createSession({ viewKind: "agentsList" }, 63);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      const plan = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Open the planning council",
+          context: validContext,
+          response: null,
+        },
+        63,
+      );
+      expect(plan.ok).toBe(true);
+      if (!plan.ok || plan.value.result.kind !== "execute") {
+        return;
+      }
+
+      const executed = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Open the planning council",
+          context: validContext,
+          response: null,
+        },
+        63,
+      );
+      expect(executed.ok).toBe(true);
+      if (!executed.ok || executed.value.result.kind !== "result") {
+        return;
+      }
+
+      const reconciled = await handlers.completeReconciliation(
+        {
+          sessionId: session.value.session.sessionId,
+          reconciliations: [
+            {
+              callId: "call-1",
+              toolName: "openCouncilView",
+              status: "failed",
+              failureMessage: "The requested council view never became visible.",
+            },
+          ],
+        },
+        63,
+      );
+      expect(reconciled.ok).toBe(true);
+      if (!reconciled.ok || reconciled.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(reconciled.value.result.outcome).toBe("failure");
+      expect(reconciled.value.result.error?.kind).toBe("StateViolationError");
+      expect(reconciled.value.result.executionResults).toMatchObject([
+        {
+          status: "failed",
+          toolName: "openCouncilView",
+          error: {
+            kind: "StateViolationError",
+          },
+        },
+      ]);
+    },
+  );
+
+  itReq(
     FLOW_AND_TOOL_CONTRACT_REQUIREMENT_IDS,
     "sanitizes assistant submit text and planner calls across ipc",
     async () => {
-      const plannerRequests: Array<{ userRequest: string }> = [];
+      const plannerRequests: Array<{
+        modelRef: { providerId: string; modelId: string };
+        userRequest: string;
+      }> = [];
       const { handlers } = createHandlers({
         plannerResponse: JSON.stringify({
           kind: "execute",
@@ -261,6 +1318,10 @@ describe("assistant ipc contract", () => {
 
       expect(plannerRequests).toEqual([
         {
+          modelRef: {
+            providerId: "gemini",
+            modelId: "gemini-1.5-flash",
+          },
           userRequest: "Open [redacted] with [redacted]",
         },
       ]);
@@ -292,7 +1353,10 @@ describe("assistant ipc contract", () => {
     ["R9.3", "R9.4", "R9.22", "A3"],
     "rejects submits whose context view kind does not match the session scope",
     async () => {
-      const plannerRequests: Array<{ userRequest: string }> = [];
+      const plannerRequests: Array<{
+        modelRef: { providerId: string; modelId: string };
+        userRequest: string;
+      }> = [];
       const settingsViewRequests: Array<{ viewKind: string }> = [];
       const { handlers } = createHandlers({
         plannerResponse: JSON.stringify({
@@ -380,6 +1444,48 @@ describe("assistant ipc contract", () => {
         outcome: "failure",
         message: "Assistant planner returned an invalid structured response.",
       });
+    },
+  );
+
+  itReq(
+    ["R9.3", "R9.7", "R9.17", "A3", "D5"],
+    "rejects planner terminal success and partial results so main owns final execution outcomes",
+    async () => {
+      for (const outcome of ["success", "partial"] as const) {
+        const { handlers } = createHandlers({
+          plannerResponse: JSON.stringify({
+            kind: "result",
+            outcome,
+            summary: `planner said ${outcome}`,
+          }),
+        });
+        const session = await handlers.createSession({ viewKind: "agentsList" }, 156);
+        expect(session.ok).toBe(true);
+        if (!session.ok) {
+          return;
+        }
+
+        const submit = await handlers.submit(
+          {
+            sessionId: session.value.session.sessionId,
+            userRequest: "Open the planning council",
+            context: validContext,
+            response: null,
+          },
+          156,
+        );
+
+        expect(submit.ok).toBe(true);
+        if (!submit.ok) {
+          return;
+        }
+
+        expect(submit.value.result).toMatchObject({
+          kind: "result",
+          outcome: "failure",
+          message: "Assistant planner returned an invalid structured response.",
+        });
+      }
     },
   );
 
@@ -481,30 +1587,8 @@ describe("assistant ipc contract", () => {
       const plannerResponses = [firstPlannerResponse, secondPlannerResponse] as const;
       let plannerCallCount = 0;
       const slice = createAssistantSlice({
-        nowUtc: () => "2026-03-12T12:00:00.000Z",
+        ...createAssistantSliceDeps(),
         createSessionId: () => "00000000-0000-4000-8000-000000000010",
-        getSettingsView: () =>
-          okAsync({
-            providers: [],
-            globalDefaultModelRef: {
-              providerId: "gemini",
-              modelId: "gemini-1.5-flash",
-            },
-            globalDefaultModelInvalidConfig: false,
-            contextLastN: 24,
-            modelCatalog: {
-              snapshotId: "agentsList-snapshot-1",
-              modelsByProvider: {
-                gemini: ["gemini-1.5-flash"],
-              },
-            },
-            canRefreshModels: true,
-          }),
-        auditService: createAssistantAuditService({
-          info: () => {},
-          error: () => {},
-          logWideEvent: () => {},
-        }),
         planAssistantResponse: (_request, _abortSignal) => {
           const deferred = plannerResponses[plannerCallCount];
           plannerCallCount += 1;
@@ -651,30 +1735,8 @@ describe("assistant ipc contract", () => {
     async () => {
       const events: Array<Record<string, unknown>> = [];
       const slice = createAssistantSlice({
-        nowUtc: () => "2026-03-12T12:00:00.000Z",
+        ...createAssistantSliceDeps({ events }),
         createSessionId: () => "00000000-0000-4000-8000-000000000009",
-        getSettingsView: () =>
-          okAsync({
-            providers: [],
-            globalDefaultModelRef: {
-              providerId: "gemini",
-              modelId: "gemini-1.5-flash",
-            },
-            globalDefaultModelInvalidConfig: false,
-            contextLastN: 24,
-            modelCatalog: {
-              snapshotId: "agentsList-snapshot-1",
-              modelsByProvider: {
-                gemini: ["gemini-1.5-flash"],
-              },
-            },
-            canRefreshModels: true,
-          }),
-        auditService: createAssistantAuditService({
-          info: () => {},
-          error: () => {},
-          logWideEvent: (entry) => events.push(entry),
-        }),
       });
 
       const created = await slice.createSession({ webContentsId: 61, viewKind: "agentsList" });

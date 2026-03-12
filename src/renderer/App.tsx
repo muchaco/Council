@@ -1,5 +1,6 @@
 import { type SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import type { AssistantPlanResult } from "../shared/ipc/dto.js";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { AgentEditorScreen } from "./components/agents/AgentEditorScreen";
 import { AssistantLauncher } from "./components/assistant/AssistantLauncher";
@@ -19,6 +20,7 @@ import {
   type AssistantUiState,
   closeAssistantUi,
   createInitialAssistantUiState,
+  markAssistantPendingSessionRebase,
   openAssistantForScope,
   rebaseAssistantForScopeChange,
   requiresAssistantCloseConfirmation,
@@ -72,10 +74,21 @@ export const App = (): JSX.Element => {
     useState<AssistantCouncilViewSnapshot | null>(null);
   const assistantInputRef = useRef<HTMLTextAreaElement>(null);
   const assistantStateRef = useRef(assistantState);
+  const screenRef = useRef(screen);
+  const homeTabRef = useRef(homeTab);
+  const agentAssistantSnapshotRef = useRef(agentAssistantSnapshot);
+  const councilAssistantSnapshotRef = useRef(councilAssistantSnapshot);
+  const councilViewAssistantSnapshotRef = useRef(councilViewAssistantSnapshot);
   const activeAssistantScopeKeyRef = useRef<string | null>(null);
   const lastAssistantLauncherRef = useRef<HTMLButtonElement | null>(null);
   const homeTabAtDetailOpenRef = useRef<HomeTab>("councils");
   const { pushToast } = useToastQueue();
+
+  screenRef.current = screen;
+  homeTabRef.current = homeTab;
+  agentAssistantSnapshotRef.current = agentAssistantSnapshot;
+  councilAssistantSnapshotRef.current = councilAssistantSnapshot;
+  councilViewAssistantSnapshotRef.current = councilViewAssistantSnapshot;
 
   useEffect(() => {
     if (typeof window.matchMedia !== "function") {
@@ -102,26 +115,35 @@ export const App = (): JSX.Element => {
     };
   }, []);
 
-  const openAgentEditor = (agentId: string | null): void => {
-    if (screen.kind === "home") {
-      homeTabAtDetailOpenRef.current = homeTab;
-    }
-    setScreen({ kind: "agentEditor", agentId });
-  };
+  const openAgentEditor = useCallback(
+    (agentId: string | null): void => {
+      if (screen.kind === "home") {
+        homeTabAtDetailOpenRef.current = homeTab;
+      }
+      setScreen({ kind: "agentEditor", agentId });
+    },
+    [homeTab, screen.kind],
+  );
 
-  const openCouncilEditor = (councilId: string | null): void => {
-    if (screen.kind === "home") {
-      homeTabAtDetailOpenRef.current = homeTab;
-    }
-    setScreen({ kind: "councilEditor", councilId });
-  };
+  const openCouncilEditor = useCallback(
+    (councilId: string | null): void => {
+      if (screen.kind === "home") {
+        homeTabAtDetailOpenRef.current = homeTab;
+      }
+      setScreen({ kind: "councilEditor", councilId });
+    },
+    [homeTab, screen.kind],
+  );
 
-  const openCouncilView = (councilId: string): void => {
-    if (screen.kind === "home") {
-      homeTabAtDetailOpenRef.current = homeTab;
-    }
-    setScreen({ kind: "councilView", councilId });
-  };
+  const openCouncilView = useCallback(
+    (councilId: string): void => {
+      if (screen.kind === "home") {
+        homeTabAtDetailOpenRef.current = homeTab;
+      }
+      setScreen({ kind: "councilView", councilId });
+    },
+    [homeTab, screen.kind],
+  );
 
   const closeToHome = (nextTab?: HomeTab): void => {
     setScreen({ kind: "home" });
@@ -324,9 +346,203 @@ export const App = (): JSX.Element => {
     });
   }, [resolveAssistantFocusTarget]);
 
+  const waitForAssistantUi = useCallback(
+    async (predicate: () => boolean, timeoutMs = 5_000): Promise<boolean> => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        if (predicate()) {
+          return true;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+
+      return predicate();
+    },
+    [],
+  );
+
+  const applyAssistantPlanResultEffects = useCallback(
+    async (result: AssistantPlanResult) => {
+      if (result.kind !== "result") {
+        return [];
+      }
+
+      const reconciliations: Array<{
+        callId: string;
+        toolName: string;
+        status: "completed" | "failed";
+        failureMessage: string | null;
+      }> = [];
+
+      const markPendingNavigationRebase = (params: {
+        destinationScopeKey: string;
+        destinationViewKind:
+          | "agentEdit"
+          | "agentsList"
+          | "councilCreate"
+          | "councilView"
+          | "councilsList"
+          | "settings";
+      }): void => {
+        updateAssistantState((current) => ({
+          ...markAssistantPendingSessionRebase({
+            destinationScopeKey: params.destinationScopeKey,
+            destinationViewKind: params.destinationViewKind,
+            sessionId: result.sessionId,
+            state: current,
+          }),
+        }));
+      };
+
+      for (const executionResult of result.executionResults) {
+        if (executionResult.status !== "reconciling") {
+          continue;
+        }
+
+        switch (executionResult.toolName) {
+          case "navigateToHomeTab": {
+            const nextTab =
+              executionResult.output.tab === "agentsList"
+                ? "agents"
+                : executionResult.output.tab === "councilsList"
+                  ? "councils"
+                  : "settings";
+            markPendingNavigationRebase({
+              destinationScopeKey: `home:${nextTab}`,
+              destinationViewKind:
+                nextTab === "agents"
+                  ? "agentsList"
+                  : nextTab === "councils"
+                    ? "councilsList"
+                    : "settings",
+            });
+            setScreen({ kind: "home" });
+            setHomeTab(nextTab);
+            const ready = await waitForAssistantUi(
+              () => screenRef.current.kind === "home" && homeTabRef.current === nextTab,
+            );
+            reconciliations.push({
+              callId: executionResult.callId,
+              toolName: executionResult.toolName,
+              status: ready ? "completed" : "failed",
+              failureMessage: ready ? null : "The requested Home tab never became visible.",
+            });
+            break;
+          }
+          case "openAgentEditor": {
+            const agentId = executionResult.output.agentId;
+            if (typeof agentId !== "string") {
+              reconciliations.push({
+                callId: executionResult.callId,
+                toolName: executionResult.toolName,
+                status: "failed",
+                failureMessage: "The requested agent editor could not be opened safely.",
+              });
+              break;
+            }
+
+            markPendingNavigationRebase({
+              destinationScopeKey: `agentEditor:${agentId}`,
+              destinationViewKind: "agentEdit",
+            });
+            openAgentEditor(agentId);
+            const ready = await waitForAssistantUi(
+              () =>
+                screenRef.current.kind === "agentEditor" &&
+                screenRef.current.agentId === agentId &&
+                agentAssistantSnapshotRef.current?.draft.id === agentId,
+            );
+            reconciliations.push({
+              callId: executionResult.callId,
+              toolName: executionResult.toolName,
+              status: ready ? "completed" : "failed",
+              failureMessage: ready ? null : "The requested agent editor never became visible.",
+            });
+            break;
+          }
+          case "openCouncilEditor": {
+            const councilId = executionResult.output.councilId;
+            if (typeof councilId !== "string") {
+              reconciliations.push({
+                callId: executionResult.callId,
+                toolName: executionResult.toolName,
+                status: "failed",
+                failureMessage: "The requested council editor could not be opened safely.",
+              });
+              break;
+            }
+
+            markPendingNavigationRebase({
+              destinationScopeKey: `councilEditor:${councilId}`,
+              destinationViewKind: "councilCreate",
+            });
+            openCouncilEditor(councilId);
+            const ready = await waitForAssistantUi(
+              () =>
+                screenRef.current.kind === "councilEditor" &&
+                screenRef.current.councilId === councilId &&
+                councilAssistantSnapshotRef.current?.draft.id === councilId,
+            );
+            reconciliations.push({
+              callId: executionResult.callId,
+              toolName: executionResult.toolName,
+              status: ready ? "completed" : "failed",
+              failureMessage: ready ? null : "The requested council editor never became visible.",
+            });
+            break;
+          }
+          case "openCouncilView": {
+            const councilId = executionResult.output.councilId;
+            if (typeof councilId !== "string") {
+              reconciliations.push({
+                callId: executionResult.callId,
+                toolName: executionResult.toolName,
+                status: "failed",
+                failureMessage: "The requested council view could not be opened safely.",
+              });
+              break;
+            }
+
+            markPendingNavigationRebase({
+              destinationScopeKey: `councilView:${councilId}`,
+              destinationViewKind: "councilView",
+            });
+            openCouncilView(councilId);
+            const ready = await waitForAssistantUi(
+              () =>
+                screenRef.current.kind === "councilView" &&
+                screenRef.current.councilId === councilId &&
+                councilViewAssistantSnapshotRef.current?.councilId === councilId,
+            );
+            reconciliations.push({
+              callId: executionResult.callId,
+              toolName: executionResult.toolName,
+              status: ready ? "completed" : "failed",
+              failureMessage: ready ? null : "The requested council view never became visible.",
+            });
+            break;
+          }
+          default:
+            reconciliations.push({
+              callId: executionResult.callId,
+              toolName: executionResult.toolName,
+              status: "failed",
+              failureMessage: "The requested assistant navigation could not be reconciled safely.",
+            });
+            break;
+        }
+      }
+
+      return reconciliations;
+    },
+    [openAgentEditor, openCouncilEditor, openCouncilView, updateAssistantState, waitForAssistantUi],
+  );
+
   const assistantShellController = useMemo(
     () =>
       createAssistantShellController({
+        applyPlanResultEffects: applyAssistantPlanResultEffects,
         api: window.api.assistant,
         getActiveAssistantContext,
         getActiveAssistantScopeKey: getActiveAssistantScope,
@@ -337,6 +553,7 @@ export const App = (): JSX.Element => {
         updateAssistantState,
       }),
     [
+      applyAssistantPlanResultEffects,
       getActiveAssistantContext,
       getActiveAssistantScope,
       getCurrentAssistantState,

@@ -53,6 +53,8 @@ const windowApi: WindowApi = {
     submit: async (request) => ipcRenderer.invoke("assistant:submit", request),
     cancelSession: async (request) => ipcRenderer.invoke("assistant:cancel-session", request),
     closeSession: async (request) => ipcRenderer.invoke("assistant:close-session", request),
+    completeReconciliation: async (request) =>
+      ipcRenderer.invoke("assistant:complete-reconciliation", request),
   },
 };
 

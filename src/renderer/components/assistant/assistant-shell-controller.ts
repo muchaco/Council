@@ -1,6 +1,8 @@
 import type {
+  AssistantCompleteReconciliationResponse,
   AssistantContextEnvelope,
   AssistantCreateSessionResponse,
+  AssistantPlanResult,
   AssistantSubmitResponse,
   IpcResult,
 } from "../../../shared/ipc/dto.js";
@@ -11,6 +13,7 @@ import {
   applyAssistantStopResult,
   beginAssistantPlanning,
   closeAssistantUi,
+  finalizeAssistantPendingSessionRebase,
   rebaseAssistantForScopeChange,
   shouldApplyAssistantAsyncUpdate,
   shouldContinueAssistantPendingRequest,
@@ -20,7 +23,7 @@ type AssistantStateAction = AssistantUiState | ((current: AssistantUiState) => A
 
 type AssistantApi = Pick<
   WindowApi["assistant"],
-  "cancelSession" | "closeSession" | "createSession" | "submit"
+  "cancelSession" | "closeSession" | "completeReconciliation" | "createSession" | "submit"
 >;
 
 type AssistantShellSubmitParams = {
@@ -39,6 +42,14 @@ type AssistantShellSubmitParams = {
 };
 
 type AssistantShellControllerDeps = {
+  applyPlanResultEffects: (result: AssistantPlanResult) => Promise<
+    ReadonlyArray<{
+      callId: string;
+      toolName: string;
+      status: "completed" | "failed";
+      failureMessage: string | null;
+    }>
+  >;
   api: AssistantApi;
   getActiveAssistantContext: () => AssistantContextEnvelope;
   getActiveAssistantScopeKey: () => string;
@@ -52,28 +63,84 @@ type AssistantShellControllerDeps = {
 const createAssistantFailureState = (params: {
   message: string;
   state: AssistantUiState;
-}): AssistantUiState => ({
-  ...params.state,
-  messages: [
-    ...params.state.messages,
-    {
-      id: crypto.randomUUID(),
-      role: "assistant",
-      text: params.message,
-      tone: "destructive",
+}): AssistantUiState => {
+  const finalizedState = finalizeAssistantPendingSessionRebase(params.state);
+
+  return {
+    ...finalizedState,
+    messages: [
+      ...finalizedState.messages,
+      {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        text: params.message,
+        tone: "destructive",
+      },
+    ],
+    phase: {
+      destinationLabel: null,
+      executionResults: [],
+      plannedCalls: [],
+      status: "failure",
+      summary: params.message,
     },
-  ],
-  phase: {
-    destinationLabel: null,
-    plannedCalls: [],
-    status: "failure",
-    summary: params.message,
-  },
-});
+  };
+};
 
 const isOk = <T>(result: IpcResult<T>): result is { ok: true; value: T } => result.ok;
 
 export const createAssistantShellController = (deps: AssistantShellControllerDeps) => {
+  const shouldHoldPendingRebaseSession = (params: {
+    activeAssistantScopeKey: string;
+    state: AssistantUiState;
+  }): boolean => {
+    const pendingSessionRebase = params.state.pendingSessionRebase;
+    if (pendingSessionRebase === null) {
+      return false;
+    }
+
+    return (
+      params.activeAssistantScopeKey === pendingSessionRebase.sourceScopeKey ||
+      params.activeAssistantScopeKey === pendingSessionRebase.destinationScopeKey
+    );
+  };
+
+  const applyResultUpdate = async (params: {
+    asyncToken: number;
+    requestScopeKey: string;
+    requestText: string;
+    result: AssistantPlanResult;
+    sessionId: string;
+  }): Promise<void> => {
+    const nextResult = params.result;
+
+    if (
+      !shouldApplyAssistantAsyncUpdate({
+        asyncToken: params.asyncToken,
+        requestScopeKey: params.requestScopeKey,
+        sessionId: params.sessionId,
+        state: deps.getCurrentAssistantState(),
+      })
+    ) {
+      return;
+    }
+
+    deps.updateAssistantState((current) =>
+      !shouldApplyAssistantAsyncUpdate({
+        asyncToken: params.asyncToken,
+        requestScopeKey: params.requestScopeKey,
+        sessionId: params.sessionId,
+        state: current,
+      })
+        ? current
+        : applyAssistantPlanResult({
+            requestText: params.requestText,
+            result: nextResult,
+            state: current,
+          }),
+    );
+  };
+
   const ensureAssistantSession = async (params: {
     asyncToken: number;
     requestScopeKey: string;
@@ -155,7 +222,14 @@ export const createAssistantShellController = (deps: AssistantShellControllerDep
     async rebaseToActiveScope(): Promise<void> {
       const currentState = deps.getStoredAssistantState();
       const activeAssistantScopeKey = deps.getActiveAssistantScopeKey();
-      if (currentState.scopeKey === null || currentState.scopeKey === activeAssistantScopeKey) {
+      if (
+        currentState.scopeKey === null ||
+        currentState.scopeKey === activeAssistantScopeKey ||
+        shouldHoldPendingRebaseSession({
+          activeAssistantScopeKey,
+          state: currentState,
+        })
+      ) {
         return;
       }
 
@@ -275,20 +349,120 @@ export const createAssistantShellController = (deps: AssistantShellControllerDep
         return;
       }
 
-      deps.updateAssistantState((current) =>
-        !shouldApplyAssistantAsyncUpdate({
+      if (result.value.result.kind === "execute") {
+        const isCurrentReconciliationRequest = (): boolean =>
+          shouldApplyAssistantAsyncUpdate({
+            asyncToken,
+            requestScopeKey,
+            sessionId,
+            state: deps.getCurrentAssistantState(),
+          });
+
+        deps.updateAssistantState((current) =>
+          !shouldApplyAssistantAsyncUpdate({
+            asyncToken,
+            requestScopeKey,
+            sessionId,
+            state: current,
+          })
+            ? current
+            : applyAssistantPlanResult({
+                requestText: initialRequest,
+                result: result.value.result,
+                state: current,
+              }),
+        );
+
+        const finalResult = await deps.api.submit({
+          context: requestContext,
+          response: null,
+          sessionId,
+          userRequest: initialRequest,
+        });
+
+        if (!isOk(finalResult)) {
+          deps.pushErrorToast(finalResult.error.userMessage);
+          deps.updateAssistantState((current) =>
+            !shouldApplyAssistantAsyncUpdate({
+              asyncToken,
+              requestScopeKey,
+              sessionId,
+              state: current,
+            })
+              ? current
+              : createAssistantFailureState({
+                  message: finalResult.error.userMessage,
+                  state: current,
+                }),
+          );
+          return;
+        }
+
+        let resultToApply = finalResult.value.result;
+        if (!isCurrentReconciliationRequest()) {
+          return;
+        }
+
+        const reconciliations = await deps.applyPlanResultEffects(resultToApply);
+        if (!isCurrentReconciliationRequest()) {
+          return;
+        }
+
+        if (reconciliations.length > 0) {
+          const shouldRecreateSessionForDestination =
+            deps.getCurrentAssistantState().pendingSessionRebase?.sourceSessionId === sessionId;
+          const completedReconciliation: IpcResult<AssistantCompleteReconciliationResponse> =
+            await deps.api.completeReconciliation({
+              sessionId,
+              reconciliations,
+            });
+
+          if (!isCurrentReconciliationRequest()) {
+            return;
+          }
+
+          if (!isOk(completedReconciliation)) {
+            deps.pushErrorToast(completedReconciliation.error.userMessage);
+            deps.updateAssistantState((current) =>
+              !shouldApplyAssistantAsyncUpdate({
+                asyncToken,
+                requestScopeKey,
+                sessionId,
+                state: current,
+              })
+                ? current
+                : createAssistantFailureState({
+                    message: completedReconciliation.error.userMessage,
+                    state: current,
+                  }),
+            );
+            return;
+          }
+
+          resultToApply = completedReconciliation.value.result;
+
+          if (shouldRecreateSessionForDestination) {
+            void deps.api.closeSession({ sessionId });
+          }
+        }
+
+        await applyResultUpdate({
           asyncToken,
           requestScopeKey,
+          requestText: initialRequest,
+          result: resultToApply,
           sessionId,
-          state: current,
-        })
-          ? current
-          : applyAssistantPlanResult({
-              requestText: initialRequest,
-              result: result.value.result,
-              state: current,
-            }),
-      );
+        });
+        return;
+      }
+
+      await applyResultUpdate({
+        asyncToken,
+        requestScopeKey,
+        requestText: initialRequest,
+        result: result.value.result,
+        sessionId,
+      });
     },
   };
 };

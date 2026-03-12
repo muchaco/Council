@@ -416,7 +416,7 @@ Why this is the best first slice:
 ### Electron diagnostics
 Create reusable scenarios under `scripts/diagnostics/scenarios/`:
 - `assistant-launcher-modal-smoke.json`
-- `assistant-clarify-and-read.json`
+- `assistant-clarify-read-navigation.json`
 - `assistant-current-draft-assist.json`
 - `assistant-create-agent-flow.json`
 - `assistant-council-runtime-actions.json`
@@ -449,7 +449,7 @@ Diagnostic rules:
 - `bun run check:traceability`
 - `bun run diag:electron`
 - `bun run tool:electron -- --scenario scripts/diagnostics/scenarios/assistant-launcher-modal-smoke.json`
-- `bun run tool:electron -- --scenario scripts/diagnostics/scenarios/assistant-clarify-and-read.json`
+- `bun run tool:electron -- --scenario scripts/diagnostics/scenarios/assistant-clarify-read-navigation.json`
 - `bun run tool:electron -- --scenario scripts/diagnostics/scenarios/assistant-current-draft-assist.json`
 - `bun run tool:electron -- --scenario scripts/diagnostics/scenarios/assistant-create-agent-flow.json`
 - `bun run tool:electron -- --scenario scripts/diagnostics/scenarios/assistant-council-runtime-actions.json`

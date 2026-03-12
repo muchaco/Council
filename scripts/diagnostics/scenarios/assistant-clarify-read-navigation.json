@@ -1,0 +1,44 @@
+{
+  "name": "assistant-clarify-read-navigation",
+  "steps": [
+    { "action": "waitForText", "text": "Council" },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const suffix = Date.now().toString().slice(-6); const plannerName = `Planner ${suffix}`; const researcherName = `Researcher ${suffix}`; const councilTitle = `Quarterly Council ${suffix}`; let settings = await window.api.settings.getView({ viewKind: 'settings' }); if (!settings.ok) { throw new Error(settings.error.userMessage); } if (settings.value.globalDefaultModelRef === null || settings.value.globalDefaultModelInvalidConfig) { const refresh = await window.api.providers.refreshModelCatalog({ viewKind: 'settings' }); if (!refresh.ok) { throw new Error(refresh.error.userMessage); } settings = await window.api.settings.getView({ viewKind: 'settings' }); if (!settings.ok) { throw new Error(settings.error.userMessage); } const modelEntry = Object.entries(settings.value.modelCatalog.modelsByProvider).find(([, models]) => Array.isArray(models) && models.length > 0); if (modelEntry !== undefined) { const [providerId, models] = modelEntry; const modelId = models[0]; if (typeof modelId === 'string' && modelId.length > 0) { const setDefault = await window.api.settings.setGlobalDefaultModel({ viewKind: 'settings', modelRefOrNull: { providerId, modelId } }); if (!setDefault.ok) { throw new Error(setDefault.error.userMessage); } } } } const planner = await window.api.agents.save({ viewKind: 'agentEdit', id: null, name: plannerName, systemPrompt: 'Help with planning.', verbosity: 'concise', temperature: 0.2, tags: ['ops'], modelRefOrNull: null }); if (!planner.ok) { throw new Error(planner.error.userMessage); } const researcher = await window.api.agents.save({ viewKind: 'agentEdit', id: null, name: researcherName, systemPrompt: 'Help with research.', verbosity: 'concise', temperature: 0.3, tags: ['research'], modelRefOrNull: null }); if (!researcher.ok) { throw new Error(researcher.error.userMessage); } const council = await window.api.councils.save({ viewKind: 'councilCreate', id: null, title: councilTitle, topic: 'Quarterly planning', goal: 'Align next priorities.', mode: 'manual', tags: ['ops'], memberAgentIds: [planner.value.agent.id, researcher.value.agent.id], memberColorsByAgentId: { [planner.value.agent.id]: '#111111', [researcher.value.agent.id]: '#222222' }, conductorModelRefOrNull: null }); if (!council.ok) { throw new Error(council.error.userMessage); } window.__assistantClarifyReadNavigation = { councilId: council.value.council.id, councilTitle }; return { agentId: planner.value.agent.id, councilId: council.value.council.id, councilTitle }; }"
+    },
+    { "action": "click", "selector": "button[data-assistant-launcher='true']" },
+    {
+      "action": "fill",
+      "selector": "textarea[aria-label='Assistant request']",
+      "value": "Open the council"
+    },
+    { "action": "press", "key": "Enter" },
+    { "action": "waitForText", "text": "Which council" },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const textarea = document.querySelector(\"textarea[aria-label='Assistant request']\"); if (!(textarea instanceof HTMLTextAreaElement)) { throw new Error('Assistant request textarea is unavailable.'); } const councilTitle = window.__assistantClarifyReadNavigation?.councilTitle; if (typeof councilTitle !== 'string' || councilTitle.length === 0) { throw new Error('Missing seeded council title.'); } const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set; if (typeof valueSetter !== 'function') { throw new Error('Textarea value setter is unavailable.'); } textarea.focus(); valueSetter.call(textarea, councilTitle); textarea.dispatchEvent(new InputEvent('input', { bubbles: true, data: councilTitle, inputType: 'insertText' })); textarea.dispatchEvent(new Event('change', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 50)); const sendButton = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Send'); if (!(sendButton instanceof HTMLButtonElement) || sendButton.disabled) { throw new Error('Assistant Send button is unavailable after clarify input.'); } sendButton.click(); return { councilTitle, currentValue: textarea.value }; }"
+    },
+    { "action": "waitForSelector", "selector": "#council-view-panel-chat" },
+    {
+      "action": "fill",
+      "selector": "textarea[aria-label='Assistant request']",
+      "value": "What is the runtime status of this council?"
+    },
+    { "action": "press", "key": "Enter" },
+    {
+      "action": "waitForText",
+      "text": "getCouncilRuntimeState",
+      "timeoutMs": 20000
+    },
+    {
+      "action": "waitForText",
+      "text": "is idle with",
+      "timeoutMs": 20000
+    },
+    {
+      "action": "screenshot",
+      "file": "assistant-clarify-read-navigation.png",
+      "fullPage": true
+    }
+  ]
+}

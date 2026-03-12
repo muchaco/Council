@@ -1,14 +1,14 @@
 # Test-to-Requirement Index (Generated)
 
-Generated at: 2026-03-12T09:23:31.705Z
+Generated at: 2026-03-12T12:42:50.137Z
 
 ## Summary
 
 - Spec files tracked: 42
-- Test cases tracked: 254
-- Annotated test cases: 254
+- Test cases tracked: 273
+- Annotated test cases: 273
 - Unmapped test cases: 0
-- Unique mapped requirement IDs: 223
+- Unique mapped requirement IDs: 224
 
 ## Index
 
@@ -26,7 +26,17 @@ Generated at: 2026-03-12T09:23:31.705Z
   - [itReq] `returns the configured default agents page size through ipc` -> A3, R1.1, R1.2, R1.20, R1.22, R6.1, R6.2, U4.3, U4.6
   - [itReq] `archives agent through ipc handler` -> A3, R1.1, R1.2, R1.20, R1.22, R6.1, R6.2, U4.3, U4.6
 - `tests/integration/assistant-ipc.contract.integration.spec.ts`
+  - [itReq] `fails closed when the global default model is missing or invalid` -> A1, D1, D5, R9.3
+  - [itReq] `passes the global default model through the planner request in main` -> A1, D1, D5, R9.3
+  - [itReq] `loops clarification through the same session and then executes the stored plan` -> A3, D5, R9.18, R9.19, R9.20, R9.7
+  - [itReq] `resolves open council clarifications locally when the planner already asked for a council name` -> A3, D5, R9.18, R9.19, R9.20, R9.7
+  - [itReq] `blocks stored clarification follow-up turns when the global default model becomes invalid` -> A3, D5, R9.19, R9.3, R9.7
+  - [itReq] `executes supported read and navigation tools into a final assistant result` -> A1, A3, D5, R9.18, R9.19, R9.20, R9.22, R9.3, R9.7
+  - [itReq] `uses the council runtime read tool for runtime-status follow-up questions on the open council` -> A1, D5, R9.18, R9.19, R9.22, U18.10, U18.11, U18.8
+  - [itReq] `supports the remaining phase 1 home, entity, and list read tools` -> A1, A3, D5, R9.18, R9.19, R9.20, R9.22, R9.3, R9.7
+  - [itReq] `fails navigation reconciliation closed when the visible destination never appears` -> A3, D5, R9.17, R9.18, R9.22, U18.10, U18.11, U18.8
   - [itReq] `rejects submits whose context view kind does not match the session scope` -> A3, R9.22, R9.3, R9.4
+  - [itReq] `rejects planner terminal success and partial results so main owns final execution outcomes` -> A3, D5, R9.17, R9.3, R9.7
   - [itReq] `rejects a second concurrent submit for the same session` -> A3, D5, R9.20, R9.21, R9.3
   - [itReq] `keeps a stale cancelled submit from clearing newer in-flight work` -> A3, D5, R9.20, R9.21
   - [itReq] `validates assistant session payloads` -> A3, D5, R9.11, R9.16, R9.19, R9.20, R9.21, R9.3, R9.4
@@ -147,6 +157,7 @@ Generated at: 2026-03-12T09:23:31.705Z
 - `tests/unit/assistant-plan-schema.spec.ts`
   - [itReq] `builds a planner prompt from sanitized context and tool catalog` -> R9.17, R9.3, R9.4, R9.7, R9.8
   - [itReq] `parses structured confirm responses` -> R9.17, R9.3, R9.4, R9.7, R9.8
+  - [itReq] `parses fenced planner responses with surrounding prose` -> R9.17, R9.3, R9.4, R9.7, R9.8
   - [itReq] `sanitizes valid planned call payloads before returning them` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
   - [itReq] `fails closed on invalid planner output` -> R9.17, R9.3, R9.4, R9.7, R9.8
 - `tests/unit/assistant-policy.spec.ts`
@@ -162,10 +173,18 @@ Generated at: 2026-03-12T09:23:31.705Z
   - [itReq] `keeps the modal cancelled when delayed session creation resolves after stop` -> R9.17, R9.21, U18.12, U18.13, U18.14
   - [itReq] `keeps the modal closed when delayed session creation resolves after close` -> R9.17, R9.21, U18.12, U18.13, U18.14
   - [itReq] `keeps a rebased modal idle when delayed submit results resolve for the previous scope` -> R9.17, R9.21, U18.12, U18.14
+  - [itReq] `keeps the source session open while navigation reconciliation is still rebasing the modal` -> R9.17, R9.18, R9.21, U18.10, U18.11
+  - [itReq] `auto-continues execute plans and finalizes navigation after reconciliation acknowledgement` -> R9.17, R9.18, R9.7, U18.10, U18.11, U18.7
+  - [itReq] `keeps the modal cancelled when reconciliation effects resolve after stop` -> R9.17, R9.21, U18.12, U18.13, U18.14
+  - [itReq] `keeps a rebased modal idle when reconciliation effects resolve for the previous scope` -> R9.17, R9.21, U18.12, U18.14
+  - [itReq] `recreates the assistant session after navigation rebases the scope during reconciliation` -> R9.17, R9.18, R9.21, U18.10, U18.11, U18.7
+  - [itReq] `keeps the modal in failure when reconciliation completion fails` -> R9.17, R9.18, R9.22, U18.10, U18.11, U18.8
 - `tests/unit/assistant-ui-state.spec.ts`
   - [itReq] `transitions through clarify confirm and result phases with visible conversation entries` -> R9.17, U18.10, U18.11, U18.15, U18.7, U18.8
   - [itReq] `distinguishes active assistant work for keyboard submit and close confirmation behavior` -> R9.16, R9.17, U18.13, U18.14, U18.6
+  - [itReq] `accepts finalized reconciliation results after the renderer rebases the active scope` -> R9.17, R9.18, R9.21, U18.10, U18.11, U18.7
   - [itReq] `rebases assistant state to a new scope without replaying stale follow-up work` -> R9.17, R9.21, U18.12, U18.14
+  - [itReq] `finalizes a rebased session into the destination scope before follow-up work resumes` -> R9.17, R9.18, R9.21, U18.10, U18.11, U18.14
   - [itReq] `ignores a stopped-session update after the modal rebases to a different scope` -> R9.17, R9.21, U18.12, U18.14
   - [itReq] `invalidates pending async work immediately when the assistant closes` -> R9.17, R9.21, U18.12, U18.14
   - [itReq] `invalidates a cancelled in-flight submit even when the session stays in the same scope` -> R9.17, R9.21, U18.12, U18.14

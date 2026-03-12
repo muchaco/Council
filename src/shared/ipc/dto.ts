@@ -509,6 +509,14 @@ export type AssistantToolExecutionResult =
   | {
       callId: string;
       toolName: string;
+      status: "reconciling";
+      output: Readonly<Record<string, unknown>>;
+      userSummary: string;
+      reconciliationState: "follow-up-refresh-in-progress";
+    }
+  | {
+      callId: string;
+      toolName: string;
       status: "success";
       output: Readonly<Record<string, unknown>>;
       userSummary: string;
@@ -646,6 +654,20 @@ export type AssistantSubmitRequest = {
 };
 
 export type AssistantSubmitResponse = {
+  result: AssistantPlanResult;
+};
+
+export type AssistantCompleteReconciliationRequest = {
+  sessionId: string;
+  reconciliations: ReadonlyArray<{
+    callId: string;
+    toolName: string;
+    status: "completed" | "failed";
+    failureMessage: string | null;
+  }>;
+};
+
+export type AssistantCompleteReconciliationResponse = {
   result: AssistantPlanResult;
 };
 
