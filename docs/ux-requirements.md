@@ -521,3 +521,32 @@ A build satisfies this UX spec if:
 - Thinking placeholder appears as the final message bubble; cancel is adjacent; no partial output persists.
 - Invalid config is badge-only with tooltips and disables Start/Resume without a guided fix flow.
 - Export opens file dialog from Council View top bar and Councils list overflow.
+
+---
+
+## 18. Assistant Launcher and Execution UX
+
+### 18.1 Launcher
+- **U18.1** The app shell shows an assistant launcher affordance in the top-left area of the top bar, visible from Home and full-screen views. **[0.90]**
+- **U18.2** The launcher remains visually secondary to the current page title/navigation but prominent enough to signal global availability. **[0.85]**
+
+### 18.2 Modal Layout and Input
+- **U18.3** Activating the launcher opens a modal dialog containing at minimum: conversation area, current-context indicator, multiline input, send action, and close action. **[0.90]**
+- **U18.4** The modal uses a centered dialog layout on desktop and a mobile-appropriate full-width or bottom-sheet variant on smaller widths. **[0.85]**
+- **U18.5** The empty assistant state shows a short hint plus example prompts aligned to major supported workflows. **[0.85]**
+- **U18.6** Input behavior matches app messaging conventions: `Enter` sends, `Shift+Enter` inserts newline. **[0.90]**
+
+### 18.3 Clarification, Confirmation, and Execution Feedback
+- **U18.7** If the assistant needs more information, it asks follow-up questions inline in the modal and keeps the prior user request visible for context. **[0.90]**
+- **U18.8** When executing a multi-step workflow, the modal shows explicit step/progress feedback rather than a single generic loading state. **[0.90]**
+- **U18.9** Destructive or bulk-destructive actions show a confirmation card inside the modal summarizing scope, affected object counts when known, and explicit confirm/cancel actions. **[0.95]**
+- **U18.10** After success, the modal shows a concise result summary and, when useful, a direct path to the affected Agent, Council, or view state. **[0.85]**
+- **U18.11** After partial success or failure, the modal distinguishes completed steps from failed steps and presents the blocking reason in user-safe language. **[0.90]**
+
+### 18.4 Context and Navigation Behavior
+- **U18.12** The modal displays a compact context banner describing where the assistant is operating (for example current tab, current Council, or current Agent). **[0.85]**
+- **U18.13** If closing the modal would interrupt active assistant execution, show a confirmation that execution will stop before closing. **[0.90]**
+
+### 18.5 Accessibility
+- **U18.14** The assistant modal traps focus while open, returns focus to the launcher when closed, and supports `Escape` close semantics when doing so is safe. **[0.90]**
+- **U18.15** Progress, confirmations, and result states expose accessible text so screen-reader and keyboard users can follow the execution flow. **[0.85]**

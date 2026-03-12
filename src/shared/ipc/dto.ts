@@ -440,3 +440,228 @@ export type ExportCouncilTranscriptResponse =
       status: "cancelled";
       filePath: null;
     };
+
+export type AssistantToolCategory =
+  | "read"
+  | "navigation"
+  | "draft-edit"
+  | "commit"
+  | "runtime"
+  | "settings";
+
+export type AssistantToolRisk = "read" | "write" | "destructive" | "bulk-destructive";
+
+export type AssistantToolConfirmationPolicy =
+  | "never"
+  | "always"
+  | "when-inferred-scope"
+  | "when-dirty-draft-would-be-replaced"
+  | "when-bulk";
+
+export type AssistantDraftImpact = "none" | "modify-current-draft" | "replace-current-draft";
+
+export type AssistantToolReconciliation = {
+  visibleTarget:
+    | "current-draft"
+    | "current-list"
+    | "detail-view"
+    | "runtime-view"
+    | "settings-view";
+  strategy: "patch-local" | "refresh-query" | "reload-entity" | "navigate-and-load";
+  successCondition: string;
+};
+
+export type AssistantPlannedToolCall = {
+  callId: string;
+  toolName: string;
+  rationale: string;
+  input: Readonly<Record<string, unknown>>;
+};
+
+export type AssistantConfirmationRequest = {
+  summary: string;
+  scopeDescription: string;
+  affectedCount: number | null;
+  examples: ReadonlyArray<string>;
+  reversible: boolean;
+  draftImpact: AssistantDraftImpact;
+};
+
+export type AssistantToolExecutionError = {
+  kind:
+    | "ValidationError"
+    | "NotFoundError"
+    | "ConflictError"
+    | "InvalidConfigError"
+    | "StateViolationError"
+    | "ProviderError"
+    | "PolicyError"
+    | "UnknownToolError"
+    | "SchemaError"
+    | "InternalError";
+  userMessage: string;
+  developerMessage: string;
+  retryable: boolean;
+  details: Readonly<Record<string, unknown>> | null;
+};
+
+export type AssistantToolExecutionResult =
+  | {
+      callId: string;
+      toolName: string;
+      status: "success";
+      output: Readonly<Record<string, unknown>>;
+      userSummary: string;
+      reconciliationState: "not-needed" | "completed" | "follow-up-refresh-in-progress";
+    }
+  | {
+      callId: string;
+      toolName: string;
+      status: "failed" | "cancelled" | "skipped";
+      error: AssistantToolExecutionError | null;
+      userSummary: string;
+    };
+
+export type AssistantListState = {
+  searchText: string;
+  tagFilter: string;
+  sortBy: string | null;
+  sortDirection: SortDirection | null;
+  archivedFilter: string | null;
+};
+
+export type AssistantDraftState = {
+  entityKind: "agent" | "council" | "settings";
+  entityId: string | null;
+  dirty: boolean;
+  changedFields: ReadonlyArray<string>;
+  summary: string;
+};
+
+export type AssistantRuntimeState = {
+  councilId: string;
+  status: "idle" | "running" | "paused";
+  plannedNextSpeakerAgentId: string | null;
+};
+
+export type AssistantContextEnvelope = {
+  viewKind: ViewKind;
+  contextLabel: string;
+  activeEntityId: string | null;
+  selectionIds: ReadonlyArray<string>;
+  listState: AssistantListState | null;
+  draftState: AssistantDraftState | null;
+  runtimeState: AssistantRuntimeState | null;
+};
+
+export type AssistantSessionDto = {
+  sessionId: string;
+  status: "open" | "closed";
+  viewKind: ViewKind;
+  createdAtUtc: string;
+  lastUpdatedAtUtc: string;
+};
+
+export type AssistantUserTurnResponse =
+  | {
+      kind: "clarification";
+      text: string;
+    }
+  | {
+      kind: "confirmation";
+      approved: boolean;
+    };
+
+export type AssistantPlannerResponse =
+  | {
+      kind: "clarify";
+      question: string;
+    }
+  | {
+      kind: "confirm";
+      summary: string;
+      confirmation: AssistantConfirmationRequest;
+      plannedCalls: ReadonlyArray<AssistantPlannedToolCall>;
+    }
+  | {
+      kind: "execute";
+      summary: string;
+      plannedCalls: ReadonlyArray<AssistantPlannedToolCall>;
+    }
+  | {
+      kind: "result";
+      outcome: "success" | "partial" | "failure" | "cancelled";
+      summary: string;
+    };
+
+export type AssistantPlanResult =
+  | {
+      kind: "clarify";
+      sessionId: string;
+      message: string;
+      planSummary: null;
+      plannedCalls: ReadonlyArray<AssistantPlannedToolCall>;
+    }
+  | {
+      kind: "confirm";
+      sessionId: string;
+      message: string;
+      planSummary: string;
+      plannedCalls: ReadonlyArray<AssistantPlannedToolCall>;
+      confirmation: AssistantConfirmationRequest;
+    }
+  | {
+      kind: "execute";
+      sessionId: string;
+      message: string;
+      planSummary: string;
+      plannedCalls: ReadonlyArray<AssistantPlannedToolCall>;
+    }
+  | {
+      kind: "result";
+      sessionId: string;
+      outcome: "success" | "partial" | "failure" | "cancelled";
+      message: string;
+      planSummary: string | null;
+      plannedCalls: ReadonlyArray<AssistantPlannedToolCall>;
+      executionResults: ReadonlyArray<AssistantToolExecutionResult>;
+      error: AssistantToolExecutionError | null;
+      requiresUserAction: boolean;
+      destinationLabel: string | null;
+    };
+
+export type AssistantCreateSessionRequest = {
+  viewKind: ViewKind;
+};
+
+export type AssistantCreateSessionResponse = {
+  session: AssistantSessionDto;
+};
+
+export type AssistantSubmitRequest = {
+  sessionId: string;
+  userRequest: string;
+  context: AssistantContextEnvelope;
+  response: AssistantUserTurnResponse | null;
+};
+
+export type AssistantSubmitResponse = {
+  result: AssistantPlanResult;
+};
+
+export type AssistantCancelSessionRequest = {
+  sessionId: string;
+};
+
+export type AssistantCancelSessionResponse = {
+  cancelled: boolean;
+};
+
+export type AssistantCloseSessionRequest = {
+  sessionId: string;
+};
+
+export type AssistantCloseSessionResponse = {
+  closed: boolean;
+  cancelledInFlightWork: boolean;
+};

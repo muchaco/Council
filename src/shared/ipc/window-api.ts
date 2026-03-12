@@ -1,6 +1,14 @@
 import type {
   AdvanceAutopilotTurnRequest,
   AdvanceAutopilotTurnResponse,
+  AssistantCancelSessionRequest,
+  AssistantCancelSessionResponse,
+  AssistantCloseSessionRequest,
+  AssistantCloseSessionResponse,
+  AssistantCreateSessionRequest,
+  AssistantCreateSessionResponse,
+  AssistantSubmitRequest,
+  AssistantSubmitResponse,
   CancelCouncilGenerationRequest,
   CancelCouncilGenerationResponse,
   DeleteAgentRequest,
@@ -131,5 +139,17 @@ export interface WindowApi {
     refreshModelCatalog: (
       request: RefreshModelCatalogRequest,
     ) => Promise<IpcResult<RefreshModelCatalogResponse>>;
+  };
+  assistant: {
+    createSession: (
+      request: AssistantCreateSessionRequest,
+    ) => Promise<IpcResult<AssistantCreateSessionResponse>>;
+    submit: (request: AssistantSubmitRequest) => Promise<IpcResult<AssistantSubmitResponse>>;
+    cancelSession: (
+      request: AssistantCancelSessionRequest,
+    ) => Promise<IpcResult<AssistantCancelSessionResponse>>;
+    closeSession: (
+      request: AssistantCloseSessionRequest,
+    ) => Promise<IpcResult<AssistantCloseSessionResponse>>;
   };
 }

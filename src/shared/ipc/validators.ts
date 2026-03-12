@@ -1,4 +1,11 @@
 import { z } from "zod";
+import { sanitizeAssistantContext, sanitizeAssistantText } from "../assistant/assistant-audit.js";
+import {
+  ASSISTANT_CONFIRMATION_REQUEST_SCHEMA,
+  ASSISTANT_PLANNED_TOOL_CALL_SCHEMA,
+  ASSISTANT_TOOL_EXECUTION_ERROR_SCHEMA,
+  ASSISTANT_TOOL_EXECUTION_RESULT_SCHEMA,
+} from "../assistant/assistant-tool-schemas.js";
 import {
   AGENT_ARCHIVED_FILTERS,
   AGENT_SORT_FIELDS,
@@ -193,3 +200,141 @@ export const EXPORT_COUNCIL_TRANSCRIPT_REQUEST_SCHEMA = z.object({
   viewKind: z.union([z.literal("councilsList"), z.literal("councilView")]),
   id: z.string().uuid(),
 });
+
+const ASSISTANT_LIST_STATE_SCHEMA = z
+  .object({
+    searchText: z.string().max(200),
+    tagFilter: z.string().max(200),
+    sortBy: z.string().trim().max(100).nullable(),
+    sortDirection: SORT_DIRECTION_SCHEMA.nullable(),
+    archivedFilter: z.string().trim().max(100).nullable(),
+  })
+  .strict();
+
+const ASSISTANT_DRAFT_STATE_SCHEMA = z
+  .object({
+    entityKind: z.enum(["agent", "council", "settings"]),
+    entityId: z.string().uuid().nullable(),
+    dirty: z.boolean(),
+    changedFields: z.array(z.string().trim().min(1).max(100)).max(50),
+    summary: z.string().trim().max(500),
+  })
+  .strict();
+
+const ASSISTANT_RUNTIME_STATE_SCHEMA = z
+  .object({
+    councilId: z.string().uuid(),
+    status: z.enum(["idle", "running", "paused"]),
+    plannedNextSpeakerAgentId: z.string().uuid().nullable(),
+  })
+  .strict();
+
+export const ASSISTANT_CONTEXT_ENVELOPE_SCHEMA = z
+  .object({
+    viewKind: VIEW_KIND_SCHEMA,
+    contextLabel: z.string().trim().min(1).max(200),
+    activeEntityId: z.string().uuid().nullable(),
+    selectionIds: z.array(z.string().uuid()).max(50),
+    listState: ASSISTANT_LIST_STATE_SCHEMA.nullable(),
+    draftState: ASSISTANT_DRAFT_STATE_SCHEMA.nullable(),
+    runtimeState: ASSISTANT_RUNTIME_STATE_SCHEMA.nullable(),
+  })
+  .strict()
+  .transform((context) => sanitizeAssistantContext(context));
+
+const ASSISTANT_USER_TURN_RESPONSE_SCHEMA = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("clarification"),
+      text: z
+        .string()
+        .trim()
+        .min(1)
+        .max(2_000)
+        .transform((value) => sanitizeAssistantText(value)),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("confirmation"),
+      approved: z.boolean(),
+    })
+    .strict(),
+]);
+
+export const ASSISTANT_CREATE_SESSION_REQUEST_SCHEMA = z
+  .object({
+    viewKind: VIEW_KIND_SCHEMA,
+  })
+  .strict();
+
+export const ASSISTANT_SUBMIT_REQUEST_SCHEMA = z
+  .object({
+    sessionId: z.string().uuid(),
+    userRequest: z
+      .string()
+      .trim()
+      .min(1)
+      .max(5_000)
+      .transform((value) => sanitizeAssistantText(value)),
+    context: ASSISTANT_CONTEXT_ENVELOPE_SCHEMA,
+    response: ASSISTANT_USER_TURN_RESPONSE_SCHEMA.nullable(),
+  })
+  .strict();
+
+export const ASSISTANT_CANCEL_SESSION_REQUEST_SCHEMA = z
+  .object({
+    sessionId: z.string().uuid(),
+  })
+  .strict();
+
+export const ASSISTANT_CLOSE_SESSION_REQUEST_SCHEMA = z
+  .object({
+    sessionId: z.string().uuid(),
+  })
+  .strict();
+
+export const ASSISTANT_PLAN_RESULT_SCHEMA = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("clarify"),
+      sessionId: z.string().uuid(),
+      message: z.string().trim().min(1).max(500),
+      planSummary: z.null(),
+      plannedCalls: z.array(ASSISTANT_PLANNED_TOOL_CALL_SCHEMA).max(20),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("confirm"),
+      sessionId: z.string().uuid(),
+      message: z.string().trim().min(1).max(500),
+      planSummary: z.string().trim().min(1).max(500),
+      plannedCalls: z.array(ASSISTANT_PLANNED_TOOL_CALL_SCHEMA).max(20),
+      confirmation: ASSISTANT_CONFIRMATION_REQUEST_SCHEMA,
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("execute"),
+      sessionId: z.string().uuid(),
+      message: z.string().trim().min(1).max(500),
+      planSummary: z.string().trim().min(1).max(500),
+      plannedCalls: z.array(ASSISTANT_PLANNED_TOOL_CALL_SCHEMA).max(20),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("result"),
+      sessionId: z.string().uuid(),
+      outcome: z.enum(["success", "partial", "failure", "cancelled"]),
+      message: z.string().trim().min(1).max(500),
+      planSummary: z.string().trim().min(1).max(500).nullable(),
+      plannedCalls: z.array(ASSISTANT_PLANNED_TOOL_CALL_SCHEMA).max(20),
+      executionResults: z.array(ASSISTANT_TOOL_EXECUTION_RESULT_SCHEMA).max(20),
+      error: ASSISTANT_TOOL_EXECUTION_ERROR_SCHEMA.nullable(),
+      requiresUserAction: z.boolean(),
+      destinationLabel: z.string().trim().max(200).nullable(),
+    })
+    .strict(),
+]);

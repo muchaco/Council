@@ -48,6 +48,12 @@ const windowApi: WindowApi = {
     refreshModelCatalog: async (request) =>
       ipcRenderer.invoke("councils:refresh-model-catalog", request),
   },
+  assistant: {
+    createSession: async (request) => ipcRenderer.invoke("assistant:create-session", request),
+    submit: async (request) => ipcRenderer.invoke("assistant:submit", request),
+    cancelSession: async (request) => ipcRenderer.invoke("assistant:cancel-session", request),
+    closeSession: async (request) => ipcRenderer.invoke("assistant:close-session", request),
+  },
 };
 
 contextBridge.exposeInMainWorld("api", windowApi);

@@ -1,14 +1,14 @@
 # Test-to-Requirement Index (Generated)
 
-Generated at: 2026-03-11T20:58:18.869Z
+Generated at: 2026-03-12T01:10:33.364Z
 
 ## Summary
 
-- Spec files tracked: 34
-- Test cases tracked: 213
-- Annotated test cases: 213
+- Spec files tracked: 39
+- Test cases tracked: 241
+- Annotated test cases: 241
 - Unmapped test cases: 0
-- Unique mapped requirement IDs: 198
+- Unique mapped requirement IDs: 214
 
 ## Index
 
@@ -25,6 +25,18 @@ Generated at: 2026-03-11T20:58:18.869Z
   - [itReq] `creates and retrieves editor view` -> A3, R1.1, R1.2, R1.20, R1.22, R6.1, R6.2, U4.3, U4.6
   - [itReq] `returns the configured default agents page size through ipc` -> A3, R1.1, R1.2, R1.20, R1.22, R6.1, R6.2, U4.3, U4.6
   - [itReq] `archives agent through ipc handler` -> A3, R1.1, R1.2, R1.20, R1.22, R6.1, R6.2, U4.3, U4.6
+- `tests/integration/assistant-ipc.contract.integration.spec.ts`
+  - [itReq] `rejects submits whose context view kind does not match the session scope` -> A3, R9.22, R9.3, R9.4
+  - [itReq] `rejects a second concurrent submit for the same session` -> A3, D5, R9.20, R9.21, R9.3
+  - [itReq] `keeps a stale cancelled submit from clearing newer in-flight work` -> A3, D5, R9.20, R9.21
+  - [itReq] `validates assistant session payloads` -> A3, D5, R9.11, R9.16, R9.19, R9.20, R9.21, R9.3, R9.4
+  - [itReq] `returns a safe placeholder result when planner execution is not enabled` -> A3, D5, R9.11, R9.16, R9.19, R9.20, R9.21, R9.3, R9.4
+  - [itReq] `returns parsed planner clarify responses over IPC` -> A3, D5, R9.11, R9.16, R9.19, R9.20, R9.21, R9.3, R9.4
+  - [itReq] `sanitizes assistant submit text and planner calls across ipc` -> A1, A3, D5, R9.11, R9.13, R9.14, R9.16, R9.19, R9.20, R9.21, R9.22, R9.3, R9.4, R9.9
+  - [itReq] `maps unknown planner tools to a safe failure result` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
+  - [itReq] `cancels in-flight planning when the session closes` -> A3, D5, R9.11, R9.16, R9.19, R9.20, R9.21, R9.3, R9.4
+  - [itReq] `scopes cancel and close operations to the owning webcontents session` -> A3, D5, R9.11, R9.16, R9.19, R9.20, R9.21, R9.3, R9.4
+  - [itReq] `releases webcontents-owned sessions from in-memory state during teardown` -> A3, D5, R9.11, R9.16, R9.19, R9.20, R9.21, R9.3, R9.4
 - `tests/integration/boundary-check-script.integration.spec.ts`
   - [itReq] `passes for baseline source tree` -> A3, IMPL-005
 - `tests/integration/councils-handlers.integration.spec.ts`
@@ -121,6 +133,27 @@ Generated at: 2026-03-11T20:58:18.869Z
   - [itReq] `maps confirmation-dialog keyboard actions` -> U11.2, U15.2
   - [itReq] `maps list disclosure keyboard close action` -> U15.2
   - [itReq] `builds descriptive accessibility labels for badges and tooltip controls` -> U15.3
+- `tests/unit/assistant-audit.spec.ts`
+  - [itReq] `redacts secrets prompts and raw paths from context and audit payloads` -> A3, F2, R9.19, R9.20
+  - [itReq] `fully redacts path-like values that contain spaces` -> A3, F2, R9.19, R9.20
+  - [itReq] `logs only sanitized assistant audit payloads` -> A3, F2, R9.19, R9.20
+  - [itReq] `summarizes assistant request text instead of persisting it` -> A3, F2, R9.19, R9.20
+- `tests/unit/assistant-ipc-validators.spec.ts`
+  - [itReq] `accepts valid assistant session and submit payloads` -> A3, R9.11, R9.17, R9.19, R9.4
+  - [itReq] `rejects assistant payloads with invalid ids and unknown fields` -> A3, R9.11, R9.17, R9.19, R9.4
+  - [itReq] `normalizes unsafe assistant context strings before they cross ipc` -> A3, R9.11, R9.17, R9.19, R9.4
+  - [itReq] `sanitizes assistant submit text before it reaches main` -> A3, R9.11, R9.17, R9.19, R9.4
+  - [itReq] `accepts normalized assistant result states` -> A3, R9.11, R9.17, R9.19, R9.4
+- `tests/unit/assistant-plan-schema.spec.ts`
+  - [itReq] `builds a planner prompt from sanitized context and tool catalog` -> R9.17, R9.3, R9.4, R9.7, R9.8
+  - [itReq] `parses structured confirm responses` -> R9.17, R9.3, R9.4, R9.7, R9.8
+  - [itReq] `sanitizes valid planned call payloads before returning them` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
+  - [itReq] `fails closed on invalid planner output` -> R9.17, R9.3, R9.4, R9.7, R9.8
+- `tests/unit/assistant-policy.spec.ts`
+  - [itReq] `validates known assistant tool payloads against shared schemas` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
+  - [itReq] `rejects unknown assistant tools` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
+  - [itReq] `requires confirmation before replacing a dirty draft` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
+  - [itReq] `tracks visible reconciliation completion separately from mutation success` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
 - `tests/unit/council-runtime-conductor.spec.ts`
   - [itReq] `builds a split prompt bundle with strict JSON contract` -> E1, E2, F1, R3.13, R3.14, R3.16, R3.17, R3.18, R3.20
   - [itReq] `parses valid manual-mode conductor decision` -> E1, E2, F1, R3.13, R3.14, R3.16, R3.17, R3.18, R3.20

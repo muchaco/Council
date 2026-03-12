@@ -289,3 +289,39 @@ Confidence scale: **1.00** = fully specified and testable, **0.85** = minor deta
   - Resume retries in Autopilot  
   - In Manual, user may select a Member again or a different Member  
   **[0.95]**
+
+---
+
+## 9. Assistant-Driven UI Execution
+
+### 9.1 Launcher and Availability
+- **R9.1** User can open an in-app assistant from a persistent launcher button placed at the top-left of the app shell. **[0.90]**
+- **R9.2** Activating the launcher opens an assistant modal with an input box and send action; the feature is available from Home and full-screen detail views. **[0.90]**
+- **R9.3** The assistant always runs on the current Global Default Model; the user does not choose a separate model for assistant requests. **[0.80]**
+
+### 9.2 Context Awareness and Intent Interpretation
+- **R9.4** The assistant receives structured current-view context sufficient to reason about the user's request, including active screen, active entity IDs, visible runtime state, list query state, and current editable draft state excluding secrets and raw filesystem paths. **[0.85]**
+- **R9.5** User can describe a desired outcome in natural language; the assistant interprets that intent into one or more executable app actions. **[0.85]**
+- **R9.6** The assistant should prefer the most direct valid workflow available in the current app context rather than forcing the user through manual intermediate steps. **[0.80]**
+- **R9.7** If the user's request is missing required information or is ambiguous in a way that blocks safe execution, the assistant asks a concise follow-up question before executing. **[0.90]**
+
+### 9.3 Tool-Using Execution Model
+- **R9.8** The assistant may execute multi-step workflows by chaining typed tools/actions. **[0.85]**
+- **R9.9** Assistant execution must be grounded in explicit typed tools that correspond to user-visible app capabilities; it must not rely on privileged hidden backdoors or direct DOM mutation as the primary execution model. **[0.95]**
+- **R9.10** The assistant tool surface must cover all major user-visible capabilities over time, including navigation, search/filter/sort, create/edit/save/cancel flows, member management, runtime controls, archive/restore/delete, export, and supported Settings actions. **[0.75]**
+- **R9.11** Assistant tools execute through typed preload/main-process contracts and the same application handlers that enforce manual UI behavior. **[0.95]**
+- **R9.12** The assistant may perform bulk actions only for operations the user could otherwise accomplish manually through repeated UI actions. **[0.80]**
+
+### 9.4 Safety, Validation, and Execution Controls
+- **R9.13** Destructive or bulk-destructive assistant actions require explicit confirmation that summarizes intended scope before execution. **[0.95]**
+- **R9.14** Assistant-driven actions must respect the same validations, invalid-config blocks, archived/read-only rules, runtime state-machine constraints, and unsaved-change rules as manual UI actions. **[0.95]**
+- **R9.15** If execution encounters a validation or state error, the assistant reports the blocking reason and may continue only with user-approved corrective follow-up steps. **[0.85]**
+- **R9.16** User can cancel in-progress assistant execution; cancellation stops future tool calls but does not silently revert steps that already completed successfully. **[0.90]**
+
+### 9.5 Progress, Results, and Auditability
+- **R9.17** The assistant modal shows execution progress across planning, clarification, confirmation, execution, success, partial success, and failure states. **[0.85]**
+- **R9.18** After execution, the assistant reports what it completed, what failed if anything, and the resulting destination or object state in user-visible terms. **[0.90]**
+- **R9.19** Assistant requests and tool execution results must never expose provider secrets, credential material, or raw filesystem paths across IPC or in renderer-visible responses. **[0.95]**
+- **R9.20** The system stores a local assistant execution record containing at least the user request, interpreted plan summary, executed tool calls, outcomes, and timestamps for debugging/audit purposes. **[0.75]**
+- **R9.21** Assistant execution must not continue autonomously in the background after the user closes the interaction surface or leaves the active Council View lease. **[0.80]**
+- **R9.22** Assistant execution outcomes must leave the app in a consistent state that can be refreshed and inspected through the normal UI. **[0.90]**

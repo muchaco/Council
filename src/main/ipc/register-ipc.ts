@@ -11,12 +11,15 @@ import type { HealthPingResponse, IpcResult } from "../../shared/ipc/dto.js";
 import { HEALTH_PING_REQUEST_SCHEMA } from "../../shared/ipc/validators.js";
 import { createAgentsIpcHandlers } from "../features/agents/ipc-handlers.js";
 import { createAgentsSlice } from "../features/agents/slice.js";
+import { createAssistantIpcHandlers } from "../features/assistant/ipc-handlers.js";
+import { createAssistantSlice } from "../features/assistant/slice.js";
 import { createCouncilsIpcHandlers } from "../features/councils/ipc-handlers.js";
 import { createCouncilsSlice } from "../features/councils/slice.js";
 import { createSettingsIpcHandlers } from "../features/settings/ipc-handlers.js";
 import { createSettingsSlice } from "../features/settings/slice.js";
 import { createLogger } from "../logging/index.js";
 import { createProviderAiService } from "../services/ai/provider-ai-service.js";
+import { createAssistantAuditService } from "../services/assistant/assistant-audit-service.js";
 import { createSqlitePersistenceService } from "../services/db/sqlite-persistence-service.js";
 import { createElectronExportService } from "../services/export/electron-export-service.js";
 import { createKeytarKeychainService } from "../services/keychain/keytar-keychain-service.js";
@@ -71,6 +74,7 @@ export const registerIpcHandlers = (): {
       keychain.loadSecret({ account }).mapErr(() => "ProviderError" as const),
   });
   const exportService = createElectronExportService();
+  const assistantAuditService = createAssistantAuditService(logger);
 
   const settingsSlice = createSettingsSlice({
     saveSecret: keychain.saveSecret,
@@ -380,6 +384,17 @@ export const registerIpcHandlers = (): {
       councilsSlice.countCouncilsUsingAgent(agentId).map((count) => count === 0),
   });
   const settingsHandlers = createSettingsIpcHandlers(settingsSlice);
+  const assistantSlice = createAssistantSlice({
+    nowUtc: () => new Date().toISOString(),
+    createSessionId: () => randomUUID(),
+    getSettingsView: ({ webContentsId, viewKind }) =>
+      settingsSlice.getSettingsView({
+        webContentsId,
+        viewKind,
+      }),
+    auditService: assistantAuditService,
+  });
+  const assistantHandlers = createAssistantIpcHandlers(assistantSlice);
   const agentsHandlers = createAgentsIpcHandlers(agentsSlice);
   const councilsHandlers = createCouncilsIpcHandlers(councilsSlice);
 
@@ -480,10 +495,23 @@ export const registerIpcHandlers = (): {
   ipcMain.handle("councils:refresh-model-catalog", async (event, payload) =>
     councilsHandlers.refreshModelCatalog(payload, event.sender.id),
   );
+  ipcMain.handle("assistant:create-session", async (event, payload) =>
+    assistantHandlers.createSession(payload, event.sender.id),
+  );
+  ipcMain.handle("assistant:submit", async (event, payload) =>
+    assistantHandlers.submit(payload, event.sender.id),
+  );
+  ipcMain.handle("assistant:cancel-session", async (event, payload) =>
+    assistantHandlers.cancelSession(payload, event.sender.id),
+  );
+  ipcMain.handle("assistant:close-session", async (event, payload) =>
+    assistantHandlers.closeSession(payload, event.sender.id),
+  );
 
   return {
     releaseWebContentsResources: (webContentsId: number): void => {
       settingsSlice.releaseViewSnapshots(webContentsId);
+      assistantSlice.releaseWebContentsSessions(webContentsId);
     },
   };
 };
