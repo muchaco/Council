@@ -1,0 +1,49 @@
+{
+  "name": "assistant-shell-scope-guard",
+  "steps": [
+    { "action": "waitForText", "text": "Council" },
+    { "action": "click", "selector": "button:has-text('Agents')" },
+    {
+      "action": "waitForSelector",
+      "selector": "#home-panel-agents button[data-home-list-new-button='true']"
+    },
+    { "action": "expectVisible", "selector": "button[data-assistant-launcher='true']" },
+    { "action": "click", "selector": "button[data-assistant-launcher='true']" },
+    {
+      "action": "waitForText",
+      "text": "Plan and execute UI-safe actions with the current app context."
+    },
+    {
+      "action": "evaluate",
+      "saveAs": "modalInputFocused",
+      "expression": "() => document.activeElement instanceof HTMLTextAreaElement && document.activeElement.getAttribute('aria-label') === 'Assistant request'"
+    },
+    { "action": "assertSaved", "key": "modalInputFocused", "equals": true },
+    {
+      "action": "fill",
+      "selector": "textarea[aria-label='Assistant request']",
+      "value": "Open the newest agent."
+    },
+    { "action": "press", "key": "Enter" },
+    { "action": "waitForText", "text": "Open the newest agent." },
+    {
+      "action": "evaluate",
+      "expression": "() => { const newAgentButton = document.querySelector('#home-panel-agents button[data-home-list-new-button=\"true\"]'); if (!(newAgentButton instanceof HTMLButtonElement)) { return false; } newAgentButton.click(); return true; }"
+    },
+    { "action": "waitForSelector", "selector": "#agent-name" },
+    {
+      "action": "evaluate",
+      "saveAs": "scopeRebasedSafely",
+      "expression": "() => { const bodyText = document.body.textContent ?? ''; const launcher = document.querySelector('button[data-assistant-launcher=\"true\"]'); const bannerText = Array.from(document.querySelectorAll('div')).map((node) => node.textContent ?? '').find((text) => text.includes('Agent editor / New Agent')) ?? ''; return launcher instanceof HTMLButtonElement && bannerText.includes('Agent editor / New Agent') && bodyText.includes('Ask the assistant to help with navigation, drafts, or the current council context.') && !bodyText.includes('Open the newest agent.'); }"
+    },
+    { "action": "assertSaved", "key": "scopeRebasedSafely", "equals": true },
+    { "action": "press", "key": "Escape" },
+    {
+      "action": "evaluate",
+      "saveAs": "focusReturnedToVisibleLauncher",
+      "expression": "() => document.activeElement instanceof HTMLButtonElement && document.activeElement.dataset.assistantLauncher === 'true' && document.activeElement.textContent?.includes('Assistant') === true"
+    },
+    { "action": "assertSaved", "key": "focusReturnedToVisibleLauncher", "equals": true },
+    { "action": "screenshot", "file": "assistant-shell-scope-guard.png", "fullPage": true }
+  ]
+}

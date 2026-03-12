@@ -1,14 +1,14 @@
 # Test-to-Requirement Index (Generated)
 
-Generated at: 2026-03-12T01:10:33.364Z
+Generated at: 2026-03-12T09:23:31.705Z
 
 ## Summary
 
-- Spec files tracked: 39
-- Test cases tracked: 241
-- Annotated test cases: 241
+- Spec files tracked: 42
+- Test cases tracked: 254
+- Annotated test cases: 254
 - Unmapped test cases: 0
-- Unique mapped requirement IDs: 214
+- Unique mapped requirement IDs: 223
 
 ## Index
 
@@ -154,6 +154,22 @@ Generated at: 2026-03-12T01:10:33.364Z
   - [itReq] `rejects unknown assistant tools` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
   - [itReq] `requires confirmation before replacing a dirty draft` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
   - [itReq] `tracks visible reconciliation completion separately from mutation success` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
+- `tests/unit/assistant-renderer-context.spec.ts`
+  - [itReq] `builds sanitized home context from the active list query` -> A3, D5, F2, R9.19, R9.4, U18.12
+  - [itReq] `summarizes agent draft changes without exposing prompt bodies or raw paths` -> A3, D5, F2, R9.19, R9.4, U18.12
+  - [itReq] `builds council view runtime context without transcript body details` -> A3, D5, F2, R9.19, R9.4, U18.12
+- `tests/unit/assistant-shell-controller.spec.ts`
+  - [itReq] `keeps the modal cancelled when delayed session creation resolves after stop` -> R9.17, R9.21, U18.12, U18.13, U18.14
+  - [itReq] `keeps the modal closed when delayed session creation resolves after close` -> R9.17, R9.21, U18.12, U18.13, U18.14
+  - [itReq] `keeps a rebased modal idle when delayed submit results resolve for the previous scope` -> R9.17, R9.21, U18.12, U18.14
+- `tests/unit/assistant-ui-state.spec.ts`
+  - [itReq] `transitions through clarify confirm and result phases with visible conversation entries` -> R9.17, U18.10, U18.11, U18.15, U18.7, U18.8
+  - [itReq] `distinguishes active assistant work for keyboard submit and close confirmation behavior` -> R9.16, R9.17, U18.13, U18.14, U18.6
+  - [itReq] `rebases assistant state to a new scope without replaying stale follow-up work` -> R9.17, R9.21, U18.12, U18.14
+  - [itReq] `ignores a stopped-session update after the modal rebases to a different scope` -> R9.17, R9.21, U18.12, U18.14
+  - [itReq] `invalidates pending async work immediately when the assistant closes` -> R9.17, R9.21, U18.12, U18.14
+  - [itReq] `invalidates a cancelled in-flight submit even when the session stays in the same scope` -> R9.17, R9.21, U18.12, U18.14
+  - [itReq] `invalidates session setup work after stop before session creation finishes` -> R9.17, R9.21, U18.12, U18.14
 - `tests/unit/council-runtime-conductor.spec.ts`
   - [itReq] `builds a split prompt bundle with strict JSON contract` -> E1, E2, F1, R3.13, R3.14, R3.16, R3.17, R3.18, R3.20
   - [itReq] `parses valid manual-mode conductor decision` -> E1, E2, F1, R3.13, R3.14, R3.16, R3.17, R3.18, R3.20

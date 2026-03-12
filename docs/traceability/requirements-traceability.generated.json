@@ -1,11 +1,11 @@
 {
-  "generatedAtUtc": "2026-03-12T01:10:33.364Z",
+  "generatedAtUtc": "2026-03-12T09:23:31.705Z",
   "summary": {
-    "specFilesTracked": 39,
-    "testCasesTracked": 241,
-    "annotatedTestCases": 241,
+    "specFilesTracked": 42,
+    "testCasesTracked": 254,
+    "annotatedTestCases": 254,
     "unmappedTestCases": 0,
-    "mappedRequirementIds": 214
+    "mappedRequirementIds": 223
   },
   "entries": [
     {
@@ -4229,6 +4229,171 @@
       "plainItCount": 0,
       "itReqInvocationCount": 4,
       "totalTestCount": 4
+    },
+    {
+      "filePath": "tests/unit/assistant-renderer-context.spec.ts",
+      "cases": [
+        {
+          "name": "builds sanitized home context from the active list query",
+          "requirementIds": [
+            "A3",
+            "D5",
+            "F2",
+            "R9.19",
+            "R9.4",
+            "U18.12"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "summarizes agent draft changes without exposing prompt bodies or raw paths",
+          "requirementIds": [
+            "A3",
+            "D5",
+            "F2",
+            "R9.19",
+            "R9.4",
+            "U18.12"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "builds council view runtime context without transcript body details",
+          "requirementIds": [
+            "A3",
+            "D5",
+            "F2",
+            "R9.19",
+            "R9.4",
+            "U18.12"
+          ],
+          "source": "itReq"
+        }
+      ],
+      "plainItCount": 0,
+      "itReqInvocationCount": 3,
+      "totalTestCount": 3
+    },
+    {
+      "filePath": "tests/unit/assistant-shell-controller.spec.ts",
+      "cases": [
+        {
+          "name": "keeps the modal cancelled when delayed session creation resolves after stop",
+          "requirementIds": [
+            "R9.17",
+            "R9.21",
+            "U18.12",
+            "U18.13",
+            "U18.14"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "keeps the modal closed when delayed session creation resolves after close",
+          "requirementIds": [
+            "R9.17",
+            "R9.21",
+            "U18.12",
+            "U18.13",
+            "U18.14"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "keeps a rebased modal idle when delayed submit results resolve for the previous scope",
+          "requirementIds": [
+            "R9.17",
+            "R9.21",
+            "U18.12",
+            "U18.14"
+          ],
+          "source": "itReq"
+        }
+      ],
+      "plainItCount": 0,
+      "itReqInvocationCount": 3,
+      "totalTestCount": 3
+    },
+    {
+      "filePath": "tests/unit/assistant-ui-state.spec.ts",
+      "cases": [
+        {
+          "name": "transitions through clarify confirm and result phases with visible conversation entries",
+          "requirementIds": [
+            "R9.17",
+            "U18.10",
+            "U18.11",
+            "U18.15",
+            "U18.7",
+            "U18.8"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "distinguishes active assistant work for keyboard submit and close confirmation behavior",
+          "requirementIds": [
+            "R9.16",
+            "R9.17",
+            "U18.13",
+            "U18.14",
+            "U18.6"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "rebases assistant state to a new scope without replaying stale follow-up work",
+          "requirementIds": [
+            "R9.17",
+            "R9.21",
+            "U18.12",
+            "U18.14"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "ignores a stopped-session update after the modal rebases to a different scope",
+          "requirementIds": [
+            "R9.17",
+            "R9.21",
+            "U18.12",
+            "U18.14"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "invalidates pending async work immediately when the assistant closes",
+          "requirementIds": [
+            "R9.17",
+            "R9.21",
+            "U18.12",
+            "U18.14"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "invalidates a cancelled in-flight submit even when the session stays in the same scope",
+          "requirementIds": [
+            "R9.17",
+            "R9.21",
+            "U18.12",
+            "U18.14"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "invalidates session setup work after stop before session creation finishes",
+          "requirementIds": [
+            "R9.17",
+            "R9.21",
+            "U18.12",
+            "U18.14"
+          ],
+          "source": "itReq"
+        }
+      ],
+      "plainItCount": 0,
+      "itReqInvocationCount": 7,
+      "totalTestCount": 7
     },
     {
       "filePath": "tests/unit/council-runtime-conductor.spec.ts",

@@ -12,6 +12,7 @@ import {
   resolveAddableAgentsEmptyStateMessage,
 } from "../../../shared/council-view-add-member-dialog.js";
 import type { CouncilMode } from "../../../shared/ipc/dto";
+import type { AssistantCouncilEditorSnapshot } from "../assistant/assistant-context-builders";
 import { AddMemberDialog } from "../council-view/AddMemberDialog";
 import { DetailScreenShell } from "../shared/DetailScreenShell";
 import { ModelSelectField } from "../shared/ModelSelectField";
@@ -24,15 +25,19 @@ import {
 import { useCouncilEditorActions } from "./useCouncilEditorActions";
 
 type CouncilEditorScreenProps = {
+  assistantLauncher: JSX.Element;
   councilId: string | null;
   isActive: boolean;
+  onAssistantContextChange: (snapshot: AssistantCouncilEditorSnapshot | null) => void;
   onClose: () => void;
   pushToast: (tone: "warning" | "error" | "info", message: string) => void;
 };
 
 export const CouncilEditorScreen = ({
+  assistantLauncher,
   councilId,
   isActive,
+  onAssistantContextChange,
   onClose,
   pushToast,
 }: CouncilEditorScreenProps): JSX.Element | null => {
@@ -104,6 +109,19 @@ export const CouncilEditorScreen = ({
     void loadCouncilEditor(councilId);
   }, [councilId, isActive, loadCouncilEditor]);
 
+  useEffect(() => {
+    if (!isActive || state.status !== "ready") {
+      onAssistantContextChange(null);
+      return;
+    }
+
+    onAssistantContextChange({
+      archived: state.source.council?.archived === true,
+      draft: state.draft,
+      initialDraft: JSON.parse(state.initialFingerprint) as typeof state.draft,
+    });
+  }, [isActive, onAssistantContextChange, state]);
+
   const addTag = (): void => {
     if (state.status !== "ready") {
       return;
@@ -151,6 +169,7 @@ export const CouncilEditorScreen = ({
   if (state.status === "loading") {
     return (
       <DetailScreenShell
+        assistantLauncher={assistantLauncher}
         onBack={() => close()}
         statusMessage="Loading council editor..."
         title={councilId === null ? "New Council" : "Edit Council"}
@@ -160,6 +179,7 @@ export const CouncilEditorScreen = ({
   if (state.status === "error") {
     return (
       <DetailScreenShell
+        assistantLauncher={assistantLauncher}
         onBack={() => close()}
         statusMessage={`Error: ${state.message}`}
         title="Council Editor"
@@ -187,6 +207,7 @@ export const CouncilEditorScreen = ({
     <main className="shell">
       <header className="section-header">
         <div className="button-row">
+          {assistantLauncher}
           <button className="secondary" onClick={() => close()} type="button">
             Back
           </button>

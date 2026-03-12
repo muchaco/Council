@@ -11,6 +11,7 @@ import {
 } from "../../../shared/app-ui-helpers.js";
 import type { GetAgentEditorViewResponse } from "../../../shared/ipc/dto";
 import { ConfirmDialog } from "../../ConfirmDialog";
+import type { AssistantAgentEditorSnapshot } from "../assistant/assistant-context-builders";
 import { DetailScreenShell } from "../shared/DetailScreenShell";
 import { ModelSelectField } from "../shared/ModelSelectField";
 import { TagsEditor } from "../shared/TagsEditor";
@@ -58,14 +59,18 @@ const toAgentEditorDraft = (agent: GetAgentEditorViewResponse["agent"]): AgentEd
 
 type AgentEditorScreenProps = {
   agentId: string | null;
+  assistantLauncher: JSX.Element;
   isActive: boolean;
+  onAssistantContextChange: (snapshot: AssistantAgentEditorSnapshot | null) => void;
   onClose: (tab?: "agents") => void;
   pushToast: (tone: "warning" | "error" | "info", message: string) => void;
 };
 
 export const AgentEditorScreen = ({
   agentId,
+  assistantLauncher,
   isActive,
+  onAssistantContextChange,
   onClose,
   pushToast,
 }: AgentEditorScreenProps): JSX.Element | null => {
@@ -127,6 +132,19 @@ export const AgentEditorScreen = ({
       });
     });
   }, [agentId, isActive, pushToast]);
+
+  useEffect(() => {
+    if (!isActive || state.status !== "ready") {
+      onAssistantContextChange(null);
+      return;
+    }
+
+    onAssistantContextChange({
+      archived: state.source.agent?.archived === true,
+      draft: state.draft,
+      initialDraft: JSON.parse(state.initialFingerprint) as AgentEditorDraft,
+    });
+  }, [isActive, onAssistantContextChange, state]);
 
   const close = (force = false): void => {
     if (!force && hasUnsavedDraft) {
@@ -350,6 +368,7 @@ export const AgentEditorScreen = ({
   if (state.status === "loading") {
     return (
       <DetailScreenShell
+        assistantLauncher={assistantLauncher}
         onBack={() => close()}
         statusMessage="Loading agent editor..."
         title={agentId === null ? "New Agent" : "Edit Agent"}
@@ -359,6 +378,7 @@ export const AgentEditorScreen = ({
   if (state.status === "error") {
     return (
       <DetailScreenShell
+        assistantLauncher={assistantLauncher}
         onBack={() => close()}
         statusMessage={`Error: ${state.message}`}
         title="Agent Editor"
@@ -378,6 +398,7 @@ export const AgentEditorScreen = ({
     <main className="shell">
       <header className="section-header">
         <div className="button-row">
+          {assistantLauncher}
           <button className="secondary" onClick={() => close()} type="button">
             Back
           </button>

@@ -13,6 +13,7 @@
     "scripts/**/*.ts",
     "tests/**/*.ts",
     "src/main/**/*.ts",
+    "src/renderer/components/assistant/**/*.ts",
     "src/shared/**/*.ts",
     "vite.config.ts",
     "vitest.*.config.ts"

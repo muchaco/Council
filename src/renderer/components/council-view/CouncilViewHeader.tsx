@@ -13,6 +13,7 @@ type RuntimeControlsSnapshot = {
 };
 
 type CouncilViewHeaderProps = {
+  assistantLauncher: JSX.Element;
   autopilotLimitModalOpen: boolean;
   canShowRuntimeBlockBadge: boolean;
   invalidConfig: boolean;
@@ -45,6 +46,7 @@ type CouncilViewHeaderProps = {
 };
 
 export const CouncilViewHeader = ({
+  assistantLauncher,
   autopilotLimitModalOpen,
   autopilotMaxTurns,
   autopilotTurnsCompleted,
@@ -77,10 +79,13 @@ export const CouncilViewHeader = ({
 }: CouncilViewHeaderProps): JSX.Element => (
   <header className="mb-4">
     <div className="mb-4 flex items-center justify-between gap-3">
-      <Button className="gap-2" disabled={isLeavingView} onClick={onBack} variant="outline">
-        <ChevronLeft className="h-4 w-4" />
-        {isLeavingView ? "Leaving..." : "Back"}
-      </Button>
+      <div className="flex items-center gap-2">
+        {assistantLauncher}
+        <Button className="gap-2" disabled={isLeavingView} onClick={onBack} variant="outline">
+          <ChevronLeft className="h-4 w-4" />
+          {isLeavingView ? "Leaving..." : "Back"}
+        </Button>
+      </div>
       <div className="flex items-center gap-2">
         {runtimeControls.showTopBarStart ? (
           <Button disabled={startDisabled} onClick={onStart} title={startDisabledReason}>
