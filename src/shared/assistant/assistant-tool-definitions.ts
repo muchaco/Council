@@ -31,6 +31,104 @@ export const defineAssistantTool = <
 
 export const ASSISTANT_TOOL_DEFINITIONS: ReadonlyArray<AssistantToolDefinition> = [
   defineAssistantTool({
+    name: "setAgentDraftFields",
+    version: 1,
+    category: "draft-edit",
+    risk: "write",
+    requiresConfirmation: false,
+    confirmationPolicy: "when-dirty-draft-would-be-replaced",
+    description:
+      "Patch the current visible agent draft fields in place. Omit entityId to target the currently open editor.",
+    inputSchema: z
+      .object({
+        entityId: z.string().uuid().nullable().optional(),
+        name: z.string().trim().min(1).max(120).optional(),
+        systemPrompt: z.string().trim().min(1).max(10_000).optional(),
+        verbosity: z.string().trim().max(200).nullable().optional(),
+        temperature: z.number().min(0).max(2).nullable().optional(),
+        tags: z.array(z.string().trim().min(1).max(20)).max(3).optional(),
+      })
+      .strict()
+      .refine(
+        (value) =>
+          value.name !== undefined ||
+          value.systemPrompt !== undefined ||
+          value.verbosity !== undefined ||
+          value.temperature !== undefined ||
+          value.tags !== undefined,
+        "At least one draft field must be provided.",
+      ),
+    outputSchema: z
+      .object({
+        appliedFieldLabels: z.array(z.string().trim().min(1).max(50)).min(1).max(5),
+        entityId: z.string().uuid().nullable(),
+        patch: z
+          .object({
+            name: z.string().trim().min(1).max(120).optional(),
+            systemPrompt: z.string().trim().min(1).max(10_000).optional(),
+            verbosity: z.string().trim().max(200).nullable().optional(),
+            temperature: z.number().min(0).max(2).nullable().optional(),
+            tags: z.array(z.string().trim().min(1).max(20)).max(3).optional(),
+          })
+          .strict(),
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "current-draft",
+      strategy: "patch-local",
+      successCondition: "The current visible agent draft shows the requested field changes.",
+    },
+  }),
+  defineAssistantTool({
+    name: "setCouncilDraftFields",
+    version: 1,
+    category: "draft-edit",
+    risk: "write",
+    requiresConfirmation: false,
+    confirmationPolicy: "when-dirty-draft-would-be-replaced",
+    description:
+      "Patch the current visible council draft fields in place. Omit entityId to target the currently open editor.",
+    inputSchema: z
+      .object({
+        entityId: z.string().uuid().nullable().optional(),
+        title: z.string().trim().min(1).max(200).optional(),
+        topic: z.string().trim().min(1).max(10_000).optional(),
+        goal: z.string().trim().max(5_000).nullable().optional(),
+        mode: z.enum(["autopilot", "manual"]).optional(),
+        tags: z.array(z.string().trim().min(1).max(20)).max(3).optional(),
+      })
+      .strict()
+      .refine(
+        (value) =>
+          value.title !== undefined ||
+          value.topic !== undefined ||
+          value.goal !== undefined ||
+          value.mode !== undefined ||
+          value.tags !== undefined,
+        "At least one draft field must be provided.",
+      ),
+    outputSchema: z
+      .object({
+        appliedFieldLabels: z.array(z.string().trim().min(1).max(50)).min(1).max(5),
+        entityId: z.string().uuid().nullable(),
+        patch: z
+          .object({
+            title: z.string().trim().min(1).max(200).optional(),
+            topic: z.string().trim().min(1).max(10_000).optional(),
+            goal: z.string().trim().max(5_000).nullable().optional(),
+            mode: z.enum(["autopilot", "manual"]).optional(),
+            tags: z.array(z.string().trim().min(1).max(20)).max(3).optional(),
+          })
+          .strict(),
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "current-draft",
+      strategy: "patch-local",
+      successCondition: "The current visible council draft shows the requested field changes.",
+    },
+  }),
+  defineAssistantTool({
     name: "navigateToHomeTab",
     version: 1,
     category: "navigation",

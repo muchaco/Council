@@ -86,6 +86,10 @@ const createHarness = (params?: {
       toolName: string;
       status: "completed" | "failed";
       failureMessage: string | null;
+      completion?: {
+        output: Readonly<Record<string, unknown>> | null;
+        userSummary: string | null;
+      } | null;
     }>
   >;
   completeReconciliation?: () => Promise<IpcResult<AssistantCompleteReconciliationResponse>>;
@@ -431,6 +435,7 @@ describe("assistant shell controller", () => {
         reconciliations: [
           {
             callId: "call-1",
+            completion: null,
             toolName: "openCouncilView",
             status: "completed",
             failureMessage: null,
@@ -445,6 +450,145 @@ describe("assistant shell controller", () => {
       expect(finalPhase.executionResults).toHaveLength(1);
       expect(harness.getState().messages.at(-1)?.text).toBe(
         "Opened council view for Quarterly Council.",
+      );
+    },
+  );
+
+  itReq(
+    ["R9.17", "R9.18", "R9.22", "U18.7", "U18.10", "U18.11"],
+    "forwards draft reconciliation completion metadata into the final reconciliation request",
+    async () => {
+      const submit = vi
+        .fn<() => Promise<IpcResult<AssistantSubmitResponse>>>()
+        .mockResolvedValueOnce(
+          createOkResult({
+            result: {
+              kind: "execute",
+              message: "Update the current council draft.",
+              planSummary: "Update the current council draft.",
+              plannedCalls: [
+                {
+                  callId: "call-1",
+                  input: {
+                    title: "Quarterly Council Updated",
+                  },
+                  rationale: "Patch the visible council draft.",
+                  toolName: "setCouncilDraftFields",
+                },
+              ],
+              sessionId: "session-1",
+            },
+          }),
+        )
+        .mockResolvedValueOnce(
+          createOkResult({
+            result: {
+              destinationLabel: "Quarterly Council Updated",
+              error: null,
+              executionResults: [
+                {
+                  callId: "call-1",
+                  output: {
+                    appliedFieldLabels: ["title"],
+                    entityId: "00000000-0000-4000-8000-000000000201",
+                    patch: {
+                      title: "Quarterly Council Updated",
+                    },
+                  },
+                  reconciliationState: "follow-up-refresh-in-progress",
+                  status: "reconciling",
+                  toolName: "setCouncilDraftFields",
+                  userSummary: "Updated the current council draft title.",
+                },
+              ],
+              kind: "result",
+              message: "Waiting for 1 assistant step(s) to finish visibly.",
+              outcome: "partial",
+              planSummary: null,
+              plannedCalls: [],
+              requiresUserAction: false,
+              sessionId: "session-1",
+            },
+          }),
+        );
+      const completion = {
+        output: {
+          appliedFieldLabels: ["title"],
+          entityId: "00000000-0000-4000-8000-000000000201",
+          patch: {
+            title: "Quarterly Council Updated",
+          },
+        },
+        userSummary: "Updated the current council draft title.",
+      };
+      const completeReconciliation = vi
+        .fn<() => Promise<IpcResult<AssistantCompleteReconciliationResponse>>>()
+        .mockResolvedValue(
+          createOkResult({
+            result: {
+              destinationLabel: "Quarterly Council Updated",
+              error: null,
+              executionResults: [
+                {
+                  callId: "call-1",
+                  output: completion.output,
+                  reconciliationState: "completed",
+                  status: "success",
+                  toolName: "setCouncilDraftFields",
+                  userSummary: completion.userSummary,
+                },
+              ],
+              kind: "result",
+              message: "Updated the current council draft title.",
+              outcome: "success",
+              planSummary: null,
+              plannedCalls: [],
+              requiresUserAction: false,
+              sessionId: "session-1",
+            },
+          }),
+        );
+      const applyPlanResultEffects = vi.fn().mockResolvedValue([
+        {
+          callId: "call-1",
+          completion,
+          toolName: "setCouncilDraftFields",
+          status: "completed",
+          failureMessage: null,
+        },
+      ]);
+      const harness = createHarness({
+        applyPlanResultEffects,
+        completeReconciliation,
+        submit,
+      });
+
+      harness.updateAssistantState((current) => ({
+        ...current,
+        inputValue: "Rename this council draft",
+      }));
+
+      await harness.controller.submitAssistant({
+        response: null,
+        responseLabel: null,
+        userMessageText: "Rename this council draft",
+      });
+
+      expect(completeReconciliation).toHaveBeenCalledWith({
+        sessionId: "session-1",
+        reconciliations: [
+          {
+            callId: "call-1",
+            completion,
+            toolName: "setCouncilDraftFields",
+            status: "completed",
+            failureMessage: null,
+          },
+        ],
+      });
+      expect(harness.getState().phase.status).toBe("success");
+      expect(harness.getState().messages.at(-1)?.text).toBe(
+        "Updated the current council draft title.",
       );
     },
   );

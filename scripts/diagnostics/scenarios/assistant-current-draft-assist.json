@@ -1,0 +1,46 @@
+{
+  "name": "assistant-current-draft-assist",
+  "steps": [
+    { "action": "waitForText", "text": "Council" },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const suffix = Date.now().toString().slice(-6); let settings = await window.api.settings.getView({ viewKind: 'settings' }); if (!settings.ok) { throw new Error(settings.error.userMessage); } if (settings.value.globalDefaultModelRef === null || settings.value.globalDefaultModelInvalidConfig) { const refresh = await window.api.providers.refreshModelCatalog({ viewKind: 'settings' }); if (!refresh.ok) { throw new Error(refresh.error.userMessage); } settings = await window.api.settings.getView({ viewKind: 'settings' }); if (!settings.ok) { throw new Error(settings.error.userMessage); } const modelEntry = Object.entries(settings.value.modelCatalog.modelsByProvider).find(([, models]) => Array.isArray(models) && models.length > 0); if (modelEntry !== undefined) { const [providerId, models] = modelEntry; const modelId = models[0]; if (typeof modelId === 'string' && modelId.length > 0) { const setDefault = await window.api.settings.setGlobalDefaultModel({ viewKind: 'settings', modelRefOrNull: { providerId, modelId } }); if (!setDefault.ok) { throw new Error(setDefault.error.userMessage); } } } } const agentName = `Draft Agent ${suffix}`; const renamedAgentName = 'Scenario Draft Agent Updated'; const agent = await window.api.agents.save({ viewKind: 'agentEdit', id: null, name: agentName, systemPrompt: 'Original prompt.', verbosity: 'concise', temperature: 0.3, tags: ['ops'], modelRefOrNull: null }); if (!agent.ok) { throw new Error(agent.error.userMessage); } window.__assistantCurrentDraftAssist = { agentId: agent.value.agent.id, agentName, renamedAgentName }; }"
+    },
+    { "action": "click", "selector": "#home-tab-agents" },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const seeded = window.__assistantCurrentDraftAssist; if (!seeded?.agentId) { throw new Error('Missing seeded agent.'); } const card = document.querySelector(`[data-agent-card-id='${seeded.agentId}']`); if (!(card instanceof HTMLElement)) { throw new Error('Seeded agent card not found.'); } card.click(); }"
+    },
+    { "action": "waitForText", "text": "Edit Agent" },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const seeded = window.__assistantCurrentDraftAssist; const deadline = Date.now() + 30000; while (Date.now() < deadline) { const nameInput = document.querySelector('#agent-name'); if (nameInput instanceof HTMLInputElement && nameInput.value === seeded.agentName) { return true; } await new Promise((resolve) => setTimeout(resolve, 100)); } throw new Error('Seeded agent editor never finished loading.'); }"
+    },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const launcher = Array.from(document.querySelectorAll(\"button[data-assistant-launcher='true']\")).find((button) => button instanceof HTMLButtonElement && button.getClientRects().length > 0); if (!(launcher instanceof HTMLButtonElement)) { throw new Error('Visible assistant launcher is unavailable in the agent editor.'); } launcher.click(); }"
+    },
+    {
+      "action": "fill",
+      "selector": "textarea[aria-label='Assistant request']",
+      "value": "Rename this draft to Scenario Draft Agent Updated and set tags to ops, ready without saving."
+    },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const sendButton = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Send'); if (!(sendButton instanceof HTMLButtonElement) || sendButton.disabled) { throw new Error('Assistant Send button is unavailable for current draft assist.'); } sendButton.click(); }"
+    },
+    {
+      "action": "waitForText",
+      "text": "Updated the current agent draft name, tags."
+    },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const seeded = window.__assistantCurrentDraftAssist; const deadline = Date.now() + 30000; while (Date.now() < deadline) { const nameInput = document.querySelector('#agent-name'); const readyTag = document.querySelector(\"button[aria-label='Remove tag ready']\"); const opsTag = document.querySelector(\"button[aria-label='Remove tag ops']\"); if (nameInput instanceof HTMLInputElement && nameInput.value === seeded.renamedAgentName && readyTag instanceof HTMLButtonElement && opsTag instanceof HTMLButtonElement) { return true; } await new Promise((resolve) => setTimeout(resolve, 100)); } throw new Error('The assistant draft patch never became visible in the editor.'); }"
+    },
+    {
+      "action": "screenshot",
+      "file": "assistant-current-draft-assist.png",
+      "fullPage": true
+    }
+  ]
+}

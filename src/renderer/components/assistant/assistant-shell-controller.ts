@@ -48,6 +48,10 @@ type AssistantShellControllerDeps = {
       toolName: string;
       status: "completed" | "failed";
       failureMessage: string | null;
+      completion?: {
+        output: Readonly<Record<string, unknown>> | null;
+        userSummary: string | null;
+      } | null;
     }>
   >;
   api: AssistantApi;
@@ -414,7 +418,10 @@ export const createAssistantShellController = (deps: AssistantShellControllerDep
           const completedReconciliation: IpcResult<AssistantCompleteReconciliationResponse> =
             await deps.api.completeReconciliation({
               sessionId,
-              reconciliations,
+              reconciliations: reconciliations.map((reconciliation) => ({
+                ...reconciliation,
+                completion: reconciliation.completion ?? null,
+              })),
             });
 
           if (!isCurrentReconciliationRequest()) {

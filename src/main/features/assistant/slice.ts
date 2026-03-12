@@ -6,10 +6,15 @@ import {
   summarizeAssistantUserTurnResponse,
 } from "../../../shared/assistant/assistant-audit.js";
 import {
+  getAgentDraftEditGuardMessage,
+  getCouncilDraftEditGuardMessage,
+} from "../../../shared/assistant/assistant-draft-edit-guards.js";
+import {
   attachAssistantSessionToPlanResult,
   buildAssistantPlannerPrompt,
   parseAssistantPlannerResponse,
 } from "../../../shared/assistant/assistant-plan-schema.js";
+import { tryBuildAssistantPlannerShortcut } from "../../../shared/assistant/assistant-planner-shortcuts.js";
 import { resolveAssistantReconciliationState } from "../../../shared/assistant/assistant-reconciliation.js";
 import { validateAssistantPlannedCall } from "../../../shared/assistant/assistant-risk-policy.js";
 import {
@@ -424,6 +429,37 @@ const formatEntityList = (items: ReadonlyArray<string>): string => {
   return `${items.slice(0, 3).join(", ")}${items.length > 3 ? `, and ${String(items.length - 3)} more` : ""}`;
 };
 
+const AGENT_DRAFT_FIELD_LABELS = {
+  name: "name",
+  systemPrompt: "system prompt",
+  tags: "tags",
+  temperature: "temperature",
+  verbosity: "verbosity",
+} as const;
+
+const COUNCIL_DRAFT_FIELD_LABELS = {
+  goal: "goal",
+  mode: "mode",
+  tags: "tags",
+  title: "title",
+  topic: "topic",
+} as const;
+
+const collectAppliedFieldLabels = <TFieldLabels extends Readonly<Record<string, string>>>(params: {
+  fieldLabels: TFieldLabels;
+  input: Readonly<Record<string, unknown>>;
+}): ReadonlyArray<string> => {
+  return Object.entries(params.fieldLabels).flatMap(([fieldName, label]) =>
+    Object.hasOwn(params.input, fieldName) ? [label] : [],
+  );
+};
+
+const summarizeDraftPatch = (params: {
+  appliedFieldLabels: ReadonlyArray<string>;
+  entityLabel: string;
+}): string =>
+  `Updated the current ${params.entityLabel} draft ${params.appliedFieldLabels.join(", ")}.`;
+
 const createSuccessResult = (params: {
   callId: string;
   output: Readonly<Record<string, unknown>>;
@@ -630,8 +666,8 @@ const createPendingReconciliationResult = (params: {
     outcome: "partial",
     message:
       successfulCount === 0
-        ? `Waiting for ${String(pendingCount)} navigation step(s) to finish loading visibly.`
-        : `Completed ${String(successfulCount)} assistant step(s); waiting for ${String(pendingCount)} navigation step(s) to finish loading visibly.`,
+        ? `Waiting for ${String(pendingCount)} assistant step(s) to finish visibly.`
+        : `Completed ${String(successfulCount)} assistant step(s); waiting for ${String(pendingCount)} assistant step(s) to finish visibly.`,
     planSummary: null,
     plannedCalls: [],
     executionResults: params.executionResults,
@@ -735,6 +771,29 @@ const createValidationToolError = (message: string): AssistantToolExecutionError
   details: null,
 });
 
+const isCurrentDraftTarget = (params: {
+  context: AssistantContextEnvelope;
+  entityId: string | null;
+  expectedViewKind: AssistantContextEnvelope["viewKind"];
+}): boolean => {
+  return (
+    params.context.viewKind === params.expectedViewKind &&
+    (params.entityId === null || params.context.activeEntityId === params.entityId)
+  );
+};
+
+const createUnavailableCurrentDraftResult = (params: {
+  callId: string;
+  message: string;
+  toolName: string;
+}): AssistantToolExecutionResult => {
+  return createFailedToolResult({
+    callId: params.callId,
+    toolName: params.toolName,
+    error: createValidationToolError(params.message),
+  });
+};
+
 const executeSupportedTool = async (params: {
   abortSignal: AbortSignal;
   context: AssistantContextEnvelope;
@@ -783,6 +842,146 @@ const executeSupportedTool = async (params: {
   };
 
   switch (validated.definition.name) {
+    case "setAgentDraftFields": {
+      const requestedEntityId =
+        typeof params.plannedCall.input.entityId === "string"
+          ? params.plannedCall.input.entityId
+          : null;
+      if (
+        !isCurrentDraftTarget({
+          context: params.context,
+          entityId: requestedEntityId,
+          expectedViewKind: "agentEdit",
+        })
+      ) {
+        return createFailedToolResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+          error: createValidationToolError("I can only update the current visible agent draft."),
+        });
+      }
+
+      const { entityId: _entityId, ...patch } = validated.definition.inputSchema.parse(
+        params.plannedCall.input,
+      );
+      const editorView = await readResult(
+        params.dependencies.getAgentEditorView({
+          webContentsId: params.webContentsId,
+          agentId: params.context.activeEntityId,
+        }),
+      );
+      if ("status" in editorView) {
+        return editorView;
+      }
+      if (params.context.activeEntityId !== null && editorView.agent === null) {
+        return createUnavailableCurrentDraftResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+          message: "The current visible agent draft is no longer available.",
+        });
+      }
+
+      const guardMessage = getAgentDraftEditGuardMessage({
+        isArchived: editorView.agent?.archived === true,
+      });
+      if (guardMessage !== null) {
+        return createUnavailableCurrentDraftResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+          message: guardMessage,
+        });
+      }
+
+      const appliedFieldLabels = collectAppliedFieldLabels({
+        fieldLabels: AGENT_DRAFT_FIELD_LABELS,
+        input: patch,
+      });
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          appliedFieldLabels,
+          entityId: params.context.activeEntityId,
+          patch,
+        },
+        userSummary: summarizeDraftPatch({
+          appliedFieldLabels,
+          entityLabel: "agent",
+        }),
+      });
+    }
+    case "setCouncilDraftFields": {
+      const requestedEntityId =
+        typeof params.plannedCall.input.entityId === "string"
+          ? params.plannedCall.input.entityId
+          : null;
+      if (
+        !isCurrentDraftTarget({
+          context: params.context,
+          entityId: requestedEntityId,
+          expectedViewKind: "councilCreate",
+        })
+      ) {
+        return createFailedToolResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+          error: createValidationToolError("I can only update the current visible council draft."),
+        });
+      }
+
+      const { entityId: _entityId, ...patch } = validated.definition.inputSchema.parse(
+        params.plannedCall.input,
+      );
+      const editorView = await readResult(
+        params.dependencies.getCouncilEditorView({
+          webContentsId: params.webContentsId,
+          councilId: params.context.activeEntityId,
+        }),
+      );
+      if ("status" in editorView) {
+        return editorView;
+      }
+      if (params.context.activeEntityId !== null && editorView.council === null) {
+        return createUnavailableCurrentDraftResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+          message: "The current visible council draft is no longer available.",
+        });
+      }
+
+      const guardMessage = getCouncilDraftEditGuardMessage({
+        isArchived: editorView.council?.archived === true,
+        isExistingCouncil: editorView.council !== null,
+        patch,
+      });
+      if (guardMessage !== null) {
+        return createUnavailableCurrentDraftResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+          message: guardMessage,
+        });
+      }
+
+      const appliedFieldLabels = collectAppliedFieldLabels({
+        fieldLabels: COUNCIL_DRAFT_FIELD_LABELS,
+        input: patch,
+      });
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          appliedFieldLabels,
+          entityId: params.context.activeEntityId,
+          patch,
+        },
+        userSummary: summarizeDraftPatch({
+          appliedFieldLabels,
+          entityLabel: "council",
+        }),
+      });
+    }
     case "navigateToHomeTab": {
       const tab = params.plannedCall.input.tab;
       return createReconcilingResult({
@@ -1379,6 +1578,33 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
           });
         }
 
+        if (params.request.response === null) {
+          const shortcutPlan = tryBuildAssistantPlannerShortcut({
+            context: params.context,
+            sessionId: params.sessionId,
+            userRequest: params.request.userRequest,
+          });
+          if (shortcutPlan !== null) {
+            params.record.pendingPlan = {
+              kind: "execute",
+              planSummary: shortcutPlan.summary,
+              plannedCalls: shortcutPlan.plannedCalls,
+            };
+            clearPendingClarification(params.record);
+
+            return okAsync({
+              result: attachAssistantSessionToPlanResult({
+                sessionId: params.sessionId,
+                plannerResponse: {
+                  kind: "execute",
+                  summary: shortcutPlan.summary,
+                  plannedCalls: shortcutPlan.plannedCalls,
+                },
+              }),
+            });
+          }
+        }
+
         const prompt = buildAssistantPlannerPrompt({
           userRequest: params.request.userRequest,
           response: params.request.response,
@@ -1650,7 +1876,7 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
       return okAsync({
         result: createPlaceholderResult(
           request.sessionId,
-          "There is no assistant navigation waiting for visible confirmation.",
+          "There is no assistant reconciliation waiting for visible confirmation.",
         ),
       });
     }
@@ -1699,9 +1925,42 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
           });
         }
 
+        const definition = getAssistantToolDefinition(result.toolName);
+        if (definition === null) {
+          return createFailedToolResult({
+            callId: result.callId,
+            toolName: result.toolName,
+            error: {
+              kind: "UnknownToolError",
+              userMessage: "That assistant action is not available yet.",
+              developerMessage: `Unknown assistant tool: ${result.toolName}`,
+              retryable: false,
+              details: null,
+            },
+          });
+        }
+
+        const completedOutput = acknowledgement.completion?.output ?? result.output;
+        const parsedOutput = definition.outputSchema.safeParse(completedOutput);
+        if (!parsedOutput.success) {
+          return createFailedToolResult({
+            callId: result.callId,
+            toolName: result.toolName,
+            error: {
+              kind: "SchemaError",
+              userMessage: "The assistant returned an invalid tool result.",
+              developerMessage: `Invalid assistant reconciliation output for ${result.toolName}:${result.callId}`,
+              retryable: false,
+              details: null,
+            },
+          });
+        }
+
         return {
           ...result,
+          output: sanitizeAssistantPayload(parsedOutput.data),
           status: "success" as const,
+          userSummary: acknowledgement.completion?.userSummary ?? result.userSummary,
           reconciliationState: "completed" as const,
         };
       });

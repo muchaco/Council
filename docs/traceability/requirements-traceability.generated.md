@@ -1,14 +1,14 @@
 # Test-to-Requirement Index (Generated)
 
-Generated at: 2026-03-12T12:42:50.137Z
+Generated at: 2026-03-12T14:16:40.011Z
 
 ## Summary
 
-- Spec files tracked: 42
-- Test cases tracked: 273
-- Annotated test cases: 273
+- Spec files tracked: 44
+- Test cases tracked: 284
+- Annotated test cases: 284
 - Unmapped test cases: 0
-- Unique mapped requirement IDs: 224
+- Unique mapped requirement IDs: 225
 
 ## Index
 
@@ -26,6 +26,12 @@ Generated at: 2026-03-12T12:42:50.137Z
   - [itReq] `returns the configured default agents page size through ipc` -> A3, R1.1, R1.2, R1.20, R1.22, R6.1, R6.2, U4.3, U4.6
   - [itReq] `archives agent through ipc handler` -> A3, R1.1, R1.2, R1.20, R1.22, R6.1, R6.2, U4.3, U4.6
 - `tests/integration/assistant-ipc.contract.integration.spec.ts`
+  - [itReq] `keeps current agent draft edits pending until renderer reconciliation acknowledges completion metadata` -> A1, A3, R9.11, R9.14, R9.17, R9.18, R9.22
+  - [itReq] `keeps current council draft edits pending until renderer reconciliation acknowledges completion metadata` -> A1, A3, R9.11, R9.14, R9.17, R9.18, R9.22
+  - [itReq] `fails current draft edits when the request targets a different editor entity` -> A1, A3, R9.11, R9.14, R9.22
+  - [itReq] `fails current draft edits when the current agent editor is archived` -> A1, A3, R9.11, R9.14, R9.22
+  - [itReq] `fails current draft edits when the current council editor is archived or mode-locked` -> A1, A3, R9.11, R9.14, R9.22
+  - [itReq] `uses the deterministic current agent draft shortcut when the request is explicit` -> A1, D5, R9.1, R9.11, R9.14, R9.17, U18.7
   - [itReq] `fails closed when the global default model is missing or invalid` -> A1, D1, D5, R9.3
   - [itReq] `passes the global default model through the planner request in main` -> A1, D1, D5, R9.3
   - [itReq] `loops clarification through the same session and then executes the stored plan` -> A3, D5, R9.18, R9.19, R9.20, R9.7
@@ -148,6 +154,9 @@ Generated at: 2026-03-12T12:42:50.137Z
   - [itReq] `fully redacts path-like values that contain spaces` -> A3, F2, R9.19, R9.20
   - [itReq] `logs only sanitized assistant audit payloads` -> A3, F2, R9.19, R9.20
   - [itReq] `summarizes assistant request text instead of persisting it` -> A3, F2, R9.19, R9.20
+- `tests/unit/assistant-draft-edit-guards.spec.ts`
+  - [itReq] `blocks archived agent draft edits` -> A1, A3, R9.11, R9.14, R9.22
+  - [itReq] `blocks archived or mode-locked council draft edits` -> A1, A3, R9.11, R9.14, R9.22
 - `tests/unit/assistant-ipc-validators.spec.ts`
   - [itReq] `accepts valid assistant session and submit payloads` -> A3, R9.11, R9.17, R9.19, R9.4
   - [itReq] `rejects assistant payloads with invalid ids and unknown fields` -> A3, R9.11, R9.17, R9.19, R9.4
@@ -160,6 +169,9 @@ Generated at: 2026-03-12T12:42:50.137Z
   - [itReq] `parses fenced planner responses with surrounding prose` -> R9.17, R9.3, R9.4, R9.7, R9.8
   - [itReq] `sanitizes valid planned call payloads before returning them` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
   - [itReq] `fails closed on invalid planner output` -> R9.17, R9.3, R9.4, R9.7, R9.8
+- `tests/unit/assistant-planner-shortcuts.spec.ts`
+  - [itReq] `builds a deterministic current agent draft shortcut plan` -> A1, D5, R9.1, R9.11, R9.14, R9.17, U18.7
+  - [itReq] `ignores unsupported shortcut requests` -> A1, D5, R9.1, R9.11, R9.14, R9.17, U18.7
 - `tests/unit/assistant-policy.spec.ts`
   - [itReq] `validates known assistant tool payloads against shared schemas` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
   - [itReq] `rejects unknown assistant tools` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
@@ -175,6 +187,7 @@ Generated at: 2026-03-12T12:42:50.137Z
   - [itReq] `keeps a rebased modal idle when delayed submit results resolve for the previous scope` -> R9.17, R9.21, U18.12, U18.14
   - [itReq] `keeps the source session open while navigation reconciliation is still rebasing the modal` -> R9.17, R9.18, R9.21, U18.10, U18.11
   - [itReq] `auto-continues execute plans and finalizes navigation after reconciliation acknowledgement` -> R9.17, R9.18, R9.7, U18.10, U18.11, U18.7
+  - [itReq] `forwards draft reconciliation completion metadata into the final reconciliation request` -> R9.17, R9.18, R9.22, U18.10, U18.11, U18.7
   - [itReq] `keeps the modal cancelled when reconciliation effects resolve after stop` -> R9.17, R9.21, U18.12, U18.13, U18.14
   - [itReq] `keeps a rebased modal idle when reconciliation effects resolve for the previous scope` -> R9.17, R9.21, U18.12, U18.14
   - [itReq] `recreates the assistant session after navigation rebases the scope during reconciliation` -> R9.17, R9.18, R9.21, U18.10, U18.11, U18.7

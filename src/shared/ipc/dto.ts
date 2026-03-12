@@ -505,6 +505,11 @@ export type AssistantToolExecutionError = {
   details: Readonly<Record<string, unknown>> | null;
 };
 
+export type AssistantReconciliationCompletion = {
+  output: Readonly<Record<string, unknown>> | null;
+  userSummary: string | null;
+};
+
 export type AssistantToolExecutionResult =
   | {
       callId: string;
@@ -664,6 +669,7 @@ export type AssistantCompleteReconciliationRequest = {
     toolName: string;
     status: "completed" | "failed";
     failureMessage: string | null;
+    completion: AssistantReconciliationCompletion | null;
   }>;
 };
 

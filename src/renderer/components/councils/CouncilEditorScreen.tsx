@@ -8,11 +8,19 @@ import {
   removeTagFromDraft,
 } from "../../../shared/app-ui-helpers.js";
 import {
+  getCouncilDraftEditGuardMessage,
+  isCouncilEditorReadOnly,
+} from "../../../shared/assistant/assistant-draft-edit-guards.js";
+import {
   filterAddableAgents,
   resolveAddableAgentsEmptyStateMessage,
 } from "../../../shared/council-view-add-member-dialog.js";
 import type { CouncilMode } from "../../../shared/ipc/dto";
 import type { AssistantCouncilEditorSnapshot } from "../assistant/assistant-context-builders";
+import type {
+  AssistantCouncilDraftAdapter,
+  AssistantCouncilDraftPatch,
+} from "../assistant/assistant-draft-adapters";
 import { AddMemberDialog } from "../council-view/AddMemberDialog";
 import { DetailScreenShell } from "../shared/DetailScreenShell";
 import { ModelSelectField } from "../shared/ModelSelectField";
@@ -29,6 +37,7 @@ type CouncilEditorScreenProps = {
   councilId: string | null;
   isActive: boolean;
   onAssistantContextChange: (snapshot: AssistantCouncilEditorSnapshot | null) => void;
+  onAssistantDraftAdapterChange: (adapter: AssistantCouncilDraftAdapter | null) => void;
   onClose: () => void;
   pushToast: (tone: "warning" | "error" | "info", message: string) => void;
 };
@@ -38,6 +47,7 @@ export const CouncilEditorScreen = ({
   councilId,
   isActive,
   onAssistantContextChange,
+  onAssistantDraftAdapterChange,
   onClose,
   pushToast,
 }: CouncilEditorScreenProps): JSX.Element | null => {
@@ -122,6 +132,84 @@ export const CouncilEditorScreen = ({
     });
   }, [isActive, onAssistantContextChange, state]);
 
+  useEffect(() => {
+    if (!isActive || state.status !== "ready") {
+      onAssistantDraftAdapterChange(null);
+      return;
+    }
+
+    const toAppliedFieldLabels = (patch: AssistantCouncilDraftPatch): ReadonlyArray<string> => {
+      const labels: Array<string> = [];
+      if (patch.title !== undefined) {
+        labels.push("title");
+      }
+      if (patch.topic !== undefined) {
+        labels.push("topic");
+      }
+      if (patch.goal !== undefined) {
+        labels.push("goal");
+      }
+      if (patch.mode !== undefined) {
+        labels.push("mode");
+      }
+      if (patch.tags !== undefined) {
+        labels.push("tags");
+      }
+      return labels;
+    };
+
+    onAssistantDraftAdapterChange(async (params) => {
+      if (params.entityId !== null && params.entityId !== state.draft.id) {
+        return {
+          completion: null,
+          failureMessage: "The current visible council draft does not match the requested target.",
+          status: "failed",
+        };
+      }
+
+      const guardMessage = getCouncilDraftEditGuardMessage({
+        isArchived: state.source.council?.archived === true,
+        isExistingCouncil: state.source.council !== null,
+        patch: params.patch,
+      });
+      if (guardMessage !== null) {
+        return {
+          completion: null,
+          failureMessage: guardMessage,
+          status: "failed",
+        };
+      }
+
+      const normalizedPatch = {
+        ...(params.patch.title === undefined ? {} : { title: params.patch.title }),
+        ...(params.patch.topic === undefined ? {} : { topic: params.patch.topic }),
+        ...(params.patch.goal === undefined ? {} : { goal: params.patch.goal ?? "" }),
+        ...(params.patch.mode === undefined ? {} : { mode: params.patch.mode }),
+        ...(params.patch.tags === undefined ? {} : { tagsInput: params.patch.tags.join(", ") }),
+      };
+      const appliedFieldLabels = toAppliedFieldLabels(params.patch);
+
+      updateDraft(normalizedPatch);
+
+      return {
+        completion: {
+          output: {
+            appliedFieldLabels,
+            entityId: state.draft.id,
+            patch: params.patch,
+          },
+          userSummary: `Updated the current council draft ${appliedFieldLabels.join(", ")}.`,
+        },
+        failureMessage: null,
+        status: "completed",
+      };
+    });
+
+    return () => {
+      onAssistantDraftAdapterChange(null);
+    };
+  }, [isActive, onAssistantDraftAdapterChange, state, updateDraft]);
+
   const addTag = (): void => {
     if (state.status !== "ready") {
       return;
@@ -202,6 +290,7 @@ export const CouncilEditorScreen = ({
     searchText: memberSearchText,
   });
   const addableAgentsEmptyStateMessage = resolveAddableAgentsEmptyStateMessage(memberSearchText);
+  const archived = isCouncilEditorReadOnly(state.source.council?.archived === true);
 
   return (
     <main className="shell">
@@ -213,7 +302,7 @@ export const CouncilEditorScreen = ({
           </button>
           <button
             className="cta"
-            disabled={state.isSaving}
+            disabled={state.isSaving || archived}
             onClick={() => void save()}
             type="button"
           >
@@ -249,11 +338,16 @@ export const CouncilEditorScreen = ({
         <p>Title, Topic, and at least one Member are required before save.</p>
       </header>
 
+      {archived ? (
+        <p className="status-line">This council is archived and read-only. Restore it to edit.</p>
+      ) : null}
+
       <section className="settings-section">
         <label className="field" htmlFor="council-title">
           Title
         </label>
         <input
+          disabled={archived}
           id="council-title"
           onChange={(event) => updateDraft({ title: event.target.value })}
           type="text"
@@ -264,6 +358,7 @@ export const CouncilEditorScreen = ({
           Topic
         </label>
         <textarea
+          disabled={archived}
           id="council-topic"
           onChange={(event) => updateDraft({ topic: event.target.value })}
           rows={6}
@@ -274,6 +369,7 @@ export const CouncilEditorScreen = ({
           Goal (optional)
         </label>
         <textarea
+          disabled={archived}
           id="council-goal"
           onChange={(event) => updateDraft({ goal: event.target.value })}
           rows={4}
@@ -284,7 +380,7 @@ export const CouncilEditorScreen = ({
           Mode
         </label>
         <select
-          disabled={state.draft.id !== null}
+          disabled={archived || state.draft.id !== null}
           id="council-mode"
           onChange={(event) => updateMode(event.target.value as CouncilMode)}
           value={state.draft.mode}
@@ -300,6 +396,7 @@ export const CouncilEditorScreen = ({
           Tags
         </label>
         <TagsEditor
+          disabled={archived}
           errorText={tagMessage || undefined}
           inputId="council-tags-input"
           inputPlaceholder="Add tag"
@@ -320,7 +417,7 @@ export const CouncilEditorScreen = ({
           <span>Members</span>
           <button
             className="secondary"
-            disabled={state.showRemoveMemberDialog}
+            disabled={archived || state.showRemoveMemberDialog}
             onClick={() => setShowAddMemberDialog(true)}
             type="button"
           >
@@ -329,7 +426,7 @@ export const CouncilEditorScreen = ({
         </div>
         <AddMemberDialog
           addableAgents={addableAgents}
-          canEditMembers={!state.showRemoveMemberDialog}
+          canEditMembers={!archived && !state.showRemoveMemberDialog}
           emptyStateMessage={addableAgentsEmptyStateMessage}
           isOpen={showAddMemberDialog}
           isSavingMembers={false}
@@ -369,7 +466,7 @@ export const CouncilEditorScreen = ({
                 </div>
                 <button
                   className="secondary"
-                  disabled={state.showRemoveMemberDialog}
+                  disabled={archived || state.showRemoveMemberDialog}
                   onClick={() => toggleCouncilMember(memberAgentId)}
                   type="button"
                 >
@@ -385,6 +482,7 @@ export const CouncilEditorScreen = ({
 
         <ModelSelectField
           canRefresh={state.source.canRefreshModels}
+          disabled={archived}
           emptyLabel="Global default"
           id="council-conductor-model"
           invalidConfig={invalidConfig}

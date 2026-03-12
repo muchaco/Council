@@ -9,9 +9,14 @@ import {
   removeTagFromDraft,
   toModelRef,
 } from "../../../shared/app-ui-helpers.js";
+import { getAgentDraftEditGuardMessage } from "../../../shared/assistant/assistant-draft-edit-guards.js";
 import type { GetAgentEditorViewResponse } from "../../../shared/ipc/dto";
 import { ConfirmDialog } from "../../ConfirmDialog";
 import type { AssistantAgentEditorSnapshot } from "../assistant/assistant-context-builders";
+import type {
+  AssistantAgentDraftAdapter,
+  AssistantAgentDraftPatch,
+} from "../assistant/assistant-draft-adapters";
 import { DetailScreenShell } from "../shared/DetailScreenShell";
 import { ModelSelectField } from "../shared/ModelSelectField";
 import { TagsEditor } from "../shared/TagsEditor";
@@ -62,6 +67,7 @@ type AgentEditorScreenProps = {
   assistantLauncher: JSX.Element;
   isActive: boolean;
   onAssistantContextChange: (snapshot: AssistantAgentEditorSnapshot | null) => void;
+  onAssistantDraftAdapterChange: (adapter: AssistantAgentDraftAdapter | null) => void;
   onClose: (tab?: "agents") => void;
   pushToast: (tone: "warning" | "error" | "info", message: string) => void;
 };
@@ -71,6 +77,7 @@ export const AgentEditorScreen = ({
   assistantLauncher,
   isActive,
   onAssistantContextChange,
+  onAssistantDraftAdapterChange,
   onClose,
   pushToast,
 }: AgentEditorScreenProps): JSX.Element | null => {
@@ -145,6 +152,95 @@ export const AgentEditorScreen = ({
       initialDraft: JSON.parse(state.initialFingerprint) as AgentEditorDraft,
     });
   }, [isActive, onAssistantContextChange, state]);
+
+  useEffect(() => {
+    if (!isActive || state.status !== "ready") {
+      onAssistantDraftAdapterChange(null);
+      return;
+    }
+
+    const toAppliedFieldLabels = (patch: AssistantAgentDraftPatch): ReadonlyArray<string> => {
+      const labels: Array<string> = [];
+      if (patch.name !== undefined) {
+        labels.push("name");
+      }
+      if (patch.systemPrompt !== undefined) {
+        labels.push("system prompt");
+      }
+      if (patch.verbosity !== undefined) {
+        labels.push("verbosity");
+      }
+      if (patch.temperature !== undefined) {
+        labels.push("temperature");
+      }
+      if (patch.tags !== undefined) {
+        labels.push("tags");
+      }
+      return labels;
+    };
+
+    onAssistantDraftAdapterChange(async (params) => {
+      if (params.entityId !== null && params.entityId !== state.draft.id) {
+        return {
+          completion: null,
+          failureMessage: "The current visible agent draft does not match the requested target.",
+          status: "failed",
+        };
+      }
+
+      const guardMessage = getAgentDraftEditGuardMessage({
+        isArchived: state.source.agent?.archived === true,
+      });
+      if (guardMessage !== null) {
+        return {
+          completion: null,
+          failureMessage: guardMessage,
+          status: "failed",
+        };
+      }
+
+      const normalizedPatch = {
+        ...(params.patch.name === undefined ? {} : { name: params.patch.name }),
+        ...(params.patch.systemPrompt === undefined
+          ? {}
+          : { systemPrompt: params.patch.systemPrompt }),
+        ...(params.patch.verbosity === undefined
+          ? {}
+          : { verbosity: params.patch.verbosity ?? "" }),
+        ...(params.patch.temperature === undefined
+          ? {}
+          : {
+              temperature:
+                params.patch.temperature === null ? "" : String(params.patch.temperature),
+            }),
+        ...(params.patch.tags === undefined ? {} : { tagsInput: params.patch.tags.join(", ") }),
+      };
+      const appliedFieldLabels = toAppliedFieldLabels(params.patch);
+
+      setState((current) =>
+        current.status !== "ready"
+          ? current
+          : { ...current, draft: { ...current.draft, ...normalizedPatch } },
+      );
+
+      return {
+        completion: {
+          output: {
+            appliedFieldLabels,
+            entityId: state.draft.id,
+            patch: params.patch,
+          },
+          userSummary: `Updated the current agent draft ${appliedFieldLabels.join(", ")}.`,
+        },
+        failureMessage: null,
+        status: "completed",
+      };
+    });
+
+    return () => {
+      onAssistantDraftAdapterChange(null);
+    };
+  }, [isActive, onAssistantDraftAdapterChange, state]);
 
   const close = (force = false): void => {
     if (!force && hasUnsavedDraft) {

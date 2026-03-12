@@ -1,11 +1,11 @@
 {
-  "generatedAtUtc": "2026-03-12T12:42:50.137Z",
+  "generatedAtUtc": "2026-03-12T14:16:40.011Z",
   "summary": {
-    "specFilesTracked": 42,
-    "testCasesTracked": 273,
-    "annotatedTestCases": 273,
+    "specFilesTracked": 44,
+    "testCasesTracked": 284,
+    "annotatedTestCases": 284,
     "unmappedTestCases": 0,
-    "mappedRequirementIds": 224
+    "mappedRequirementIds": 225
   },
   "entries": [
     {
@@ -396,6 +396,78 @@
       "filePath": "tests/integration/assistant-ipc.contract.integration.spec.ts",
       "cases": [
         {
+          "name": "keeps current agent draft edits pending until renderer reconciliation acknowledges completion metadata",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.14",
+            "R9.17",
+            "R9.18",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "keeps current council draft edits pending until renderer reconciliation acknowledges completion metadata",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.14",
+            "R9.17",
+            "R9.18",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "fails current draft edits when the request targets a different editor entity",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.14",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "fails current draft edits when the current agent editor is archived",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.14",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "fails current draft edits when the current council editor is archived or mode-locked",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.14",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "uses the deterministic current agent draft shortcut when the request is explicit",
+          "requirementIds": [
+            "A1",
+            "D5",
+            "R9.1",
+            "R9.11",
+            "R9.14",
+            "R9.17",
+            "U18.7"
+          ],
+          "source": "itReq"
+        },
+        {
           "name": "fails closed when the global default model is missing or invalid",
           "requirementIds": [
             "A1",
@@ -674,8 +746,8 @@
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 21,
-      "totalTestCount": 21
+      "itReqInvocationCount": 27,
+      "totalTestCount": 27
     },
     {
       "filePath": "tests/integration/boundary-check-script.integration.spec.ts",
@@ -4183,6 +4255,36 @@
       "totalTestCount": 4
     },
     {
+      "filePath": "tests/unit/assistant-draft-edit-guards.spec.ts",
+      "cases": [
+        {
+          "name": "blocks archived agent draft edits",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.14",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "blocks archived or mode-locked council draft edits",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.14",
+            "R9.22"
+          ],
+          "source": "itReq"
+        }
+      ],
+      "plainItCount": 0,
+      "itReqInvocationCount": 2,
+      "totalTestCount": 2
+    },
+    {
       "filePath": "tests/unit/assistant-ipc-validators.spec.ts",
       "cases": [
         {
@@ -4308,6 +4410,40 @@
       "plainItCount": 0,
       "itReqInvocationCount": 5,
       "totalTestCount": 5
+    },
+    {
+      "filePath": "tests/unit/assistant-planner-shortcuts.spec.ts",
+      "cases": [
+        {
+          "name": "builds a deterministic current agent draft shortcut plan",
+          "requirementIds": [
+            "A1",
+            "D5",
+            "R9.1",
+            "R9.11",
+            "R9.14",
+            "R9.17",
+            "U18.7"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "ignores unsupported shortcut requests",
+          "requirementIds": [
+            "A1",
+            "D5",
+            "R9.1",
+            "R9.11",
+            "R9.14",
+            "R9.17",
+            "U18.7"
+          ],
+          "source": "itReq"
+        }
+      ],
+      "plainItCount": 0,
+      "itReqInvocationCount": 2,
+      "totalTestCount": 2
     },
     {
       "filePath": "tests/unit/assistant-policy.spec.ts",
@@ -4468,6 +4604,18 @@
           "source": "itReq"
         },
         {
+          "name": "forwards draft reconciliation completion metadata into the final reconciliation request",
+          "requirementIds": [
+            "R9.17",
+            "R9.18",
+            "R9.22",
+            "U18.10",
+            "U18.11",
+            "U18.7"
+          ],
+          "source": "itReq"
+        },
+        {
           "name": "keeps the modal cancelled when reconciliation effects resolve after stop",
           "requirementIds": [
             "R9.17",
@@ -4514,8 +4662,8 @@
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 9,
-      "totalTestCount": 9
+      "itReqInvocationCount": 10,
+      "totalTestCount": 10
     },
     {
       "filePath": "tests/unit/assistant-ui-state.spec.ts",

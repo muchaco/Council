@@ -58,8 +58,13 @@ const primaryCouncil = {
   updatedAtUtc: "2026-03-12T11:45:00.000Z",
 } as const;
 
+type AgentEditorViewAgent = Omit<typeof primaryAgent, "archived"> & { archived: boolean };
+type CouncilEditorViewCouncil = Omit<typeof primaryCouncil, "archived"> & { archived: boolean };
+
 const createAssistantSliceDeps = (options?: {
   events?: Array<Record<string, unknown>>;
+  agentEditorViewAgent?: AgentEditorViewAgent | null;
+  councilEditorViewCouncil?: CouncilEditorViewCouncil | null;
   onGetSettingsView?: (request: { viewKind: string }) => void;
   onPlannerRequest?: (request: {
     modelRef: { providerId: string; modelId: string };
@@ -112,11 +117,13 @@ const createAssistantSliceDeps = (options?: {
   getAgentEditorView: ({ agentId }: { agentId: string | null }) =>
     okAsync({
       agent:
-        agentId === PRIMARY_AGENT_ID
-          ? primaryAgent
-          : agentId === SECONDARY_AGENT_ID
-            ? secondaryAgent
-            : null,
+        options?.agentEditorViewAgent !== undefined
+          ? options.agentEditorViewAgent
+          : agentId === PRIMARY_AGENT_ID
+            ? primaryAgent
+            : agentId === SECONDARY_AGENT_ID
+              ? secondaryAgent
+              : null,
       modelCatalog: {
         snapshotId: "agents-snapshot-1",
         modelsByProvider: { gemini: ["gemini-1.5-flash"] },
@@ -139,7 +146,12 @@ const createAssistantSliceDeps = (options?: {
     }),
   getCouncilEditorView: ({ councilId }: { councilId: string | null }) =>
     okAsync({
-      council: councilId === PRIMARY_COUNCIL_ID ? primaryCouncil : null,
+      council:
+        options?.councilEditorViewCouncil !== undefined
+          ? options.councilEditorViewCouncil
+          : councilId === PRIMARY_COUNCIL_ID
+            ? primaryCouncil
+            : null,
       availableAgents: [
         {
           archived: false,
@@ -286,6 +298,8 @@ const createDeferred = <T>() => {
 };
 
 const createHandlers = (options?: {
+  agentEditorViewAgent?: AgentEditorViewAgent | null;
+  councilEditorViewCouncil?: CouncilEditorViewCouncil | null;
   plannerResponse?: string;
   plannerDelayMs?: number;
   onPlannerRequest?: (request: {
@@ -361,6 +375,7 @@ const completeAllNavigationReconciliations = async (params: {
                   toolName: executionResult.toolName,
                   status: "completed" as const,
                   failureMessage: null,
+                  completion: null,
                 },
               ]
             : [],
@@ -380,6 +395,633 @@ describe("assistant ipc contract", () => {
       expect(result.error.kind).toBe("ValidationError");
     }
   });
+
+  itReq(
+    ["R9.11", "R9.14", "R9.17", "R9.18", "R9.22", "A1", "A3"],
+    "keeps current agent draft edits pending until renderer reconciliation acknowledges completion metadata",
+    async () => {
+      const agentDraftContext = {
+        ...validContext,
+        activeEntityId: PRIMARY_AGENT_ID,
+        contextLabel: "Agent editor / Planner",
+        draftState: {
+          changedFields: [],
+          dirty: false,
+          entityId: PRIMARY_AGENT_ID,
+          entityKind: "agent" as const,
+          summary: "Agent draft matches the saved state.",
+        },
+        listState: null,
+        viewKind: "agentEdit" as const,
+      };
+      const { handlers } = createHandlers({
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Update the planner draft.",
+          plannedCalls: [
+            {
+              callId: "call-1",
+              toolName: "setAgentDraftFields",
+              rationale: "Patch the current visible draft.",
+              input: {
+                name: "Planner Revised",
+                tags: ["ops", "ready"],
+              },
+            },
+          ],
+        }),
+      });
+      const session = await handlers.createSession({ viewKind: "agentEdit" }, 70);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      const planned = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Rename this draft",
+          context: agentDraftContext,
+          response: null,
+        },
+        70,
+      );
+      expect(planned.ok).toBe(true);
+      if (!planned.ok || planned.value.result.kind !== "execute") {
+        return;
+      }
+
+      const executed = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Rename this draft",
+          context: agentDraftContext,
+          response: null,
+        },
+        70,
+      );
+      expect(executed.ok).toBe(true);
+      if (!executed.ok || executed.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(executed.value.result.outcome).toBe("partial");
+      expect(executed.value.result.executionResults).toMatchObject([
+        {
+          status: "reconciling",
+          toolName: "setAgentDraftFields",
+          output: {
+            entityId: PRIMARY_AGENT_ID,
+            patch: {
+              name: "Planner Revised",
+              tags: ["ops", "ready"],
+            },
+          },
+        },
+      ]);
+
+      const reconciled = await handlers.completeReconciliation(
+        {
+          sessionId: session.value.session.sessionId,
+          reconciliations: [
+            {
+              callId: "call-1",
+              toolName: "setAgentDraftFields",
+              status: "completed",
+              failureMessage: null,
+              completion: {
+                output: {
+                  appliedFieldLabels: ["name", "tags"],
+                  entityId: PRIMARY_AGENT_ID,
+                  patch: {
+                    name: "Planner Revised",
+                    tags: ["ops", "ready"],
+                  },
+                },
+                userSummary: "Updated the current agent draft name, tags.",
+              },
+            },
+          ],
+        },
+        70,
+      );
+      expect(reconciled.ok).toBe(true);
+      if (!reconciled.ok || reconciled.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(reconciled.value.result.outcome).toBe("success");
+      expect(reconciled.value.result.executionResults).toMatchObject([
+        {
+          status: "success",
+          toolName: "setAgentDraftFields",
+          output: {
+            entityId: PRIMARY_AGENT_ID,
+            patch: {
+              name: "Planner Revised",
+              tags: ["ops", "ready"],
+            },
+          },
+          userSummary: "Updated the current agent draft name, tags.",
+        },
+      ]);
+    },
+  );
+
+  itReq(
+    ["R9.11", "R9.14", "R9.17", "R9.18", "R9.22", "A1", "A3"],
+    "keeps current council draft edits pending until renderer reconciliation acknowledges completion metadata",
+    async () => {
+      const councilDraftContext = {
+        ...validContext,
+        activeEntityId: PRIMARY_COUNCIL_ID,
+        contextLabel: "Council editor / Quarterly Council",
+        draftState: {
+          changedFields: [],
+          dirty: false,
+          entityId: PRIMARY_COUNCIL_ID,
+          entityKind: "council" as const,
+          summary: "Council draft matches the saved state.",
+        },
+        listState: null,
+        viewKind: "councilCreate" as const,
+      };
+      const { handlers } = createHandlers({
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Update the current council draft.",
+          plannedCalls: [
+            {
+              callId: "call-1",
+              toolName: "setCouncilDraftFields",
+              rationale: "Patch the current visible council draft.",
+              input: {
+                title: "Quarterly Council Updated",
+                tags: ["ops", "ready"],
+              },
+            },
+          ],
+        }),
+      });
+      const session = await handlers.createSession({ viewKind: "councilCreate" }, 72);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      const planned = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Rename this council draft",
+          context: councilDraftContext,
+          response: null,
+        },
+        72,
+      );
+      expect(planned.ok).toBe(true);
+      if (!planned.ok || planned.value.result.kind !== "execute") {
+        return;
+      }
+
+      const executed = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Rename this council draft",
+          context: councilDraftContext,
+          response: null,
+        },
+        72,
+      );
+      expect(executed.ok).toBe(true);
+      if (!executed.ok || executed.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(executed.value.result.outcome).toBe("partial");
+      expect(executed.value.result.executionResults).toMatchObject([
+        {
+          status: "reconciling",
+          toolName: "setCouncilDraftFields",
+          output: {
+            entityId: PRIMARY_COUNCIL_ID,
+            patch: {
+              title: "Quarterly Council Updated",
+              tags: ["ops", "ready"],
+            },
+          },
+        },
+      ]);
+
+      const reconciled = await handlers.completeReconciliation(
+        {
+          sessionId: session.value.session.sessionId,
+          reconciliations: [
+            {
+              callId: "call-1",
+              toolName: "setCouncilDraftFields",
+              status: "completed",
+              failureMessage: null,
+              completion: {
+                output: {
+                  appliedFieldLabels: ["title", "tags"],
+                  entityId: PRIMARY_COUNCIL_ID,
+                  patch: {
+                    title: "Quarterly Council Updated",
+                    tags: ["ops", "ready"],
+                  },
+                },
+                userSummary: "Updated the current council draft title, tags.",
+              },
+            },
+          ],
+        },
+        72,
+      );
+      expect(reconciled.ok).toBe(true);
+      if (!reconciled.ok || reconciled.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(reconciled.value.result.outcome).toBe("success");
+      expect(reconciled.value.result.executionResults).toMatchObject([
+        {
+          status: "success",
+          toolName: "setCouncilDraftFields",
+          output: {
+            entityId: PRIMARY_COUNCIL_ID,
+            patch: {
+              title: "Quarterly Council Updated",
+              tags: ["ops", "ready"],
+            },
+          },
+          userSummary: "Updated the current council draft title, tags.",
+        },
+      ]);
+    },
+  );
+
+  itReq(
+    ["R9.11", "R9.14", "R9.22", "A1", "A3"],
+    "fails current draft edits when the request targets a different editor entity",
+    async () => {
+      const agentDraftContext = {
+        ...validContext,
+        activeEntityId: PRIMARY_AGENT_ID,
+        contextLabel: "Agent editor / Planner",
+        draftState: {
+          changedFields: [],
+          dirty: false,
+          entityId: PRIMARY_AGENT_ID,
+          entityKind: "agent" as const,
+          summary: "Agent draft matches the saved state.",
+        },
+        listState: null,
+        viewKind: "agentEdit" as const,
+      };
+      const { handlers } = createHandlers({
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Update a different draft.",
+          plannedCalls: [
+            {
+              callId: "call-1",
+              toolName: "setAgentDraftFields",
+              rationale: "Patch a draft.",
+              input: {
+                entityId: SECONDARY_AGENT_ID,
+                name: "Researcher Revised",
+              },
+            },
+          ],
+        }),
+      });
+      const session = await handlers.createSession({ viewKind: "agentEdit" }, 71);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Rename that other draft",
+          context: agentDraftContext,
+          response: null,
+        },
+        71,
+      );
+
+      const executed = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Rename that other draft",
+          context: agentDraftContext,
+          response: null,
+        },
+        71,
+      );
+      expect(executed.ok).toBe(true);
+      if (!executed.ok || executed.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(executed.value.result.outcome).toBe("failure");
+      expect(executed.value.result.executionResults).toMatchObject([
+        {
+          status: "failed",
+          toolName: "setAgentDraftFields",
+          error: {
+            kind: "ValidationError",
+          },
+        },
+      ]);
+    },
+  );
+
+  itReq(
+    ["R9.11", "R9.14", "R9.22", "A1", "A3"],
+    "fails current draft edits when the current agent editor is archived",
+    async () => {
+      const agentDraftContext = {
+        ...validContext,
+        activeEntityId: PRIMARY_AGENT_ID,
+        contextLabel: "Agent editor / Planner - archived",
+        draftState: {
+          changedFields: [],
+          dirty: false,
+          entityId: PRIMARY_AGENT_ID,
+          entityKind: "agent" as const,
+          summary: "Agent draft matches the saved state.",
+        },
+        listState: null,
+        viewKind: "agentEdit" as const,
+      };
+      const { handlers } = createHandlers({
+        agentEditorViewAgent: { ...primaryAgent, archived: true },
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Update the archived draft.",
+          plannedCalls: [
+            {
+              callId: "call-1",
+              toolName: "setAgentDraftFields",
+              rationale: "Patch the archived draft.",
+              input: {
+                name: "Planner Updated",
+              },
+            },
+          ],
+        }),
+      });
+      const session = await handlers.createSession({ viewKind: "agentEdit" }, 73);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Rename this archived draft",
+          context: agentDraftContext,
+          response: null,
+        },
+        73,
+      );
+
+      const executed = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Rename this archived draft",
+          context: agentDraftContext,
+          response: null,
+        },
+        73,
+      );
+      expect(executed.ok).toBe(true);
+      if (!executed.ok || executed.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(executed.value.result.outcome).toBe("failure");
+      expect(executed.value.result.executionResults).toMatchObject([
+        {
+          status: "failed",
+          toolName: "setAgentDraftFields",
+          error: {
+            kind: "ValidationError",
+            userMessage:
+              "Archived agents are read-only. Restore the current agent before editing it.",
+          },
+        },
+      ]);
+    },
+  );
+
+  itReq(
+    ["R9.11", "R9.14", "R9.22", "A1", "A3"],
+    "fails current draft edits when the current council editor is archived or mode-locked",
+    async () => {
+      const councilDraftContext = {
+        ...validContext,
+        activeEntityId: PRIMARY_COUNCIL_ID,
+        contextLabel: "Council editor / Quarterly Council - archived",
+        draftState: {
+          changedFields: [],
+          dirty: false,
+          entityId: PRIMARY_COUNCIL_ID,
+          entityKind: "council" as const,
+          summary: "Council draft matches the saved state.",
+        },
+        listState: null,
+        viewKind: "councilCreate" as const,
+      };
+
+      const archivedHandlers = createHandlers({
+        councilEditorViewCouncil: { ...primaryCouncil, archived: true },
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Update the archived council draft.",
+          plannedCalls: [
+            {
+              callId: "call-1",
+              toolName: "setCouncilDraftFields",
+              rationale: "Patch the archived council draft.",
+              input: {
+                title: "Archived Update",
+              },
+            },
+          ],
+        }),
+      }).handlers;
+      const archivedSession = await archivedHandlers.createSession(
+        { viewKind: "councilCreate" },
+        74,
+      );
+      expect(archivedSession.ok).toBe(true);
+      if (!archivedSession.ok) {
+        return;
+      }
+
+      await archivedHandlers.submit(
+        {
+          sessionId: archivedSession.value.session.sessionId,
+          userRequest: "Rename this archived council draft",
+          context: councilDraftContext,
+          response: null,
+        },
+        74,
+      );
+
+      const archivedExecuted = await archivedHandlers.submit(
+        {
+          sessionId: archivedSession.value.session.sessionId,
+          userRequest: "Rename this archived council draft",
+          context: councilDraftContext,
+          response: null,
+        },
+        74,
+      );
+      expect(archivedExecuted.ok).toBe(true);
+      if (!archivedExecuted.ok || archivedExecuted.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(archivedExecuted.value.result.outcome).toBe("failure");
+      expect(archivedExecuted.value.result.executionResults).toMatchObject([
+        {
+          status: "failed",
+          toolName: "setCouncilDraftFields",
+          error: {
+            kind: "ValidationError",
+            userMessage:
+              "Archived councils are read-only. Restore the current council before editing it.",
+          },
+        },
+      ]);
+
+      const modeLockedHandlers = createHandlers({
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Change the saved council mode.",
+          plannedCalls: [
+            {
+              callId: "call-1",
+              toolName: "setCouncilDraftFields",
+              rationale: "Patch the saved council mode.",
+              input: {
+                mode: "autopilot",
+              },
+            },
+          ],
+        }),
+      }).handlers;
+      const modeLockedSession = await modeLockedHandlers.createSession(
+        { viewKind: "councilCreate" },
+        75,
+      );
+      expect(modeLockedSession.ok).toBe(true);
+      if (!modeLockedSession.ok) {
+        return;
+      }
+
+      await modeLockedHandlers.submit(
+        {
+          sessionId: modeLockedSession.value.session.sessionId,
+          userRequest: "Switch this saved council to autopilot",
+          context: councilDraftContext,
+          response: null,
+        },
+        75,
+      );
+
+      const modeLockedExecuted = await modeLockedHandlers.submit(
+        {
+          sessionId: modeLockedSession.value.session.sessionId,
+          userRequest: "Switch this saved council to autopilot",
+          context: councilDraftContext,
+          response: null,
+        },
+        75,
+      );
+      expect(modeLockedExecuted.ok).toBe(true);
+      if (!modeLockedExecuted.ok || modeLockedExecuted.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(modeLockedExecuted.value.result.outcome).toBe("failure");
+      expect(modeLockedExecuted.value.result.executionResults).toMatchObject([
+        {
+          status: "failed",
+          toolName: "setCouncilDraftFields",
+          error: {
+            kind: "ValidationError",
+            userMessage:
+              "Council mode is locked after creation. Open a new council draft to change the mode.",
+          },
+        },
+      ]);
+    },
+  );
+
+  itReq(
+    ["R9.1", "R9.11", "R9.14", "R9.17", "U18.7", "A1", "D5"],
+    "uses the deterministic current agent draft shortcut when the request is explicit",
+    async () => {
+      const agentDraftContext = {
+        ...validContext,
+        activeEntityId: PRIMARY_AGENT_ID,
+        contextLabel: "Agent editor / Planner",
+        draftState: {
+          changedFields: [],
+          dirty: false,
+          entityId: PRIMARY_AGENT_ID,
+          entityKind: "agent" as const,
+          summary: "Agent draft matches the saved state.",
+        },
+        listState: null,
+        viewKind: "agentEdit" as const,
+      };
+      const plannerRequests: Array<string> = [];
+      const { handlers } = createHandlers({
+        onPlannerRequest: (request) => plannerRequests.push(request.userRequest),
+      });
+      const session = await handlers.createSession({ viewKind: "agentEdit" }, 76);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      const planned = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest:
+            "Rename this draft to Scenario Draft Agent Updated and set tags to ops, ready without saving.",
+          context: agentDraftContext,
+          response: null,
+        },
+        76,
+      );
+      expect(planned.ok).toBe(true);
+      if (!planned.ok || planned.value.result.kind !== "execute") {
+        return;
+      }
+
+      expect(planned.value.result.planSummary).toBe(
+        "Rename the current draft to Scenario Draft Agent Updated and update its tags.",
+      );
+      expect(planned.value.result.plannedCalls).toMatchObject([
+        {
+          toolName: "setAgentDraftFields",
+          input: {
+            name: "Scenario Draft Agent Updated",
+            tags: ["ops", "ready"],
+          },
+        },
+      ]);
+      expect(plannerRequests).toEqual([]);
+    },
+  );
 
   itReq(
     FILE_REQUIREMENT_IDS,
@@ -1248,6 +1890,7 @@ describe("assistant ipc contract", () => {
               toolName: "openCouncilView",
               status: "failed",
               failureMessage: "The requested council view never became visible.",
+              completion: null,
             },
           ],
         },

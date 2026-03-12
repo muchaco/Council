@@ -305,6 +305,13 @@ export const ASSISTANT_COMPLETE_RECONCILIATION_REQUEST_SCHEMA = z
             toolName: z.string().trim().min(1).max(200),
             status: z.enum(["completed", "failed"]),
             failureMessage: z.string().trim().min(1).max(500).nullable(),
+            completion: z
+              .object({
+                output: z.record(z.unknown()).nullable(),
+                userSummary: z.string().trim().min(1).max(500).nullable(),
+              })
+              .strict()
+              .nullable(),
           })
           .strict(),
       )
