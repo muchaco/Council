@@ -1,12 +1,12 @@
 # Test-to-Requirement Index (Generated)
 
-Generated at: 2026-03-12T22:37:06.426Z
+Generated at: 2026-03-13T06:33:21.653Z
 
 ## Summary
 
-- Spec files tracked: 45
-- Test cases tracked: 300
-- Annotated test cases: 300
+- Spec files tracked: 46
+- Test cases tracked: 312
+- Annotated test cases: 312
 - Unmapped test cases: 0
 - Unique mapped requirement IDs: 226
 
@@ -46,10 +46,16 @@ Generated at: 2026-03-12T22:37:06.426Z
   - [itReq] `blocks stored clarification follow-up turns when the global default model becomes invalid` -> A3, D5, R9.19, R9.3, R9.7
   - [itReq] `executes supported read and navigation tools into a final assistant result` -> A1, A3, D5, R9.18, R9.19, R9.20, R9.22, R9.3, R9.7
   - [itReq] `uses the council runtime read tool for runtime-status follow-up questions on the open council` -> A1, D5, R9.18, R9.19, R9.22, U18.10, U18.11, U18.8
+  - [itReq] `executes runtime mutation tools only from the active council view lease and waits for reconciliation` -> A1, A3, R9.11, R9.17, R9.18, R9.21, R9.22, U18.10
+  - [itReq] `preserves non-zero lease epoch when runtime mutation refreshes council view` -> A1, A3, R9.11, R9.17, R9.18, R9.21, R9.22, U18.10
+  - [itReq] `fails runtime mutation tools when council runtime lease scope is stale` -> A1, A3, R9.11, R9.21, R9.22
+  - [itReq] `rejects runtime mutation tools when the council view lease token is forged` -> A1, A3, R9.11, R9.21, R9.22
+  - [itReq] `invalidates pending runtime execution when council view lease context disappears` -> A1, A3, R9.11, R9.17, R9.21, R9.22, U18.10
   - [itReq] `supports the remaining phase 1 home, entity, and list read tools` -> A1, A3, D5, R9.18, R9.19, R9.20, R9.22, R9.3, R9.7
   - [itReq] `fails navigation reconciliation closed when the visible destination never appears` -> A3, D5, R9.17, R9.18, R9.22, U18.10, U18.11, U18.8
   - [itReq] `rejects submits whose context view kind does not match the session scope` -> A3, R9.22, R9.3, R9.4
   - [itReq] `rejects planner terminal success and partial results so main owns final execution outcomes` -> A3, D5, R9.17, R9.3, R9.7
+  - [itReq] `does not report stale runtime success after closing an in-flight runtime execution` -> A3, D5, R9.16, R9.21, R9.22
   - [itReq] `rejects a second concurrent submit for the same session` -> A3, D5, R9.20, R9.21, R9.3
   - [itReq] `keeps a stale cancelled submit from clearing newer in-flight work` -> A3, D5, R9.20, R9.21
   - [itReq] `validates assistant session payloads` -> A3, D5, R9.11, R9.16, R9.19, R9.20, R9.21, R9.3, R9.4
@@ -63,6 +69,7 @@ Generated at: 2026-03-12T22:37:06.426Z
 - `tests/integration/boundary-check-script.integration.spec.ts`
   - [itReq] `passes for baseline source tree` -> A3, IMPL-005
 - `tests/integration/councils-handlers.integration.spec.ts`
+  - [itReq] `rotates runtime leases on reload and switch epochs and fails stale tokens closed` -> A1, A3, R9.11, R9.21, R9.22
   - [itReq] `creates councils and paginates list results` -> E1, E2, E4, F1, R1.11, R1.23, R1.24, R1.26, R1.3, R1.6, R1.7, R1.8, R2.1, R2.10, R2.11, R2.12, R2.13, R2.14, R2.15, R2.16, R2.17, R2.18, R2.19, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.29, R3.3, R3.30, R3.31, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R4.18, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U16.1, U16.2, U16.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
   - [itReq] `filters councils by committed exact-match tag chips with AND semantics` -> E1, E2, E4, F1, R1.11, R1.23, R1.24, R1.26, R1.3, R1.6, R1.7, R1.8, R2.1, R2.10, R2.11, R2.12, R2.13, R2.14, R2.15, R2.16, R2.17, R2.18, R2.19, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.29, R3.3, R3.30, R3.31, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R4.18, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U16.1, U16.2, U16.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
   - [itReq] `keeps created councils not-started and enforces topic-required create flow` -> E1, E2, E4, F1, R1.11, R1.23, R1.24, R1.26, R1.3, R1.6, R1.7, R1.8, R2.1, R2.10, R2.11, R2.12, R2.13, R2.14, R2.15, R2.16, R2.17, R2.18, R2.19, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.29, R3.3, R3.30, R3.31, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R4.18, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U16.1, U16.2, U16.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
@@ -182,6 +189,7 @@ Generated at: 2026-03-12T22:37:06.426Z
   - [itReq] `builds a deterministic save current agent draft shortcut plan` -> A1, D5, R9.11, R9.17, R9.18, R9.22, U18.13
   - [itReq] `builds a deterministic rename and save current council draft shortcut plan` -> A1, D5, R9.11, R9.17, R9.18, R9.22, U18.13
   - [itReq] `builds a deterministic current council rename shortcut plan` -> A1, D5, R9.11, R9.17, R9.18, R9.22, U18.13
+  - [itReq] `builds deterministic council runtime control shortcuts` -> A1, D5, R9.11, R9.17, R9.18, R9.21, R9.22
   - [itReq] `ignores unsupported shortcut requests` -> A1, D5, R9.1, R9.11, R9.14, R9.17, U18.7
 - `tests/unit/assistant-policy.spec.ts`
   - [itReq] `validates known assistant tool payloads against shared schemas` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
@@ -198,6 +206,10 @@ Generated at: 2026-03-12T22:37:06.426Z
   - [itReq] `builds sanitized home context from the active list query` -> A3, D5, F2, R9.19, R9.4, U18.12
   - [itReq] `summarizes agent draft changes without exposing prompt bodies or raw paths` -> A3, D5, F2, R9.19, R9.4, U18.12
   - [itReq] `builds council view runtime context without transcript body details` -> A3, D5, F2, R9.19, R9.4, U18.12
+  - [itReq] `omits runtime lease context when council view has no active lease` -> A3, D5, R9.11, R9.21, R9.22
+- `tests/unit/assistant-scope.spec.ts`
+  - [itReq] `keeps council-view scope stable while the active council remains the same` -> R9.17, R9.18, R9.22, U18.10
+  - [itReq] `changes council-view scope when switching to a different council` -> R9.17, R9.18, R9.22, U18.10
 - `tests/unit/assistant-shell-controller.spec.ts`
   - [itReq] `keeps the modal cancelled when delayed session creation resolves after stop` -> R9.17, R9.21, U18.12, U18.13, U18.14
   - [itReq] `keeps the modal closed when delayed session creation resolves after close` -> R9.17, R9.21, U18.12, U18.13, U18.14
@@ -313,6 +325,7 @@ Generated at: 2026-03-12T22:37:06.426Z
   - [itReq] `rejects invalid set archived payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
   - [itReq] `rejects invalid delete council payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
   - [itReq] `accepts valid council view payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `rejects invalid council view lease epoch payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
   - [itReq] `rejects pause autopilot payload with invalid id` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
   - [itReq] `accepts valid start and resume council payloads` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
   - [itReq] `rejects invalid max turn payloads` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2

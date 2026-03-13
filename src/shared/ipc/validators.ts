@@ -135,6 +135,7 @@ export const GET_COUNCIL_EDITOR_VIEW_REQUEST_SCHEMA = z.object({
 export const GET_COUNCIL_VIEW_REQUEST_SCHEMA = z.object({
   viewKind: z.literal("councilView"),
   councilId: z.string().uuid(),
+  leaseEpoch: z.number().int().min(0).max(2_147_483_647).optional(),
 });
 
 export const SAVE_COUNCIL_REQUEST_SCHEMA = z.object({
@@ -265,7 +266,9 @@ const ASSISTANT_EXECUTION_SNAPSHOT_SCHEMA = z
 
 const ASSISTANT_RUNTIME_STATE_SCHEMA = z
   .object({
+    leaseId: z.string().uuid(),
     councilId: z.string().uuid(),
+    leaseEpoch: z.number().int().min(0).max(2_147_483_647).optional(),
     status: z.enum(["idle", "running", "paused"]),
     plannedNextSpeakerAgentId: z.string().uuid().nullable(),
   })

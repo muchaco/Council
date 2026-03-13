@@ -400,6 +400,13 @@ export const registerIpcHandlers = (): {
     getCouncilEditorView: (params) => councilsSlice.getEditorView(params),
     saveCouncil: (params) => councilsSlice.saveCouncil(params),
     getCouncilView: (params) => councilsSlice.getCouncilView(params),
+    validateAssistantRuntimeLease: (params) => councilsSlice.validateAssistantRuntimeLease(params),
+    startCouncil: (params) => councilsSlice.startCouncil(params),
+    pauseCouncilAutopilot: (params) => councilsSlice.pauseCouncilAutopilot(params),
+    resumeCouncilAutopilot: (params) => councilsSlice.resumeCouncilAutopilot(params),
+    generateManualTurn: (params) => councilsSlice.generateManualTurn(params),
+    injectConductorMessage: (params) => councilsSlice.injectConductorMessage(params),
+    cancelGeneration: (params) => councilsSlice.cancelGeneration(params),
     planAssistantResponse: (request, abortSignal) =>
       aiService
         .generateText(
@@ -550,6 +557,7 @@ export const registerIpcHandlers = (): {
   return {
     releaseWebContentsResources: (webContentsId: number): void => {
       settingsSlice.releaseViewSnapshots(webContentsId);
+      councilsSlice.releaseAssistantRuntimeLeases(webContentsId);
       assistantSlice.releaseWebContentsSessions(webContentsId);
     },
   };

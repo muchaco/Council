@@ -72,6 +72,8 @@ export type AssistantCouncilViewSnapshot = {
   mode: "autopilot" | "manual";
   paused: boolean;
   plannedNextSpeakerAgentId: string | null;
+  runtimeLeaseEpoch?: number;
+  runtimeLeaseId: string | null;
   started: boolean;
   title: string;
   turnCount: number;
@@ -241,17 +243,23 @@ export const buildAssistantCouncilViewContext = (
   snapshot: AssistantCouncilViewSnapshot,
 ): AssistantContextEnvelope => {
   const runtimeStatus = snapshot.started ? (snapshot.paused ? "paused" : "running") : "idle";
+  const runtimeLeaseId = snapshot.runtimeLeaseId;
+  const hasRuntimeLease = typeof runtimeLeaseId === "string" && runtimeLeaseId.trim().length > 0;
 
   return sanitizeAssistantContext({
     activeEntityId: snapshot.councilId,
     contextLabel: `Council view / ${snapshot.title} / ${snapshot.activeTab} - ${snapshot.messageCount} messages, ${snapshot.memberCount} members${snapshot.archived ? ", archived" : ""}${snapshot.invalidConfig ? ", invalid config" : ""}${snapshot.hasBriefing ? ", briefing ready" : ""}`,
     draftState: null,
     listState: null,
-    runtimeState: {
-      councilId: snapshot.councilId,
-      plannedNextSpeakerAgentId: snapshot.plannedNextSpeakerAgentId,
-      status: runtimeStatus,
-    },
+    runtimeState: hasRuntimeLease
+      ? {
+          leaseId: runtimeLeaseId,
+          councilId: snapshot.councilId,
+          leaseEpoch: snapshot.runtimeLeaseEpoch,
+          plannedNextSpeakerAgentId: snapshot.plannedNextSpeakerAgentId,
+          status: runtimeStatus,
+        }
+      : null,
     selectionIds: [],
     viewKind: "councilView",
   });

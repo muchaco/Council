@@ -32,6 +32,7 @@ import {
   readSavedAgentFields,
   readSavedCouncilFields,
 } from "./components/assistant/assistant-reconciliation-helpers";
+import { resolveAssistantScopeKey } from "./components/assistant/assistant-scope";
 import { createAssistantShellController } from "./components/assistant/assistant-shell-controller";
 import {
   type AssistantUiState,
@@ -89,6 +90,7 @@ export const App = (): JSX.Element => {
     useState<AssistantCouncilEditorSnapshot | null>(null);
   const [councilViewAssistantSnapshot, setCouncilViewAssistantSnapshot] =
     useState<AssistantCouncilViewSnapshot | null>(null);
+  const [assistantCouncilViewReloadToken, setAssistantCouncilViewReloadToken] = useState(0);
   const assistantInputRef = useRef<HTMLTextAreaElement>(null);
   const assistantStateRef = useRef(assistantState);
   const screenRef = useRef(screen);
@@ -244,6 +246,7 @@ export const App = (): JSX.Element => {
             mode: "manual",
             paused: false,
             plannedNextSpeakerAgentId: null,
+            runtimeLeaseId: null,
             started: false,
             title: "Council",
             turnCount: 0,
@@ -259,18 +262,10 @@ export const App = (): JSX.Element => {
     screen,
   ]);
 
-  const activeAssistantScopeKey = useMemo(() => {
-    switch (screen.kind) {
-      case "home":
-        return `home:${homeTab}`;
-      case "agentEditor":
-        return `agentEditor:${screen.agentId ?? "new"}`;
-      case "councilEditor":
-        return `councilEditor:${screen.councilId ?? "new"}`;
-      case "councilView":
-        return `councilView:${screen.councilId}`;
-    }
-  }, [homeTab, screen]);
+  const activeAssistantScopeKey = useMemo(
+    () => resolveAssistantScopeKey({ homeTab, screen }),
+    [homeTab, screen],
+  );
 
   const activeAssistantContextRef = useRef(activeAssistantContext);
   activeAssistantContextRef.current = activeAssistantContext;
@@ -428,6 +423,46 @@ export const App = (): JSX.Element => {
             state: current,
           }),
         }));
+      };
+
+      const reconcileRuntimeView = async (params: {
+        callId: string;
+        expectedCouncilId: string;
+        expectedGenerationStatus?: "idle" | "running";
+        expectedMessageCount: number;
+        expectedRuntimeStatus: "idle" | "running" | "paused";
+        expectedTurnCount: number;
+        toolName: string;
+      }): Promise<void> => {
+        setAssistantCouncilViewReloadToken((current) => current + 1);
+        const ready = await waitForAssistantUi(() => {
+          const snapshot = councilViewAssistantSnapshotRef.current;
+          return (
+            screenRef.current.kind === "councilView" &&
+            screenRef.current.councilId === params.expectedCouncilId &&
+            snapshot !== null &&
+            snapshot.councilId === params.expectedCouncilId &&
+            snapshot.messageCount >= params.expectedMessageCount &&
+            snapshot.turnCount >= params.expectedTurnCount &&
+            (params.expectedGenerationStatus === undefined ||
+              snapshot.generationStatus === params.expectedGenerationStatus) &&
+            (params.expectedRuntimeStatus === "running"
+              ? snapshot.started && !snapshot.paused
+              : params.expectedRuntimeStatus === "paused"
+                ? snapshot.started && snapshot.paused
+                : !snapshot.started)
+          );
+        }, 10_000);
+
+        reconciliations.push({
+          callId: params.callId,
+          completion: null,
+          toolName: params.toolName,
+          status: ready ? "completed" : "failed",
+          failureMessage: ready
+            ? null
+            : "The active council runtime view did not reflect the assistant runtime action.",
+        });
       };
 
       for (const executionResult of result.executionResults) {
@@ -859,6 +894,46 @@ export const App = (): JSX.Element => {
             });
             break;
           }
+          case "startCouncil":
+          case "pauseCouncil":
+          case "resumeCouncil":
+          case "cancelCouncilGeneration":
+          case "selectManualSpeaker":
+          case "sendConductorMessage": {
+            const councilId = executionResult.output.councilId;
+            const runtimeStatus = executionResult.output.runtimeStatus;
+            const turnCount = executionResult.output.turnCount;
+            const messageCount = executionResult.output.messageCount;
+            if (
+              typeof councilId !== "string" ||
+              (runtimeStatus !== "idle" &&
+                runtimeStatus !== "running" &&
+                runtimeStatus !== "paused") ||
+              typeof turnCount !== "number" ||
+              typeof messageCount !== "number"
+            ) {
+              reconciliations.push({
+                callId: executionResult.callId,
+                completion: null,
+                toolName: executionResult.toolName,
+                status: "failed",
+                failureMessage: "The runtime action result could not be reconciled safely.",
+              });
+              break;
+            }
+
+            await reconcileRuntimeView({
+              callId: executionResult.callId,
+              expectedCouncilId: councilId,
+              expectedGenerationStatus:
+                executionResult.toolName === "cancelCouncilGeneration" ? "idle" : undefined,
+              expectedMessageCount: messageCount,
+              expectedRuntimeStatus: runtimeStatus,
+              expectedTurnCount: turnCount,
+              toolName: executionResult.toolName,
+            });
+            break;
+          }
           default:
             reconciliations.push({
               callId: executionResult.callId,
@@ -1080,6 +1155,7 @@ export const App = (): JSX.Element => {
       />
 
       <CouncilViewScreen
+        assistantReloadToken={assistantCouncilViewReloadToken}
         assistantLauncher={renderAssistantLauncher()}
         councilId={screen.kind === "councilView" ? screen.councilId : ""}
         isActive={screen.kind === "councilView"}

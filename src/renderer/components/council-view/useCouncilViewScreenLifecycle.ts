@@ -7,6 +7,7 @@ import type { CouncilViewState, CouncilViewTab } from "./councilViewScreenState"
 import { createReadyCouncilViewState } from "./councilViewScreenState";
 
 type UseCouncilViewScreenLifecycleParams = {
+  assistantReloadToken: number;
   councilId: string;
   isActive: boolean;
   pushToast: (tone: "warning" | "error" | "info", message: string) => void;
@@ -23,6 +24,7 @@ export type LoadCouncilView = (
 ) => Promise<void>;
 
 export const useCouncilViewScreenLifecycle = ({
+  assistantReloadToken,
   councilId,
   isActive,
   pushToast,
@@ -35,6 +37,7 @@ export const useCouncilViewScreenLifecycle = ({
       const result = await window.api.councils.getCouncilView({
         viewKind: "councilView",
         councilId: nextCouncilId,
+        leaseEpoch: assistantReloadToken,
       });
       if (!result.ok) {
         setState({ status: "error", message: result.error.userMessage });
@@ -48,15 +51,18 @@ export const useCouncilViewScreenLifecycle = ({
         }),
       );
     },
-    [pushToast, setState],
+    [assistantReloadToken, pushToast, setState],
   );
 
   useEffect(() => {
     if (!isActive) {
       return;
     }
+    if (!Number.isInteger(assistantReloadToken)) {
+      return;
+    }
     void loadCouncilView(councilId);
-  }, [councilId, isActive, loadCouncilView]);
+  }, [assistantReloadToken, councilId, isActive, loadCouncilView]);
 
   useEffect(() => {
     if (!isActive) {

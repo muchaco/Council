@@ -685,6 +685,198 @@ export const ASSISTANT_TOOL_DEFINITIONS: ReadonlyArray<AssistantToolDefinition> 
       .strict(),
     reconciliation: null,
   }),
+  defineAssistantTool({
+    name: "startCouncil",
+    version: 1,
+    category: "runtime",
+    risk: "write",
+    requiresConfirmation: false,
+    confirmationPolicy: "never",
+    description: "Start the active council runtime from the current council view lease.",
+    inputSchema: z
+      .object({
+        councilId: z.string().uuid().optional(),
+        maxTurns: z.number().int().min(1).max(200).nullable().optional(),
+      })
+      .strict(),
+    outputSchema: z
+      .object({
+        councilId: z.string().uuid(),
+        councilTitle: z.string().trim().min(1).max(200),
+        messageCount: z.number().int().min(0),
+        paused: z.boolean(),
+        runtimeStatus: z.enum(["idle", "running", "paused"]),
+        started: z.boolean(),
+        turnCount: z.number().int().min(0),
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "runtime-view",
+      strategy: "reload-entity",
+      successCondition:
+        "The active council runtime view shows the started runtime controls and state.",
+    },
+  }),
+  defineAssistantTool({
+    name: "pauseCouncil",
+    version: 1,
+    category: "runtime",
+    risk: "write",
+    requiresConfirmation: false,
+    confirmationPolicy: "never",
+    description: "Pause autopilot in the active council runtime view.",
+    inputSchema: z
+      .object({
+        councilId: z.string().uuid().optional(),
+      })
+      .strict(),
+    outputSchema: z
+      .object({
+        councilId: z.string().uuid(),
+        councilTitle: z.string().trim().min(1).max(200),
+        messageCount: z.number().int().min(0),
+        paused: z.boolean(),
+        runtimeStatus: z.enum(["idle", "running", "paused"]),
+        started: z.boolean(),
+        turnCount: z.number().int().min(0),
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "runtime-view",
+      strategy: "reload-entity",
+      successCondition: "The active council runtime view shows autopilot paused.",
+    },
+  }),
+  defineAssistantTool({
+    name: "resumeCouncil",
+    version: 1,
+    category: "runtime",
+    risk: "write",
+    requiresConfirmation: false,
+    confirmationPolicy: "never",
+    description: "Resume autopilot in the active council runtime view.",
+    inputSchema: z
+      .object({
+        councilId: z.string().uuid().optional(),
+        maxTurns: z.number().int().min(1).max(200).nullable().optional(),
+      })
+      .strict(),
+    outputSchema: z
+      .object({
+        councilId: z.string().uuid(),
+        councilTitle: z.string().trim().min(1).max(200),
+        messageCount: z.number().int().min(0),
+        paused: z.boolean(),
+        runtimeStatus: z.enum(["idle", "running", "paused"]),
+        started: z.boolean(),
+        turnCount: z.number().int().min(0),
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "runtime-view",
+      strategy: "reload-entity",
+      successCondition: "The active council runtime view shows autopilot resumed.",
+    },
+  }),
+  defineAssistantTool({
+    name: "cancelCouncilGeneration",
+    version: 1,
+    category: "runtime",
+    risk: "write",
+    requiresConfirmation: false,
+    confirmationPolicy: "never",
+    description: "Cancel in-flight council generation for the active runtime view.",
+    inputSchema: z
+      .object({
+        councilId: z.string().uuid().optional(),
+      })
+      .strict(),
+    outputSchema: z
+      .object({
+        cancelled: z.boolean(),
+        councilId: z.string().uuid(),
+        councilTitle: z.string().trim().min(1).max(200),
+        messageCount: z.number().int().min(0),
+        paused: z.boolean(),
+        runtimeStatus: z.enum(["idle", "running", "paused"]),
+        started: z.boolean(),
+        turnCount: z.number().int().min(0),
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "runtime-view",
+      strategy: "reload-entity",
+      successCondition:
+        "The active council runtime view no longer shows a running generation spinner.",
+    },
+  }),
+  defineAssistantTool({
+    name: "selectManualSpeaker",
+    version: 1,
+    category: "runtime",
+    risk: "write",
+    requiresConfirmation: false,
+    confirmationPolicy: "never",
+    description: "Run one manual council turn for the selected speaker in the active runtime view.",
+    inputSchema: z
+      .object({
+        councilId: z.string().uuid().optional(),
+        memberAgentId: z.string().uuid(),
+      })
+      .strict(),
+    outputSchema: z
+      .object({
+        councilId: z.string().uuid(),
+        councilTitle: z.string().trim().min(1).max(200),
+        memberAgentId: z.string().uuid(),
+        messageCount: z.number().int().min(0),
+        messageId: z.string().uuid(),
+        paused: z.boolean(),
+        runtimeStatus: z.enum(["idle", "running", "paused"]),
+        started: z.boolean(),
+        turnCount: z.number().int().min(0),
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "runtime-view",
+      strategy: "reload-entity",
+      successCondition:
+        "The active council runtime view shows the new manual turn message and updated turn count.",
+    },
+  }),
+  defineAssistantTool({
+    name: "sendConductorMessage",
+    version: 1,
+    category: "runtime",
+    risk: "write",
+    requiresConfirmation: false,
+    confirmationPolicy: "never",
+    description: "Send a conductor message in the active council runtime view.",
+    inputSchema: z
+      .object({
+        councilId: z.string().uuid().optional(),
+        content: z.string().trim().min(1).max(20_000),
+      })
+      .strict(),
+    outputSchema: z
+      .object({
+        councilId: z.string().uuid(),
+        councilTitle: z.string().trim().min(1).max(200),
+        messageCount: z.number().int().min(0),
+        messageId: z.string().uuid(),
+        paused: z.boolean(),
+        runtimeStatus: z.enum(["idle", "running", "paused"]),
+        started: z.boolean(),
+        turnCount: z.number().int().min(0),
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "runtime-view",
+      strategy: "reload-entity",
+      successCondition:
+        "The active council runtime view shows the new conductor message and updated briefing context.",
+    },
+  }),
 ];
 
 export const getAssistantToolDefinition = (toolName: string): AssistantToolDefinition | null =>

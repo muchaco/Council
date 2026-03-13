@@ -243,6 +243,104 @@ const buildCurrentCouncilRenameShortcut = (params: {
   };
 };
 
+const buildCouncilRuntimeShortcut = (params: {
+  context: AssistantContextEnvelope;
+  sessionId: string;
+  userRequest: string;
+}): AssistantPlannerShortcutPlan | null => {
+  if (params.context.viewKind !== "councilView" || params.context.activeEntityId === null) {
+    return null;
+  }
+
+  const normalizedRequest = normalizeRequestText(params.userRequest);
+  if (/^start this council runtime\.?$/i.test(normalizedRequest)) {
+    return {
+      summary: "Start this council runtime.",
+      plannedCalls: [
+        {
+          callId: `start-council-runtime-${params.sessionId}`,
+          toolName: "startCouncil",
+          rationale: "Start the currently leased council runtime view.",
+          input: {
+            councilId: params.context.activeEntityId,
+          },
+        },
+      ],
+    };
+  }
+
+  if (/^pause this council runtime\.?$/i.test(normalizedRequest)) {
+    return {
+      summary: "Pause this council runtime.",
+      plannedCalls: [
+        {
+          callId: `pause-council-runtime-${params.sessionId}`,
+          toolName: "pauseCouncil",
+          rationale: "Pause autopilot in the currently leased council runtime view.",
+          input: {
+            councilId: params.context.activeEntityId,
+          },
+        },
+      ],
+    };
+  }
+
+  if (/^resume this council runtime\.?$/i.test(normalizedRequest)) {
+    return {
+      summary: "Resume this council runtime.",
+      plannedCalls: [
+        {
+          callId: `resume-council-runtime-${params.sessionId}`,
+          toolName: "resumeCouncil",
+          rationale: "Resume autopilot in the currently leased council runtime view.",
+          input: {
+            councilId: params.context.activeEntityId,
+          },
+        },
+      ],
+    };
+  }
+
+  const conductorMessageMatch = /^send conductor message (.+?)\.?$/i.exec(normalizedRequest);
+  if (conductorMessageMatch !== null) {
+    const content = conductorMessageMatch[1]?.trim() ?? "";
+    if (content.length > 0) {
+      return {
+        summary: "Send a conductor message.",
+        plannedCalls: [
+          {
+            callId: `send-conductor-message-${params.sessionId}`,
+            toolName: "sendConductorMessage",
+            rationale: "Inject the requested conductor note into the current council runtime.",
+            input: {
+              councilId: params.context.activeEntityId,
+              content,
+            },
+          },
+        ],
+      };
+    }
+  }
+
+  if (/^cancel this council generation\.?$/i.test(normalizedRequest)) {
+    return {
+      summary: "Cancel this council generation.",
+      plannedCalls: [
+        {
+          callId: `cancel-council-generation-${params.sessionId}`,
+          toolName: "cancelCouncilGeneration",
+          rationale: "Stop in-flight generation for the currently leased council runtime view.",
+          input: {
+            councilId: params.context.activeEntityId,
+          },
+        },
+      ],
+    };
+  }
+
+  return null;
+};
+
 export const tryBuildAssistantPlannerShortcut = (params: {
   context: AssistantContextEnvelope;
   sessionId: string;
@@ -274,6 +372,11 @@ export const tryBuildAssistantPlannerShortcut = (params: {
   }
 
   if (params.context.viewKind === "councilView") {
+    const councilRuntimeShortcut = buildCouncilRuntimeShortcut(params);
+    if (councilRuntimeShortcut !== null) {
+      return councilRuntimeShortcut;
+    }
+
     const currentCouncilRenameShortcut = buildCurrentCouncilRenameShortcut(params);
     if (currentCouncilRenameShortcut !== null) {
       return currentCouncilRenameShortcut;

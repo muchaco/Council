@@ -1,9 +1,9 @@
 {
-  "generatedAtUtc": "2026-03-12T22:37:06.426Z",
+  "generatedAtUtc": "2026-03-13T06:33:21.653Z",
   "summary": {
-    "specFilesTracked": 45,
-    "testCasesTracked": 300,
-    "annotatedTestCases": 300,
+    "specFilesTracked": 46,
+    "testCasesTracked": 312,
+    "annotatedTestCases": 312,
     "unmappedTestCases": 0,
     "mappedRequirementIds": 226
   },
@@ -639,6 +639,69 @@
           "source": "itReq"
         },
         {
+          "name": "executes runtime mutation tools only from the active council view lease and waits for reconciliation",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.17",
+            "R9.18",
+            "R9.21",
+            "R9.22",
+            "U18.10"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "preserves non-zero lease epoch when runtime mutation refreshes council view",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.17",
+            "R9.18",
+            "R9.21",
+            "R9.22",
+            "U18.10"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "fails runtime mutation tools when council runtime lease scope is stale",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.21",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "rejects runtime mutation tools when the council view lease token is forged",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.21",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "invalidates pending runtime execution when council view lease context disappears",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.17",
+            "R9.21",
+            "R9.22",
+            "U18.10"
+          ],
+          "source": "itReq"
+        },
+        {
           "name": "supports the remaining phase 1 home, entity, and list read tools",
           "requirementIds": [
             "A1",
@@ -685,6 +748,17 @@
             "R9.17",
             "R9.3",
             "R9.7"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "does not report stale runtime success after closing an in-flight runtime execution",
+          "requirementIds": [
+            "A3",
+            "D5",
+            "R9.16",
+            "R9.21",
+            "R9.22"
           ],
           "source": "itReq"
         },
@@ -833,8 +907,8 @@
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 34,
-      "totalTestCount": 34
+      "itReqInvocationCount": 40,
+      "totalTestCount": 40
     },
     {
       "filePath": "tests/integration/boundary-check-script.integration.spec.ts",
@@ -855,6 +929,17 @@
     {
       "filePath": "tests/integration/councils-handlers.integration.spec.ts",
       "cases": [
+        {
+          "name": "rotates runtime leases on reload and switch epochs and fails stale tokens closed",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.21",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
         {
           "name": "creates councils and paginates list results",
           "requirementIds": [
@@ -3327,8 +3412,8 @@
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 26,
-      "totalTestCount": 26
+      "itReqInvocationCount": 27,
+      "totalTestCount": 27
     },
     {
       "filePath": "tests/integration/councils-ipc.contract.integration.spec.ts",
@@ -4567,6 +4652,19 @@
           "source": "itReq"
         },
         {
+          "name": "builds deterministic council runtime control shortcuts",
+          "requirementIds": [
+            "A1",
+            "D5",
+            "R9.11",
+            "R9.17",
+            "R9.18",
+            "R9.21",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
           "name": "ignores unsupported shortcut requests",
           "requirementIds": [
             "A1",
@@ -4581,8 +4679,8 @@
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 6,
-      "totalTestCount": 6
+      "itReqInvocationCount": 7,
+      "totalTestCount": 7
     },
     {
       "filePath": "tests/unit/assistant-policy.spec.ts",
@@ -4742,11 +4840,50 @@
             "U18.12"
           ],
           "source": "itReq"
+        },
+        {
+          "name": "omits runtime lease context when council view has no active lease",
+          "requirementIds": [
+            "A3",
+            "D5",
+            "R9.11",
+            "R9.21",
+            "R9.22"
+          ],
+          "source": "itReq"
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 3,
-      "totalTestCount": 3
+      "itReqInvocationCount": 4,
+      "totalTestCount": 4
+    },
+    {
+      "filePath": "tests/unit/assistant-scope.spec.ts",
+      "cases": [
+        {
+          "name": "keeps council-view scope stable while the active council remains the same",
+          "requirementIds": [
+            "R9.17",
+            "R9.18",
+            "R9.22",
+            "U18.10"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "changes council-view scope when switching to a different council",
+          "requirementIds": [
+            "R9.17",
+            "R9.18",
+            "R9.22",
+            "U18.10"
+          ],
+          "source": "itReq"
+        }
+      ],
+      "plainItCount": 0,
+      "itReqInvocationCount": 2,
+      "totalTestCount": 2
     },
     {
       "filePath": "tests/unit/assistant-shell-controller.spec.ts",
@@ -6252,6 +6389,35 @@
           "source": "itReq"
         },
         {
+          "name": "rejects invalid council view lease epoch payload",
+          "requirementIds": [
+            "A3",
+            "C1",
+            "F1",
+            "R1.1",
+            "R1.2",
+            "R1.20",
+            "R1.22",
+            "R2.1",
+            "R2.3",
+            "R2.7",
+            "R3.1",
+            "R3.23",
+            "R3.32",
+            "R3.7",
+            "R3.8",
+            "R4.17",
+            "R4.22",
+            "R4.6",
+            "R4.8",
+            "R6.1",
+            "U10.1",
+            "U11.6",
+            "U12.2"
+          ],
+          "source": "itReq"
+        },
+        {
           "name": "rejects pause autopilot payload with invalid id",
           "requirementIds": [
             "A3",
@@ -6427,8 +6593,8 @@
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 26,
-      "totalTestCount": 26
+      "itReqInvocationCount": 27,
+      "totalTestCount": 27
     },
     {
       "filePath": "tests/unit/keytar-keychain-service.spec.ts",

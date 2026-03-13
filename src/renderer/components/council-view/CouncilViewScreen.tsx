@@ -9,6 +9,7 @@ import { useCouncilViewDialogHandlers } from "./useCouncilViewDialogHandlers";
 import { useCouncilViewScreenLifecycle } from "./useCouncilViewScreenLifecycle";
 
 type CouncilViewScreenProps = {
+  assistantReloadToken: number;
   assistantLauncher: JSX.Element;
   councilId: string;
   isActive: boolean;
@@ -20,6 +21,7 @@ type CouncilViewScreenProps = {
 };
 
 export const CouncilViewScreen = ({
+  assistantReloadToken,
   assistantLauncher,
   councilId,
   isActive,
@@ -30,8 +32,8 @@ export const CouncilViewScreen = ({
   const [state, setState] = useState<CouncilViewState>({ status: "loading" });
   const [autopilotLimitAction, setAutopilotLimitAction] =
     useState<AutopilotLimitModalAction | null>(null);
-
   const { loadCouncilView } = useCouncilViewScreenLifecycle({
+    assistantReloadToken,
     councilId,
     isActive,
     pushToast,
@@ -87,7 +89,12 @@ export const CouncilViewScreen = ({
   });
 
   useEffect(() => {
-    if (!isActive || state.status !== "ready") {
+    if (!isActive) {
+      onAssistantContextChange(null);
+      return;
+    }
+
+    if (state.status !== "ready") {
       onAssistantContextChange(null);
       return;
     }
@@ -106,11 +113,13 @@ export const CouncilViewScreen = ({
       mode: state.source.council.mode,
       paused: state.source.council.paused,
       plannedNextSpeakerAgentId: state.source.generation.plannedNextSpeakerAgentId,
+      runtimeLeaseEpoch: assistantReloadToken,
+      runtimeLeaseId: state.source.assistantRuntimeLeaseId,
       started: state.source.council.started,
       title: state.source.council.title,
       turnCount: state.source.council.turnCount,
     });
-  }, [isActive, onAssistantContextChange, state]);
+  }, [assistantReloadToken, isActive, onAssistantContextChange, state]);
 
   if (!isActive) {
     return null;

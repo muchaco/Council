@@ -48,17 +48,23 @@ import type {
   AssistantSubmitResponse,
   AssistantToolExecutionError,
   AssistantToolExecutionResult,
+  CancelCouncilGenerationResponse,
   CouncilDto,
+  GenerateManualCouncilTurnResponse,
   GetAgentEditorViewResponse,
   GetCouncilEditorViewResponse,
   GetCouncilViewResponse,
   GetSettingsViewResponse,
+  InjectConductorMessageResponse,
   ListAgentsResponse,
   ListCouncilsResponse,
+  PauseCouncilAutopilotResponse,
+  ResumeCouncilAutopilotResponse,
   SaveAgentRequest,
   SaveAgentResponse,
   SaveCouncilRequest,
   SaveCouncilResponse,
+  StartCouncilResponse,
   ViewKind,
 } from "../../../shared/ipc/dto.js";
 import type { AssistantAuditService } from "../../services/assistant/assistant-audit-service.js";
@@ -118,7 +124,41 @@ type AssistantSliceDependencies = {
   getCouncilView: (params: {
     webContentsId: number;
     councilId: string;
+    leaseEpoch?: number;
   }) => ResultAsync<GetCouncilViewResponse, DomainError>;
+  validateAssistantRuntimeLease: (params: {
+    webContentsId: number;
+    councilId: string;
+    leaseId: string;
+  }) => ResultAsync<boolean, DomainError>;
+  startCouncil: (params: {
+    webContentsId: number;
+    id: string;
+    maxTurns: number | null;
+  }) => ResultAsync<StartCouncilResponse, DomainError>;
+  pauseCouncilAutopilot: (params: {
+    webContentsId: number;
+    id: string;
+  }) => ResultAsync<PauseCouncilAutopilotResponse, DomainError>;
+  resumeCouncilAutopilot: (params: {
+    webContentsId: number;
+    id: string;
+    maxTurns: number | null;
+  }) => ResultAsync<ResumeCouncilAutopilotResponse, DomainError>;
+  generateManualTurn: (params: {
+    webContentsId: number;
+    id: string;
+    memberAgentId: string;
+  }) => ResultAsync<GenerateManualCouncilTurnResponse, DomainError>;
+  injectConductorMessage: (params: {
+    webContentsId: number;
+    id: string;
+    content: string;
+  }) => ResultAsync<InjectConductorMessageResponse, DomainError>;
+  cancelGeneration: (params: { id: string }) => ResultAsync<
+    CancelCouncilGenerationResponse,
+    DomainError
+  >;
   planAssistantResponse?: (
     request: AssistantPlannerRequest,
     abortSignal: AbortSignal,
@@ -1152,6 +1192,107 @@ const resolveCouncilId = (params: {
   return null;
 };
 
+const resolveRuntimeStatus = (params: { paused: boolean; started: boolean }):
+  | "idle"
+  | "running"
+  | "paused" => (params.started ? (params.paused ? "paused" : "running") : "idle");
+
+const resolveRuntimeCouncilScope = async (params: {
+  callId: string;
+  context: AssistantContextEnvelope;
+  dependencies: AssistantSliceDependencies;
+  requestedCouncilId: string | undefined;
+  toolName: string;
+  webContentsId: number;
+}): Promise<
+  | { ok: true; councilId: string; leaseEpoch: number | undefined }
+  | { ok: false; result: AssistantToolExecutionResult }
+> => {
+  if (params.context.viewKind !== "councilView") {
+    return {
+      ok: false,
+      result: createFailedToolResult({
+        callId: params.callId,
+        toolName: params.toolName,
+        error: createValidationToolError(
+          "Council runtime actions only work while the target council view is actively open.",
+        ),
+      }),
+    };
+  }
+
+  const runtimeState = params.context.runtimeState;
+  if (runtimeState === null || params.context.activeEntityId === null) {
+    return {
+      ok: false,
+      result: createFailedToolResult({
+        callId: params.callId,
+        toolName: params.toolName,
+        error: createValidationToolError(
+          "Council runtime actions need an active council view lease and runtime state.",
+        ),
+      }),
+    };
+  }
+
+  if (
+    runtimeState.leaseId.trim().length === 0 ||
+    runtimeState.councilId !== params.context.activeEntityId
+  ) {
+    return {
+      ok: false,
+      result: createFailedToolResult({
+        callId: params.callId,
+        toolName: params.toolName,
+        error: createValidationToolError(
+          "Council runtime scope changed before this assistant action could run.",
+        ),
+      }),
+    };
+  }
+
+  if (
+    params.requestedCouncilId !== undefined &&
+    params.requestedCouncilId !== runtimeState.councilId
+  ) {
+    return {
+      ok: false,
+      result: createFailedToolResult({
+        callId: params.callId,
+        toolName: params.toolName,
+        error: createValidationToolError(
+          "Council runtime actions can only target the currently leased council view.",
+        ),
+      }),
+    };
+  }
+
+  const leaseValidation = await params.dependencies.validateAssistantRuntimeLease({
+    webContentsId: params.webContentsId,
+    councilId: runtimeState.councilId,
+    leaseId: runtimeState.leaseId,
+  });
+
+  if (leaseValidation.isErr() || leaseValidation.value !== true) {
+    return {
+      ok: false,
+      result: createFailedToolResult({
+        callId: params.callId,
+        toolName: params.toolName,
+        error: createValidationToolError(
+          "Council runtime lease is invalid or no longer active for this view.",
+        ),
+      }),
+    };
+  }
+
+  return {
+    ok: true,
+    councilId: runtimeState.councilId,
+    leaseEpoch: runtimeState.leaseEpoch,
+  };
+};
+
 const createValidationToolError = (message: string): AssistantToolExecutionError => ({
   kind: "ValidationError",
   userMessage: message,
@@ -1229,6 +1370,48 @@ const executeSupportedTool = async (params: {
     }
 
     return resolved.value;
+  };
+
+  const readRuntimeMutationResult = async <T>(runtimeParams: {
+    councilId: string;
+    operation: ResultAsync<T, DomainError>;
+  }): Promise<T | AssistantToolExecutionResult> => {
+    const cancelOnAbort = (): void => {
+      void params.dependencies.cancelGeneration({ id: runtimeParams.councilId });
+    };
+    params.abortSignal.addEventListener("abort", cancelOnAbort, { once: true });
+
+    try {
+      const resolved = await runtimeParams.operation;
+      if (params.abortSignal.aborted) {
+        return createCancelledToolResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+        });
+      }
+
+      if (resolved.isErr()) {
+        return createFailedToolResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+          error: toAssistantToolError(resolved.error),
+        });
+      }
+
+      return resolved.value;
+    } finally {
+      params.abortSignal.removeEventListener("abort", cancelOnAbort);
+    }
+  };
+
+  const readRuntimeView = async (councilId: string, leaseEpoch: number | undefined) => {
+    return readResult(
+      params.dependencies.getCouncilView({
+        webContentsId: params.webContentsId,
+        councilId,
+        leaseEpoch,
+      }),
+    );
   };
 
   switch (validated.definition.name) {
@@ -1981,6 +2164,303 @@ const executeSupportedTool = async (params: {
         userSummary: `${response.council.title} is ${runtimeStatus} with ${response.council.turnCount} turn(s) and ${response.messages.length} message(s).`,
       });
     }
+    case "startCouncil": {
+      const parsedInput = validated.definition.inputSchema.parse(params.plannedCall.input);
+      const runtimeScope = await resolveRuntimeCouncilScope({
+        callId: params.plannedCall.callId,
+        context: params.context,
+        dependencies: params.dependencies,
+        requestedCouncilId: parsedInput.councilId,
+        toolName: params.plannedCall.toolName,
+        webContentsId: params.webContentsId,
+      });
+      if (!runtimeScope.ok) {
+        return runtimeScope.result;
+      }
+
+      const started = await readRuntimeMutationResult({
+        councilId: runtimeScope.councilId,
+        operation: params.dependencies.startCouncil({
+          webContentsId: params.webContentsId,
+          id: runtimeScope.councilId,
+          maxTurns: parsedInput.maxTurns ?? null,
+        }),
+      });
+      if ("status" in started) {
+        return started;
+      }
+
+      const runtimeView = await readRuntimeView(runtimeScope.councilId, runtimeScope.leaseEpoch);
+      if ("status" in runtimeView) {
+        return runtimeView;
+      }
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          councilId: runtimeView.council.id,
+          councilTitle: runtimeView.council.title,
+          messageCount: runtimeView.messages.length,
+          paused: runtimeView.council.paused,
+          runtimeStatus: resolveRuntimeStatus({
+            paused: runtimeView.council.paused,
+            started: runtimeView.council.started,
+          }),
+          started: runtimeView.council.started,
+          turnCount: runtimeView.council.turnCount,
+        },
+        userSummary: `Started ${runtimeView.council.title}.`,
+      });
+    }
+    case "pauseCouncil": {
+      const parsedInput = validated.definition.inputSchema.parse(params.plannedCall.input);
+      const runtimeScope = await resolveRuntimeCouncilScope({
+        callId: params.plannedCall.callId,
+        context: params.context,
+        dependencies: params.dependencies,
+        requestedCouncilId: parsedInput.councilId,
+        toolName: params.plannedCall.toolName,
+        webContentsId: params.webContentsId,
+      });
+      if (!runtimeScope.ok) {
+        return runtimeScope.result;
+      }
+
+      const paused = await readRuntimeMutationResult({
+        councilId: runtimeScope.councilId,
+        operation: params.dependencies.pauseCouncilAutopilot({
+          webContentsId: params.webContentsId,
+          id: runtimeScope.councilId,
+        }),
+      });
+      if ("status" in paused) {
+        return paused;
+      }
+
+      const runtimeView = await readRuntimeView(runtimeScope.councilId, runtimeScope.leaseEpoch);
+      if ("status" in runtimeView) {
+        return runtimeView;
+      }
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          councilId: runtimeView.council.id,
+          councilTitle: runtimeView.council.title,
+          messageCount: runtimeView.messages.length,
+          paused: runtimeView.council.paused,
+          runtimeStatus: resolveRuntimeStatus({
+            paused: runtimeView.council.paused,
+            started: runtimeView.council.started,
+          }),
+          started: runtimeView.council.started,
+          turnCount: runtimeView.council.turnCount,
+        },
+        userSummary: `Paused autopilot for ${runtimeView.council.title}.`,
+      });
+    }
+    case "resumeCouncil": {
+      const parsedInput = validated.definition.inputSchema.parse(params.plannedCall.input);
+      const runtimeScope = await resolveRuntimeCouncilScope({
+        callId: params.plannedCall.callId,
+        context: params.context,
+        dependencies: params.dependencies,
+        requestedCouncilId: parsedInput.councilId,
+        toolName: params.plannedCall.toolName,
+        webContentsId: params.webContentsId,
+      });
+      if (!runtimeScope.ok) {
+        return runtimeScope.result;
+      }
+
+      const resumed = await readRuntimeMutationResult({
+        councilId: runtimeScope.councilId,
+        operation: params.dependencies.resumeCouncilAutopilot({
+          webContentsId: params.webContentsId,
+          id: runtimeScope.councilId,
+          maxTurns: parsedInput.maxTurns ?? null,
+        }),
+      });
+      if ("status" in resumed) {
+        return resumed;
+      }
+
+      const runtimeView = await readRuntimeView(runtimeScope.councilId, runtimeScope.leaseEpoch);
+      if ("status" in runtimeView) {
+        return runtimeView;
+      }
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          councilId: runtimeView.council.id,
+          councilTitle: runtimeView.council.title,
+          messageCount: runtimeView.messages.length,
+          paused: runtimeView.council.paused,
+          runtimeStatus: resolveRuntimeStatus({
+            paused: runtimeView.council.paused,
+            started: runtimeView.council.started,
+          }),
+          started: runtimeView.council.started,
+          turnCount: runtimeView.council.turnCount,
+        },
+        userSummary: `Resumed autopilot for ${runtimeView.council.title}.`,
+      });
+    }
+    case "cancelCouncilGeneration": {
+      const parsedInput = validated.definition.inputSchema.parse(params.plannedCall.input);
+      const runtimeScope = await resolveRuntimeCouncilScope({
+        callId: params.plannedCall.callId,
+        context: params.context,
+        dependencies: params.dependencies,
+        requestedCouncilId: parsedInput.councilId,
+        toolName: params.plannedCall.toolName,
+        webContentsId: params.webContentsId,
+      });
+      if (!runtimeScope.ok) {
+        return runtimeScope.result;
+      }
+
+      const cancelled = await readRuntimeMutationResult({
+        councilId: runtimeScope.councilId,
+        operation: params.dependencies.cancelGeneration({
+          id: runtimeScope.councilId,
+        }),
+      });
+      if ("status" in cancelled) {
+        return cancelled;
+      }
+
+      const runtimeView = await readRuntimeView(runtimeScope.councilId, runtimeScope.leaseEpoch);
+      if ("status" in runtimeView) {
+        return runtimeView;
+      }
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          cancelled: cancelled.cancelled,
+          councilId: runtimeView.council.id,
+          councilTitle: runtimeView.council.title,
+          messageCount: runtimeView.messages.length,
+          paused: runtimeView.council.paused,
+          runtimeStatus: resolveRuntimeStatus({
+            paused: runtimeView.council.paused,
+            started: runtimeView.council.started,
+          }),
+          started: runtimeView.council.started,
+          turnCount: runtimeView.council.turnCount,
+        },
+        userSummary: cancelled.cancelled
+          ? `Cancelled in-flight generation for ${runtimeView.council.title}.`
+          : `No generation was in flight for ${runtimeView.council.title}.`,
+      });
+    }
+    case "selectManualSpeaker": {
+      const parsedInput = validated.definition.inputSchema.parse(params.plannedCall.input);
+      const runtimeScope = await resolveRuntimeCouncilScope({
+        callId: params.plannedCall.callId,
+        context: params.context,
+        dependencies: params.dependencies,
+        requestedCouncilId: parsedInput.councilId,
+        toolName: params.plannedCall.toolName,
+        webContentsId: params.webContentsId,
+      });
+      if (!runtimeScope.ok) {
+        return runtimeScope.result;
+      }
+
+      const manualTurn = await readRuntimeMutationResult({
+        councilId: runtimeScope.councilId,
+        operation: params.dependencies.generateManualTurn({
+          webContentsId: params.webContentsId,
+          id: runtimeScope.councilId,
+          memberAgentId: parsedInput.memberAgentId,
+        }),
+      });
+      if ("status" in manualTurn) {
+        return manualTurn;
+      }
+
+      const runtimeView = await readRuntimeView(runtimeScope.councilId, runtimeScope.leaseEpoch);
+      if ("status" in runtimeView) {
+        return runtimeView;
+      }
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          councilId: runtimeView.council.id,
+          councilTitle: runtimeView.council.title,
+          memberAgentId: parsedInput.memberAgentId,
+          messageCount: runtimeView.messages.length,
+          messageId: manualTurn.message.id,
+          paused: runtimeView.council.paused,
+          runtimeStatus: resolveRuntimeStatus({
+            paused: runtimeView.council.paused,
+            started: runtimeView.council.started,
+          }),
+          started: runtimeView.council.started,
+          turnCount: runtimeView.council.turnCount,
+        },
+        userSummary: `Generated a manual turn in ${runtimeView.council.title}.`,
+      });
+    }
+    case "sendConductorMessage": {
+      const parsedInput = validated.definition.inputSchema.parse(params.plannedCall.input);
+      const runtimeScope = await resolveRuntimeCouncilScope({
+        callId: params.plannedCall.callId,
+        context: params.context,
+        dependencies: params.dependencies,
+        requestedCouncilId: parsedInput.councilId,
+        toolName: params.plannedCall.toolName,
+        webContentsId: params.webContentsId,
+      });
+      if (!runtimeScope.ok) {
+        return runtimeScope.result;
+      }
+
+      const conductorMessage = await readRuntimeMutationResult({
+        councilId: runtimeScope.councilId,
+        operation: params.dependencies.injectConductorMessage({
+          webContentsId: params.webContentsId,
+          id: runtimeScope.councilId,
+          content: parsedInput.content,
+        }),
+      });
+      if ("status" in conductorMessage) {
+        return conductorMessage;
+      }
+
+      const runtimeView = await readRuntimeView(runtimeScope.councilId, runtimeScope.leaseEpoch);
+      if ("status" in runtimeView) {
+        return runtimeView;
+      }
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          councilId: runtimeView.council.id,
+          councilTitle: runtimeView.council.title,
+          messageCount: runtimeView.messages.length,
+          messageId: conductorMessage.message.id,
+          paused: runtimeView.council.paused,
+          runtimeStatus: resolveRuntimeStatus({
+            paused: runtimeView.council.paused,
+            started: runtimeView.council.started,
+          }),
+          started: runtimeView.council.started,
+          turnCount: runtimeView.council.turnCount,
+        },
+        userSummary: `Sent a conductor message in ${runtimeView.council.title}.`,
+      });
+    }
     default:
       return createFailedToolResult({
         callId: params.plannedCall.callId,
@@ -2038,6 +2518,7 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
   const executePendingPlan = (params: {
     abortController: AbortController;
     context: AssistantContextEnvelope;
+    executionId: number;
     executionSnapshot: AssistantExecutionSnapshot | null;
     record: AssistantSessionRecord;
     sessionId: string;
@@ -2070,7 +2551,11 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
         });
 
         for (const plannedCall of pendingPlan.plannedCalls) {
-          if (params.abortController.signal.aborted || params.record.closedAtUtc !== null) {
+          if (
+            params.abortController.signal.aborted ||
+            params.record.closedAtUtc !== null ||
+            params.record.activeExecution?.executionId !== params.executionId
+          ) {
             executionResults.push(
               createCancelledToolResult({
                 callId: plannedCall.callId,
@@ -2088,6 +2573,21 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
             plannedCall,
             webContentsId: params.webContentsId,
           });
+
+          if (
+            params.abortController.signal.aborted ||
+            params.record.closedAtUtc !== null ||
+            params.record.activeExecution?.executionId !== params.executionId
+          ) {
+            executionResults.push(
+              createCancelledToolResult({
+                callId: plannedCall.callId,
+                toolName: plannedCall.toolName,
+              }),
+            );
+            break;
+          }
+
           executionResults.push(result);
 
           if (result.status === "success" || result.status === "reconciling") {
@@ -2560,6 +3060,7 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
         ? executePendingPlan({
             abortController,
             context: sanitizedContext,
+            executionId,
             executionSnapshot: request.executionSnapshot ?? null,
             record,
             sessionId: request.sessionId,
@@ -2570,6 +3071,7 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
             ? executePendingPlan({
                 abortController,
                 context: sanitizedContext,
+                executionId,
                 executionSnapshot: request.executionSnapshot ?? null,
                 record,
                 sessionId: request.sessionId,

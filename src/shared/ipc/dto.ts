@@ -285,6 +285,7 @@ export type GetCouncilEditorViewResponse = {
 export type GetCouncilViewRequest = {
   viewKind: "councilView";
   councilId: string;
+  leaseEpoch?: number;
 };
 
 export type GetCouncilViewResponse = {
@@ -293,6 +294,7 @@ export type GetCouncilViewResponse = {
   messages: ReadonlyArray<CouncilMessageDto>;
   briefing: CouncilRuntimeBriefingDto | null;
   generation: CouncilGenerationStateDto;
+  assistantRuntimeLeaseId: string;
   modelCatalog: ModelCatalogSnapshotDto;
   globalDefaultModelRef: ModelRef | null;
   canRefreshModels: boolean;
@@ -583,7 +585,9 @@ export type AssistantExecutionSnapshot =
     };
 
 export type AssistantRuntimeState = {
+  leaseId: string;
   councilId: string;
+  leaseEpoch?: number;
   status: "idle" | "running" | "paused";
   plannedNextSpeakerAgentId: string | null;
 };

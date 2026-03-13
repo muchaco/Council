@@ -129,9 +129,16 @@ type InFlightGenerationRecord = {
   memberAgentId: AgentId | null;
 };
 
+type AssistantRuntimeLeaseRecord = {
+  councilId: CouncilId;
+  leaseEpoch: number;
+  leaseId: string;
+};
+
 type CouncilsSliceDependencies = {
   nowUtc: () => string;
   createCouncilId: () => CouncilId;
+  createAssistantRuntimeLeaseId?: () => string;
   pageSize: number;
   logger?: {
     info: (component: string, operation: string, context?: Record<string, unknown>) => void;
@@ -193,6 +200,7 @@ type CouncilsSlice = {
   getCouncilView: (params: {
     webContentsId: number;
     councilId: string;
+    leaseEpoch?: number;
   }) => ResultAsync<GetCouncilViewResponse, DomainError>;
   saveCouncil: (params: {
     webContentsId: number;
@@ -245,6 +253,12 @@ type CouncilsSlice = {
     webContentsId: number;
     viewKind: "councilsList" | "councilCreate" | "councilView";
   }) => ResultAsync<RefreshModelCatalogResponse, DomainError>;
+  validateAssistantRuntimeLease: (params: {
+    webContentsId: number;
+    councilId: string;
+    leaseId: string;
+  }) => ResultAsync<boolean, DomainError>;
+  releaseAssistantRuntimeLeases: (webContentsId: number) => void;
 };
 
 const validationError = (devMessage: string, userMessage: string): DomainError =>
@@ -407,6 +421,8 @@ export const createCouncilsSlice = (
   dependencies: CouncilsSliceDependencies,
   initialCouncils: ReadonlyArray<CouncilRecord> = [],
 ): CouncilsSlice => {
+  const createAssistantRuntimeLeaseId =
+    dependencies.createAssistantRuntimeLeaseId ?? (() => crypto.randomUUID());
   const records = new Map<CouncilId, CouncilRecord>(
     initialCouncils.map((council) => [council.id, council]),
   );
@@ -430,6 +446,7 @@ export const createCouncilsSlice = (
   const briefingCacheByCouncilId = new Map<CouncilId, CouncilRuntimeBriefingRecord | null>();
   const inFlightGenerationByCouncilId = new Map<CouncilId, InFlightGenerationRecord>();
   const plannedNextSpeakerByCouncilId = new Map<CouncilId, AgentId>();
+  const assistantRuntimeLeaseByWebContents = new Map<number, AssistantRuntimeLeaseRecord>();
   const getContextLastN = (): number =>
     normalizeContextLastN(
       dependencies.getContextLastN?.() ?? DEFAULT_CONTEXT_LAST_N,
@@ -461,6 +478,50 @@ export const createCouncilsSlice = (
       kind: "ProviderError",
       devMessage: message,
     });
+
+  const normalizeLeaseEpoch = (leaseEpoch: number | undefined): number =>
+    Number.isInteger(leaseEpoch) && leaseEpoch !== undefined && leaseEpoch >= 0 ? leaseEpoch : 0;
+
+  const getOrCreateAssistantRuntimeLease = (params: {
+    councilId: CouncilId;
+    webContentsId: number;
+    leaseEpoch: number | undefined;
+  }): string => {
+    const normalizedLeaseEpoch = normalizeLeaseEpoch(params.leaseEpoch);
+    const existingLease = assistantRuntimeLeaseByWebContents.get(params.webContentsId);
+    if (
+      existingLease !== undefined &&
+      existingLease.councilId === params.councilId &&
+      existingLease.leaseEpoch === normalizedLeaseEpoch &&
+      existingLease.leaseId.trim().length > 0
+    ) {
+      return existingLease.leaseId;
+    }
+
+    const leaseId = createAssistantRuntimeLeaseId();
+    assistantRuntimeLeaseByWebContents.set(params.webContentsId, {
+      councilId: params.councilId,
+      leaseEpoch: normalizedLeaseEpoch,
+      leaseId,
+    });
+    return leaseId;
+  };
+
+  const getExistingAssistantRuntimeLease = (params: {
+    councilId: CouncilId;
+    webContentsId: number;
+  }): string | null => {
+    const lease = assistantRuntimeLeaseByWebContents.get(params.webContentsId);
+    if (lease === undefined) {
+      return null;
+    }
+
+    if (lease.councilId !== params.councilId) {
+      return null;
+    }
+
+    return lease.leaseId.trim().length > 0 ? lease.leaseId : null;
+  };
 
   const toGenerationStateDto = (councilId: CouncilId): CouncilGenerationStateDto => {
     const inFlight = inFlightGenerationByCouncilId.get(councilId);
@@ -1091,7 +1152,11 @@ export const createCouncilsSlice = (
         ),
     );
 
-  const getCouncilView: CouncilsSlice["getCouncilView"] = ({ webContentsId, councilId }) =>
+  const getCouncilView: CouncilsSlice["getCouncilView"] = ({
+    webContentsId,
+    councilId,
+    leaseEpoch,
+  }) =>
     hydrate().andThen(() =>
       dependencies
         .getModelContext({
@@ -1129,6 +1194,11 @@ export const createCouncilsSlice = (
                       messages: messages.map(toCouncilMessageDto),
                       briefing: toCouncilRuntimeBriefingDto(briefing),
                       generation: toGenerationStateDto(existing.id),
+                      assistantRuntimeLeaseId: getOrCreateAssistantRuntimeLease({
+                        webContentsId,
+                        councilId: existing.id,
+                        leaseEpoch,
+                      }),
                       modelCatalog: modelContext.modelCatalog,
                       globalDefaultModelRef: modelContext.globalDefaultModelRef,
                       canRefreshModels: modelContext.canRefreshModels,
@@ -2325,6 +2395,24 @@ export const createCouncilsSlice = (
           .length,
     );
 
+  const validateAssistantRuntimeLease: CouncilsSlice["validateAssistantRuntimeLease"] = ({
+    webContentsId,
+    councilId,
+    leaseId,
+  }) =>
+    hydrate().map(() => {
+      const councilRecord = records.get(asCouncilId(councilId));
+      if (councilRecord === undefined) {
+        return false;
+      }
+
+      const expectedLeaseId = getExistingAssistantRuntimeLease({
+        webContentsId,
+        councilId: councilRecord.id,
+      });
+      return expectedLeaseId !== null && expectedLeaseId === leaseId;
+    });
+
   return {
     listCouncils,
     getEditorView,
@@ -2342,6 +2430,10 @@ export const createCouncilsSlice = (
     exportTranscript,
     countCouncilsUsingAgent,
     refreshModelCatalog: dependencies.refreshModelCatalog,
+    validateAssistantRuntimeLease,
+    releaseAssistantRuntimeLeases: (webContentsId: number): void => {
+      assistantRuntimeLeaseByWebContents.delete(webContentsId);
+    },
   };
 };
 

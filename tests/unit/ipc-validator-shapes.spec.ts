@@ -258,8 +258,18 @@ describe("ipc validators", () => {
     const parsed = GET_COUNCIL_VIEW_REQUEST_SCHEMA.safeParse({
       viewKind: "councilView",
       councilId: "00000000-0000-4000-8000-000000000111",
+      leaseEpoch: 3,
     });
     expect(parsed.success).toBe(true);
+  });
+
+  itReq(FILE_REQUIREMENT_IDS, "rejects invalid council view lease epoch payload", () => {
+    const parsed = GET_COUNCIL_VIEW_REQUEST_SCHEMA.safeParse({
+      viewKind: "councilView",
+      councilId: "00000000-0000-4000-8000-000000000111",
+      leaseEpoch: -1,
+    });
+    expect(parsed.success).toBe(false);
   });
 
   itReq(FILE_REQUIREMENT_IDS, "rejects pause autopilot payload with invalid id", () => {

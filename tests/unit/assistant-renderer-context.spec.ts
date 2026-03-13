@@ -108,6 +108,7 @@ describe("assistant renderer context builders", () => {
         mode: "autopilot",
         paused: false,
         plannedNextSpeakerAgentId: "agent-2",
+        runtimeLeaseId: "00000000-0000-4000-8000-000000000222",
         started: true,
         title: "Quarterly Council",
         turnCount: 4,
@@ -115,6 +116,7 @@ describe("assistant renderer context builders", () => {
 
       expect(context.viewKind).toBe("councilView");
       expect(context.runtimeState).toEqual({
+        leaseId: "00000000-0000-4000-8000-000000000222",
         councilId: "council-1",
         plannedNextSpeakerAgentId: "agent-2",
         status: "running",
@@ -123,6 +125,35 @@ describe("assistant renderer context builders", () => {
       expect(context.contextLabel).not.toContain("transcript");
       expect(context.listState).toBeNull();
       expect(context.draftState).toBeNull();
+    },
+  );
+
+  itReq(
+    ["R9.11", "R9.21", "R9.22", "A3", "D5"],
+    "omits runtime lease context when council view has no active lease",
+    () => {
+      const context = buildAssistantCouncilViewContext({
+        activeTab: "overview",
+        archived: false,
+        autopilotMaxTurns: null,
+        autopilotTurnsCompleted: 0,
+        councilId: "council-1",
+        generationStatus: "idle",
+        hasBriefing: false,
+        invalidConfig: false,
+        memberCount: 2,
+        messageCount: 3,
+        mode: "manual",
+        paused: false,
+        plannedNextSpeakerAgentId: null,
+        runtimeLeaseId: null,
+        started: false,
+        title: "Council",
+        turnCount: 1,
+      });
+
+      expect(context.viewKind).toBe("councilView");
+      expect(context.runtimeState).toBeNull();
     },
   );
 });

@@ -212,6 +212,53 @@ describe("assistant planner shortcuts", () => {
   );
 
   itReq(
+    ["R9.11", "R9.17", "R9.18", "R9.21", "R9.22", "A1", "D5"],
+    "builds deterministic council runtime control shortcuts",
+    () => {
+      expect(
+        tryBuildAssistantPlannerShortcut({
+          context: councilViewContext,
+          sessionId: "session-1",
+          userRequest: "Start this council runtime.",
+        }),
+      ).toEqual({
+        summary: "Start this council runtime.",
+        plannedCalls: [
+          {
+            callId: "start-council-runtime-session-1",
+            toolName: "startCouncil",
+            rationale: "Start the currently leased council runtime view.",
+            input: {
+              councilId: "00000000-0000-4000-8000-000000000303",
+            },
+          },
+        ],
+      });
+
+      expect(
+        tryBuildAssistantPlannerShortcut({
+          context: councilViewContext,
+          sessionId: "session-2",
+          userRequest: "Send conductor message Keep the debate concise.",
+        }),
+      ).toEqual({
+        summary: "Send a conductor message.",
+        plannedCalls: [
+          {
+            callId: "send-conductor-message-session-2",
+            toolName: "sendConductorMessage",
+            rationale: "Inject the requested conductor note into the current council runtime.",
+            input: {
+              councilId: "00000000-0000-4000-8000-000000000303",
+              content: "Keep the debate concise",
+            },
+          },
+        ],
+      });
+    },
+  );
+
+  itReq(
     ["R9.1", "R9.11", "R9.14", "R9.17", "U18.7", "A1", "D5"],
     "ignores unsupported shortcut requests",
     () => {

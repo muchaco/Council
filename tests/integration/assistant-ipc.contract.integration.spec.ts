@@ -12,6 +12,7 @@ import { itReq } from "../helpers/requirement-trace";
 const PRIMARY_AGENT_ID = "00000000-0000-4000-8000-000000000101";
 const SECONDARY_AGENT_ID = "00000000-0000-4000-8000-000000000102";
 const PRIMARY_COUNCIL_ID = "00000000-0000-4000-8000-000000000201";
+const PRIMARY_COUNCIL_RUNTIME_LEASE_ID = "00000000-0000-4000-8000-000000000301";
 
 const primaryAgent = {
   archived: false,
@@ -101,6 +102,7 @@ const createAssistantSliceDeps = (options?: {
   }) => void;
   onSaveAgent?: (request: { draft: Record<string, unknown> }) => void;
   onSaveCouncil?: (request: { draft: Record<string, unknown> }) => void;
+  onGetCouncilView?: (request: { councilId: string; leaseEpoch?: number }) => void;
   plannerDelayMs?: number;
   plannerResponse?: string;
   globalDefaultModelRef?: { providerId: string; modelId: string } | null;
@@ -274,8 +276,9 @@ const createAssistantSliceDeps = (options?: {
       },
     });
   },
-  getCouncilView: ({ councilId }: { councilId: string }) =>
-    okAsync({
+  getCouncilView: ({ councilId, leaseEpoch }: { councilId: string; leaseEpoch?: number }) => {
+    options?.onGetCouncilView?.({ councilId, leaseEpoch });
+    return okAsync({
       council:
         councilId === PRIMARY_COUNCIL_ID ? primaryCouncil : { ...primaryCouncil, id: councilId },
       availableAgents: [
@@ -308,12 +311,86 @@ const createAssistantSliceDeps = (options?: {
         plannedNextSpeakerAgentId: SECONDARY_AGENT_ID,
         status: "idle" as const,
       },
+      assistantRuntimeLeaseId:
+        councilId === PRIMARY_COUNCIL_ID
+          ? PRIMARY_COUNCIL_RUNTIME_LEASE_ID
+          : "00000000-0000-4000-8000-000000000399",
       modelCatalog: {
         snapshotId: "council-view-snapshot-1",
         modelsByProvider: { gemini: ["gemini-1.5-flash"] },
       },
       globalDefaultModelRef: null,
       canRefreshModels: true,
+    });
+  },
+  validateAssistantRuntimeLease: ({ councilId, leaseId }: { councilId: string; leaseId: string }) =>
+    okAsync(councilId === PRIMARY_COUNCIL_ID && leaseId === PRIMARY_COUNCIL_RUNTIME_LEASE_ID),
+  startCouncil: ({ id }: { id: string }) =>
+    okAsync({
+      council: {
+        ...primaryCouncil,
+        id,
+        started: true,
+        paused: false,
+      },
+    }),
+  pauseCouncilAutopilot: ({ id }: { id: string }) =>
+    okAsync({
+      council: {
+        ...primaryCouncil,
+        id,
+        paused: true,
+      },
+    }),
+  resumeCouncilAutopilot: ({ id }: { id: string }) =>
+    okAsync({
+      council: {
+        ...primaryCouncil,
+        id,
+        started: true,
+        paused: false,
+      },
+    }),
+  generateManualTurn: ({ id, memberAgentId }: { id: string; memberAgentId: string }) =>
+    okAsync({
+      council: {
+        ...primaryCouncil,
+        id,
+        turnCount: primaryCouncil.turnCount + 1,
+      },
+      message: {
+        content: "Generated manual turn.",
+        councilId: id,
+        createdAtUtc: "2026-03-12T11:50:00.000Z",
+        id: "00000000-0000-4000-8000-00000000a001",
+        senderAgentId: memberAgentId,
+        senderColor: "#111111",
+        senderKind: "member" as const,
+        senderName: "Planner",
+        sequenceNumber: 2,
+      },
+    }),
+  injectConductorMessage: ({ id, content }: { id: string; content: string }) =>
+    okAsync({
+      council: {
+        ...primaryCouncil,
+        id,
+      },
+      message: {
+        content,
+        councilId: id,
+        createdAtUtc: "2026-03-12T11:51:00.000Z",
+        id: "00000000-0000-4000-8000-00000000a002",
+        senderAgentId: null,
+        senderColor: null,
+        senderKind: "conductor" as const,
+        senderName: "Conductor",
+        sequenceNumber: 2,
+      },
+    }),
+  cancelGeneration: () =>
+    okAsync({
+      cancelled: true,
     }),
   planAssistantResponse:
     options?.plannerResponse === undefined
@@ -416,6 +493,7 @@ const createHandlers = (options?: {
   onGetSettingsView?: (request: { viewKind: string }) => void;
   onSaveAgent?: (request: { draft: Record<string, unknown> }) => void;
   onSaveCouncil?: (request: { draft: Record<string, unknown> }) => void;
+  onGetCouncilView?: (request: { councilId: string; leaseEpoch?: number }) => void;
   globalDefaultModelRef?: { providerId: string; modelId: string } | null;
   globalDefaultModelInvalidConfig?: boolean;
 }) => {
@@ -461,7 +539,9 @@ const councilViewContext = {
   activeEntityId: PRIMARY_COUNCIL_ID,
   listState: null,
   runtimeState: {
+    leaseId: PRIMARY_COUNCIL_RUNTIME_LEASE_ID,
     councilId: PRIMARY_COUNCIL_ID,
+    leaseEpoch: 7,
     plannedNextSpeakerAgentId: SECONDARY_AGENT_ID,
     status: "idle" as const,
   },
@@ -2538,6 +2618,384 @@ describe("assistant ipc contract", () => {
   );
 
   itReq(
+    ["R9.11", "R9.17", "R9.18", "R9.21", "R9.22", "U18.10", "A1", "A3"],
+    "executes runtime mutation tools only from the active council view lease and waits for reconciliation",
+    async () => {
+      const { handlers } = createHandlers({
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Start this council runtime.",
+          plannedCalls: [
+            {
+              callId: "call-start-runtime",
+              toolName: "startCouncil",
+              rationale: "Start the active council runtime.",
+              input: {
+                councilId: PRIMARY_COUNCIL_ID,
+              },
+            },
+          ],
+        }),
+      });
+      const session = await handlers.createSession({ viewKind: "councilView" }, 166);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Start this council runtime.",
+          context: councilViewContext,
+          response: null,
+        },
+        166,
+      );
+
+      const executed = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Start this council runtime.",
+          context: councilViewContext,
+          response: null,
+        },
+        166,
+      );
+      expect(executed.ok).toBe(true);
+      if (!executed.ok || executed.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(executed.value.result.outcome).toBe("partial");
+      expect(executed.value.result.executionResults).toMatchObject([
+        {
+          status: "reconciling",
+          toolName: "startCouncil",
+          output: {
+            councilId: PRIMARY_COUNCIL_ID,
+            runtimeStatus: "running",
+          },
+        },
+      ]);
+
+      const reconciled = await handlers.completeReconciliation(
+        {
+          sessionId: session.value.session.sessionId,
+          reconciliations: [
+            {
+              callId: executed.value.result.executionResults[0]?.callId,
+              toolName: "startCouncil",
+              status: "completed",
+              failureMessage: null,
+              completion: null,
+            },
+          ],
+        },
+        166,
+      );
+      expect(reconciled.ok).toBe(true);
+      if (!reconciled.ok || reconciled.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(reconciled.value.result.outcome).toBe("success");
+      expect(reconciled.value.result.executionResults).toMatchObject([
+        {
+          callId: executed.value.result.executionResults[0]?.callId,
+          status: "success",
+          toolName: "startCouncil",
+        },
+      ]);
+    },
+  );
+
+  itReq(
+    ["R9.11", "R9.17", "R9.18", "R9.21", "R9.22", "U18.10", "A1", "A3"],
+    "preserves non-zero lease epoch when runtime mutation refreshes council view",
+    async () => {
+      const getCouncilViewRequests: Array<{ councilId: string; leaseEpoch?: number }> = [];
+      const { handlers } = createHandlers({
+        onGetCouncilView: (request) => getCouncilViewRequests.push(request),
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Start this council runtime.",
+          plannedCalls: [
+            {
+              callId: "call-start-runtime-lease-epoch",
+              toolName: "startCouncil",
+              rationale: "Start the active council runtime.",
+              input: {
+                councilId: PRIMARY_COUNCIL_ID,
+              },
+            },
+          ],
+        }),
+      });
+      const session = await handlers.createSession({ viewKind: "councilView" }, 171);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      const nonZeroLeaseEpochContext = {
+        ...councilViewContext,
+        runtimeState: {
+          ...councilViewContext.runtimeState,
+          leaseEpoch: 9,
+        },
+      };
+
+      await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Start this council runtime.",
+          context: nonZeroLeaseEpochContext,
+          response: null,
+        },
+        171,
+      );
+
+      const executed = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Start this council runtime.",
+          context: nonZeroLeaseEpochContext,
+          response: null,
+        },
+        171,
+      );
+      expect(executed.ok).toBe(true);
+      if (!executed.ok || executed.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(executed.value.result.outcome).toBe("partial");
+      expect(getCouncilViewRequests).toEqual([
+        {
+          councilId: PRIMARY_COUNCIL_ID,
+          leaseEpoch: 9,
+        },
+      ]);
+    },
+  );
+
+  itReq(
+    ["R9.11", "R9.21", "R9.22", "A1", "A3"],
+    "fails runtime mutation tools when council runtime lease scope is stale",
+    async () => {
+      const { handlers } = createHandlers({
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Pause the council runtime.",
+          plannedCalls: [
+            {
+              callId: "call-pause-runtime",
+              toolName: "pauseCouncil",
+              rationale: "Pause autopilot for this council.",
+              input: {
+                councilId: PRIMARY_COUNCIL_ID,
+              },
+            },
+          ],
+        }),
+      });
+      const session = await handlers.createSession({ viewKind: "councilView" }, 167);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      const staleRuntimeContext = {
+        ...councilViewContext,
+        runtimeState: {
+          ...councilViewContext.runtimeState,
+          councilId: SECONDARY_AGENT_ID,
+        },
+      };
+
+      await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Pause this council runtime.",
+          context: staleRuntimeContext,
+          response: null,
+        },
+        167,
+      );
+
+      const executed = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Pause this council runtime.",
+          context: staleRuntimeContext,
+          response: null,
+        },
+        167,
+      );
+      expect(executed.ok).toBe(true);
+      if (!executed.ok || executed.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(executed.value.result.outcome).toBe("failure");
+      expect(executed.value.result.executionResults).toMatchObject([
+        {
+          status: "failed",
+          toolName: "pauseCouncil",
+          error: {
+            kind: "ValidationError",
+            userMessage: "Council runtime scope changed before this assistant action could run.",
+          },
+        },
+      ]);
+    },
+  );
+
+  itReq(
+    ["R9.11", "R9.21", "R9.22", "A1", "A3"],
+    "rejects runtime mutation tools when the council view lease token is forged",
+    async () => {
+      const { handlers } = createHandlers({
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Pause the council runtime.",
+          plannedCalls: [
+            {
+              callId: "call-pause-runtime-forged-lease",
+              toolName: "pauseCouncil",
+              rationale: "Pause autopilot for this council.",
+              input: {
+                councilId: PRIMARY_COUNCIL_ID,
+              },
+            },
+          ],
+        }),
+      });
+      const session = await handlers.createSession({ viewKind: "councilView" }, 169);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      const forgedRuntimeContext = {
+        ...councilViewContext,
+        runtimeState: {
+          ...councilViewContext.runtimeState,
+          leaseId: "00000000-0000-4000-8000-000000000302",
+        },
+      };
+
+      await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Pause this council runtime.",
+          context: forgedRuntimeContext,
+          response: null,
+        },
+        169,
+      );
+
+      const executed = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Pause this council runtime.",
+          context: forgedRuntimeContext,
+          response: null,
+        },
+        169,
+      );
+      expect(executed.ok).toBe(true);
+      if (!executed.ok || executed.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(executed.value.result.outcome).toBe("failure");
+      expect(executed.value.result.executionResults).toMatchObject([
+        {
+          status: "failed",
+          toolName: "pauseCouncil",
+          error: {
+            kind: "ValidationError",
+            userMessage: "Council runtime lease is invalid or no longer active for this view.",
+          },
+        },
+      ]);
+    },
+  );
+
+  itReq(
+    ["R9.11", "R9.17", "R9.21", "R9.22", "U18.10", "A1", "A3"],
+    "invalidates pending runtime execution when council view lease context disappears",
+    async () => {
+      const { handlers } = createHandlers({
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Start this council runtime.",
+          plannedCalls: [
+            {
+              callId: "call-start-runtime-lease-drop",
+              toolName: "startCouncil",
+              rationale: "Start the active council runtime.",
+              input: {
+                councilId: PRIMARY_COUNCIL_ID,
+              },
+            },
+          ],
+        }),
+      });
+
+      const session = await handlers.createSession({ viewKind: "councilView" }, 168);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Start this council runtime.",
+          context: councilViewContext,
+          response: null,
+        },
+        168,
+      );
+
+      const contextWithoutLease = {
+        ...councilViewContext,
+        runtimeState: null,
+      };
+
+      const executed = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Start this council runtime.",
+          context: contextWithoutLease,
+          response: null,
+        },
+        168,
+      );
+      expect(executed.ok).toBe(true);
+      if (!executed.ok || executed.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(executed.value.result.outcome).toBe("failure");
+      expect(executed.value.result.executionResults).toMatchObject([
+        {
+          status: "failed",
+          toolName: "startCouncil",
+          error: {
+            kind: "ValidationError",
+            userMessage:
+              "Council runtime actions need an active council view lease and runtime state.",
+          },
+        },
+      ]);
+    },
+  );
+
+  itReq(
     ["R9.3", "R9.7", "R9.18", "R9.19", "R9.20", "R9.22", "A1", "A3", "D5"],
     "supports the remaining phase 1 home, entity, and list read tools",
     async () => {
@@ -3018,6 +3476,89 @@ describe("assistant ipc contract", () => {
       expect(submit.value.result.outcome).toBe("cancelled");
     }
   });
+
+  itReq(
+    ["R9.16", "R9.21", "R9.22", "A3", "D5"],
+    "does not report stale runtime success after closing an in-flight runtime execution",
+    async () => {
+      const startRuntimeDeferred = createDeferred<{
+        council: typeof primaryCouncil;
+      }>();
+      const slice = createAssistantSlice({
+        ...createAssistantSliceDeps(),
+        createSessionId: () => "00000000-0000-4000-8000-000000000012",
+        startCouncil: () =>
+          ResultAsync.fromPromise(startRuntimeDeferred.promise, () => ({
+            kind: "InternalError",
+            devMessage: "start failed",
+            userMessage: "start failed",
+          })),
+      });
+
+      const created = await slice.createSession({ webContentsId: 211, viewKind: "councilView" });
+      expect(created.isOk()).toBe(true);
+      if (created.isErr()) {
+        return;
+      }
+
+      const planResponse = await slice.submitRequest({
+        webContentsId: 211,
+        request: {
+          sessionId: created.value.session.sessionId,
+          userRequest: "Start this council runtime.",
+          context: councilViewContext,
+          response: null,
+        },
+      });
+      expect(planResponse.isOk()).toBe(true);
+      if (planResponse.isErr() || planResponse.value.result.kind !== "execute") {
+        return;
+      }
+      expect(planResponse.value.result.plannedCalls).toMatchObject([
+        {
+          toolName: "startCouncil",
+          input: {
+            councilId: PRIMARY_COUNCIL_ID,
+          },
+        },
+      ]);
+
+      const executionPromise = slice.submitRequest({
+        webContentsId: 211,
+        request: {
+          sessionId: created.value.session.sessionId,
+          userRequest: "Start this council runtime.",
+          context: councilViewContext,
+          response: null,
+        },
+      });
+
+      const closed = await slice.closeSession({
+        sessionId: created.value.session.sessionId,
+        webContentsId: 211,
+      });
+      expect(closed.isOk()).toBe(true);
+      if (closed.isOk()) {
+        expect(closed.value.closed).toBe(true);
+        expect(closed.value.cancelledInFlightWork).toBe(true);
+      }
+
+      startRuntimeDeferred.resolve({ council: primaryCouncil });
+      const execution = await executionPromise;
+      expect(execution.isOk()).toBe(true);
+      if (execution.isErr() || execution.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(execution.value.result.outcome).toBe("cancelled");
+      expect(execution.value.result.executionResults).toMatchObject([
+        {
+          status: "cancelled",
+          toolName: "startCouncil",
+        },
+      ]);
+    },
+  );
 
   itReq(
     ["R9.3", "R9.20", "R9.21", "A3", "D5"],

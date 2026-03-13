@@ -740,6 +740,139 @@ describe("councils handlers", () => {
     },
   );
 
+  itReq(
+    ["R9.11", "R9.21", "R9.22", "A1", "A3"],
+    "rotates runtime leases on reload and switch epochs and fails stale tokens closed",
+    async () => {
+      const slice = createSlice();
+      const primarySaved = await slice.saveCouncil({
+        webContentsId: 236,
+        draft: {
+          viewKind: "councilCreate",
+          id: null,
+          title: "Lease Epoch Primary",
+          topic: "Reload and switch coverage",
+          goal: null,
+          mode: "manual",
+          tags: [],
+          memberAgentIds: [PRIMARY_AGENT_ID],
+          memberColorsByAgentId: {},
+          conductorModelRefOrNull: null,
+        },
+      });
+      expect(primarySaved.isOk()).toBe(true);
+      if (primarySaved.isErr()) {
+        return;
+      }
+
+      const secondarySaved = await slice.saveCouncil({
+        webContentsId: 236,
+        draft: {
+          viewKind: "councilCreate",
+          id: null,
+          title: "Lease Epoch Secondary",
+          topic: "Switch coverage",
+          goal: null,
+          mode: "manual",
+          tags: [],
+          memberAgentIds: [PRIMARY_AGENT_ID],
+          memberColorsByAgentId: {},
+          conductorModelRefOrNull: null,
+        },
+      });
+      expect(secondarySaved.isOk()).toBe(true);
+      if (secondarySaved.isErr()) {
+        return;
+      }
+
+      const initialView = await slice.getCouncilView({
+        webContentsId: 236,
+        councilId: primarySaved.value.council.id,
+        leaseEpoch: 0,
+      });
+      expect(initialView.isOk()).toBe(true);
+      if (initialView.isErr()) {
+        return;
+      }
+      const initialLeaseId = initialView.value.assistantRuntimeLeaseId;
+
+      const sameEpochView = await slice.getCouncilView({
+        webContentsId: 236,
+        councilId: primarySaved.value.council.id,
+        leaseEpoch: 0,
+      });
+      expect(sameEpochView.isOk()).toBe(true);
+      if (sameEpochView.isErr()) {
+        return;
+      }
+      expect(sameEpochView.value.assistantRuntimeLeaseId).toBe(initialLeaseId);
+
+      const reloadedView = await slice.getCouncilView({
+        webContentsId: 236,
+        councilId: primarySaved.value.council.id,
+        leaseEpoch: 1,
+      });
+      expect(reloadedView.isOk()).toBe(true);
+      if (reloadedView.isErr()) {
+        return;
+      }
+      const reloadedLeaseId = reloadedView.value.assistantRuntimeLeaseId;
+      expect(reloadedLeaseId).not.toBe(initialLeaseId);
+
+      const staleAfterReload = await slice.validateAssistantRuntimeLease({
+        webContentsId: 236,
+        councilId: primarySaved.value.council.id,
+        leaseId: initialLeaseId,
+      });
+      expect(staleAfterReload.isOk()).toBe(true);
+      if (staleAfterReload.isOk()) {
+        expect(staleAfterReload.value).toBe(false);
+      }
+
+      const validAfterReload = await slice.validateAssistantRuntimeLease({
+        webContentsId: 236,
+        councilId: primarySaved.value.council.id,
+        leaseId: reloadedLeaseId,
+      });
+      expect(validAfterReload.isOk()).toBe(true);
+      if (validAfterReload.isOk()) {
+        expect(validAfterReload.value).toBe(true);
+      }
+
+      const switchedView = await slice.getCouncilView({
+        webContentsId: 236,
+        councilId: secondarySaved.value.council.id,
+        leaseEpoch: 1,
+      });
+      expect(switchedView.isOk()).toBe(true);
+      if (switchedView.isErr()) {
+        return;
+      }
+      const switchedLeaseId = switchedView.value.assistantRuntimeLeaseId;
+      expect(switchedLeaseId).not.toBe(reloadedLeaseId);
+
+      const staleAfterSwitch = await slice.validateAssistantRuntimeLease({
+        webContentsId: 236,
+        councilId: primarySaved.value.council.id,
+        leaseId: reloadedLeaseId,
+      });
+      expect(staleAfterSwitch.isOk()).toBe(true);
+      if (staleAfterSwitch.isOk()) {
+        expect(staleAfterSwitch.value).toBe(false);
+      }
+
+      const validAfterSwitch = await slice.validateAssistantRuntimeLease({
+        webContentsId: 236,
+        councilId: secondarySaved.value.council.id,
+        leaseId: switchedLeaseId,
+      });
+      expect(validAfterSwitch.isOk()).toBe(true);
+      if (validAfterSwitch.isOk()) {
+        expect(validAfterSwitch.value).toBe(true);
+      }
+    },
+  );
+
   itReq(FILE_REQUIREMENT_IDS, "archives and restores council", async () => {
     const slice = createSlice();
     const saved = await slice.saveCouncil({
