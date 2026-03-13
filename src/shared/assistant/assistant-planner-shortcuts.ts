@@ -5,6 +5,8 @@ type AssistantPlannerShortcutPlan = {
   summary: string;
 };
 
+const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i;
+
 const normalizeRequestText = (text: string): string => text.trim().replace(/\s+/g, " ");
 
 const normalizeShortcutTags = (text: string): ReadonlyArray<string> | null => {
@@ -341,6 +343,116 @@ const buildCouncilRuntimeShortcut = (params: {
   return null;
 };
 
+const buildDeleteAgentShortcut = (params: {
+  sessionId: string;
+  userRequest: string;
+}): AssistantPlannerShortcutPlan | null => {
+  const match = new RegExp(`^delete agent (${UUID_PATTERN.source})\\.?$`, "i").exec(
+    normalizeRequestText(params.userRequest),
+  );
+  if (match === null) {
+    return null;
+  }
+
+  const agentId = match[1]?.trim() ?? "";
+  if (agentId.length === 0) {
+    return null;
+  }
+
+  return {
+    summary: `Delete agent ${agentId}.`,
+    plannedCalls: [
+      {
+        callId: `delete-agent-${params.sessionId}`,
+        toolName: "deleteAgent",
+        rationale: "Delete the explicitly referenced agent.",
+        input: {
+          agentId,
+        },
+      },
+    ],
+  };
+};
+
+const buildSetGlobalDefaultModelShortcut = (params: {
+  context: AssistantContextEnvelope;
+  sessionId: string;
+  userRequest: string;
+}): AssistantPlannerShortcutPlan | null => {
+  if (params.context.viewKind !== "settings") {
+    return null;
+  }
+
+  const match =
+    /^set (?:the )?global default model to ([a-z0-9_-]+):([a-z0-9][a-z0-9._-]*)\.?$/i.exec(
+      normalizeRequestText(params.userRequest),
+    );
+  if (match === null) {
+    return null;
+  }
+
+  const providerId = match[1]?.trim().toLowerCase() ?? "";
+  const rawModelId = match[2]?.trim() ?? "";
+  const modelId = rawModelId.endsWith(".") ? rawModelId.slice(0, -1) : rawModelId;
+  if (providerId.length === 0 || modelId.length === 0) {
+    return null;
+  }
+
+  return {
+    summary: `Set global default model to ${providerId}:${modelId}.`,
+    plannedCalls: [
+      {
+        callId: `set-global-default-model-${params.sessionId}`,
+        toolName: "setGlobalDefaultModel",
+        rationale: "Set the requested global default model in settings.",
+        input: {
+          modelRefOrNull: {
+            providerId,
+            modelId,
+          },
+        },
+      },
+    ],
+  };
+};
+
+const buildExportCouncilShortcut = (params: {
+  context: AssistantContextEnvelope;
+  sessionId: string;
+  userRequest: string;
+}): AssistantPlannerShortcutPlan | null => {
+  if (params.context.viewKind !== "councilsList" && params.context.viewKind !== "councilView") {
+    return null;
+  }
+
+  const match = new RegExp(
+    `^export council transcript for (${UUID_PATTERN.source})\\.?$`,
+    "i",
+  ).exec(normalizeRequestText(params.userRequest));
+  if (match === null) {
+    return null;
+  }
+
+  const councilId = match[1]?.trim() ?? "";
+  if (councilId.length === 0) {
+    return null;
+  }
+
+  return {
+    summary: `Export council transcript for ${councilId}.`,
+    plannedCalls: [
+      {
+        callId: `export-council-${params.sessionId}`,
+        toolName: "exportCouncil",
+        rationale: "Export transcript for the explicitly referenced council.",
+        input: {
+          councilId,
+        },
+      },
+    ],
+  };
+};
+
 export const tryBuildAssistantPlannerShortcut = (params: {
   context: AssistantContextEnvelope;
   sessionId: string;
@@ -389,6 +501,24 @@ export const tryBuildAssistantPlannerShortcut = (params: {
   });
   if (createAgentShortcut !== null) {
     return createAgentShortcut;
+  }
+
+  const deleteAgentShortcut = buildDeleteAgentShortcut({
+    sessionId: params.sessionId,
+    userRequest: params.userRequest,
+  });
+  if (deleteAgentShortcut !== null) {
+    return deleteAgentShortcut;
+  }
+
+  const setGlobalDefaultModelShortcut = buildSetGlobalDefaultModelShortcut(params);
+  if (setGlobalDefaultModelShortcut !== null) {
+    return setGlobalDefaultModelShortcut;
+  }
+
+  const exportCouncilShortcut = buildExportCouncilShortcut(params);
+  if (exportCouncilShortcut !== null) {
+    return exportCouncilShortcut;
   }
 
   return null;

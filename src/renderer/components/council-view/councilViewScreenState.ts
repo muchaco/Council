@@ -8,6 +8,10 @@ export type CouncilViewState =
   | {
       status: "ready";
       source: GetCouncilViewResponse;
+      assistantExportReconciliation: {
+        callId: string;
+        status: "exported" | "cancelled";
+      } | null;
       isStarting: boolean;
       isPausing: boolean;
       isResuming: boolean;
@@ -47,6 +51,7 @@ export const createReadyCouncilViewState = (
 ): CouncilViewReadyState => ({
   status: "ready",
   source,
+  assistantExportReconciliation: null,
   isStarting: false,
   isPausing: false,
   isResuming: false,

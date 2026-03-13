@@ -236,6 +236,7 @@ export const buildAssistantPlannerPrompt = (params: {
 export const attachAssistantSessionToPlanResult = (params: {
   sessionId: string;
   plannerResponse: AssistantPlannerDirective;
+  confirmationToken?: string;
 }): AssistantPlanResult => {
   switch (params.plannerResponse.kind) {
     case "clarify":
@@ -252,6 +253,7 @@ export const attachAssistantSessionToPlanResult = (params: {
         sessionId: params.sessionId,
         message: params.plannerResponse.summary,
         planSummary: params.plannerResponse.summary,
+        confirmationToken: params.confirmationToken ?? crypto.randomUUID(),
         plannedCalls: params.plannerResponse.plannedCalls,
         confirmation: params.plannerResponse.confirmation,
       };

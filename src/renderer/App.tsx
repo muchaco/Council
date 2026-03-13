@@ -90,11 +90,17 @@ export const App = (): JSX.Element => {
     useState<AssistantCouncilEditorSnapshot | null>(null);
   const [councilViewAssistantSnapshot, setCouncilViewAssistantSnapshot] =
     useState<AssistantCouncilViewSnapshot | null>(null);
+  const [assistantPendingExportReconciliation, setAssistantPendingExportReconciliation] = useState<{
+    callId: string;
+    councilId: string;
+    status: "exported" | "cancelled";
+  } | null>(null);
   const [assistantCouncilViewReloadToken, setAssistantCouncilViewReloadToken] = useState(0);
   const assistantInputRef = useRef<HTMLTextAreaElement>(null);
   const assistantStateRef = useRef(assistantState);
   const screenRef = useRef(screen);
   const homeTabRef = useRef(homeTab);
+  const homeAssistantSnapshotRef = useRef(homeAssistantSnapshot);
   const agentAssistantSnapshotRef = useRef(agentAssistantSnapshot);
   const councilAssistantSnapshotRef = useRef(councilAssistantSnapshot);
   const councilViewAssistantSnapshotRef = useRef(councilViewAssistantSnapshot);
@@ -109,6 +115,7 @@ export const App = (): JSX.Element => {
 
   screenRef.current = screen;
   homeTabRef.current = homeTab;
+  homeAssistantSnapshotRef.current = homeAssistantSnapshot;
   agentAssistantSnapshotRef.current = agentAssistantSnapshot;
   councilAssistantSnapshotRef.current = councilAssistantSnapshot;
   councilViewAssistantSnapshotRef.current = councilViewAssistantSnapshot;
@@ -234,6 +241,7 @@ export const App = (): JSX.Element => {
         return buildAssistantCouncilViewContext(
           councilViewAssistantSnapshot ?? {
             activeTab: "overview",
+            assistantExportReconciliation: null,
             archived: false,
             autopilotMaxTurns: null,
             autopilotTurnsCompleted: 0,
@@ -462,6 +470,254 @@ export const App = (): JSX.Element => {
           failureMessage: ready
             ? null
             : "The active council runtime view did not reflect the assistant runtime action.",
+        });
+      };
+
+      const ensureHomeTabVisible = async (tab: HomeTab): Promise<boolean> => {
+        setScreen({ kind: "home" });
+        setHomeTab(tab);
+        return waitForAssistantUi(
+          () => screenRef.current.kind === "home" && homeTabRef.current === tab,
+          10_000,
+        );
+      };
+
+      const parseListQuery = (
+        output: Readonly<Record<string, unknown>>,
+      ): {
+        archivedFilter: "active" | "archived" | "all";
+        searchText: string;
+        sortBy: "createdAt" | "updatedAt";
+        sortDirection: "asc" | "desc";
+        tagFilter: string;
+      } | null => {
+        const query = output.listQuery;
+        if (typeof query !== "object" || query === null) {
+          return null;
+        }
+
+        const record = query as Record<string, unknown>;
+        if (
+          (record.archivedFilter !== "active" &&
+            record.archivedFilter !== "archived" &&
+            record.archivedFilter !== "all") ||
+          typeof record.searchText !== "string" ||
+          (record.sortBy !== "createdAt" && record.sortBy !== "updatedAt") ||
+          (record.sortDirection !== "asc" && record.sortDirection !== "desc") ||
+          typeof record.tagFilter !== "string"
+        ) {
+          return null;
+        }
+
+        return {
+          archivedFilter: record.archivedFilter,
+          searchText: record.searchText,
+          sortBy: record.sortBy,
+          sortDirection: record.sortDirection,
+          tagFilter: record.tagFilter,
+        };
+      };
+
+      const reconcileAgentsListMutation = async (params: {
+        callId: string;
+        output: Readonly<Record<string, unknown>>;
+        toolName: string;
+      }): Promise<void> => {
+        const listQuery = parseListQuery(params.output);
+        const expectedVisibleTotal = params.output.visibleTotal;
+        if (listQuery === null || typeof expectedVisibleTotal !== "number") {
+          reconciliations.push({
+            callId: params.callId,
+            completion: null,
+            toolName: params.toolName,
+            status: "failed",
+            failureMessage: "Agent list reconciliation payload was invalid.",
+          });
+          return;
+        }
+
+        const homeReady = await ensureHomeTabVisible("agents");
+        if (!homeReady) {
+          reconciliations.push({
+            callId: params.callId,
+            completion: null,
+            toolName: params.toolName,
+            status: "failed",
+            failureMessage: "Agents list did not become visible for reconciliation.",
+          });
+          return;
+        }
+
+        const listResult = await window.api.agents.list({
+          viewKind: "agentsList",
+          page: 1,
+          ...listQuery,
+        });
+        const ready =
+          listResult.ok &&
+          listResult.value.total === expectedVisibleTotal &&
+          (await waitForAssistantUi(
+            () =>
+              homeTabRef.current === "agents" &&
+              homeAssistantSnapshotRef.current.agents.total === expectedVisibleTotal,
+            10_000,
+          ));
+        reconciliations.push({
+          callId: params.callId,
+          completion: null,
+          toolName: params.toolName,
+          status: ready ? "completed" : "failed",
+          failureMessage: ready
+            ? null
+            : "Visible agents list did not reconcile to the expected filtered state.",
+        });
+      };
+
+      const reconcileCouncilsListMutation = async (params: {
+        callId: string;
+        output: Readonly<Record<string, unknown>>;
+        toolName: string;
+      }): Promise<void> => {
+        const listQuery = parseListQuery(params.output);
+        const expectedVisibleTotal = params.output.visibleTotal;
+        if (listQuery === null || typeof expectedVisibleTotal !== "number") {
+          reconciliations.push({
+            callId: params.callId,
+            completion: null,
+            toolName: params.toolName,
+            status: "failed",
+            failureMessage: "Council list reconciliation payload was invalid.",
+          });
+          return;
+        }
+
+        const homeReady = await ensureHomeTabVisible("councils");
+        if (!homeReady) {
+          reconciliations.push({
+            callId: params.callId,
+            completion: null,
+            toolName: params.toolName,
+            status: "failed",
+            failureMessage: "Councils list did not become visible for reconciliation.",
+          });
+          return;
+        }
+
+        const listResult = await window.api.councils.list({
+          viewKind: "councilsList",
+          page: 1,
+          ...listQuery,
+        });
+        const ready =
+          listResult.ok &&
+          listResult.value.total === expectedVisibleTotal &&
+          (await waitForAssistantUi(
+            () =>
+              homeTabRef.current === "councils" &&
+              homeAssistantSnapshotRef.current.councils.total === expectedVisibleTotal,
+            10_000,
+          ));
+        reconciliations.push({
+          callId: params.callId,
+          completion: null,
+          toolName: params.toolName,
+          status: ready ? "completed" : "failed",
+          failureMessage: ready
+            ? null
+            : "Visible councils list did not reconcile to the expected filtered state.",
+        });
+      };
+
+      const reconcileSettingsView = async (params: {
+        callId: string;
+        output: Readonly<Record<string, unknown>>;
+        toolName: string;
+      }): Promise<void> => {
+        const homeReady = await ensureHomeTabVisible("settings");
+        if (!homeReady) {
+          reconciliations.push({
+            callId: params.callId,
+            completion: null,
+            toolName: params.toolName,
+            status: "failed",
+            failureMessage: "Settings view did not become visible for reconciliation.",
+          });
+          return;
+        }
+
+        const settingsResult = await window.api.settings.getView({ viewKind: "settings" });
+        if (!settingsResult.ok) {
+          reconciliations.push({
+            callId: params.callId,
+            completion: null,
+            toolName: params.toolName,
+            status: "failed",
+            failureMessage: settingsResult.error.userMessage,
+          });
+          return;
+        }
+
+        let ready = false;
+        switch (params.toolName) {
+          case "disconnectProvider": {
+            const providerId = params.output.providerId;
+            const hasCredential = params.output.hasCredential;
+            ready =
+              typeof providerId === "string" &&
+              typeof hasCredential === "boolean" &&
+              settingsResult.value.providers.some(
+                (provider) =>
+                  provider.providerId === providerId && provider.hasCredential === hasCredential,
+              );
+            break;
+          }
+          case "saveProviderConfig": {
+            const providerId = params.output.providerId;
+            const hasCredential = params.output.hasCredential;
+            const endpointUrlConfigured = params.output.endpointUrlConfigured;
+            ready =
+              typeof providerId === "string" &&
+              typeof hasCredential === "boolean" &&
+              typeof endpointUrlConfigured === "boolean" &&
+              settingsResult.value.providers.some(
+                (provider) =>
+                  provider.providerId === providerId &&
+                  provider.hasCredential === hasCredential &&
+                  (provider.endpointUrl !== null) === endpointUrlConfigured,
+              );
+            break;
+          }
+          case "setGlobalDefaultModel": {
+            const modelRefOrNull = params.output.globalDefaultModelRef;
+            ready =
+              (modelRefOrNull === null && settingsResult.value.globalDefaultModelRef === null) ||
+              (typeof modelRefOrNull === "object" &&
+                modelRefOrNull !== null &&
+                "providerId" in modelRefOrNull &&
+                "modelId" in modelRefOrNull &&
+                settingsResult.value.globalDefaultModelRef?.providerId ===
+                  modelRefOrNull.providerId &&
+                settingsResult.value.globalDefaultModelRef?.modelId === modelRefOrNull.modelId);
+            break;
+          }
+          case "refreshModelCatalog": {
+            ready =
+              typeof params.output.snapshotId === "string" &&
+              settingsResult.value.modelCatalog.snapshotId === params.output.snapshotId;
+            break;
+          }
+          default:
+            ready = false;
+        }
+
+        reconciliations.push({
+          callId: params.callId,
+          completion: null,
+          toolName: params.toolName,
+          status: ready ? "completed" : "failed",
+          failureMessage: ready
+            ? null
+            : "Settings changes were not visible after assistant execution.",
         });
       };
 
@@ -934,6 +1190,97 @@ export const App = (): JSX.Element => {
             });
             break;
           }
+          case "archiveAgent":
+          case "restoreAgent":
+          case "deleteAgent": {
+            await reconcileAgentsListMutation({
+              callId: executionResult.callId,
+              output: executionResult.output,
+              toolName: executionResult.toolName,
+            });
+            break;
+          }
+          case "archiveCouncil":
+          case "restoreCouncil":
+          case "deleteCouncil": {
+            await reconcileCouncilsListMutation({
+              callId: executionResult.callId,
+              output: executionResult.output,
+              toolName: executionResult.toolName,
+            });
+            break;
+          }
+          case "saveProviderConfig":
+          case "disconnectProvider":
+          case "refreshModelCatalog":
+          case "setGlobalDefaultModel": {
+            await reconcileSettingsView({
+              callId: executionResult.callId,
+              output: executionResult.output,
+              toolName: executionResult.toolName,
+            });
+            break;
+          }
+          case "exportCouncil": {
+            const councilId = executionResult.output.councilId;
+            const status = executionResult.output.status;
+            if (
+              typeof councilId !== "string" ||
+              (status !== "exported" && status !== "cancelled")
+            ) {
+              reconciliations.push({
+                callId: executionResult.callId,
+                completion: null,
+                toolName: executionResult.toolName,
+                status: "failed",
+                failureMessage: "Export reconciliation payload was invalid.",
+              });
+              break;
+            }
+
+            setAssistantPendingExportReconciliation({
+              callId: executionResult.callId,
+              councilId,
+              status,
+            });
+            markPendingNavigationRebase({
+              destinationScopeKey: `councilView:${councilId}`,
+              destinationViewKind: "councilView",
+            });
+            openCouncilView(councilId);
+            const ready = await waitForAssistantUi(
+              () =>
+                screenRef.current.kind === "councilView" &&
+                screenRef.current.councilId === councilId &&
+                councilViewAssistantSnapshotRef.current?.councilId === councilId &&
+                councilViewAssistantSnapshotRef.current?.assistantExportReconciliation?.callId ===
+                  executionResult.callId &&
+                councilViewAssistantSnapshotRef.current?.assistantExportReconciliation?.status ===
+                  status,
+              10_000,
+            );
+            reconciliations.push({
+              callId: executionResult.callId,
+              completion: ready
+                ? {
+                    output: {
+                      councilId,
+                      status,
+                    },
+                    userSummary:
+                      status === "exported"
+                        ? "Export finished. The transcript is available from your save location."
+                        : "Export cancelled.",
+                  }
+                : null,
+              toolName: executionResult.toolName,
+              status: ready ? "completed" : "failed",
+              failureMessage: ready
+                ? null
+                : "Export completion was not visibly confirmed in the council view.",
+            });
+            break;
+          }
           default:
             reconciliations.push({
               callId: executionResult.callId,
@@ -1155,6 +1502,7 @@ export const App = (): JSX.Element => {
       />
 
       <CouncilViewScreen
+        assistantExportReconciliation={assistantPendingExportReconciliation}
         assistantReloadToken={assistantCouncilViewReloadToken}
         assistantLauncher={renderAssistantLauncher()}
         councilId={screen.kind === "councilView" ? screen.councilId : ""}

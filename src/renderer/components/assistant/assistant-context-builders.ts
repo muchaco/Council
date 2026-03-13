@@ -60,6 +60,10 @@ export type AssistantCouncilEditorSnapshot = {
 
 export type AssistantCouncilViewSnapshot = {
   activeTab: "overview" | "config";
+  assistantExportReconciliation: {
+    callId: string;
+    status: "exported" | "cancelled";
+  } | null;
   archived: boolean;
   autopilotMaxTurns: number | null;
   autopilotTurnsCompleted: number;

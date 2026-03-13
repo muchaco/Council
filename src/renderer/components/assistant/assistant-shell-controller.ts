@@ -4,6 +4,7 @@ import type {
   AssistantCreateSessionResponse,
   AssistantExecutionSnapshot,
   AssistantPlanResult,
+  AssistantSubmitRequest,
   AssistantSubmitResponse,
   IpcResult,
 } from "../../../shared/ipc/dto.js";
@@ -283,6 +284,15 @@ export const createAssistantShellController = (deps: AssistantShellControllerDep
         currentState.phase.status === "clarify" || currentState.phase.status === "confirm"
           ? currentState.activeRequestText
           : currentState.inputValue.trim();
+      const normalizedResponse: AssistantSubmitRequest["response"] =
+        params.response?.kind === "confirmation"
+          ? currentState.phase.status === "confirm"
+            ? {
+                ...params.response,
+                confirmationToken: currentState.phase.confirmationToken,
+              }
+            : null
+          : params.response;
 
       if (initialRequest === null || initialRequest.length === 0) {
         return;
@@ -322,7 +332,7 @@ export const createAssistantShellController = (deps: AssistantShellControllerDep
       const result = await deps.api.submit({
         context: requestContext,
         executionSnapshot: deps.getActiveAssistantExecutionSnapshot(),
-        response: params.response,
+        response: normalizedResponse,
         sessionId,
         userRequest: initialRequest,
       });

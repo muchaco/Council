@@ -156,6 +156,49 @@ describe("assistant policy helpers", () => {
     ).toBe("modify-current-draft");
   });
 
+  itReq(FILE_REQUIREMENT_IDS, "requires confirmation for always-confirm high-risk tools", () => {
+    const tool = defineAssistantTool({
+      name: "deleteAgent",
+      version: 1,
+      category: "commit",
+      risk: "destructive",
+      requiresConfirmation: true,
+      confirmationPolicy: "always",
+      description: "Delete an agent.",
+      inputSchema: z.object({ agentId: z.string().uuid() }).strict(),
+      outputSchema: z.object({ deletedId: z.string().uuid() }).strict(),
+      reconciliation: {
+        visibleTarget: "current-list",
+        strategy: "refresh-query",
+        successCondition: "The deleted agent disappears from the current list.",
+      },
+    });
+
+    const decision = resolveAssistantConfirmationRequirement({
+      context: {
+        viewKind: "agentsList",
+        contextLabel: "Home / Agents",
+        activeEntityId: null,
+        selectionIds: [],
+        listState: null,
+        draftState: null,
+        runtimeState: null,
+      },
+      toolDefinition: tool,
+      plannedCall: {
+        callId: "call-delete",
+        toolName: "deleteAgent",
+        rationale: "Delete requested agent.",
+        input: {
+          agentId: "00000000-0000-4000-8000-000000000101",
+        },
+      },
+    });
+
+    expect(decision.requiresConfirmation).toBe(true);
+    expect(decision.reason).toBe("tool-policy");
+  });
+
   itReq(
     FILE_REQUIREMENT_IDS,
     "tracks visible reconciliation completion separately from mutation success",

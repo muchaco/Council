@@ -50,6 +50,10 @@ import type {
   AssistantToolExecutionResult,
   CancelCouncilGenerationResponse,
   CouncilDto,
+  DeleteAgentResponse,
+  DeleteCouncilResponse,
+  DisconnectProviderResponse,
+  ExportCouncilTranscriptResponse,
   GenerateManualCouncilTurnResponse,
   GetAgentEditorViewResponse,
   GetCouncilEditorViewResponse,
@@ -59,11 +63,18 @@ import type {
   ListAgentsResponse,
   ListCouncilsResponse,
   PauseCouncilAutopilotResponse,
+  ProviderDraftDto,
+  ProviderId,
+  RefreshModelCatalogResponse,
   ResumeCouncilAutopilotResponse,
   SaveAgentRequest,
   SaveAgentResponse,
   SaveCouncilRequest,
   SaveCouncilResponse,
+  SaveProviderConfigResponse,
+  SetAgentArchivedResponse,
+  SetCouncilArchivedResponse,
+  SetGlobalDefaultModelResponse,
   StartCouncilResponse,
   ViewKind,
 } from "../../../shared/ipc/dto.js";
@@ -104,6 +115,12 @@ type AssistantSliceDependencies = {
     webContentsId: number;
     draft: SaveAgentRequest;
   }) => ResultAsync<SaveAgentResponse, DomainError>;
+  deleteAgent?: (params: { id: string }) => ResultAsync<DeleteAgentResponse, DomainError>;
+  setAgentArchived?: (params: {
+    webContentsId: number;
+    id: string;
+    archived: boolean;
+  }) => ResultAsync<SetAgentArchivedResponse, DomainError>;
   listCouncils: (params: {
     webContentsId: number;
     searchText: string;
@@ -121,6 +138,35 @@ type AssistantSliceDependencies = {
     webContentsId: number;
     draft: SaveCouncilRequest;
   }) => ResultAsync<SaveCouncilResponse, DomainError>;
+  deleteCouncil?: (params: { id: string }) => ResultAsync<DeleteCouncilResponse, DomainError>;
+  setCouncilArchived?: (params: {
+    webContentsId: number;
+    id: string;
+    archived: boolean;
+  }) => ResultAsync<SetCouncilArchivedResponse, DomainError>;
+  exportCouncilTranscript?: (params: {
+    webContentsId: number;
+    id: string;
+  }) => ResultAsync<ExportCouncilTranscriptResponse, DomainError>;
+  saveProviderConfig?: (params: {
+    webContentsId: number;
+    provider: ProviderDraftDto;
+    testToken: string;
+  }) => ResultAsync<SaveProviderConfigResponse, DomainError>;
+  disconnectProvider?: (params: {
+    webContentsId: number;
+    providerId: ProviderId;
+    viewKind: ViewKind;
+  }) => ResultAsync<DisconnectProviderResponse, DomainError>;
+  refreshModelCatalog?: (params: {
+    webContentsId: number;
+    viewKind: ViewKind;
+  }) => ResultAsync<RefreshModelCatalogResponse, DomainError>;
+  setGlobalDefaultModel?: (params: {
+    webContentsId: number;
+    viewKind: ViewKind;
+    modelRefOrNull: { providerId: string; modelId: string } | null;
+  }) => ResultAsync<SetGlobalDefaultModelResponse, DomainError>;
   getCouncilView: (params: {
     webContentsId: number;
     councilId: string;
@@ -167,6 +213,7 @@ type AssistantSliceDependencies = {
 
 type PendingAssistantPlan = {
   kind: "confirm" | "execute";
+  confirmationToken: string | null;
   planSummary: string;
   plannedCalls: ReadonlyArray<AssistantPlannedToolCall>;
 };
@@ -430,6 +477,25 @@ const createUnexpectedConfirmationResult = (sessionId: string): AssistantPlanRes
     kind: "StateViolationError",
     userMessage: "There is no assistant confirmation waiting right now.",
     developerMessage: `Assistant session ${sessionId} received a confirmation response without a pending confirmation plan.`,
+    retryable: false,
+    details: null,
+  },
+  requiresUserAction: true,
+  destinationLabel: null,
+});
+
+const createInvalidConfirmationTokenResult = (sessionId: string): AssistantPlanResult => ({
+  kind: "result",
+  sessionId,
+  outcome: "failure",
+  message: "This confirmation is no longer valid. Please review and confirm again.",
+  planSummary: null,
+  plannedCalls: [],
+  executionResults: [],
+  error: {
+    kind: "PolicyError",
+    userMessage: "This confirmation is no longer valid. Please review and confirm again.",
+    developerMessage: "Assistant confirmation token mismatch.",
     retryable: false,
     details: null,
   },
@@ -749,6 +815,43 @@ const buildDirtyDraftConfirmation = (params: {
   };
 };
 
+const IRREVERSIBLE_ASSISTANT_TOOLS = new Set(["deleteAgent", "deleteCouncil"]);
+
+const buildPolicyConfirmation = (params: {
+  context: AssistantContextEnvelope;
+  draftImpact: "none" | "modify-current-draft" | "replace-current-draft";
+  planSummary: string;
+  plannedCalls: ReadonlyArray<AssistantPlannedToolCall>;
+}): AssistantConfirmationRequest => {
+  const examples = params.plannedCalls.slice(0, 3).map((plannedCall) => {
+    if (typeof plannedCall.input.agentId === "string") {
+      return `${plannedCall.toolName}(${plannedCall.input.agentId})`;
+    }
+    if (typeof plannedCall.input.councilId === "string") {
+      return `${plannedCall.toolName}(${plannedCall.input.councilId})`;
+    }
+    if (typeof plannedCall.input.providerId === "string") {
+      return `${plannedCall.toolName}(${plannedCall.input.providerId})`;
+    }
+
+    return plannedCall.toolName;
+  });
+  const irreversible = params.plannedCalls.some((plannedCall) =>
+    IRREVERSIBLE_ASSISTANT_TOOLS.has(plannedCall.toolName),
+  );
+
+  return {
+    summary: irreversible
+      ? `This is irreversible: ${params.planSummary}`
+      : `Confirm these high-risk assistant actions: ${params.planSummary}`,
+    scopeDescription: `${String(params.plannedCalls.length)} action(s) will run through authoritative handlers in ${params.context.contextLabel}.`,
+    affectedCount: params.plannedCalls.length,
+    examples,
+    reversible: !irreversible,
+    draftImpact: params.draftImpact,
+  };
+};
+
 const rewriteDirtyDraftPlannedCall = (params: {
   context: AssistantContextEnvelope;
   plannedCall: AssistantPlannedToolCall;
@@ -822,6 +925,7 @@ const finalizePlannedDirective = (params: {
   context: AssistantContextEnvelope;
   plannedCalls: ReadonlyArray<AssistantPlannedToolCall>;
   preferConfirmation: boolean;
+  confirmationTokenFactory: () => string;
   sessionId: string;
   summary: string;
 }): Extract<AssistantPlanResult, { kind: "confirm" | "execute" }> => {
@@ -848,11 +952,13 @@ const finalizePlannedDirective = (params: {
   });
 
   if (dirtyDraftReplacement !== undefined) {
+    const confirmationToken = params.confirmationTokenFactory();
     return {
       kind: "confirm",
       sessionId: params.sessionId,
       message: params.summary,
       planSummary: params.summary,
+      confirmationToken,
       plannedCalls,
       confirmation: buildDirtyDraftConfirmation({
         context: params.context,
@@ -862,12 +968,61 @@ const finalizePlannedDirective = (params: {
     };
   }
 
-  if (params.preferConfirmation) {
+  const policyConfirmation = plannedCalls.find((plannedCall) => {
+    const validated = validateAssistantPlannedCall(plannedCall);
+    if (!validated.ok) {
+      return false;
+    }
+
+    return resolveAssistantConfirmationRequirement({
+      context: params.context,
+      plannedCall,
+      toolDefinition: validated.definition,
+    }).requiresConfirmation;
+  });
+
+  if (policyConfirmation !== undefined) {
+    const validatedPolicyConfirmation = validateAssistantPlannedCall(policyConfirmation);
+    if (!validatedPolicyConfirmation.ok) {
+      return {
+        kind: "execute",
+        sessionId: params.sessionId,
+        message: params.summary,
+        planSummary: params.summary,
+        plannedCalls,
+      };
+    }
+
+    const decision = resolveAssistantConfirmationRequirement({
+      context: params.context,
+      plannedCall: policyConfirmation,
+      toolDefinition: validatedPolicyConfirmation.definition,
+    });
+    const confirmationToken = params.confirmationTokenFactory();
     return {
       kind: "confirm",
       sessionId: params.sessionId,
       message: params.summary,
       planSummary: params.summary,
+      confirmationToken,
+      plannedCalls,
+      confirmation: buildPolicyConfirmation({
+        context: params.context,
+        draftImpact: decision.draftImpact,
+        planSummary: params.summary,
+        plannedCalls,
+      }),
+    };
+  }
+
+  if (params.preferConfirmation) {
+    const confirmationToken = params.confirmationTokenFactory();
+    return {
+      kind: "confirm",
+      sessionId: params.sessionId,
+      message: params.summary,
+      planSummary: params.summary,
+      confirmationToken,
       plannedCalls,
       confirmation: {
         summary: params.summary,
@@ -1166,6 +1321,36 @@ const resolveCouncilListQuery = (params: {
   };
 };
 
+const toCatalogSummary = (params: {
+  modelCatalog: RefreshModelCatalogResponse["modelCatalog"];
+}) => {
+  const providerIds = Object.keys(params.modelCatalog.modelsByProvider);
+  const modelCount = Object.values(params.modelCatalog.modelsByProvider).reduce(
+    (count, models) => count + (Array.isArray(models) ? models.length : 0),
+    0,
+  );
+
+  return {
+    snapshotId: params.modelCatalog.snapshotId,
+    providerCount: providerIds.length,
+    modelCount,
+  };
+};
+
+const summarizeListFilterDisappearance = (params: {
+  archivedFilter: "active" | "archived" | "all";
+  archived: boolean;
+}): string => {
+  if (
+    (params.archived && params.archivedFilter === "active") ||
+    (!params.archived && params.archivedFilter === "archived")
+  ) {
+    return ` It may disappear from the current ${params.archivedFilter} filter after refresh.`;
+  }
+
+  return "";
+};
+
 const resolveAgentId = (params: {
   context: AssistantContextEnvelope;
   input: Readonly<Record<string, unknown>>;
@@ -1321,6 +1506,17 @@ const createUnavailableCurrentDraftResult = (params: {
     callId: params.callId,
     toolName: params.toolName,
     error: createValidationToolError(params.message),
+  });
+};
+
+const createUnsupportedAssistantToolResult = (params: {
+  callId: string;
+  toolName: string;
+}): AssistantToolExecutionResult => {
+  return createFailedToolResult({
+    callId: params.callId,
+    toolName: params.toolName,
+    error: createValidationToolError("That assistant action is not enabled in this build."),
   });
 };
 
@@ -2461,6 +2657,429 @@ const executeSupportedTool = async (params: {
         userSummary: `Sent a conductor message in ${runtimeView.council.title}.`,
       });
     }
+    case "archiveAgent": {
+      if (params.dependencies.setAgentArchived === undefined) {
+        return createUnsupportedAssistantToolResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+        });
+      }
+      const parsedInput = validated.definition.inputSchema.parse(params.plannedCall.input);
+      const archived = await readResult(
+        params.dependencies.setAgentArchived({
+          webContentsId: params.webContentsId,
+          id: parsedInput.agentId,
+          archived: true,
+        }),
+      );
+      if ("status" in archived) {
+        return archived;
+      }
+
+      const listQuery = resolveAgentListQuery({
+        context: params.context,
+        input: {},
+      });
+      const listResult = await readResult(
+        params.dependencies.listAgents({
+          webContentsId: params.webContentsId,
+          page: 1,
+          ...listQuery,
+        }),
+      );
+      if ("status" in listResult) {
+        return listResult;
+      }
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          agentId: archived.agent.id,
+          agentName: archived.agent.name,
+          archived: true,
+          listQuery,
+          visibleTotal: listResult.total,
+        },
+        userSummary: `Archived ${archived.agent.name}.${summarizeListFilterDisappearance({ archived: true, archivedFilter: listQuery.archivedFilter })}`,
+      });
+    }
+    case "restoreAgent": {
+      if (params.dependencies.setAgentArchived === undefined) {
+        return createUnsupportedAssistantToolResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+        });
+      }
+      const parsedInput = validated.definition.inputSchema.parse(params.plannedCall.input);
+      const restored = await readResult(
+        params.dependencies.setAgentArchived({
+          webContentsId: params.webContentsId,
+          id: parsedInput.agentId,
+          archived: false,
+        }),
+      );
+      if ("status" in restored) {
+        return restored;
+      }
+
+      const listQuery = resolveAgentListQuery({
+        context: params.context,
+        input: {},
+      });
+      const listResult = await readResult(
+        params.dependencies.listAgents({
+          webContentsId: params.webContentsId,
+          page: 1,
+          ...listQuery,
+        }),
+      );
+      if ("status" in listResult) {
+        return listResult;
+      }
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          agentId: restored.agent.id,
+          agentName: restored.agent.name,
+          archived: false,
+          listQuery,
+          visibleTotal: listResult.total,
+        },
+        userSummary: `Restored ${restored.agent.name}.${summarizeListFilterDisappearance({ archived: false, archivedFilter: listQuery.archivedFilter })}`,
+      });
+    }
+    case "deleteAgent": {
+      if (params.dependencies.deleteAgent === undefined) {
+        return createUnsupportedAssistantToolResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+        });
+      }
+      const parsedInput = validated.definition.inputSchema.parse(params.plannedCall.input);
+      const deleted = await readResult(
+        params.dependencies.deleteAgent({
+          id: parsedInput.agentId,
+        }),
+      );
+      if ("status" in deleted) {
+        return deleted;
+      }
+
+      const listQuery = resolveAgentListQuery({
+        context: params.context,
+        input: {},
+      });
+      const listResult = await readResult(
+        params.dependencies.listAgents({
+          webContentsId: params.webContentsId,
+          page: 1,
+          ...listQuery,
+        }),
+      );
+      if ("status" in listResult) {
+        return listResult;
+      }
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          deletedId: deleted.deletedId,
+          listQuery,
+          visibleTotal: listResult.total,
+        },
+        userSummary: "Deleted the requested agent permanently.",
+      });
+    }
+    case "archiveCouncil": {
+      if (params.dependencies.setCouncilArchived === undefined) {
+        return createUnsupportedAssistantToolResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+        });
+      }
+      const parsedInput = validated.definition.inputSchema.parse(params.plannedCall.input);
+      const archived = await readResult(
+        params.dependencies.setCouncilArchived({
+          webContentsId: params.webContentsId,
+          id: parsedInput.councilId,
+          archived: true,
+        }),
+      );
+      if ("status" in archived) {
+        return archived;
+      }
+
+      const listQuery = resolveCouncilListQuery({
+        context: params.context,
+        input: {},
+      });
+      const listResult = await readResult(
+        params.dependencies.listCouncils({
+          webContentsId: params.webContentsId,
+          page: 1,
+          ...listQuery,
+        }),
+      );
+      if ("status" in listResult) {
+        return listResult;
+      }
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          councilId: archived.council.id,
+          councilTitle: archived.council.title,
+          archived: true,
+          listQuery,
+          visibleTotal: listResult.total,
+        },
+        userSummary: `Archived ${archived.council.title}.${summarizeListFilterDisappearance({ archived: true, archivedFilter: listQuery.archivedFilter })}`,
+      });
+    }
+    case "restoreCouncil": {
+      if (params.dependencies.setCouncilArchived === undefined) {
+        return createUnsupportedAssistantToolResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+        });
+      }
+      const parsedInput = validated.definition.inputSchema.parse(params.plannedCall.input);
+      const restored = await readResult(
+        params.dependencies.setCouncilArchived({
+          webContentsId: params.webContentsId,
+          id: parsedInput.councilId,
+          archived: false,
+        }),
+      );
+      if ("status" in restored) {
+        return restored;
+      }
+
+      const listQuery = resolveCouncilListQuery({
+        context: params.context,
+        input: {},
+      });
+      const listResult = await readResult(
+        params.dependencies.listCouncils({
+          webContentsId: params.webContentsId,
+          page: 1,
+          ...listQuery,
+        }),
+      );
+      if ("status" in listResult) {
+        return listResult;
+      }
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          councilId: restored.council.id,
+          councilTitle: restored.council.title,
+          archived: false,
+          listQuery,
+          visibleTotal: listResult.total,
+        },
+        userSummary: `Restored ${restored.council.title}.${summarizeListFilterDisappearance({ archived: false, archivedFilter: listQuery.archivedFilter })}`,
+      });
+    }
+    case "deleteCouncil": {
+      if (params.dependencies.deleteCouncil === undefined) {
+        return createUnsupportedAssistantToolResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+        });
+      }
+      const parsedInput = validated.definition.inputSchema.parse(params.plannedCall.input);
+      const deleted = await readResult(
+        params.dependencies.deleteCouncil({
+          id: parsedInput.councilId,
+        }),
+      );
+      if ("status" in deleted) {
+        return deleted;
+      }
+
+      const listQuery = resolveCouncilListQuery({
+        context: params.context,
+        input: {},
+      });
+      const listResult = await readResult(
+        params.dependencies.listCouncils({
+          webContentsId: params.webContentsId,
+          page: 1,
+          ...listQuery,
+        }),
+      );
+      if ("status" in listResult) {
+        return listResult;
+      }
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          deletedId: deleted.deletedId,
+          listQuery,
+          visibleTotal: listResult.total,
+        },
+        userSummary: "Deleted the requested council permanently.",
+      });
+    }
+    case "exportCouncil": {
+      if (params.dependencies.exportCouncilTranscript === undefined) {
+        return createUnsupportedAssistantToolResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+        });
+      }
+      const parsedInput = validated.definition.inputSchema.parse(params.plannedCall.input);
+      const exportResult = await readResult(
+        params.dependencies.exportCouncilTranscript({
+          webContentsId: params.webContentsId,
+          id: parsedInput.councilId,
+        }),
+      );
+      if ("callId" in exportResult) {
+        return exportResult;
+      }
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          councilId: parsedInput.councilId,
+          status: exportResult.status,
+        },
+        userSummary:
+          exportResult.status === "exported"
+            ? "Export finished. The transcript is available from your save location."
+            : "Export cancelled.",
+      });
+    }
+    case "saveProviderConfig": {
+      if (params.dependencies.saveProviderConfig === undefined) {
+        return createUnsupportedAssistantToolResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+        });
+      }
+      const parsedInput = validated.definition.inputSchema.parse(params.plannedCall.input);
+      const saved = await readResult(
+        params.dependencies.saveProviderConfig({
+          webContentsId: params.webContentsId,
+          provider: parsedInput.provider,
+          testToken: parsedInput.testToken,
+        }),
+      );
+      if ("status" in saved) {
+        return saved;
+      }
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          providerId: saved.provider.providerId,
+          hasCredential: saved.provider.hasCredential,
+          endpointUrlConfigured: saved.provider.endpointUrl !== null,
+        },
+        userSummary: `Saved ${saved.provider.providerId} provider settings.`,
+      });
+    }
+    case "disconnectProvider": {
+      if (params.dependencies.disconnectProvider === undefined) {
+        return createUnsupportedAssistantToolResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+        });
+      }
+      const parsedInput = validated.definition.inputSchema.parse(params.plannedCall.input);
+      const disconnected = await readResult(
+        params.dependencies.disconnectProvider({
+          webContentsId: params.webContentsId,
+          providerId: parsedInput.providerId,
+          viewKind: "settings",
+        }),
+      );
+      if ("status" in disconnected) {
+        return disconnected;
+      }
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          providerId: disconnected.provider.providerId,
+          hasCredential: disconnected.provider.hasCredential,
+        },
+        userSummary: `Disconnected ${disconnected.provider.providerId}.`,
+      });
+    }
+    case "refreshModelCatalog": {
+      if (params.dependencies.refreshModelCatalog === undefined) {
+        return createUnsupportedAssistantToolResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+        });
+      }
+      const parsedInput = validated.definition.inputSchema.parse(params.plannedCall.input);
+      const refreshed = await readResult(
+        params.dependencies.refreshModelCatalog({
+          webContentsId: params.webContentsId,
+          viewKind: parsedInput.viewKind,
+        }),
+      );
+      if ("status" in refreshed) {
+        return refreshed;
+      }
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: toCatalogSummary({
+          modelCatalog: refreshed.modelCatalog,
+        }),
+        userSummary: "Refreshed model catalog.",
+      });
+    }
+    case "setGlobalDefaultModel": {
+      if (params.dependencies.setGlobalDefaultModel === undefined) {
+        return createUnsupportedAssistantToolResult({
+          callId: params.plannedCall.callId,
+          toolName: params.plannedCall.toolName,
+        });
+      }
+      const parsedInput = validated.definition.inputSchema.parse(params.plannedCall.input);
+      const saved = await readResult(
+        params.dependencies.setGlobalDefaultModel({
+          webContentsId: params.webContentsId,
+          viewKind: "settings",
+          modelRefOrNull: parsedInput.modelRefOrNull,
+        }),
+      );
+      if ("status" in saved) {
+        return saved;
+      }
+
+      return createReconcilingResult({
+        callId: params.plannedCall.callId,
+        toolName: params.plannedCall.toolName,
+        output: {
+          globalDefaultModelRef: saved.globalDefaultModelRef,
+          globalDefaultModelInvalidConfig: saved.globalDefaultModelInvalidConfig,
+        },
+        userSummary:
+          saved.globalDefaultModelRef === null
+            ? "Cleared global default model."
+            : `Set global default model to ${saved.globalDefaultModelRef.providerId}:${saved.globalDefaultModelRef.modelId}.`,
+      });
+    }
     default:
       return createFailedToolResult({
         callId: params.plannedCall.callId,
@@ -2751,11 +3370,14 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
                 context: params.context,
                 plannedCalls,
                 preferConfirmation: false,
+                confirmationTokenFactory: () => crypto.randomUUID(),
                 sessionId: params.sessionId,
                 summary: `Open ${matchedCouncil.title}.`,
               });
               params.record.pendingPlan = {
                 kind: finalizedPlan.kind,
+                confirmationToken:
+                  finalizedPlan.kind === "confirm" ? finalizedPlan.confirmationToken : null,
                 planSummary: finalizedPlan.planSummary,
                 plannedCalls: finalizedPlan.plannedCalls,
               };
@@ -2789,11 +3411,14 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
             context: params.context,
             plannedCalls,
             preferConfirmation: false,
+            confirmationTokenFactory: () => crypto.randomUUID(),
             sessionId: params.sessionId,
             summary: "Check the current council runtime status.",
           });
           params.record.pendingPlan = {
             kind: finalizedPlan.kind,
+            confirmationToken:
+              finalizedPlan.kind === "confirm" ? finalizedPlan.confirmationToken : null,
             planSummary: finalizedPlan.planSummary,
             plannedCalls: finalizedPlan.plannedCalls,
           };
@@ -2815,11 +3440,14 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
               context: params.context,
               plannedCalls: shortcutPlan.plannedCalls,
               preferConfirmation: false,
+              confirmationTokenFactory: () => crypto.randomUUID(),
               sessionId: params.sessionId,
               summary: shortcutPlan.summary,
             });
             params.record.pendingPlan = {
               kind: finalizedPlan.kind,
+              confirmationToken:
+                finalizedPlan.kind === "confirm" ? finalizedPlan.confirmationToken : null,
               planSummary: finalizedPlan.planSummary,
               plannedCalls: finalizedPlan.plannedCalls,
             };
@@ -2884,6 +3512,11 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
               };
             }
 
+            let finalizedPlanResult: Extract<
+              AssistantPlanResult,
+              { kind: "confirm" | "execute" }
+            > | null = null;
+
             switch (parsed.kind) {
               case "clarify":
                 clearPendingPlan(params.record);
@@ -2903,15 +3536,19 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
                   context: params.context,
                   plannedCalls: parsed.plannedCalls,
                   preferConfirmation: true,
+                  confirmationTokenFactory: () => crypto.randomUUID(),
                   sessionId: params.sessionId,
                   summary: parsed.summary,
                 });
                 clearPendingClarification(params.record);
                 params.record.pendingPlan = {
                   kind: finalizedPlan.kind,
+                  confirmationToken:
+                    finalizedPlan.kind === "confirm" ? finalizedPlan.confirmationToken : null,
                   planSummary: finalizedPlan.planSummary,
                   plannedCalls: finalizedPlan.plannedCalls,
                 };
+                finalizedPlanResult = finalizedPlan;
                 break;
               }
               case "execute": {
@@ -2919,15 +3556,19 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
                   context: params.context,
                   plannedCalls: parsed.plannedCalls,
                   preferConfirmation: false,
+                  confirmationTokenFactory: () => crypto.randomUUID(),
                   sessionId: params.sessionId,
                   summary: parsed.summary,
                 });
                 clearPendingClarification(params.record);
                 params.record.pendingPlan = {
                   kind: finalizedPlan.kind,
+                  confirmationToken:
+                    finalizedPlan.kind === "confirm" ? finalizedPlan.confirmationToken : null,
                   planSummary: finalizedPlan.planSummary,
                   plannedCalls: finalizedPlan.plannedCalls,
                 };
+                finalizedPlanResult = finalizedPlan;
                 break;
               }
             }
@@ -2951,14 +3592,17 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
               };
             }
 
+            if (finalizedPlanResult !== null) {
+              return {
+                result: finalizedPlanResult,
+              };
+            }
+
             return {
-              result: finalizePlannedDirective({
-                context: params.context,
-                plannedCalls: parsed.plannedCalls,
-                preferConfirmation: parsed.kind === "confirm",
-                sessionId: params.sessionId,
-                summary: parsed.summary,
-              }),
+              result: createPlaceholderResult(
+                params.sessionId,
+                "Assistant planner returned an incomplete structured response.",
+              ),
             };
           })
           .orElse(() => {
@@ -3031,6 +3675,16 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
 
     if (request.response?.kind === "confirmation" && record.pendingPlan === null) {
       return okAsync({ result: createUnexpectedConfirmationResult(request.sessionId) });
+    }
+
+    if (
+      request.response?.kind === "confirmation" &&
+      record.pendingPlan?.kind === "confirm" &&
+      request.response.confirmationToken !== record.pendingPlan.confirmationToken
+    ) {
+      clearPendingPlan(record);
+      clearPendingClarification(record);
+      return okAsync({ result: createInvalidConfirmationTokenResult(request.sessionId) });
     }
 
     const sanitizedContext = sanitizeAssistantContext(request.context);
@@ -3198,6 +3852,36 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
           });
         }
 
+        if (result.toolName === "exportCouncil" && acknowledgement.completion === null) {
+          return createFailedToolResult({
+            callId: result.callId,
+            toolName: result.toolName,
+            error: {
+              kind: "StateViolationError",
+              userMessage: "Export completion could not be visibly confirmed.",
+              developerMessage:
+                "Missing visible export reconciliation completion payload from renderer.",
+              retryable: false,
+              details: null,
+            },
+          });
+        }
+
+        if (result.toolName === "exportCouncil" && acknowledgement.completion?.output === null) {
+          return createFailedToolResult({
+            callId: result.callId,
+            toolName: result.toolName,
+            error: {
+              kind: "StateViolationError",
+              userMessage: "Export completion could not be visibly confirmed.",
+              developerMessage:
+                "Missing export completion output in visible reconciliation payload.",
+              retryable: false,
+              details: null,
+            },
+          });
+        }
+
         const completedOutput = acknowledgement.completion?.output ?? result.output;
         const parsedOutput = definition.outputSchema.safeParse(completedOutput);
         if (!parsedOutput.success) {
@@ -3212,6 +3896,27 @@ export const createAssistantSlice = (dependencies: AssistantSliceDependencies): 
               details: null,
             },
           });
+        }
+
+        if (result.toolName === "exportCouncil") {
+          const originalOutput = definition.outputSchema.safeParse(result.output);
+          if (
+            !originalOutput.success ||
+            originalOutput.data.councilId !== parsedOutput.data.councilId ||
+            originalOutput.data.status !== parsedOutput.data.status
+          ) {
+            return createFailedToolResult({
+              callId: result.callId,
+              toolName: result.toolName,
+              error: {
+                kind: "StateViolationError",
+                userMessage: "Export completion could not be visibly confirmed.",
+                developerMessage: "Export completion payload diverged from executed export result.",
+                retryable: false,
+                details: null,
+              },
+            });
+          }
         }
 
         return {

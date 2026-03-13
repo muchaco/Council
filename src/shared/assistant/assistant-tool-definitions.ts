@@ -59,6 +59,24 @@ const SAVED_COUNCIL_FIELDS_SCHEMA = z
   })
   .strict();
 
+const LIST_RECONCILIATION_QUERY_SCHEMA = z
+  .object({
+    archivedFilter: z.enum(["active", "archived", "all"]),
+    searchText: z.string().max(200),
+    sortBy: z.enum(["createdAt", "updatedAt"]),
+    sortDirection: z.enum(["asc", "desc"]),
+    tagFilter: z.string().max(200),
+  })
+  .strict();
+
+const MODEL_CATALOG_SUMMARY_SCHEMA = z
+  .object({
+    snapshotId: z.string().trim().min(1).max(200),
+    providerCount: z.number().int().min(0).max(100),
+    modelCount: z.number().int().min(0).max(10_000),
+  })
+  .strict();
+
 export const ASSISTANT_TOOL_DEFINITIONS: ReadonlyArray<AssistantToolDefinition> = [
   defineAssistantTool({
     name: "setAgentDraftFields",
@@ -875,6 +893,312 @@ export const ASSISTANT_TOOL_DEFINITIONS: ReadonlyArray<AssistantToolDefinition> 
       strategy: "reload-entity",
       successCondition:
         "The active council runtime view shows the new conductor message and updated briefing context.",
+    },
+  }),
+  defineAssistantTool({
+    name: "archiveAgent",
+    version: 1,
+    category: "commit",
+    risk: "destructive",
+    requiresConfirmation: true,
+    confirmationPolicy: "always",
+    description: "Archive a single agent through the existing archive handler.",
+    inputSchema: z
+      .object({
+        agentId: z.string().uuid(),
+      })
+      .strict(),
+    outputSchema: z
+      .object({
+        agentId: z.string().uuid(),
+        agentName: z.string().trim().min(1).max(120),
+        archived: z.literal(true),
+        listQuery: LIST_RECONCILIATION_QUERY_SCHEMA,
+        visibleTotal: z.number().int().min(0),
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "current-list",
+      strategy: "refresh-query",
+      successCondition:
+        "The visible agent list refreshes with the same filters and reflects the archived state.",
+    },
+  }),
+  defineAssistantTool({
+    name: "restoreAgent",
+    version: 1,
+    category: "commit",
+    risk: "destructive",
+    requiresConfirmation: true,
+    confirmationPolicy: "always",
+    description: "Restore a single archived agent through the existing archive handler.",
+    inputSchema: z
+      .object({
+        agentId: z.string().uuid(),
+      })
+      .strict(),
+    outputSchema: z
+      .object({
+        agentId: z.string().uuid(),
+        agentName: z.string().trim().min(1).max(120),
+        archived: z.literal(false),
+        listQuery: LIST_RECONCILIATION_QUERY_SCHEMA,
+        visibleTotal: z.number().int().min(0),
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "current-list",
+      strategy: "refresh-query",
+      successCondition:
+        "The visible agent list refreshes with the same filters and reflects the restored state.",
+    },
+  }),
+  defineAssistantTool({
+    name: "deleteAgent",
+    version: 1,
+    category: "commit",
+    risk: "destructive",
+    requiresConfirmation: true,
+    confirmationPolicy: "always",
+    description: "Delete a single agent through the existing delete handler.",
+    inputSchema: z
+      .object({
+        agentId: z.string().uuid(),
+      })
+      .strict(),
+    outputSchema: z
+      .object({
+        deletedId: z.string().uuid(),
+        listQuery: LIST_RECONCILIATION_QUERY_SCHEMA,
+        visibleTotal: z.number().int().min(0),
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "current-list",
+      strategy: "refresh-query",
+      successCondition:
+        "The visible agent list refreshes with the same filters and no longer includes the deleted agent.",
+    },
+  }),
+  defineAssistantTool({
+    name: "archiveCouncil",
+    version: 1,
+    category: "commit",
+    risk: "destructive",
+    requiresConfirmation: true,
+    confirmationPolicy: "always",
+    description: "Archive a single council through the existing archive handler.",
+    inputSchema: z
+      .object({
+        councilId: z.string().uuid(),
+      })
+      .strict(),
+    outputSchema: z
+      .object({
+        councilId: z.string().uuid(),
+        councilTitle: z.string().trim().min(1).max(200),
+        archived: z.literal(true),
+        listQuery: LIST_RECONCILIATION_QUERY_SCHEMA,
+        visibleTotal: z.number().int().min(0),
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "current-list",
+      strategy: "refresh-query",
+      successCondition:
+        "The visible council list refreshes with the same filters and reflects the archived state.",
+    },
+  }),
+  defineAssistantTool({
+    name: "restoreCouncil",
+    version: 1,
+    category: "commit",
+    risk: "destructive",
+    requiresConfirmation: true,
+    confirmationPolicy: "always",
+    description: "Restore a single archived council through the existing archive handler.",
+    inputSchema: z
+      .object({
+        councilId: z.string().uuid(),
+      })
+      .strict(),
+    outputSchema: z
+      .object({
+        councilId: z.string().uuid(),
+        councilTitle: z.string().trim().min(1).max(200),
+        archived: z.literal(false),
+        listQuery: LIST_RECONCILIATION_QUERY_SCHEMA,
+        visibleTotal: z.number().int().min(0),
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "current-list",
+      strategy: "refresh-query",
+      successCondition:
+        "The visible council list refreshes with the same filters and reflects the restored state.",
+    },
+  }),
+  defineAssistantTool({
+    name: "deleteCouncil",
+    version: 1,
+    category: "commit",
+    risk: "destructive",
+    requiresConfirmation: true,
+    confirmationPolicy: "always",
+    description: "Delete a single council through the existing delete handler.",
+    inputSchema: z
+      .object({
+        councilId: z.string().uuid(),
+      })
+      .strict(),
+    outputSchema: z
+      .object({
+        deletedId: z.string().uuid(),
+        listQuery: LIST_RECONCILIATION_QUERY_SCHEMA,
+        visibleTotal: z.number().int().min(0),
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "current-list",
+      strategy: "refresh-query",
+      successCondition:
+        "The visible council list refreshes with the same filters and no longer includes the deleted council.",
+    },
+  }),
+  defineAssistantTool({
+    name: "exportCouncil",
+    version: 1,
+    category: "commit",
+    risk: "write",
+    requiresConfirmation: true,
+    confirmationPolicy: "always",
+    description: "Trigger council transcript export without exposing raw filesystem paths.",
+    inputSchema: z
+      .object({
+        councilId: z.string().uuid(),
+      })
+      .strict(),
+    outputSchema: z
+      .object({
+        councilId: z.string().uuid(),
+        status: z.enum(["exported", "cancelled"]),
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "detail-view",
+      strategy: "reload-entity",
+      successCondition: "The current screen reflects export completion status.",
+    },
+  }),
+  defineAssistantTool({
+    name: "saveProviderConfig",
+    version: 1,
+    category: "settings",
+    risk: "destructive",
+    requiresConfirmation: true,
+    confirmationPolicy: "always",
+    description:
+      "Save provider configuration through the existing settings handler with a validated test token.",
+    inputSchema: z
+      .object({
+        provider: z
+          .object({
+            providerId: z.enum(["gemini", "ollama", "openrouter"]),
+            endpointUrl: z.string().trim().max(2_000).nullable(),
+            apiKey: z.string().trim().max(2_000).nullable(),
+          })
+          .strict(),
+        testToken: z.string().trim().min(1).max(500),
+      })
+      .strict(),
+    outputSchema: z
+      .object({
+        providerId: z.enum(["gemini", "ollama", "openrouter"]),
+        hasCredential: z.boolean(),
+        endpointUrlConfigured: z.boolean(),
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "settings-view",
+      strategy: "reload-entity",
+      successCondition: "Settings shows refreshed provider status after saving configuration.",
+    },
+  }),
+  defineAssistantTool({
+    name: "disconnectProvider",
+    version: 1,
+    category: "settings",
+    risk: "destructive",
+    requiresConfirmation: true,
+    confirmationPolicy: "always",
+    description: "Disconnect a configured provider through the existing settings handler.",
+    inputSchema: z
+      .object({
+        providerId: z.enum(["gemini", "ollama", "openrouter"]),
+      })
+      .strict(),
+    outputSchema: z
+      .object({
+        providerId: z.enum(["gemini", "ollama", "openrouter"]),
+        hasCredential: z.boolean(),
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "settings-view",
+      strategy: "reload-entity",
+      successCondition: "Settings shows the provider disconnected and credential state updated.",
+    },
+  }),
+  defineAssistantTool({
+    name: "refreshModelCatalog",
+    version: 1,
+    category: "settings",
+    risk: "write",
+    requiresConfirmation: true,
+    confirmationPolicy: "always",
+    description: "Refresh model catalog through existing settings/main handlers.",
+    inputSchema: z
+      .object({
+        viewKind: z.enum([
+          "settings",
+          "agentsList",
+          "agentEdit",
+          "councilsList",
+          "councilCreate",
+          "councilView",
+        ]),
+      })
+      .strict(),
+    outputSchema: MODEL_CATALOG_SUMMARY_SCHEMA,
+    reconciliation: {
+      visibleTarget: "settings-view",
+      strategy: "reload-entity",
+      successCondition: "Settings and dependent model selectors reflect the refreshed catalog.",
+    },
+  }),
+  defineAssistantTool({
+    name: "setGlobalDefaultModel",
+    version: 1,
+    category: "settings",
+    risk: "destructive",
+    requiresConfirmation: true,
+    confirmationPolicy: "always",
+    description: "Set the global default model through the existing settings handler.",
+    inputSchema: z
+      .object({
+        modelRefOrNull: MODEL_REF_SCHEMA.nullable(),
+      })
+      .strict(),
+    outputSchema: z
+      .object({
+        globalDefaultModelRef: MODEL_REF_SCHEMA.nullable(),
+        globalDefaultModelInvalidConfig: z.boolean(),
+      })
+      .strict(),
+    reconciliation: {
+      visibleTarget: "settings-view",
+      strategy: "reload-entity",
+      successCondition: "Settings shows the updated global default model and validity state.",
     },
   }),
 ];

@@ -19,6 +19,7 @@ export type AssistantPhase =
   | { question: string; requestText: string; status: "clarify" }
   | {
       confirmation: AssistantConfirmationRequest;
+      confirmationToken: string;
       plannedCalls: ReadonlyArray<AssistantPlannedToolCall>;
       requestText: string;
       status: "confirm";
@@ -311,6 +312,7 @@ export const applyAssistantPlanResult = (params: {
         messages: [...params.state.messages, createMessage("assistant", params.result.message)],
         phase: {
           confirmation: params.result.confirmation,
+          confirmationToken: params.result.confirmationToken,
           plannedCalls: params.result.plannedCalls,
           requestText: params.requestText,
           status: "confirm",

@@ -66,6 +66,16 @@ const councilViewContext = {
   viewKind: "councilView" as const,
 };
 
+const settingsContext = {
+  activeEntityId: null,
+  contextLabel: "Home / Settings",
+  draftState: null,
+  listState: null,
+  runtimeState: null,
+  selectionIds: [],
+  viewKind: "settings" as const,
+};
+
 describe("assistant planner shortcuts", () => {
   itReq(
     ["R9.1", "R9.11", "R9.14", "R9.17", "U18.7", "A1", "D5"],
@@ -251,6 +261,75 @@ describe("assistant planner shortcuts", () => {
             input: {
               councilId: "00000000-0000-4000-8000-000000000303",
               content: "Keep the debate concise",
+            },
+          },
+        ],
+      });
+    },
+  );
+
+  itReq(
+    ["R9.11", "R9.12", "R9.17", "R9.18", "R9.22", "U18.9", "A1", "D5"],
+    "builds deterministic phase 4 destructive and settings shortcuts",
+    () => {
+      expect(
+        tryBuildAssistantPlannerShortcut({
+          context: councilsListContext,
+          sessionId: "session-1",
+          userRequest: "Delete agent 00000000-0000-4000-8000-000000000101.",
+        }),
+      ).toEqual({
+        summary: "Delete agent 00000000-0000-4000-8000-000000000101.",
+        plannedCalls: [
+          {
+            callId: "delete-agent-session-1",
+            toolName: "deleteAgent",
+            rationale: "Delete the explicitly referenced agent.",
+            input: {
+              agentId: "00000000-0000-4000-8000-000000000101",
+            },
+          },
+        ],
+      });
+
+      expect(
+        tryBuildAssistantPlannerShortcut({
+          context: settingsContext,
+          sessionId: "session-2",
+          userRequest: "Set the global default model to gemini:gemini-1.5-flash.",
+        }),
+      ).toEqual({
+        summary: "Set global default model to gemini:gemini-1.5-flash.",
+        plannedCalls: [
+          {
+            callId: "set-global-default-model-session-2",
+            toolName: "setGlobalDefaultModel",
+            rationale: "Set the requested global default model in settings.",
+            input: {
+              modelRefOrNull: {
+                providerId: "gemini",
+                modelId: "gemini-1.5-flash",
+              },
+            },
+          },
+        ],
+      });
+
+      expect(
+        tryBuildAssistantPlannerShortcut({
+          context: councilsListContext,
+          sessionId: "session-3",
+          userRequest: "Export council transcript for 00000000-0000-4000-8000-000000000201.",
+        }),
+      ).toEqual({
+        summary: "Export council transcript for 00000000-0000-4000-8000-000000000201.",
+        plannedCalls: [
+          {
+            callId: "export-council-session-3",
+            toolName: "exportCouncil",
+            rationale: "Export transcript for the explicitly referenced council.",
+            input: {
+              councilId: "00000000-0000-4000-8000-000000000201",
             },
           },
         ],

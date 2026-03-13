@@ -9,6 +9,11 @@ import { useCouncilViewDialogHandlers } from "./useCouncilViewDialogHandlers";
 import { useCouncilViewScreenLifecycle } from "./useCouncilViewScreenLifecycle";
 
 type CouncilViewScreenProps = {
+  assistantExportReconciliation: {
+    callId: string;
+    councilId: string;
+    status: "exported" | "cancelled";
+  } | null;
   assistantReloadToken: number;
   assistantLauncher: JSX.Element;
   councilId: string;
@@ -21,6 +26,7 @@ type CouncilViewScreenProps = {
 };
 
 export const CouncilViewScreen = ({
+  assistantExportReconciliation,
   assistantReloadToken,
   assistantLauncher,
   councilId,
@@ -89,6 +95,35 @@ export const CouncilViewScreen = ({
   });
 
   useEffect(() => {
+    if (state.status !== "ready" || assistantExportReconciliation === null) {
+      return;
+    }
+
+    if (
+      assistantExportReconciliation.councilId !== state.source.council.id ||
+      state.assistantExportReconciliation?.callId === assistantExportReconciliation.callId
+    ) {
+      return;
+    }
+
+    setState((current) =>
+      current.status !== "ready"
+        ? current
+        : {
+            ...current,
+            assistantExportReconciliation: {
+              callId: assistantExportReconciliation.callId,
+              status: assistantExportReconciliation.status,
+            },
+            message:
+              assistantExportReconciliation.status === "exported"
+                ? "Transcript export completed."
+                : "Export cancelled.",
+          },
+    );
+  }, [assistantExportReconciliation, state]);
+
+  useEffect(() => {
     if (!isActive) {
       onAssistantContextChange(null);
       return;
@@ -101,6 +136,7 @@ export const CouncilViewScreen = ({
 
     onAssistantContextChange({
       activeTab: state.activeTab,
+      assistantExportReconciliation: state.assistantExportReconciliation,
       archived: state.source.council.archived,
       autopilotMaxTurns: state.source.council.autopilotMaxTurns,
       autopilotTurnsCompleted: state.source.council.autopilotTurnsCompleted,

@@ -1,0 +1,58 @@
+{
+  "name": "assistant-destructive-settings-export-confirmation",
+  "steps": [
+    { "action": "waitForText", "text": "Council" },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const suffix = Date.now().toString().slice(-6); const agent = await window.api.agents.save({ viewKind: 'agentEdit', id: null, name: `Scenario Delete Agent ${suffix}`, systemPrompt: 'To be deleted by assistant.', verbosity: 'concise', temperature: 0.2, tags: ['ops'], modelRefOrNull: null }); if (!agent.ok) { throw new Error(agent.error.userMessage); } const council = await window.api.councils.save({ viewKind: 'councilCreate', id: null, title: `Scenario Export Council ${suffix}`, topic: 'Export confirmation diagnostics', goal: null, mode: 'manual', tags: ['ops'], memberAgentIds: [agent.value.agent.id], memberColorsByAgentId: {}, conductorModelRefOrNull: null }); if (!council.ok) { throw new Error(council.error.userMessage); } const settings = await window.api.settings.getView({ viewKind: 'settings' }); if (!settings.ok) { throw new Error(settings.error.userMessage); } const providerEntry = Object.entries(settings.value.modelCatalog.modelsByProvider).find(([, models]) => Array.isArray(models) && models.length > 0); if (providerEntry !== undefined) { const [providerId, models] = providerEntry; const modelId = models[0]; if (typeof modelId === 'string') { const setDefault = await window.api.settings.setGlobalDefaultModel({ viewKind: 'settings', modelRefOrNull: { providerId, modelId } }); if (!setDefault.ok) { throw new Error(setDefault.error.userMessage); } window.__assistantPhase4 = { providerId, modelId, agentId: agent.value.agent.id, councilId: council.value.council.id }; return; } } throw new Error('No model available for default selection.'); }"
+    },
+    { "action": "click", "selector": "button#home-tab-agents:visible" },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const launcher = Array.from(document.querySelectorAll(\"button[data-assistant-launcher='true']\")).find((button) => button instanceof HTMLButtonElement && button.getClientRects().length > 0); if (!(launcher instanceof HTMLButtonElement)) { throw new Error('Assistant launcher unavailable.'); } launcher.click(); }"
+    },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const seeded = window.__assistantPhase4; const prompt = `Delete agent ${seeded.agentId}.`; const textarea = document.querySelector(\"textarea[aria-label='Assistant request']\"); if (!(textarea instanceof HTMLTextAreaElement)) { throw new Error('Assistant textarea unavailable.'); } textarea.focus(); const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set; if (typeof valueSetter !== 'function') { throw new Error('Textarea value setter unavailable.'); } valueSetter.call(textarea, prompt); textarea.dispatchEvent(new InputEvent('input', { bubbles: true, data: prompt, inputType: 'insertText' })); textarea.dispatchEvent(new Event('change', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 50)); const sendButton = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Send' && button instanceof HTMLButtonElement && button.getClientRects().length > 0); if (!(sendButton instanceof HTMLButtonElement) || sendButton.disabled) { throw new Error('Assistant Send button unavailable.'); } sendButton.click(); }"
+    },
+    { "action": "waitForText", "text": "Needs confirmation", "timeoutMs": 30000 },
+    { "action": "click", "selector": "button:has-text('Confirm')" },
+    {
+      "action": "waitForText",
+      "text": "deleteAgent",
+      "timeoutMs": 30000
+    },
+    { "action": "click", "selector": "button:has-text('Close')" },
+    { "action": "click", "selector": "button#home-tab-settings:visible" },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const launcher = Array.from(document.querySelectorAll(\"button[data-assistant-launcher='true']\")).find((button) => button instanceof HTMLButtonElement && button.getClientRects().length > 0); if (!(launcher instanceof HTMLButtonElement)) { throw new Error('Assistant launcher unavailable on settings tab.'); } launcher.click(); }"
+    },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const seeded = window.__assistantPhase4; const prompt = `Set the global default model to ${seeded.providerId}:${seeded.modelId}.`; const textarea = document.querySelector(\"textarea[aria-label='Assistant request']\"); if (!(textarea instanceof HTMLTextAreaElement)) { throw new Error('Assistant textarea unavailable on settings tab.'); } textarea.focus(); const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set; if (typeof valueSetter !== 'function') { throw new Error('Textarea value setter unavailable.'); } valueSetter.call(textarea, prompt); textarea.dispatchEvent(new InputEvent('input', { bubbles: true, data: prompt, inputType: 'insertText' })); textarea.dispatchEvent(new Event('change', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 50)); const sendButton = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Send' && button instanceof HTMLButtonElement && button.getClientRects().length > 0); if (!(sendButton instanceof HTMLButtonElement) || sendButton.disabled) { throw new Error('Assistant Send button unavailable on settings tab.'); } sendButton.click(); }"
+    },
+    { "action": "waitForText", "text": "Needs confirmation", "timeoutMs": 30000 },
+    { "action": "click", "selector": "button:has-text('Confirm')" },
+    { "action": "waitForText", "text": "setGlobalDefaultModel", "timeoutMs": 30000 },
+    { "action": "click", "selector": "button:has-text('Close')" },
+    { "action": "click", "selector": "button#home-tab-councils:visible" },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const launcher = Array.from(document.querySelectorAll(\"button[data-assistant-launcher='true']\")).find((button) => button instanceof HTMLButtonElement && button.getClientRects().length > 0); if (!(launcher instanceof HTMLButtonElement)) { throw new Error('Assistant launcher unavailable on councils tab.'); } launcher.click(); }"
+    },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const seeded = window.__assistantPhase4; const prompt = `Export council transcript for ${seeded.councilId}.`; const textarea = document.querySelector(\"textarea[aria-label='Assistant request']\"); if (!(textarea instanceof HTMLTextAreaElement)) { throw new Error('Assistant textarea unavailable on councils tab.'); } textarea.focus(); const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set; if (typeof valueSetter !== 'function') { throw new Error('Textarea value setter unavailable.'); } valueSetter.call(textarea, prompt); textarea.dispatchEvent(new InputEvent('input', { bubbles: true, data: prompt, inputType: 'insertText' })); textarea.dispatchEvent(new Event('change', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 50)); const sendButton = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Send' && button instanceof HTMLButtonElement && button.getClientRects().length > 0); if (!(sendButton instanceof HTMLButtonElement) || sendButton.disabled) { throw new Error('Assistant Send button unavailable on councils tab.'); } sendButton.click(); }"
+    },
+    { "action": "waitForText", "text": "Needs confirmation", "timeoutMs": 30000 },
+    { "action": "click", "selector": "button:has-text('Confirm')" },
+    { "action": "waitForText", "text": "exportCouncil", "timeoutMs": 30000 },
+    { "action": "click", "selector": "button:has-text('Close')" },
+    {
+      "action": "screenshot",
+      "file": "assistant-destructive-settings-export-confirmation.png",
+      "fullPage": true
+    }
+  ]
+}

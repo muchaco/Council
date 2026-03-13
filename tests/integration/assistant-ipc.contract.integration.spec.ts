@@ -199,6 +199,18 @@ const createAssistantSliceDeps = (options?: {
       },
     });
   },
+  deleteAgent: ({ id }: { id: string }) =>
+    okAsync({
+      deletedId: id,
+    }),
+  setAgentArchived: ({ id, archived }: { id: string; archived: boolean }) =>
+    okAsync({
+      agent: {
+        ...primaryAgent,
+        id,
+        archived,
+      },
+    }),
   listCouncils: () =>
     okAsync({
       items: [primaryCouncil],
@@ -276,6 +288,65 @@ const createAssistantSliceDeps = (options?: {
       },
     });
   },
+  deleteCouncil: ({ id }: { id: string }) =>
+    okAsync({
+      deletedId: id,
+    }),
+  setCouncilArchived: ({ id, archived }: { id: string; archived: boolean }) =>
+    okAsync({
+      council: {
+        ...primaryCouncil,
+        id,
+        archived,
+      },
+    }),
+  exportCouncilTranscript: () =>
+    okAsync({
+      status: "exported" as const,
+      filePath: "/tmp/exports/council.txt",
+    }),
+  saveProviderConfig: ({
+    provider,
+  }: { provider: { providerId: string; endpointUrl: string | null } }) =>
+    okAsync({
+      provider: {
+        providerId: provider.providerId as "gemini" | "ollama" | "openrouter",
+        endpointUrl: provider.endpointUrl,
+        hasCredential: true,
+        lastSavedAtUtc: "2026-03-12T12:00:00.000Z",
+      },
+      modelCatalog: {
+        snapshotId: "settings-snapshot-2",
+        modelsByProvider: { gemini: ["gemini-1.5-flash"] },
+      },
+    }),
+  disconnectProvider: ({ providerId }: { providerId: "gemini" | "ollama" | "openrouter" }) =>
+    okAsync({
+      provider: {
+        providerId,
+        endpointUrl: null,
+        hasCredential: false,
+        lastSavedAtUtc: "2026-03-12T12:00:00.000Z",
+      },
+      modelCatalog: {
+        snapshotId: "settings-snapshot-3",
+        modelsByProvider: { gemini: ["gemini-1.5-flash"] },
+      },
+    }),
+  refreshModelCatalog: () =>
+    okAsync({
+      modelCatalog: {
+        snapshotId: "settings-snapshot-4",
+        modelsByProvider: { gemini: ["gemini-1.5-flash"] },
+      },
+    }),
+  setGlobalDefaultModel: ({
+    modelRefOrNull,
+  }: { modelRefOrNull: { providerId: string; modelId: string } | null }) =>
+    okAsync({
+      globalDefaultModelRef: modelRefOrNull,
+      globalDefaultModelInvalidConfig: false,
+    }),
   getCouncilView: ({ councilId, leaseEpoch }: { councilId: string; leaseEpoch?: number }) => {
     options?.onGetCouncilView?.({ councilId, leaseEpoch });
     return okAsync({
@@ -654,7 +725,7 @@ describe("assistant ipc contract", () => {
         return;
       }
 
-      expect(executed.value.result.outcome).toBe("partial");
+      expect(executed.value.result.outcome, JSON.stringify(executed.value.result)).toBe("partial");
       expect(executed.value.result.executionResults).toMatchObject([
         {
           status: "reconciling",
@@ -786,7 +857,7 @@ describe("assistant ipc contract", () => {
         return;
       }
 
-      expect(executed.value.result.outcome).toBe("partial");
+      expect(executed.value.result.outcome, JSON.stringify(executed.value.result)).toBe("partial");
       expect(executed.value.result.executionResults).toMatchObject([
         {
           status: "reconciling",
@@ -907,7 +978,7 @@ describe("assistant ipc contract", () => {
         return;
       }
 
-      expect(executed.value.result.outcome).toBe("partial");
+      expect(executed.value.result.outcome, JSON.stringify(executed.value.result)).toBe("partial");
       expect(executed.value.result.executionResults).toMatchObject([
         {
           callId: "call-create-agent",
@@ -1035,7 +1106,7 @@ describe("assistant ipc contract", () => {
         return;
       }
 
-      expect(executed.value.result.outcome).toBe("partial");
+      expect(executed.value.result.outcome, JSON.stringify(executed.value.result)).toBe("partial");
       expect(executed.value.result.executionResults).toMatchObject([
         {
           callId: "call-update-council",
@@ -1358,6 +1429,476 @@ describe("assistant ipc contract", () => {
 
       expect(planned.value.result.confirmation.draftImpact).toBe("replace-current-draft");
       expect(planned.value.result.confirmation.scopeDescription).toContain("unsaved field change");
+    },
+  );
+
+  itReq(
+    ["R9.12", "R9.13", "U18.9", "A1", "A3"],
+    "rejects high-risk confirmation execution when the confirmation token is missing or stale",
+    async () => {
+      const { handlers } = createHandlers({
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Delete the planner agent.",
+          plannedCalls: [
+            {
+              callId: "call-delete-agent",
+              toolName: "deleteAgent",
+              rationale: "Delete the requested agent.",
+              input: {
+                agentId: PRIMARY_AGENT_ID,
+              },
+            },
+          ],
+        }),
+      });
+
+      const session = await handlers.createSession({ viewKind: "agentsList" }, 86);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      const planned = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Delete the planner agent.",
+          context: validContext,
+          response: null,
+        },
+        86,
+      );
+      expect(planned.ok).toBe(true);
+      if (!planned.ok || planned.value.result.kind !== "confirm") {
+        return;
+      }
+
+      const rejected = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Delete the planner agent.",
+          context: validContext,
+          response: {
+            kind: "confirmation",
+            approved: true,
+            confirmationToken: "00000000-0000-4000-8000-000000009999",
+          },
+        },
+        86,
+      );
+      expect(rejected.ok).toBe(true);
+      if (!rejected.ok || rejected.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(rejected.value.result.outcome).toBe("failure");
+      expect(rejected.value.result.message).toContain("confirmation is no longer valid");
+    },
+  );
+
+  itReq(
+    ["R9.12", "R9.13", "R9.17", "R9.18", "R9.22", "U18.9", "A1", "A3"],
+    "executes confirmed destructive actions only after explicit confirmation and waits for list reconciliation",
+    async () => {
+      const { handlers } = createHandlers({
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Delete the planner agent.",
+          plannedCalls: [
+            {
+              callId: "call-delete-agent",
+              toolName: "deleteAgent",
+              rationale: "Delete the requested agent.",
+              input: {
+                agentId: PRIMARY_AGENT_ID,
+              },
+            },
+          ],
+        }),
+      });
+
+      const session = await handlers.createSession({ viewKind: "agentsList" }, 87);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      const planned = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Delete the planner agent.",
+          context: validContext,
+          response: null,
+        },
+        87,
+      );
+      expect(planned.ok).toBe(true);
+      if (!planned.ok || planned.value.result.kind !== "confirm") {
+        return;
+      }
+
+      const executed = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Delete the planner agent.",
+          context: validContext,
+          response: {
+            kind: "confirmation",
+            approved: true,
+            confirmationToken: planned.value.result.confirmationToken,
+          },
+        },
+        87,
+      );
+      expect(executed.ok).toBe(true);
+      if (!executed.ok || executed.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(executed.value.result.outcome).toBe("partial");
+      expect(executed.value.result.executionResults).toMatchObject([
+        {
+          callId: "call-delete-agent",
+          status: "reconciling",
+          toolName: "deleteAgent",
+          output: {
+            deletedId: PRIMARY_AGENT_ID,
+          },
+        },
+      ]);
+
+      const reconciled = await handlers.completeReconciliation(
+        {
+          sessionId: session.value.session.sessionId,
+          reconciliations: [
+            {
+              callId: "call-delete-agent",
+              toolName: "deleteAgent",
+              status: "completed",
+              failureMessage: null,
+              completion: null,
+            },
+          ],
+        },
+        87,
+      );
+      expect(reconciled.ok).toBe(true);
+      if (!reconciled.ok || reconciled.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(reconciled.value.result.outcome).toBe("success");
+      expect(reconciled.value.result.executionResults).toMatchObject([
+        {
+          callId: "call-delete-agent",
+          status: "success",
+          toolName: "deleteAgent",
+          output: {
+            deletedId: PRIMARY_AGENT_ID,
+          },
+        },
+      ]);
+    },
+  );
+
+  itReq(
+    ["R9.12", "R9.13", "R9.17", "R9.18", "R9.22", "U18.9", "A1", "A3"],
+    "requires explicit confirmation for settings mutations before execution",
+    async () => {
+      const { handlers } = createHandlers({
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Set the global default model.",
+          plannedCalls: [
+            {
+              callId: "call-set-default",
+              toolName: "setGlobalDefaultModel",
+              rationale: "Update global default model.",
+              input: {
+                modelRefOrNull: {
+                  providerId: "gemini",
+                  modelId: "gemini-1.5-flash",
+                },
+              },
+            },
+          ],
+        }),
+      });
+
+      const session = await handlers.createSession({ viewKind: "settings" }, 88);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      const planned = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Set the global default model to gemini flash.",
+          context: {
+            ...validContext,
+            viewKind: "settings",
+            contextLabel: "Home / Settings",
+            listState: null,
+          },
+          response: null,
+        },
+        88,
+      );
+      expect(planned.ok).toBe(true);
+      if (!planned.ok || planned.value.result.kind !== "confirm") {
+        return;
+      }
+
+      const executed = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Set the global default model to gemini flash.",
+          context: {
+            ...validContext,
+            viewKind: "settings",
+            contextLabel: "Home / Settings",
+            listState: null,
+          },
+          response: {
+            kind: "confirmation",
+            approved: true,
+            confirmationToken: planned.value.result.confirmationToken,
+          },
+        },
+        88,
+      );
+      expect(executed.ok).toBe(true);
+      if (!executed.ok || executed.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(executed.value.result.outcome).toBe("partial");
+      expect(executed.value.result.executionResults).toMatchObject([
+        {
+          callId: "call-set-default",
+          status: "reconciling",
+          toolName: "setGlobalDefaultModel",
+        },
+      ]);
+    },
+  );
+
+  itReq(
+    ["R9.12", "R9.13", "R9.17", "R9.18", "R9.22", "U18.9", "A1", "A3"],
+    "requires explicit confirmation before export actions execute and reconcile",
+    async () => {
+      const { handlers } = createHandlers({
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Export the quarterly council transcript.",
+          plannedCalls: [
+            {
+              callId: "call-export-council",
+              toolName: "exportCouncil",
+              rationale: "Export the requested council transcript.",
+              input: {
+                councilId: PRIMARY_COUNCIL_ID,
+              },
+            },
+          ],
+        }),
+      });
+
+      const session = await handlers.createSession({ viewKind: "councilsList" }, 89);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      const planned = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Export the quarterly council transcript.",
+          context: councilsListContext,
+          response: null,
+        },
+        89,
+      );
+      expect(planned.ok).toBe(true);
+      if (!planned.ok || planned.value.result.kind !== "confirm") {
+        return;
+      }
+
+      const unconfirmedFollowUp = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Export the quarterly council transcript.",
+          context: councilsListContext,
+          response: null,
+        },
+        89,
+      );
+      expect(unconfirmedFollowUp.ok).toBe(true);
+      if (!unconfirmedFollowUp.ok || unconfirmedFollowUp.value.result.kind !== "confirm") {
+        return;
+      }
+
+      const executed = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Export the quarterly council transcript.",
+          context: councilsListContext,
+          response: {
+            kind: "confirmation",
+            approved: true,
+            confirmationToken: unconfirmedFollowUp.value.result.confirmationToken,
+          },
+        },
+        89,
+      );
+      expect(executed.ok).toBe(true);
+      if (!executed.ok || executed.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(executed.value.result.outcome).toBe("partial");
+      expect(executed.value.result.executionResults).toMatchObject([
+        {
+          callId: "call-export-council",
+          status: "reconciling",
+          toolName: "exportCouncil",
+          output: {
+            councilId: PRIMARY_COUNCIL_ID,
+            status: "exported",
+          },
+        },
+      ]);
+
+      const reconciled = await handlers.completeReconciliation(
+        {
+          sessionId: session.value.session.sessionId,
+          reconciliations: [
+            {
+              callId: "call-export-council",
+              toolName: "exportCouncil",
+              status: "completed",
+              failureMessage: null,
+              completion: {
+                output: {
+                  councilId: PRIMARY_COUNCIL_ID,
+                  status: "exported",
+                },
+                userSummary:
+                  "Export finished. The transcript is available from your save location.",
+              },
+            },
+          ],
+        },
+        89,
+      );
+      expect(reconciled.ok).toBe(true);
+      if (!reconciled.ok || reconciled.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(reconciled.value.result.outcome).toBe("success");
+      expect(reconciled.value.result.executionResults).toMatchObject([
+        {
+          callId: "call-export-council",
+          status: "success",
+          toolName: "exportCouncil",
+        },
+      ]);
+    },
+  );
+
+  itReq(
+    ["R9.12", "R9.13", "R9.17", "R9.18", "R9.22", "U18.9", "A1", "A3"],
+    "fails export reconciliation closed when visible completion payload is missing",
+    async () => {
+      const { handlers } = createHandlers({
+        plannerResponse: JSON.stringify({
+          kind: "execute",
+          summary: "Export the quarterly council transcript.",
+          plannedCalls: [
+            {
+              callId: "call-export-council",
+              toolName: "exportCouncil",
+              rationale: "Export the requested council transcript.",
+              input: {
+                councilId: PRIMARY_COUNCIL_ID,
+              },
+            },
+          ],
+        }),
+      });
+
+      const session = await handlers.createSession({ viewKind: "councilsList" }, 90);
+      expect(session.ok).toBe(true);
+      if (!session.ok) {
+        return;
+      }
+
+      const planned = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Export the quarterly council transcript.",
+          context: councilsListContext,
+          response: null,
+        },
+        90,
+      );
+      expect(planned.ok).toBe(true);
+      if (!planned.ok || planned.value.result.kind !== "confirm") {
+        return;
+      }
+
+      const executed = await handlers.submit(
+        {
+          sessionId: session.value.session.sessionId,
+          userRequest: "Export the quarterly council transcript.",
+          context: councilsListContext,
+          response: {
+            kind: "confirmation",
+            approved: true,
+            confirmationToken: planned.value.result.confirmationToken,
+          },
+        },
+        90,
+      );
+      expect(executed.ok).toBe(true);
+      if (!executed.ok || executed.value.result.kind !== "result") {
+        return;
+      }
+
+      const reconciled = await handlers.completeReconciliation(
+        {
+          sessionId: session.value.session.sessionId,
+          reconciliations: [
+            {
+              callId: "call-export-council",
+              toolName: "exportCouncil",
+              status: "completed",
+              failureMessage: null,
+              completion: null,
+            },
+          ],
+        },
+        90,
+      );
+      expect(reconciled.ok).toBe(true);
+      if (!reconciled.ok || reconciled.value.result.kind !== "result") {
+        return;
+      }
+
+      expect(reconciled.value.result.outcome).toBe("failure");
+      expect(reconciled.value.result.executionResults).toMatchObject([
+        {
+          callId: "call-export-council",
+          toolName: "exportCouncil",
+          status: "failed",
+          error: {
+            kind: "StateViolationError",
+            userMessage: "Export completion could not be visibly confirmed.",
+          },
+        },
+      ]);
     },
   );
 

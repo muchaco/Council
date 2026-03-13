@@ -96,6 +96,7 @@ describe("assistant renderer context builders", () => {
     () => {
       const context = buildAssistantCouncilViewContext({
         activeTab: "overview",
+        assistantExportReconciliation: null,
         archived: false,
         autopilotMaxTurns: 12,
         autopilotTurnsCompleted: 3,
@@ -134,6 +135,7 @@ describe("assistant renderer context builders", () => {
     () => {
       const context = buildAssistantCouncilViewContext({
         activeTab: "overview",
+        assistantExportReconciliation: null,
         archived: false,
         autopilotMaxTurns: null,
         autopilotTurnsCompleted: 0,

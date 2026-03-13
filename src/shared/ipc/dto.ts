@@ -618,6 +618,7 @@ export type AssistantUserTurnResponse =
   | {
       kind: "confirmation";
       approved: boolean;
+      confirmationToken: string;
     };
 
 export type AssistantPlannerResponse =
@@ -655,6 +656,7 @@ export type AssistantPlanResult =
       sessionId: string;
       message: string;
       planSummary: string;
+      confirmationToken: string;
       plannedCalls: ReadonlyArray<AssistantPlannedToolCall>;
       confirmation: AssistantConfirmationRequest;
     }

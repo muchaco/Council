@@ -164,6 +164,19 @@ export const AssistantModal = ({
               <p className="mt-2 text-muted-foreground">
                 Scope: {state.phase.confirmation.scopeDescription}
               </p>
+              <p className="mt-2 text-muted-foreground">
+                Affected: {state.phase.confirmation.affectedCount ?? "Unknown"}
+              </p>
+              <p className="mt-2 font-medium text-foreground">
+                {state.phase.confirmation.reversible
+                  ? "This action can be reversed with a follow-up change."
+                  : "Warning: this action is irreversible."}
+              </p>
+              {state.phase.confirmation.examples.length > 0 ? (
+                <p className="mt-2 text-muted-foreground">
+                  Examples: {state.phase.confirmation.examples.join(", ")}
+                </p>
+              ) : null}
             </div>
           ) : null}
 

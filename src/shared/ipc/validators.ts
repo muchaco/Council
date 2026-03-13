@@ -303,6 +303,7 @@ const ASSISTANT_USER_TURN_RESPONSE_SCHEMA = z.discriminatedUnion("kind", [
     .object({
       kind: z.literal("confirmation"),
       approved: z.boolean(),
+      confirmationToken: z.string().uuid(),
     })
     .strict(),
 ]);
@@ -381,6 +382,7 @@ export const ASSISTANT_PLAN_RESULT_SCHEMA = z.discriminatedUnion("kind", [
       sessionId: z.string().uuid(),
       message: z.string().trim().min(1).max(500),
       planSummary: z.string().trim().min(1).max(500),
+      confirmationToken: z.string().uuid(),
       plannedCalls: z.array(ASSISTANT_PLANNED_TOOL_CALL_SCHEMA).max(20),
       confirmation: ASSISTANT_CONFIRMATION_REQUEST_SCHEMA,
     })

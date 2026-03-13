@@ -83,6 +83,7 @@ Current repository state snapshot:
 - Assistant Slice 6 runtime implementation is now in place under `docs/plans/054-assistant-ui-execution-implementation-plan.md` Phase 3: assistant runtime tools (`startCouncil`, `pauseCouncil`, `resumeCouncil`, `cancelCouncilGeneration`, `selectManualSpeaker`, `sendConductorMessage`) now execute through existing councils runtime handlers in main, runtime actions require an active Council View runtime lease scope in assistant context, in-flight runtime execution converts stale post-cancel/close completions into cancelled step results instead of stale success, council-view runtime reconciliation now reloads and verifies visible runtime state before final assistant success, deterministic runtime-control planner shortcuts are available for Council View prompts, and a dedicated Electron runtime assistant scenario now covers the runtime control path (`scripts/diagnostics/scenarios/assistant-council-runtime-actions.json`).
 - Slice 6 lease hardening now rotates the main-issued assistant runtime lease on Council View reload/switch epochs and validates only the current webContents-scoped lease authority, so stale pre-reload/pre-switch lease tokens fail closed; focused integration coverage now proves stale-token rejection after both reload epoch changes and council switches.
 - Slice 6 renderer scope-key hardening now keeps Council View assistant scope keyed only by `councilId`, so lease refresh/reconciliation rotations do not spuriously rebase/close an in-flight assistant session while still rebasing correctly on true council switches; focused unit coverage now guards both stable-on-lease-refresh and change-on-council-switch behavior.
+- Assistant Slice 7 Phase 4 is now completed under `docs/plans/054-assistant-ui-execution-implementation-plan.md`: destructive/settings/export tools (`archiveAgent`, `restoreAgent`, `deleteAgent`, `archiveCouncil`, `restoreCouncil`, `deleteCouncil`, `exportCouncil`, `saveProviderConfig`, `disconnectProvider`, `refreshModelCatalog`, `setGlobalDefaultModel`) are cataloged and executed through authoritative main handlers, high-risk plans require strong confirmation tokens before execution, stale/missing confirmation tokens fail closed in main, execution without explicit confirmation remains blocked, renderer-side reconciliation keeps final success pending until visible list/settings/runtime destinations are confirmed, and Electron diagnostics now cover destructive + settings + export confirmation paths (`scripts/diagnostics/scenarios/assistant-destructive-settings-export-confirmation.json`).
 
 ## 2) Implementation Status by Requirement
 
@@ -150,8 +151,8 @@ Traceability source-of-truth is generated from test annotations and mapping conf
 Generated source-of-truth files:
 - `docs/traceability/requirements-traceability.generated.json`
 - `docs/traceability/requirements-traceability.generated.md`
-Last generated: 2026-03-13T06:33:21.653Z
-Coverage snapshot: 46 specs, 312 test entries, 226 mapped requirement IDs.
+Last generated: 2026-03-13T08:59:01.966Z
+Coverage snapshot: 46 specs, 319 test entries, 227 mapped requirement IDs.
 <!-- TRACEABILITY:END -->
 
 ## 4) Coverage Targets and Current State
