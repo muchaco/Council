@@ -125,6 +125,7 @@ export const createCouncilsIpcHandlers = (slice: CouncilsSlice) => ({
       slice.getCouncilView({
         webContentsId,
         councilId: parsed.data.councilId,
+        leaseEpoch: parsed.data.leaseEpoch,
       }),
     );
   },

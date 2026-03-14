@@ -107,6 +107,98 @@ describe("assistant policy helpers", () => {
     expect(decision.reason).toBe("dirty-draft-replacement");
   });
 
+  itReq(FILE_REQUIREMENT_IDS, "treats saving the current dirty draft as an in-place action", () => {
+    const tool = defineAssistantTool({
+      name: "saveAgentDraft",
+      version: 1,
+      category: "commit",
+      risk: "write",
+      requiresConfirmation: false,
+      confirmationPolicy: "never",
+      description: "Save the current agent draft.",
+      inputSchema: z.object({ entityId: z.string().uuid().nullable().optional() }).strict(),
+      outputSchema: z
+        .object({ agentId: z.string().uuid().nullable(), agentName: z.string().nullable() })
+        .strict(),
+      reconciliation: {
+        visibleTarget: "detail-view",
+        strategy: "reload-entity",
+        successCondition: "The editor shows saved data.",
+      },
+    });
+
+    const context = {
+      viewKind: "agentEdit",
+      contextLabel: "Agent editor",
+      activeEntityId: "00000000-0000-4000-8000-000000000001",
+      selectionIds: [],
+      listState: null,
+      draftState: {
+        entityKind: "agent",
+        entityId: "00000000-0000-4000-8000-000000000001",
+        dirty: true,
+        changedFields: ["name"],
+        summary: "Unsaved name change",
+      },
+      runtimeState: null,
+    } as const;
+
+    expect(
+      classifyDirtyDraftImpact({
+        context,
+        toolDefinition: tool,
+        plannedCall: {
+          input: {
+            entityId: "00000000-0000-4000-8000-000000000001",
+          },
+        },
+      }),
+    ).toBe("modify-current-draft");
+  });
+
+  itReq(FILE_REQUIREMENT_IDS, "requires confirmation for always-confirm high-risk tools", () => {
+    const tool = defineAssistantTool({
+      name: "deleteAgent",
+      version: 1,
+      category: "commit",
+      risk: "destructive",
+      requiresConfirmation: true,
+      confirmationPolicy: "always",
+      description: "Delete an agent.",
+      inputSchema: z.object({ agentId: z.string().uuid() }).strict(),
+      outputSchema: z.object({ deletedId: z.string().uuid() }).strict(),
+      reconciliation: {
+        visibleTarget: "current-list",
+        strategy: "refresh-query",
+        successCondition: "The deleted agent disappears from the current list.",
+      },
+    });
+
+    const decision = resolveAssistantConfirmationRequirement({
+      context: {
+        viewKind: "agentsList",
+        contextLabel: "Home / Agents",
+        activeEntityId: null,
+        selectionIds: [],
+        listState: null,
+        draftState: null,
+        runtimeState: null,
+      },
+      toolDefinition: tool,
+      plannedCall: {
+        callId: "call-delete",
+        toolName: "deleteAgent",
+        rationale: "Delete requested agent.",
+        input: {
+          agentId: "00000000-0000-4000-8000-000000000101",
+        },
+      },
+    });
+
+    expect(decision.requiresConfirmation).toBe(true);
+    expect(decision.reason).toBe("tool-policy");
+  });
+
   itReq(
     FILE_REQUIREMENT_IDS,
     "tracks visible reconciliation completion separately from mutation success",

@@ -47,6 +47,7 @@ export const ASSISTANT_RESULT_OUTCOME_VALUES = [
 ] as const;
 
 export const ASSISTANT_TOOL_EXECUTION_STATUS_VALUES = [
+  "reconciling",
   "success",
   "failed",
   "cancelled",
@@ -120,7 +121,7 @@ const ASSISTANT_TOOL_EXECUTION_SUCCESS_SCHEMA = z
   .object({
     callId: z.string().trim().min(1).max(200),
     toolName: z.string().trim().min(1).max(200),
-    status: z.literal("success"),
+    status: z.enum(["reconciling", "success"]),
     output: z.record(z.unknown()),
     userSummary: z.string().trim().min(1).max(500),
     reconciliationState: z.enum(ASSISTANT_RECONCILIATION_STATE_VALUES),

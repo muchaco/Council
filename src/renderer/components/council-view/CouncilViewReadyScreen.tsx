@@ -13,6 +13,7 @@ import { deriveCouncilViewScreenState } from "./councilViewScreenDerivedState";
 import { type CouncilViewReadyState, MEMBER_COLOR_PALETTE } from "./councilViewScreenState";
 
 type CouncilViewReadyScreenProps = {
+  assistantLauncher: JSX.Element;
   autopilotLimitAction: AutopilotLimitModalAction | null;
   onAddMember: (memberAgentId: string) => void;
   onBack: () => void;
@@ -41,6 +42,7 @@ type CouncilViewReadyScreenProps = {
 };
 
 export const CouncilViewReadyScreen = ({
+  assistantLauncher,
   autopilotLimitAction,
   onAddMember,
   onBack,
@@ -106,6 +108,7 @@ export const CouncilViewReadyScreen = ({
     <main className="main-content">
       <div className="main-content-inner" data-screen="council-view">
         <CouncilViewHeader
+          assistantLauncher={assistantLauncher}
           autopilotLimitModalOpen={autopilotLimitAction !== null}
           autopilotMaxTurns={council.autopilotMaxTurns}
           autopilotTurnsCompleted={council.autopilotTurnsCompleted}

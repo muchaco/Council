@@ -1,6 +1,10 @@
 import { z } from "zod";
-import type { AssistantPlanResult, AssistantPlannerResponse } from "../ipc/dto.js";
-import type { AssistantContextEnvelope } from "../ipc/dto.js";
+import type {
+  AssistantContextEnvelope,
+  AssistantPlanResult,
+  AssistantPlannerResponse,
+  AssistantUserTurnResponse,
+} from "../ipc/dto.js";
 import { sanitizeAssistantPayload, sanitizeAssistantText } from "./assistant-audit.js";
 import { serializeAssistantContextForPrompt } from "./assistant-context.js";
 import { validateAssistantPlannedCall } from "./assistant-risk-policy.js";
@@ -47,61 +51,99 @@ const ASSISTANT_PLANNER_RESPONSE_SCHEMA = z.discriminatedUnion("kind", [
     .strict(),
 ]);
 
-export const parseAssistantPlannerResponse = (rawText: string): AssistantPlannerResponse | null => {
-  try {
-    const parsed = JSON.parse(rawText);
-    const result = ASSISTANT_PLANNER_RESPONSE_SCHEMA.safeParse(parsed);
-    if (!result.success) {
-      return null;
+type AssistantPlannerDirective = Exclude<AssistantPlannerResponse, { kind: "result" }>;
+
+const extractPlannerResponseCandidates = (rawText: string): ReadonlyArray<string> => {
+  const trimmed = rawText.trim();
+  const candidates = new Set<string>();
+
+  if (trimmed.length > 0) {
+    candidates.add(trimmed);
+  }
+
+  const fencedBlockMatches = trimmed.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi);
+  for (const match of fencedBlockMatches) {
+    const block = match[1]?.trim();
+    if (typeof block === "string" && block.length > 0) {
+      candidates.add(block);
     }
+  }
 
-    switch (result.data.kind) {
-      case "clarify":
-        return {
-          kind: "clarify",
-          question: sanitizeAssistantText(result.data.question),
-        };
-      case "confirm": {
-        const plannedCalls = normalizeAssistantPlannedCalls(result.data.plannedCalls);
-        if (plannedCalls === null) {
-          return null;
-        }
-
-        return {
-          kind: "confirm",
-          summary: sanitizeAssistantText(result.data.summary),
-          confirmation: {
-            ...result.data.confirmation,
-            summary: sanitizeAssistantText(result.data.confirmation.summary),
-            scopeDescription: sanitizeAssistantText(result.data.confirmation.scopeDescription),
-            examples: result.data.confirmation.examples.map((example) =>
-              sanitizeAssistantText(example),
-            ),
-          },
-          plannedCalls,
-        };
-      }
-      case "execute": {
-        const plannedCalls = normalizeAssistantPlannedCalls(result.data.plannedCalls);
-        if (plannedCalls === null) {
-          return null;
-        }
-
-        return {
-          kind: "execute",
-          summary: sanitizeAssistantText(result.data.summary),
-          plannedCalls,
-        };
-      }
-      case "result":
-        return {
-          kind: "result",
-          outcome: result.data.outcome,
-          summary: sanitizeAssistantText(result.data.summary),
-        };
+  const firstBraceIndex = trimmed.indexOf("{");
+  const lastBraceIndex = trimmed.lastIndexOf("}");
+  if (firstBraceIndex >= 0 && lastBraceIndex > firstBraceIndex) {
+    const objectSlice = trimmed.slice(firstBraceIndex, lastBraceIndex + 1).trim();
+    if (objectSlice.length > 0) {
+      candidates.add(objectSlice);
     }
-  } catch {
+  }
+
+  return Array.from(candidates);
+};
+
+const parseRawPlannerResponse = (rawText: string): unknown | null => {
+  for (const candidate of extractPlannerResponseCandidates(rawText)) {
+    try {
+      return JSON.parse(candidate);
+    } catch {}
+  }
+
+  return null;
+};
+
+export const parseAssistantPlannerResponse = (
+  rawText: string,
+): AssistantPlannerDirective | null => {
+  const parsed = parseRawPlannerResponse(rawText);
+  if (parsed === null) {
     return null;
+  }
+
+  const result = ASSISTANT_PLANNER_RESPONSE_SCHEMA.safeParse(parsed);
+  if (!result.success) {
+    return null;
+  }
+
+  switch (result.data.kind) {
+    case "clarify":
+      return {
+        kind: "clarify",
+        question: sanitizeAssistantText(result.data.question),
+      };
+    case "confirm": {
+      const plannedCalls = normalizeAssistantPlannedCalls(result.data.plannedCalls);
+      if (plannedCalls === null) {
+        return null;
+      }
+
+      return {
+        kind: "confirm",
+        summary: sanitizeAssistantText(result.data.summary),
+        confirmation: {
+          ...result.data.confirmation,
+          summary: sanitizeAssistantText(result.data.confirmation.summary),
+          scopeDescription: sanitizeAssistantText(result.data.confirmation.scopeDescription),
+          examples: result.data.confirmation.examples.map((example) =>
+            sanitizeAssistantText(example),
+          ),
+        },
+        plannedCalls,
+      };
+    }
+    case "execute": {
+      const plannedCalls = normalizeAssistantPlannedCalls(result.data.plannedCalls);
+      if (plannedCalls === null) {
+        return null;
+      }
+
+      return {
+        kind: "execute",
+        summary: sanitizeAssistantText(result.data.summary),
+        plannedCalls,
+      };
+    }
+    case "result":
+      return null;
   }
 };
 
@@ -152,6 +194,7 @@ const normalizeToolPayload = <TSchema extends z.ZodTypeAny>(params: {
 
 export const buildAssistantPlannerPrompt = (params: {
   userRequest: string;
+  response: AssistantUserTurnResponse | null;
   context: AssistantContextEnvelope;
   tools: ReadonlyArray<AssistantToolDefinition>;
 }): string => {
@@ -174,19 +217,26 @@ export const buildAssistantPlannerPrompt = (params: {
     '- {"kind":"clarify","question":"..."}',
     '- {"kind":"confirm","summary":"...","confirmation":{...},"plannedCalls":[...]}',
     '- {"kind":"execute","summary":"...","plannedCalls":[...]}',
-    '- {"kind":"result","outcome":"failure","summary":"..."}',
+    "Use enabled tools whenever the user asks for current app data or navigation that a tool can verify.",
+    "Do not answer from the context summary alone when a read or navigation tool can fetch the visible state directly.",
     "Enabled tools:",
     ...toolLines,
     "Context:",
     serializeAssistantContextForPrompt(params.context),
     "User request:",
     params.userRequest,
+    ...(params.response === null
+      ? []
+      : params.response.kind === "clarification"
+        ? ["User clarification:", params.response.text]
+        : ["User confirmation response:", params.response.approved ? "approved" : "rejected"]),
   ].join("\n");
 };
 
 export const attachAssistantSessionToPlanResult = (params: {
   sessionId: string;
-  plannerResponse: AssistantPlannerResponse;
+  plannerResponse: AssistantPlannerDirective;
+  confirmationToken?: string;
 }): AssistantPlanResult => {
   switch (params.plannerResponse.kind) {
     case "clarify":
@@ -203,6 +253,7 @@ export const attachAssistantSessionToPlanResult = (params: {
         sessionId: params.sessionId,
         message: params.plannerResponse.summary,
         planSummary: params.plannerResponse.summary,
+        confirmationToken: params.confirmationToken ?? crypto.randomUUID(),
         plannedCalls: params.plannerResponse.plannedCalls,
         confirmation: params.plannerResponse.confirmation,
       };
@@ -213,19 +264,6 @@ export const attachAssistantSessionToPlanResult = (params: {
         message: params.plannerResponse.summary,
         planSummary: params.plannerResponse.summary,
         plannedCalls: params.plannerResponse.plannedCalls,
-      };
-    case "result":
-      return {
-        kind: "result",
-        sessionId: params.sessionId,
-        outcome: params.plannerResponse.outcome,
-        message: params.plannerResponse.summary,
-        planSummary: params.plannerResponse.summary,
-        plannedCalls: [],
-        executionResults: [],
-        error: null,
-        requiresUserAction: false,
-        destinationLabel: null,
       };
   }
 };

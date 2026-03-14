@@ -1,0 +1,46 @@
+{
+  "name": "assistant-council-runtime-actions",
+  "steps": [
+    { "action": "waitForText", "text": "Council" },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const suffix = Date.now().toString().slice(-6); let settings = await window.api.settings.getView({ viewKind: 'settings' }); if (!settings.ok) { throw new Error(settings.error.userMessage); } if (settings.value.globalDefaultModelRef === null || settings.value.globalDefaultModelInvalidConfig) { const refresh = await window.api.providers.refreshModelCatalog({ viewKind: 'settings' }); if (!refresh.ok) { throw new Error(refresh.error.userMessage); } settings = await window.api.settings.getView({ viewKind: 'settings' }); if (!settings.ok) { throw new Error(settings.error.userMessage); } const modelEntry = Object.entries(settings.value.modelCatalog.modelsByProvider).find(([, models]) => Array.isArray(models) && models.length > 0); if (modelEntry !== undefined) { const [providerId, models] = modelEntry; const modelId = models[0]; if (typeof modelId === 'string' && modelId.length > 0) { const setDefault = await window.api.settings.setGlobalDefaultModel({ viewKind: 'settings', modelRefOrNull: { providerId, modelId } }); if (!setDefault.ok) { throw new Error(setDefault.error.userMessage); } } } } const memberName = `Runtime Member ${suffix}`; const member = await window.api.agents.save({ viewKind: 'agentEdit', id: null, name: memberName, systemPrompt: 'Participate in runtime turns.', verbosity: 'concise', temperature: 0.2, tags: ['ops'], modelRefOrNull: null }); if (!member.ok) { throw new Error(member.error.userMessage); } const council = await window.api.councils.save({ viewKind: 'councilCreate', id: null, title: `Assistant Runtime ${suffix}`, topic: 'Runtime orchestration', goal: 'Validate assistant runtime controls', mode: 'manual', tags: ['ops'], memberAgentIds: [member.value.agent.id], memberColorsByAgentId: {}, conductorModelRefOrNull: null }); if (!council.ok) { throw new Error(council.error.userMessage); } window.__assistantRuntimeScenario = { councilId: council.value.council.id, councilTitle: council.value.council.title, memberAgentId: member.value.agent.id, memberName }; }"
+    },
+    { "action": "click", "selector": "button#home-tab-agents" },
+    { "action": "click", "selector": "button#home-tab-councils" },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const seeded = window.__assistantRuntimeScenario; const deadline = Date.now() + 30000; while (Date.now() < deadline) { const card = document.querySelector(`[data-council-card-id='${seeded.councilId}']`); if (card instanceof HTMLElement) { card.click(); return; } await new Promise((resolve) => setTimeout(resolve, 100)); } throw new Error('Seeded council card was not found after list refresh.'); }"
+    },
+    { "action": "waitForSelector", "selector": "#council-view-panel-chat" },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const seeded = window.__assistantRuntimeScenario; if (!seeded || typeof seeded.councilId !== 'string') { throw new Error('Runtime scenario seed is missing council identifier.'); } const startButton = Array.from(document.querySelectorAll('button')).find((button) => button instanceof HTMLButtonElement && (button.textContent?.trim() === 'Start' || button.textContent?.trim() === 'Start Discussion') && button.getClientRects().length > 0 && !button.disabled); if (!(startButton instanceof HTMLButtonElement)) { throw new Error('Visible start control is unavailable in council view.'); } startButton.click(); const deadline = Date.now() + 30000; while (Date.now() < deadline) { const view = await window.api.councils.getCouncilView({ viewKind: 'councilView', councilId: seeded.councilId }); if (!view.ok) { throw new Error(view.error.userMessage); } const runningBadgeVisible = Array.from(document.querySelectorAll('span')).some((element) => element.textContent?.trim() === 'Running'); if (view.value.council.started === true && runningBadgeVisible) { return 'started'; } await new Promise((resolve) => setTimeout(resolve, 75)); } throw new Error('Seeded council did not enter started runtime state.'); }"
+    },
+    { "action": "click", "selector": "#council-view-tab-overview" },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const seeded = window.__assistantRuntimeScenario; if (!seeded || typeof seeded.councilId !== 'string') { throw new Error('Runtime scenario seed is missing council identifier.'); } const deadline = Date.now() + 30000; let clicked = false; while (Date.now() < deadline && !clicked) { const speakerButton = Array.from(document.querySelectorAll('button')).find((button) => button instanceof HTMLButtonElement && ((button.getAttribute('aria-label') ?? '').startsWith('Select ') && (button.getAttribute('aria-label') ?? '').endsWith(' as next speaker')) && button.getClientRects().length > 0 && !button.disabled); if (speakerButton instanceof HTMLButtonElement) { speakerButton.click(); clicked = true; break; } await new Promise((resolve) => setTimeout(resolve, 75)); } if (!clicked) { throw new Error('Manual speaker control is unavailable in council overview.'); } while (Date.now() < deadline) { const view = await window.api.councils.getCouncilView({ viewKind: 'councilView', councilId: seeded.councilId }); if (!view.ok) { throw new Error(view.error.userMessage); } const hasVisibleCancelInTranscript = Array.from(document.querySelectorAll('#council-view-panel-chat button')).some((button) => button instanceof HTMLButtonElement && button.textContent?.trim() === 'Cancel' && button.getClientRects().length > 0 && !button.disabled); if (view.value.generation.status === 'running' && hasVisibleCancelInTranscript) { return 'running-with-visible-cancel'; } await new Promise((resolve) => setTimeout(resolve, 75)); } throw new Error('Council generation never entered running state with visible transcript cancel control.'); }"
+    },
+    {
+      "action": "evaluate",
+      "expression": "() => { const launcher = Array.from(document.querySelectorAll(\"button[data-assistant-launcher='true']\")).find((button) => button instanceof HTMLButtonElement && button.getClientRects().length > 0); if (!(launcher instanceof HTMLButtonElement)) { throw new Error('Visible assistant launcher is unavailable in council view.'); } launcher.click(); }"
+    },
+    {
+      "action": "fill",
+      "selector": "textarea[aria-label='Assistant request']",
+      "value": "Cancel this council generation."
+    },
+    { "action": "press", "key": "Enter" },
+    {
+      "action": "waitForText",
+      "text": "Cancelled in-flight generation",
+      "timeoutMs": 30000
+    },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const seeded = window.__assistantRuntimeScenario; if (!seeded || typeof seeded.councilId !== 'string') { throw new Error('Runtime scenario seed is missing council identifier.'); } const deadline = Date.now() + 30000; while (Date.now() < deadline) { const view = await window.api.councils.getCouncilView({ viewKind: 'councilView', councilId: seeded.councilId }); if (!view.ok) { throw new Error(view.error.userMessage); } const hasVisibleCancelInTranscript = Array.from(document.querySelectorAll('#council-view-panel-chat button')).some((button) => button instanceof HTMLButtonElement && button.textContent?.trim() === 'Cancel' && button.getClientRects().length > 0 && !button.disabled); if (view.value.generation.status === 'idle' && !hasVisibleCancelInTranscript) { return 'idle-without-visible-cancel'; } await new Promise((resolve) => setTimeout(resolve, 75)); } throw new Error('Council generation did not stop cleanly after assistant cancel.'); }"
+    },
+    { "action": "screenshot", "file": "assistant-council-runtime-actions.png", "fullPage": true }
+  ]
+}

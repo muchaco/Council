@@ -1,11 +1,11 @@
 {
-  "generatedAtUtc": "2026-03-12T01:10:33.364Z",
+  "generatedAtUtc": "2026-03-13T08:59:01.966Z",
   "summary": {
-    "specFilesTracked": 39,
-    "testCasesTracked": 241,
-    "annotatedTestCases": 241,
+    "specFilesTracked": 46,
+    "testCasesTracked": 319,
+    "annotatedTestCases": 319,
     "unmappedTestCases": 0,
-    "mappedRequirementIds": 214
+    "mappedRequirementIds": 227
   },
   "entries": [
     {
@@ -396,12 +396,422 @@
       "filePath": "tests/integration/assistant-ipc.contract.integration.spec.ts",
       "cases": [
         {
+          "name": "keeps current agent draft edits pending until renderer reconciliation acknowledges completion metadata",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.14",
+            "R9.17",
+            "R9.18",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "keeps current council draft edits pending until renderer reconciliation acknowledges completion metadata",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.14",
+            "R9.17",
+            "R9.18",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "creates an agent through the authoritative save handler and waits for visible completion before success",
+          "requirementIds": [
+            "A3",
+            "R9.11",
+            "R9.17",
+            "R9.18",
+            "R9.22",
+            "U18.10",
+            "U18.11",
+            "U18.8"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "returns authoritative saved council fields for update reconciliation",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.17",
+            "R9.18",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "patches the current council draft and then saves it through the normal save flow",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.14",
+            "R9.17",
+            "R9.18",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "requires confirmation before replacing a dirty draft with another assistant action",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.13",
+            "R9.14",
+            "U18.9"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "rejects high-risk confirmation execution when the confirmation token is missing or stale",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.12",
+            "R9.13",
+            "U18.9"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "executes confirmed destructive actions only after explicit confirmation and waits for list reconciliation",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.12",
+            "R9.13",
+            "R9.17",
+            "R9.18",
+            "R9.22",
+            "U18.9"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "requires explicit confirmation for settings mutations before execution",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.12",
+            "R9.13",
+            "R9.17",
+            "R9.18",
+            "R9.22",
+            "U18.9"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "requires explicit confirmation before export actions execute and reconcile",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.12",
+            "R9.13",
+            "R9.17",
+            "R9.18",
+            "R9.22",
+            "U18.9"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "surfaces safe validation blockers from the authoritative save rules",
+          "requirementIds": [
+            "A3",
+            "R9.14",
+            "R9.17",
+            "R9.18",
+            "R9.22",
+            "U18.8"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "fails current draft edits when the request targets a different editor entity",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.14",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "fails current draft edits when the current agent editor is archived",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.14",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "fails current draft edits when the current council editor is archived or mode-locked",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.14",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "preserves model changes when rewriting a current-agent update into an in-place draft patch",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.14",
+            "R9.17",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "preserves conductor and member changes when rewriting a current-council update into an in-place draft patch",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.14",
+            "R9.17",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "uses the deterministic current agent draft shortcut when the request is explicit",
+          "requirementIds": [
+            "A1",
+            "D5",
+            "R9.1",
+            "R9.11",
+            "R9.14",
+            "R9.17",
+            "U18.7"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "fails closed when the global default model is missing or invalid",
+          "requirementIds": [
+            "A1",
+            "D1",
+            "D5",
+            "R9.3"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "passes the global default model through the planner request in main",
+          "requirementIds": [
+            "A1",
+            "D1",
+            "D5",
+            "R9.3"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "loops clarification through the same session and then executes the stored plan",
+          "requirementIds": [
+            "A3",
+            "D5",
+            "R9.18",
+            "R9.19",
+            "R9.20",
+            "R9.7"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "resolves open council clarifications locally when the planner already asked for a council name",
+          "requirementIds": [
+            "A3",
+            "D5",
+            "R9.18",
+            "R9.19",
+            "R9.20",
+            "R9.7"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "blocks stored clarification follow-up turns when the global default model becomes invalid",
+          "requirementIds": [
+            "A3",
+            "D5",
+            "R9.19",
+            "R9.3",
+            "R9.7"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "executes supported read and navigation tools into a final assistant result",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "D5",
+            "R9.18",
+            "R9.19",
+            "R9.20",
+            "R9.22",
+            "R9.3",
+            "R9.7"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "uses the council runtime read tool for runtime-status follow-up questions on the open council",
+          "requirementIds": [
+            "A1",
+            "D5",
+            "R9.18",
+            "R9.19",
+            "R9.22",
+            "U18.10",
+            "U18.11",
+            "U18.8"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "executes runtime mutation tools only from the active council view lease and waits for reconciliation",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.17",
+            "R9.18",
+            "R9.21",
+            "R9.22",
+            "U18.10"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "preserves non-zero lease epoch when runtime mutation refreshes council view",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.17",
+            "R9.18",
+            "R9.21",
+            "R9.22",
+            "U18.10"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "fails runtime mutation tools when council runtime lease scope is stale",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.21",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "rejects runtime mutation tools when the council view lease token is forged",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.21",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "invalidates pending runtime execution when council view lease context disappears",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.17",
+            "R9.21",
+            "R9.22",
+            "U18.10"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "supports the remaining phase 1 home, entity, and list read tools",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "D5",
+            "R9.18",
+            "R9.19",
+            "R9.20",
+            "R9.22",
+            "R9.3",
+            "R9.7"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "fails navigation reconciliation closed when the visible destination never appears",
+          "requirementIds": [
+            "A3",
+            "D5",
+            "R9.17",
+            "R9.18",
+            "R9.22",
+            "U18.10",
+            "U18.11",
+            "U18.8"
+          ],
+          "source": "itReq"
+        },
+        {
           "name": "rejects submits whose context view kind does not match the session scope",
           "requirementIds": [
             "A3",
             "R9.22",
             "R9.3",
             "R9.4"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "rejects planner terminal success and partial results so main owns final execution outcomes",
+          "requirementIds": [
+            "A3",
+            "D5",
+            "R9.17",
+            "R9.3",
+            "R9.7"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "does not report stale runtime success after closing an in-flight runtime execution",
+          "requirementIds": [
+            "A3",
+            "D5",
+            "R9.16",
+            "R9.21",
+            "R9.22"
           ],
           "source": "itReq"
         },
@@ -550,8 +960,8 @@
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 11,
-      "totalTestCount": 11
+      "itReqInvocationCount": 44,
+      "totalTestCount": 44
     },
     {
       "filePath": "tests/integration/boundary-check-script.integration.spec.ts",
@@ -572,6 +982,17 @@
     {
       "filePath": "tests/integration/councils-handlers.integration.spec.ts",
       "cases": [
+        {
+          "name": "rotates runtime leases on reload and switch epochs and fails stale tokens closed",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.21",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
         {
           "name": "creates councils and paginates list results",
           "requirementIds": [
@@ -3044,8 +3465,8 @@
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 26,
-      "totalTestCount": 26
+      "itReqInvocationCount": 27,
+      "totalTestCount": 27
     },
     {
       "filePath": "tests/integration/councils-ipc.contract.integration.spec.ts",
@@ -4059,6 +4480,36 @@
       "totalTestCount": 4
     },
     {
+      "filePath": "tests/unit/assistant-draft-edit-guards.spec.ts",
+      "cases": [
+        {
+          "name": "blocks archived agent draft edits",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.14",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "blocks archived or mode-locked council draft edits",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.14",
+            "R9.22"
+          ],
+          "source": "itReq"
+        }
+      ],
+      "plainItCount": 0,
+      "itReqInvocationCount": 2,
+      "totalTestCount": 2
+    },
+    {
       "filePath": "tests/unit/assistant-ipc-validators.spec.ts",
       "cases": [
         {
@@ -4115,11 +4566,22 @@
             "R9.4"
           ],
           "source": "itReq"
+        },
+        {
+          "name": "requires confirmation tokens for confirmation responses",
+          "requirementIds": [
+            "A3",
+            "R9.11",
+            "R9.17",
+            "R9.19",
+            "R9.4"
+          ],
+          "source": "itReq"
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 5,
-      "totalTestCount": 5
+      "itReqInvocationCount": 6,
+      "totalTestCount": 6
     },
     {
       "filePath": "tests/unit/assistant-plan-schema.spec.ts",
@@ -4137,6 +4599,17 @@
         },
         {
           "name": "parses structured confirm responses",
+          "requirementIds": [
+            "R9.17",
+            "R9.3",
+            "R9.4",
+            "R9.7",
+            "R9.8"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "parses fenced planner responses with surrounding prose",
           "requirementIds": [
             "R9.17",
             "R9.3",
@@ -4171,8 +4644,121 @@
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 4,
-      "totalTestCount": 4
+      "itReqInvocationCount": 5,
+      "totalTestCount": 5
+    },
+    {
+      "filePath": "tests/unit/assistant-planner-shortcuts.spec.ts",
+      "cases": [
+        {
+          "name": "builds a deterministic current agent draft shortcut plan",
+          "requirementIds": [
+            "A1",
+            "D5",
+            "R9.1",
+            "R9.11",
+            "R9.14",
+            "R9.17",
+            "U18.7"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "builds a deterministic create agent shortcut plan for commit flows",
+          "requirementIds": [
+            "A1",
+            "D5",
+            "R9.11",
+            "R9.14",
+            "R9.17",
+            "R9.22",
+            "U18.13"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "builds a deterministic save current agent draft shortcut plan",
+          "requirementIds": [
+            "A1",
+            "D5",
+            "R9.11",
+            "R9.17",
+            "R9.18",
+            "R9.22",
+            "U18.13"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "builds a deterministic rename and save current council draft shortcut plan",
+          "requirementIds": [
+            "A1",
+            "D5",
+            "R9.11",
+            "R9.17",
+            "R9.18",
+            "R9.22",
+            "U18.13"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "builds a deterministic current council rename shortcut plan",
+          "requirementIds": [
+            "A1",
+            "D5",
+            "R9.11",
+            "R9.17",
+            "R9.18",
+            "R9.22",
+            "U18.13"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "builds deterministic council runtime control shortcuts",
+          "requirementIds": [
+            "A1",
+            "D5",
+            "R9.11",
+            "R9.17",
+            "R9.18",
+            "R9.21",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "builds deterministic phase 4 destructive and settings shortcuts",
+          "requirementIds": [
+            "A1",
+            "D5",
+            "R9.11",
+            "R9.12",
+            "R9.17",
+            "R9.18",
+            "R9.22",
+            "U18.9"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "ignores unsupported shortcut requests",
+          "requirementIds": [
+            "A1",
+            "D5",
+            "R9.1",
+            "R9.11",
+            "R9.14",
+            "R9.17",
+            "U18.7"
+          ],
+          "source": "itReq"
+        }
+      ],
+      "plainItCount": 0,
+      "itReqInvocationCount": 8,
+      "totalTestCount": 8
     },
     {
       "filePath": "tests/unit/assistant-policy.spec.ts",
@@ -4214,6 +4800,30 @@
           "source": "itReq"
         },
         {
+          "name": "treats saving the current dirty draft as an in-place action",
+          "requirementIds": [
+            "A1",
+            "R9.11",
+            "R9.13",
+            "R9.14",
+            "R9.22",
+            "R9.9"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "requires confirmation for always-confirm high-risk tools",
+          "requirementIds": [
+            "A1",
+            "R9.11",
+            "R9.13",
+            "R9.14",
+            "R9.22",
+            "R9.9"
+          ],
+          "source": "itReq"
+        },
+        {
           "name": "tracks visible reconciliation completion separately from mutation success",
           "requirementIds": [
             "A1",
@@ -4227,8 +4837,368 @@
         }
       ],
       "plainItCount": 0,
+      "itReqInvocationCount": 6,
+      "totalTestCount": 6
+    },
+    {
+      "filePath": "tests/unit/assistant-reconciliation-helpers.spec.ts",
+      "cases": [
+        {
+          "name": "requires matching model-only agent draft updates before reconciliation completes",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.17",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "requires authoritative saved agent model fields to become visible before reconciliation completes",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.17",
+            "R9.18",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "requires matching council conductor and member updates before reconciliation completes",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.11",
+            "R9.17",
+            "R9.22"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "requires authoritative saved council conductor and member fields to become visible before reconciliation completes",
+          "requirementIds": [
+            "A1",
+            "A3",
+            "R9.17",
+            "R9.18",
+            "R9.22"
+          ],
+          "source": "itReq"
+        }
+      ],
+      "plainItCount": 0,
       "itReqInvocationCount": 4,
       "totalTestCount": 4
+    },
+    {
+      "filePath": "tests/unit/assistant-renderer-context.spec.ts",
+      "cases": [
+        {
+          "name": "builds sanitized home context from the active list query",
+          "requirementIds": [
+            "A3",
+            "D5",
+            "F2",
+            "R9.19",
+            "R9.4",
+            "U18.12"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "summarizes agent draft changes without exposing prompt bodies or raw paths",
+          "requirementIds": [
+            "A3",
+            "D5",
+            "F2",
+            "R9.19",
+            "R9.4",
+            "U18.12"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "builds council view runtime context without transcript body details",
+          "requirementIds": [
+            "A3",
+            "D5",
+            "F2",
+            "R9.19",
+            "R9.4",
+            "U18.12"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "omits runtime lease context when council view has no active lease",
+          "requirementIds": [
+            "A3",
+            "D5",
+            "R9.11",
+            "R9.21",
+            "R9.22"
+          ],
+          "source": "itReq"
+        }
+      ],
+      "plainItCount": 0,
+      "itReqInvocationCount": 4,
+      "totalTestCount": 4
+    },
+    {
+      "filePath": "tests/unit/assistant-scope.spec.ts",
+      "cases": [
+        {
+          "name": "keeps council-view scope stable while the active council remains the same",
+          "requirementIds": [
+            "R9.17",
+            "R9.18",
+            "R9.22",
+            "U18.10"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "changes council-view scope when switching to a different council",
+          "requirementIds": [
+            "R9.17",
+            "R9.18",
+            "R9.22",
+            "U18.10"
+          ],
+          "source": "itReq"
+        }
+      ],
+      "plainItCount": 0,
+      "itReqInvocationCount": 2,
+      "totalTestCount": 2
+    },
+    {
+      "filePath": "tests/unit/assistant-shell-controller.spec.ts",
+      "cases": [
+        {
+          "name": "keeps the modal cancelled when delayed session creation resolves after stop",
+          "requirementIds": [
+            "R9.17",
+            "R9.21",
+            "U18.12",
+            "U18.13",
+            "U18.14"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "keeps the modal closed when delayed session creation resolves after close",
+          "requirementIds": [
+            "R9.17",
+            "R9.21",
+            "U18.12",
+            "U18.13",
+            "U18.14"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "keeps a rebased modal idle when delayed submit results resolve for the previous scope",
+          "requirementIds": [
+            "R9.17",
+            "R9.21",
+            "U18.12",
+            "U18.14"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "keeps the source session open while navigation reconciliation is still rebasing the modal",
+          "requirementIds": [
+            "R9.17",
+            "R9.18",
+            "R9.21",
+            "U18.10",
+            "U18.11"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "auto-continues execute plans and finalizes navigation after reconciliation acknowledgement",
+          "requirementIds": [
+            "R9.17",
+            "R9.18",
+            "R9.7",
+            "U18.10",
+            "U18.11",
+            "U18.7"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "forwards draft reconciliation completion metadata into the final reconciliation request",
+          "requirementIds": [
+            "R9.17",
+            "R9.18",
+            "R9.22",
+            "U18.10",
+            "U18.11",
+            "U18.7"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "keeps the modal cancelled when reconciliation effects resolve after stop",
+          "requirementIds": [
+            "R9.17",
+            "R9.21",
+            "U18.12",
+            "U18.13",
+            "U18.14"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "keeps a rebased modal idle when reconciliation effects resolve for the previous scope",
+          "requirementIds": [
+            "R9.17",
+            "R9.21",
+            "U18.12",
+            "U18.14"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "recreates the assistant session after navigation rebases the scope during reconciliation",
+          "requirementIds": [
+            "R9.17",
+            "R9.18",
+            "R9.21",
+            "U18.10",
+            "U18.11",
+            "U18.7"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "keeps the modal in failure when reconciliation completion fails",
+          "requirementIds": [
+            "R9.17",
+            "R9.18",
+            "R9.22",
+            "U18.10",
+            "U18.11",
+            "U18.8"
+          ],
+          "source": "itReq"
+        }
+      ],
+      "plainItCount": 0,
+      "itReqInvocationCount": 10,
+      "totalTestCount": 10
+    },
+    {
+      "filePath": "tests/unit/assistant-ui-state.spec.ts",
+      "cases": [
+        {
+          "name": "transitions through clarify confirm and result phases with visible conversation entries",
+          "requirementIds": [
+            "R9.17",
+            "U18.10",
+            "U18.11",
+            "U18.15",
+            "U18.7",
+            "U18.8"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "distinguishes active assistant work for keyboard submit and close confirmation behavior",
+          "requirementIds": [
+            "R9.16",
+            "R9.17",
+            "U18.13",
+            "U18.14",
+            "U18.6"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "accepts finalized reconciliation results after the renderer rebases the active scope",
+          "requirementIds": [
+            "R9.17",
+            "R9.18",
+            "R9.21",
+            "U18.10",
+            "U18.11",
+            "U18.7"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "rebases assistant state to a new scope without replaying stale follow-up work",
+          "requirementIds": [
+            "R9.17",
+            "R9.21",
+            "U18.12",
+            "U18.14"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "finalizes a rebased session into the destination scope before follow-up work resumes",
+          "requirementIds": [
+            "R9.17",
+            "R9.18",
+            "R9.21",
+            "U18.10",
+            "U18.11",
+            "U18.14"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "ignores a stopped-session update after the modal rebases to a different scope",
+          "requirementIds": [
+            "R9.17",
+            "R9.21",
+            "U18.12",
+            "U18.14"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "invalidates pending async work immediately when the assistant closes",
+          "requirementIds": [
+            "R9.17",
+            "R9.21",
+            "U18.12",
+            "U18.14"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "invalidates a cancelled in-flight submit even when the session stays in the same scope",
+          "requirementIds": [
+            "R9.17",
+            "R9.21",
+            "U18.12",
+            "U18.14"
+          ],
+          "source": "itReq"
+        },
+        {
+          "name": "invalidates session setup work after stop before session creation finishes",
+          "requirementIds": [
+            "R9.17",
+            "R9.21",
+            "U18.12",
+            "U18.14"
+          ],
+          "source": "itReq"
+        }
+      ],
+      "plainItCount": 0,
+      "itReqInvocationCount": 9,
+      "totalTestCount": 9
     },
     {
       "filePath": "tests/unit/council-runtime-conductor.spec.ts",
@@ -5509,6 +6479,35 @@
           "source": "itReq"
         },
         {
+          "name": "rejects invalid council view lease epoch payload",
+          "requirementIds": [
+            "A3",
+            "C1",
+            "F1",
+            "R1.1",
+            "R1.2",
+            "R1.20",
+            "R1.22",
+            "R2.1",
+            "R2.3",
+            "R2.7",
+            "R3.1",
+            "R3.23",
+            "R3.32",
+            "R3.7",
+            "R3.8",
+            "R4.17",
+            "R4.22",
+            "R4.6",
+            "R4.8",
+            "R6.1",
+            "U10.1",
+            "U11.6",
+            "U12.2"
+          ],
+          "source": "itReq"
+        },
+        {
           "name": "rejects pause autopilot payload with invalid id",
           "requirementIds": [
             "A3",
@@ -5684,8 +6683,8 @@
         }
       ],
       "plainItCount": 0,
-      "itReqInvocationCount": 26,
-      "totalTestCount": 26
+      "itReqInvocationCount": 27,
+      "totalTestCount": 27
     },
     {
       "filePath": "tests/unit/keytar-keychain-service.spec.ts",

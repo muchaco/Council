@@ -1,0 +1,111 @@
+{
+  "name": "assistant-commit-flows",
+  "steps": [
+    { "action": "waitForText", "text": "Council" },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const suffix = Date.now().toString().slice(-6); let settings = await window.api.settings.getView({ viewKind: 'settings' }); if (!settings.ok) { throw new Error(settings.error.userMessage); } if (settings.value.globalDefaultModelRef === null || settings.value.globalDefaultModelInvalidConfig) { const refresh = await window.api.providers.refreshModelCatalog({ viewKind: 'settings' }); if (!refresh.ok) { throw new Error(refresh.error.userMessage); } settings = await window.api.settings.getView({ viewKind: 'settings' }); if (!settings.ok) { throw new Error(settings.error.userMessage); } const modelEntry = Object.entries(settings.value.modelCatalog.modelsByProvider).find(([, models]) => Array.isArray(models) && models.length > 0); if (modelEntry !== undefined) { const [providerId, models] = modelEntry; const modelId = models[0]; if (typeof modelId === 'string' && modelId.length > 0) { const setDefault = await window.api.settings.setGlobalDefaultModel({ viewKind: 'settings', modelRefOrNull: { providerId, modelId } }); if (!setDefault.ok) { throw new Error(setDefault.error.userMessage); } } } } const baseAgent = await window.api.agents.save({ viewKind: 'agentEdit', id: null, name: `Commit Base Agent ${suffix}`, systemPrompt: 'Base agent.', verbosity: 'concise', temperature: 0.2, tags: ['ops'], modelRefOrNull: null }); if (!baseAgent.ok) { throw new Error(baseAgent.error.userMessage); } const baseCouncil = await window.api.councils.save({ viewKind: 'councilCreate', id: null, title: `Commit Council ${suffix}`, topic: 'Execution plan', goal: 'Ship the slice', mode: 'manual', tags: ['ops'], memberAgentIds: [baseAgent.value.agent.id], memberColorsByAgentId: {}, conductorModelRefOrNull: null }); if (!baseCouncil.ok) { throw new Error(baseCouncil.error.userMessage); } window.__assistantCommitFlows = { createdAgentName: `Scenario Commit Agent ${suffix}`, replacementAgentName: `Scenario Replacement Agent ${suffix}`, councilId: baseCouncil.value.council.id, councilTitle: baseCouncil.value.council.title, revisedCouncilTitle: `Commit Council Revised ${suffix}` }; }"
+    },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const launcher = Array.from(document.querySelectorAll(\"button[data-assistant-launcher='true']\")).find((button) => button instanceof HTMLButtonElement && button.getClientRects().length > 0); if (!(launcher instanceof HTMLButtonElement)) { throw new Error('Visible assistant launcher is unavailable.'); } launcher.click(); }"
+    },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const seeded = window.__assistantCommitFlows; window.__assistantCommitFlows.createPrompt = `Create an agent named ${seeded.createdAgentName} with system prompt Help with execution planning, concise verbosity, temperature 0.2, and tag ops.`; }"
+    },
+    {
+      "action": "fill",
+      "selector": "textarea[aria-label='Assistant request']",
+      "value": "Create an agent named placeholder with system prompt placeholder."
+    },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const textarea = document.querySelector(\"textarea[aria-label='Assistant request']\"); if (!(textarea instanceof HTMLTextAreaElement)) { throw new Error('Assistant request textarea is unavailable.'); } textarea.focus(); const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set; if (typeof valueSetter !== 'function') { throw new Error('Textarea value setter is unavailable.'); } valueSetter.call(textarea, window.__assistantCommitFlows.createPrompt); textarea.dispatchEvent(new InputEvent('input', { bubbles: true, data: window.__assistantCommitFlows.createPrompt, inputType: 'insertText' })); textarea.dispatchEvent(new Event('change', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 50)); const sendButton = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Send' && button instanceof HTMLButtonElement && button.getClientRects().length > 0); if (!(sendButton instanceof HTMLButtonElement) || sendButton.disabled) { throw new Error('Assistant Send button is unavailable.'); } sendButton.click(); }"
+    },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const seeded = window.__assistantCommitFlows; const deadline = Date.now() + 30000; while (Date.now() < deadline) { const nameInput = document.querySelector('#agent-name'); if (nameInput instanceof HTMLInputElement && nameInput.value === seeded.createdAgentName) { return true; } await new Promise((resolve) => setTimeout(resolve, 100)); } throw new Error('Created agent editor never became visible.'); }"
+    },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const nameInput = document.querySelector('#agent-name'); if (!(nameInput instanceof HTMLInputElement)) { throw new Error('Agent name input is unavailable.'); } nameInput.focus(); const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set; if (typeof valueSetter !== 'function') { throw new Error('Input value setter is unavailable.'); } valueSetter.call(nameInput, `${nameInput.value} Draft`); nameInput.dispatchEvent(new Event('input', { bubbles: true })); nameInput.dispatchEvent(new Event('change', { bubbles: true })); }"
+    },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const seeded = window.__assistantCommitFlows; window.__assistantCommitFlows.replacePrompt = `Create another agent named ${seeded.replacementAgentName} with system prompt Replacement.`; }"
+    },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const textarea = document.querySelector(\"textarea[aria-label='Assistant request']\"); if (!(textarea instanceof HTMLTextAreaElement)) { throw new Error('Assistant request textarea is unavailable for dirty draft confirmation.'); } textarea.focus(); const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set; if (typeof valueSetter !== 'function') { throw new Error('Textarea value setter is unavailable.'); } valueSetter.call(textarea, window.__assistantCommitFlows.replacePrompt); textarea.dispatchEvent(new InputEvent('input', { bubbles: true, data: window.__assistantCommitFlows.replacePrompt, inputType: 'insertText' })); textarea.dispatchEvent(new Event('change', { bubbles: true })); const deadline = Date.now() + 30000; while (Date.now() < deadline) { const sendButton = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Send' && button instanceof HTMLButtonElement && button.getClientRects().length > 0); if (sendButton instanceof HTMLButtonElement && !sendButton.disabled) { sendButton.click(); return; } await new Promise((resolve) => setTimeout(resolve, 100)); } throw new Error('Assistant Send button is unavailable for dirty draft confirmation.'); }"
+    },
+    { "action": "waitForText", "text": "replace the current unsaved agent", "timeoutMs": 30000 },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const cancelButton = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Cancel' && button instanceof HTMLButtonElement && button.getClientRects().length > 0); if (!(cancelButton instanceof HTMLButtonElement)) { throw new Error('Assistant Cancel button is unavailable.'); } cancelButton.click(); }"
+    },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const tempInput = document.querySelector('#agent-temperature'); if (!(tempInput instanceof HTMLInputElement)) { throw new Error('Agent temperature input is unavailable.'); } tempInput.focus(); const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set; if (typeof valueSetter !== 'function') { throw new Error('Input value setter is unavailable.'); } valueSetter.call(tempInput, 'not-a-number'); tempInput.dispatchEvent(new Event('input', { bubbles: true })); tempInput.dispatchEvent(new Event('change', { bubbles: true })); }"
+    },
+    {
+      "action": "fill",
+      "selector": "textarea[aria-label='Assistant request']",
+      "value": "Save this draft."
+    },
+    { "action": "press", "key": "Enter" },
+    { "action": "waitForText", "text": "Temperature must be a valid number.", "timeoutMs": 30000 },
+    { "action": "click", "selector": "button:has-text('Close')" },
+    { "action": "click", "selector": "button.secondary:has-text('Back')" },
+    { "action": "waitForText", "text": "Discard agent changes?", "timeoutMs": 30000 },
+    { "action": "click", "selector": "button:has-text('Discard')" },
+    { "action": "click", "selector": "button#home-tab-councils:visible" },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const seeded = window.__assistantCommitFlows; const card = document.querySelector(`[data-council-card-id='${seeded.councilId}']`); if (!(card instanceof HTMLElement)) { throw new Error('Seeded council card not found.'); } card.click(); }"
+    },
+    { "action": "waitForSelector", "selector": "#council-view-panel-chat" },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const launcher = Array.from(document.querySelectorAll(\"button[data-assistant-launcher='true']\")).find((button) => button instanceof HTMLButtonElement && button.getClientRects().length > 0); if (!(launcher instanceof HTMLButtonElement)) { throw new Error('Visible assistant launcher is unavailable in the council view.'); } launcher.click(); }"
+    },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const seeded = window.__assistantCommitFlows; window.__assistantCommitFlows.councilPrompt = `Rename this council to ${seeded.revisedCouncilTitle}.`; }"
+    },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const textarea = document.querySelector(\"textarea[aria-label='Assistant request']\"); if (!(textarea instanceof HTMLTextAreaElement)) { throw new Error('Assistant request textarea is unavailable for council update.'); } textarea.focus(); const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set; if (typeof valueSetter !== 'function') { throw new Error('Textarea value setter is unavailable.'); } valueSetter.call(textarea, window.__assistantCommitFlows.councilPrompt); textarea.dispatchEvent(new InputEvent('input', { bubbles: true, data: window.__assistantCommitFlows.councilPrompt, inputType: 'insertText' })); textarea.dispatchEvent(new Event('change', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 50)); const sendButton = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Send' && button instanceof HTMLButtonElement && button.getClientRects().length > 0); if (!(sendButton instanceof HTMLButtonElement) || sendButton.disabled) { throw new Error('Assistant Send button is unavailable for council update.'); } sendButton.click(); }"
+    },
+    { "action": "waitForText", "text": "Edit Council", "timeoutMs": 30000 },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const seeded = window.__assistantCommitFlows; const deadline = Date.now() + 30000; while (Date.now() < deadline) { const titleInput = document.querySelector('#council-title'); if (titleInput instanceof HTMLInputElement && titleInput.value === seeded.revisedCouncilTitle) { return true; } await new Promise((resolve) => setTimeout(resolve, 100)); } throw new Error('Council update never became visible in the editor.'); }"
+    },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const seeded = window.__assistantCommitFlows; seeded.revisedCouncilTopic = `Execution plan revised ${Date.now().toString().slice(-4)}`; const topicInput = document.querySelector('#council-topic'); if (!(topicInput instanceof HTMLTextAreaElement)) { throw new Error('Council topic input is unavailable.'); } topicInput.focus(); const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set; if (typeof valueSetter !== 'function') { throw new Error('Input value setter is unavailable.'); } valueSetter.call(topicInput, seeded.revisedCouncilTopic); topicInput.dispatchEvent(new Event('input', { bubbles: true })); topicInput.dispatchEvent(new Event('change', { bubbles: true })); }"
+    },
+    {
+      "action": "evaluate",
+      "expression": "async () => { let textarea = document.querySelector(\"textarea[aria-label='Assistant request']\"); if (!(textarea instanceof HTMLTextAreaElement)) { const launcher = Array.from(document.querySelectorAll(\"button[data-assistant-launcher='true']\")).find((button) => button instanceof HTMLButtonElement && button.getClientRects().length > 0); if (!(launcher instanceof HTMLButtonElement)) { throw new Error('Assistant launcher is unavailable for council save.'); } launcher.click(); const deadline = Date.now() + 30000; while (Date.now() < deadline) { textarea = document.querySelector(\"textarea[aria-label='Assistant request']\"); if (textarea instanceof HTMLTextAreaElement) { break; } await new Promise((resolve) => setTimeout(resolve, 100)); } } if (!(textarea instanceof HTMLTextAreaElement)) { throw new Error('Assistant request textarea is unavailable for council save.'); } textarea.focus(); const prompt = 'Save this draft.'; const valueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set; if (typeof valueSetter !== 'function') { throw new Error('Textarea value setter is unavailable.'); } valueSetter.call(textarea, prompt); textarea.dispatchEvent(new InputEvent('input', { bubbles: true, data: prompt, inputType: 'insertText' })); textarea.dispatchEvent(new Event('change', { bubbles: true })); const deadline = Date.now() + 30000; while (Date.now() < deadline) { const sendButton = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Send' && button instanceof HTMLButtonElement && button.getClientRects().length > 0); if (sendButton instanceof HTMLButtonElement && !sendButton.disabled) { sendButton.click(); return; } await new Promise((resolve) => setTimeout(resolve, 100)); } throw new Error('Assistant Send button is unavailable for council save.'); }"
+    },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const seeded = window.__assistantCommitFlows; const expectedSummary = `Saved ${seeded.revisedCouncilTitle}.`; const deadline = Date.now() + 30000; while (Date.now() < deadline) { if (document.body.textContent?.includes(expectedSummary)) { return true; } await new Promise((resolve) => setTimeout(resolve, 100)); } throw new Error('Assistant saveCouncilDraft success summary did not appear.'); }"
+    },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const seeded = window.__assistantCommitFlows; const council = await window.api.councils.getCouncilView({ viewKind: 'councilView', councilId: seeded.councilId }); if (!council.ok) { throw new Error(council.error.userMessage); } if (council.value.council.topic !== seeded.revisedCouncilTopic) { throw new Error('Council topic was not persisted by saveCouncilDraft.'); } }"
+    },
+    {
+      "action": "evaluate",
+      "expression": "async () => { const backButton = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.trim() === 'Back' && button instanceof HTMLButtonElement && button.getClientRects().length > 0); if (!(backButton instanceof HTMLButtonElement)) { throw new Error('Council editor Back button is unavailable after save.'); } backButton.click(); const deadline = Date.now() + 30000; while (Date.now() < deadline) { if (document.body.textContent?.includes('Discard council changes?')) { throw new Error('Council draft remained dirty after saveCouncilDraft.'); } const councilViewPanel = document.querySelector('#council-view-panel-chat'); if (councilViewPanel instanceof HTMLElement) { return true; } const councilsHomeTab = document.querySelector('#home-tab-councils[aria-selected=\"true\"]'); if (councilsHomeTab instanceof HTMLElement) { return true; } await new Promise((resolve) => setTimeout(resolve, 100)); } throw new Error('Back navigation never returned to a clean non-editor view after saveCouncilDraft.'); }"
+    },
+    {
+      "action": "screenshot",
+      "file": "assistant-commit-flows.png",
+      "fullPage": true
+    }
+  ]
+}

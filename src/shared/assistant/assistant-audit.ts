@@ -1,7 +1,8 @@
 import type { AssistantContextEnvelope, AssistantUserTurnResponse } from "../ipc/dto.js";
 
 const REDACTED_VALUE = "[redacted]";
-const SENSITIVE_KEY_PATTERN = /(api.?key|secret|credential|token|password|file.?path|path|prompt)/i;
+const SENSITIVE_KEY_PATTERN =
+  /(^prompt$|api.?key|secret|credential|token|password|file.?path|path)/i;
 const PATH_START_PATTERN = String.raw`(?:~[\\/]|\.{1,2}[\\/]|\/|[A-Za-z]:[\\/])`;
 const PATH_TOKEN_PATTERN = String.raw`[^\s,;:!?()[\]{}"'<>]+`;
 const PATH_STOP_WORD_PATTERN = String.raw`(?:with|and|or|for|before|after|instead|first|then|from|into|onto|using|via)`;

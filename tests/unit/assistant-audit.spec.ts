@@ -40,6 +40,7 @@ describe("assistant audit sanitization", () => {
         nested: {
           filePath: "/tmp/audit logs/latest.log",
           prompt: "raw prompt text",
+          systemPrompt: "Visible editor prompt",
         },
       });
 
@@ -48,6 +49,7 @@ describe("assistant audit sanitization", () => {
         nested: {
           filePath: "[redacted]",
           prompt: "[redacted]",
+          systemPrompt: "Visible editor prompt",
         },
       });
     },
@@ -105,6 +107,7 @@ describe("assistant audit sanitization", () => {
     const confirmationSummary = summarizeAssistantUserTurnResponse({
       kind: "confirmation",
       approved: true,
+      confirmationToken: "00000000-0000-4000-8000-000000000123",
     });
 
     expect(requestSummary).toEqual({

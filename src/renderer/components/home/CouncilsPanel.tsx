@@ -26,6 +26,7 @@ import type {
   SortDirection,
 } from "../../../shared/ipc/dto";
 import { ConfirmDialog } from "../../ConfirmDialog";
+import type { AssistantHomeListSnapshot } from "../assistant/assistant-context-builders";
 import { CouncilCard } from "../councils/CouncilCard";
 import { HomeListToolbar } from "../shared/HomeListToolbar";
 import { Button } from "../ui/button";
@@ -33,6 +34,7 @@ import { Card } from "../ui/card";
 
 type CouncilsPanelProps = {
   isActive: boolean;
+  onAssistantListStateChange: (snapshot: AssistantHomeListSnapshot<CouncilHomeListFilters>) => void;
   onOpenCouncilEditor: () => void;
   onOpenCouncilView: (councilId: string) => void;
   onTotalChange: (total: number) => void;
@@ -41,6 +43,7 @@ type CouncilsPanelProps = {
 
 export const CouncilsPanel = ({
   isActive,
+  onAssistantListStateChange,
   onOpenCouncilEditor,
   onOpenCouncilView,
   onTotalChange,
@@ -142,6 +145,14 @@ export const CouncilsPanel = ({
     () => hasAppliedCouncilHomeListPopoverFilters(appliedFilters),
     [appliedFilters],
   );
+
+  useEffect(() => {
+    onAssistantListStateChange({
+      appliedFilters,
+      hasPendingChanges,
+      total: councils.length,
+    });
+  }, [appliedFilters, councils.length, hasPendingChanges, onAssistantListStateChange]);
 
   const refreshCouncils = useCallback((): void => {
     setAppliedFilters(draftFilters);

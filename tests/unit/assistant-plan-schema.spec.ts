@@ -16,6 +16,10 @@ describe("assistant plan schema", () => {
     () => {
       const prompt = buildAssistantPlannerPrompt({
         userRequest: "Open the agents tab",
+        response: {
+          kind: "clarification",
+          text: "Use the archived list.",
+        },
         context: {
           viewKind: "agentsList",
           contextLabel: "Agents",
@@ -35,6 +39,11 @@ describe("assistant plan schema", () => {
       });
 
       expect(prompt).toContain("Open the agents tab");
+      expect(prompt).toContain("User clarification:");
+      expect(prompt).toContain("Use the archived list.");
+      expect(prompt).toContain(
+        "Use enabled tools whenever the user asks for current app data or navigation that a tool can verify.",
+      );
       expect(prompt).toContain("navigateToHomeTab");
       expect(prompt).toContain('"viewKind": "agentsList"');
     },
@@ -74,6 +83,41 @@ describe("assistant plan schema", () => {
 
     expect(parsed.confirmation.affectedCount).toBe(2);
     expect(parsed.plannedCalls).toHaveLength(1);
+  });
+
+  itReq(FILE_REQUIREMENT_IDS, "parses fenced planner responses with surrounding prose", () => {
+    const parsed = parseAssistantPlannerResponse(
+      [
+        "I found the next step.",
+        "",
+        "```json",
+        "{",
+        '  "kind": "execute",',
+        '  "summary": "Open the requested council.",',
+        '  "plannedCalls": [',
+        "    {",
+        '      "callId": "call-1",',
+        '      "toolName": "openCouncilView",',
+        '      "rationale": "The clarification named a single council.",',
+        '      "input": {',
+        '        "councilId": "00000000-0000-4000-8000-000000000201"',
+        "      }",
+        "    }",
+        "  ]",
+        "}",
+        "```",
+      ].join("\n"),
+    );
+
+    expect(parsed).not.toBeNull();
+    expect(parsed?.kind).toBe("execute");
+    if (parsed?.kind !== "execute") {
+      return;
+    }
+
+    expect(parsed.summary).toBe("Open the requested council.");
+    expect(parsed.plannedCalls).toHaveLength(1);
+    expect(parsed.plannedCalls[0]?.toolName).toBe("openCouncilView");
   });
 
   itReq(
@@ -121,6 +165,12 @@ describe("assistant plan schema", () => {
     expect(parseAssistantPlannerResponse("not-json")).toBeNull();
     expect(
       parseAssistantPlannerResponse('{"kind":"execute","summary":"x","plannedCalls":"bad"}'),
+    ).toBeNull();
+    expect(
+      parseAssistantPlannerResponse('{"kind":"result","outcome":"success","summary":"done"}'),
+    ).toBeNull();
+    expect(
+      parseAssistantPlannerResponse('{"kind":"result","outcome":"partial","summary":"done"}'),
     ).toBeNull();
     expect(
       parseAssistantPlannerResponse(`

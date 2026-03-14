@@ -40,6 +40,28 @@ describe("assistant ipc validators", () => {
         response: null,
       }).success,
     ).toBe(true);
+
+    expect(
+      ASSISTANT_SUBMIT_REQUEST_SCHEMA.safeParse({
+        sessionId: "00000000-0000-4000-8000-000000000001",
+        userRequest: "Pause this council runtime",
+        context: {
+          viewKind: "councilView",
+          contextLabel: "Council view / Runtime",
+          activeEntityId: "00000000-0000-4000-8000-000000000111",
+          selectionIds: [],
+          listState: null,
+          draftState: null,
+          runtimeState: {
+            leaseId: "00000000-0000-4000-8000-000000000112",
+            councilId: "00000000-0000-4000-8000-000000000111",
+            plannedNextSpeakerAgentId: null,
+            status: "running",
+          },
+        },
+        response: null,
+      }).success,
+    ).toBe(true);
   });
 
   itReq(
@@ -156,5 +178,48 @@ describe("assistant ipc validators", () => {
     });
 
     expect(parsed.success).toBe(true);
+  });
+
+  itReq(FILE_REQUIREMENT_IDS, "requires confirmation tokens for confirmation responses", () => {
+    const invalidParsed = ASSISTANT_SUBMIT_REQUEST_SCHEMA.safeParse({
+      sessionId: "00000000-0000-4000-8000-000000000001",
+      userRequest: "Delete this council.",
+      context: {
+        viewKind: "councilsList",
+        contextLabel: "Home / Councils",
+        activeEntityId: null,
+        selectionIds: [],
+        listState: null,
+        draftState: null,
+        runtimeState: null,
+      },
+      response: {
+        kind: "confirmation",
+        approved: true,
+      },
+    });
+
+    expect(invalidParsed.success).toBe(false);
+
+    const validParsed = ASSISTANT_SUBMIT_REQUEST_SCHEMA.safeParse({
+      sessionId: "00000000-0000-4000-8000-000000000001",
+      userRequest: "Delete this council.",
+      context: {
+        viewKind: "councilsList",
+        contextLabel: "Home / Councils",
+        activeEntityId: null,
+        selectionIds: [],
+        listState: null,
+        draftState: null,
+        runtimeState: null,
+      },
+      response: {
+        kind: "confirmation",
+        approved: true,
+        confirmationToken: "00000000-0000-4000-8000-000000000501",
+      },
+    });
+
+    expect(validParsed.success).toBe(true);
   });
 });

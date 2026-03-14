@@ -3,6 +3,7 @@ import { type DomainError, domainError } from "../../../shared/domain/errors.js"
 import type {
   AssistantCancelSessionResponse,
   AssistantCloseSessionResponse,
+  AssistantCompleteReconciliationResponse,
   AssistantCreateSessionResponse,
   AssistantSubmitResponse,
   IpcResult,
@@ -10,6 +11,7 @@ import type {
 import {
   ASSISTANT_CANCEL_SESSION_REQUEST_SCHEMA,
   ASSISTANT_CLOSE_SESSION_REQUEST_SCHEMA,
+  ASSISTANT_COMPLETE_RECONCILIATION_REQUEST_SCHEMA,
   ASSISTANT_CREATE_SESSION_REQUEST_SCHEMA,
   ASSISTANT_SUBMIT_REQUEST_SCHEMA,
 } from "../../../shared/ipc/validators.js";
@@ -105,6 +107,23 @@ export const createAssistantIpcHandlers = (slice: AssistantSlice) => ({
       slice.closeSession({
         sessionId: parsed.data.sessionId,
         webContentsId,
+      }),
+    );
+  },
+
+  completeReconciliation: async (
+    payload: unknown,
+    webContentsId: number,
+  ): Promise<IpcResult<AssistantCompleteReconciliationResponse>> => {
+    const parsed = ASSISTANT_COMPLETE_RECONCILIATION_REQUEST_SCHEMA.safeParse(payload);
+    if (!parsed.success) {
+      return toValidationFailure("Invalid assistant.completeReconciliation payload.");
+    }
+
+    return toIpcResult(
+      slice.completeReconciliation({
+        webContentsId,
+        request: parsed.data,
       }),
     );
   },

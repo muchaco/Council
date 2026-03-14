@@ -5,6 +5,8 @@ import type {
   AssistantCancelSessionResponse,
   AssistantCloseSessionRequest,
   AssistantCloseSessionResponse,
+  AssistantCompleteReconciliationRequest,
+  AssistantCompleteReconciliationResponse,
   AssistantCreateSessionRequest,
   AssistantCreateSessionResponse,
   AssistantSubmitRequest,
@@ -151,5 +153,8 @@ export interface WindowApi {
     closeSession: (
       request: AssistantCloseSessionRequest,
     ) => Promise<IpcResult<AssistantCloseSessionResponse>>;
+    completeReconciliation: (
+      request: AssistantCompleteReconciliationRequest,
+    ) => Promise<IpcResult<AssistantCompleteReconciliationResponse>>;
   };
 }

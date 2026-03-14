@@ -135,6 +135,7 @@ export const GET_COUNCIL_EDITOR_VIEW_REQUEST_SCHEMA = z.object({
 export const GET_COUNCIL_VIEW_REQUEST_SCHEMA = z.object({
   viewKind: z.literal("councilView"),
   councilId: z.string().uuid(),
+  leaseEpoch: z.number().int().min(0).max(2_147_483_647).optional(),
 });
 
 export const SAVE_COUNCIL_REQUEST_SCHEMA = z.object({
@@ -221,9 +222,53 @@ const ASSISTANT_DRAFT_STATE_SCHEMA = z
   })
   .strict();
 
+const ASSISTANT_AGENT_DRAFT_EXECUTION_SNAPSHOT_SCHEMA = z
+  .object({
+    id: z.string().uuid().nullable(),
+    modelSelection: z.string().max(300),
+    name: z.string().max(120),
+    systemPrompt: z.string().max(10_000),
+    tagsInput: z.string().max(500),
+    temperature: z.string().max(50),
+    verbosity: z.string().max(200),
+  })
+  .strict();
+
+const ASSISTANT_COUNCIL_DRAFT_EXECUTION_SNAPSHOT_SCHEMA = z
+  .object({
+    conductorModelSelection: z.string().max(300),
+    goal: z.string().max(5_000),
+    id: z.string().uuid().nullable(),
+    mode: z.enum(["autopilot", "manual"]),
+    selectedMemberIds: z.array(z.string().uuid()).max(20),
+    tagsInput: z.string().max(500),
+    title: z.string().max(200),
+    topic: z.string().max(10_000),
+  })
+  .strict();
+
+const ASSISTANT_EXECUTION_SNAPSHOT_SCHEMA = z
+  .discriminatedUnion("kind", [
+    z
+      .object({
+        kind: z.literal("agent"),
+        draft: ASSISTANT_AGENT_DRAFT_EXECUTION_SNAPSHOT_SCHEMA,
+      })
+      .strict(),
+    z
+      .object({
+        kind: z.literal("council"),
+        draft: ASSISTANT_COUNCIL_DRAFT_EXECUTION_SNAPSHOT_SCHEMA,
+      })
+      .strict(),
+  ])
+  .nullable();
+
 const ASSISTANT_RUNTIME_STATE_SCHEMA = z
   .object({
+    leaseId: z.string().uuid(),
     councilId: z.string().uuid(),
+    leaseEpoch: z.number().int().min(0).max(2_147_483_647).optional(),
     status: z.enum(["idle", "running", "paused"]),
     plannedNextSpeakerAgentId: z.string().uuid().nullable(),
   })
@@ -258,6 +303,7 @@ const ASSISTANT_USER_TURN_RESPONSE_SCHEMA = z.discriminatedUnion("kind", [
     .object({
       kind: z.literal("confirmation"),
       approved: z.boolean(),
+      confirmationToken: z.string().uuid(),
     })
     .strict(),
 ]);
@@ -278,6 +324,7 @@ export const ASSISTANT_SUBMIT_REQUEST_SCHEMA = z
       .max(5_000)
       .transform((value) => sanitizeAssistantText(value)),
     context: ASSISTANT_CONTEXT_ENVELOPE_SCHEMA,
+    executionSnapshot: ASSISTANT_EXECUTION_SNAPSHOT_SCHEMA.optional(),
     response: ASSISTANT_USER_TURN_RESPONSE_SCHEMA.nullable(),
   })
   .strict();
@@ -291,6 +338,31 @@ export const ASSISTANT_CANCEL_SESSION_REQUEST_SCHEMA = z
 export const ASSISTANT_CLOSE_SESSION_REQUEST_SCHEMA = z
   .object({
     sessionId: z.string().uuid(),
+  })
+  .strict();
+
+export const ASSISTANT_COMPLETE_RECONCILIATION_REQUEST_SCHEMA = z
+  .object({
+    sessionId: z.string().uuid(),
+    reconciliations: z
+      .array(
+        z
+          .object({
+            callId: z.string().trim().min(1).max(200),
+            toolName: z.string().trim().min(1).max(200),
+            status: z.enum(["completed", "failed"]),
+            failureMessage: z.string().trim().min(1).max(500).nullable(),
+            completion: z
+              .object({
+                output: z.record(z.unknown()).nullable(),
+                userSummary: z.string().trim().min(1).max(500).nullable(),
+              })
+              .strict()
+              .nullable(),
+          })
+          .strict(),
+      )
+      .max(20),
   })
   .strict();
 
@@ -310,6 +382,7 @@ export const ASSISTANT_PLAN_RESULT_SCHEMA = z.discriminatedUnion("kind", [
       sessionId: z.string().uuid(),
       message: z.string().trim().min(1).max(500),
       planSummary: z.string().trim().min(1).max(500),
+      confirmationToken: z.string().uuid(),
       plannedCalls: z.array(ASSISTANT_PLANNED_TOOL_CALL_SCHEMA).max(20),
       confirmation: ASSISTANT_CONFIRMATION_REQUEST_SCHEMA,
     })

@@ -1,7 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 
+import type {
+  AgentHomeListFilters,
+  CouncilHomeListFilters,
+} from "../../../shared/app-ui-helpers.js";
 import { resolveHomeTabFocusIndex } from "../../../shared/home-keyboard-accessibility.js";
+import type {
+  AssistantHomeListSnapshot,
+  AssistantHomeViewSnapshot,
+} from "../assistant/assistant-context-builders";
 import { type HomeTab, HomeTopBar } from "../navigation/HomeTopBar";
 import { SettingsPanel } from "../settings/SettingsPanel";
 import { AgentsPanel } from "./AgentsPanel";
@@ -11,7 +19,9 @@ const HOME_TAB_ORDER: ReadonlyArray<HomeTab> = ["councils", "agents", "settings"
 
 type HomeScreenProps = {
   activeTab: HomeTab;
+  assistantLauncher: JSX.Element;
   isActive: boolean;
+  onAssistantContextChange: (snapshot: AssistantHomeViewSnapshot) => void;
   onOpenAgentEditor: (agentId: string | null) => void;
   onOpenCouncilEditor: (councilId: string | null) => void;
   onOpenCouncilView: (councilId: string) => void;
@@ -21,7 +31,9 @@ type HomeScreenProps = {
 
 export const HomeScreen = ({
   activeTab,
+  assistantLauncher,
   isActive,
+  onAssistantContextChange,
   onOpenAgentEditor,
   onOpenCouncilEditor,
   onOpenCouncilView,
@@ -30,6 +42,32 @@ export const HomeScreen = ({
 }: HomeScreenProps): JSX.Element => {
   const [agentsTotal, setAgentsTotal] = useState(0);
   const [councilsTotal, setCouncilsTotal] = useState(0);
+  const [assistantAgentsSnapshot, setAssistantAgentsSnapshot] = useState<
+    AssistantHomeListSnapshot<AgentHomeListFilters>
+  >({
+    appliedFilters: {
+      archivedFilter: "all",
+      searchText: "",
+      sortBy: "updatedAt",
+      sortDirection: "desc",
+      tagFilter: "",
+    },
+    hasPendingChanges: false,
+    total: 0,
+  });
+  const [assistantCouncilsSnapshot, setAssistantCouncilsSnapshot] = useState<
+    AssistantHomeListSnapshot<CouncilHomeListFilters>
+  >({
+    appliedFilters: {
+      archivedFilter: "all",
+      searchText: "",
+      sortBy: "updatedAt",
+      sortDirection: "desc",
+      tagFilter: "",
+    },
+    hasPendingChanges: false,
+    total: 0,
+  });
   const homeTabButtonRefs = useRef<Record<HomeTab, HTMLButtonElement | null>>({
     councils: null,
     agents: null,
@@ -42,6 +80,27 @@ export const HomeScreen = ({
     }
     document.title = activeTab === "settings" ? "Settings" : "Council";
   }, [activeTab, isActive]);
+
+  useEffect(() => {
+    onAssistantContextChange({
+      activeTab,
+      agents: {
+        ...assistantAgentsSnapshot,
+        total: agentsTotal,
+      },
+      councils: {
+        ...assistantCouncilsSnapshot,
+        total: councilsTotal,
+      },
+    });
+  }, [
+    activeTab,
+    agentsTotal,
+    assistantAgentsSnapshot,
+    assistantCouncilsSnapshot,
+    councilsTotal,
+    onAssistantContextChange,
+  ]);
 
   const handleHomeTabKeyDown = (
     event: ReactKeyboardEvent<HTMLButtonElement>,
@@ -75,6 +134,7 @@ export const HomeScreen = ({
           <HomeTopBar
             activeTab={activeTab}
             agentsTotal={agentsTotal}
+            assistantLauncher={assistantLauncher}
             councilsTotal={councilsTotal}
             homeTabButtonRefs={homeTabButtonRefs}
             onHomeTabKeyDown={handleHomeTabKeyDown}
@@ -83,6 +143,7 @@ export const HomeScreen = ({
 
           <CouncilsPanel
             isActive={isActive && activeTab === "councils"}
+            onAssistantListStateChange={setAssistantCouncilsSnapshot}
             onOpenCouncilEditor={() => onOpenCouncilEditor(null)}
             onOpenCouncilView={onOpenCouncilView}
             onTotalChange={setCouncilsTotal}
@@ -91,6 +152,7 @@ export const HomeScreen = ({
 
           <AgentsPanel
             isActive={isActive && activeTab === "agents"}
+            onAssistantListStateChange={setAssistantAgentsSnapshot}
             onOpenAgentEditor={() => onOpenAgentEditor(null)}
             onOpenAgentFromCard={onOpenAgentEditor}
             onTotalChange={setAgentsTotal}

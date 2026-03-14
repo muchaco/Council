@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   COUNCIL_CONFIG_MAX_TAGS,
@@ -9,8 +9,16 @@ import {
   removeTagFromDraft,
   toModelRef,
 } from "../../../shared/app-ui-helpers.js";
+import { getAgentDraftEditGuardMessage } from "../../../shared/assistant/assistant-draft-edit-guards.js";
 import type { GetAgentEditorViewResponse } from "../../../shared/ipc/dto";
 import { ConfirmDialog } from "../../ConfirmDialog";
+import type { AssistantAgentEditorSnapshot } from "../assistant/assistant-context-builders";
+import type {
+  AssistantAgentDraftAdapter,
+  AssistantAgentDraftPatch,
+  AssistantAgentSaveAdapter,
+  AssistantDraftReconciliation,
+} from "../assistant/assistant-draft-adapters";
 import { DetailScreenShell } from "../shared/DetailScreenShell";
 import { ModelSelectField } from "../shared/ModelSelectField";
 import { TagsEditor } from "../shared/TagsEditor";
@@ -58,14 +66,22 @@ const toAgentEditorDraft = (agent: GetAgentEditorViewResponse["agent"]): AgentEd
 
 type AgentEditorScreenProps = {
   agentId: string | null;
+  assistantLauncher: JSX.Element;
   isActive: boolean;
+  onAssistantContextChange: (snapshot: AssistantAgentEditorSnapshot | null) => void;
+  onAssistantDraftAdapterChange: (adapter: AssistantAgentDraftAdapter | null) => void;
+  onAssistantSaveAdapterChange: (adapter: AssistantAgentSaveAdapter | null) => void;
   onClose: (tab?: "agents") => void;
   pushToast: (tone: "warning" | "error" | "info", message: string) => void;
 };
 
 export const AgentEditorScreen = ({
   agentId,
+  assistantLauncher,
   isActive,
+  onAssistantContextChange,
+  onAssistantDraftAdapterChange,
+  onAssistantSaveAdapterChange,
   onClose,
   pushToast,
 }: AgentEditorScreenProps): JSX.Element | null => {
@@ -128,15 +144,131 @@ export const AgentEditorScreen = ({
     });
   }, [agentId, isActive, pushToast]);
 
-  const close = (force = false): void => {
-    if (!force && hasUnsavedDraft) {
-      setState((current) =>
-        current.status !== "ready" ? current : { ...current, showDiscardDialog: true },
-      );
+  useEffect(() => {
+    if (!isActive || state.status !== "ready") {
+      onAssistantContextChange(null);
       return;
     }
-    onClose("agents");
-  };
+
+    onAssistantContextChange({
+      archived: state.source.agent?.archived === true,
+      draft: state.draft,
+      initialDraft: JSON.parse(state.initialFingerprint) as AgentEditorDraft,
+    });
+  }, [isActive, onAssistantContextChange, state]);
+
+  useEffect(() => {
+    if (!isActive || state.status !== "ready") {
+      onAssistantDraftAdapterChange(null);
+      return;
+    }
+
+    const toAppliedFieldLabels = (patch: AssistantAgentDraftPatch): ReadonlyArray<string> => {
+      const labels: Array<string> = [];
+      if (patch.name !== undefined) {
+        labels.push("name");
+      }
+      if (patch.systemPrompt !== undefined) {
+        labels.push("system prompt");
+      }
+      if (patch.verbosity !== undefined) {
+        labels.push("verbosity");
+      }
+      if (patch.temperature !== undefined) {
+        labels.push("temperature");
+      }
+      if (patch.tags !== undefined) {
+        labels.push("tags");
+      }
+      if (patch.modelRefOrNull !== undefined) {
+        labels.push("model");
+      }
+      return labels;
+    };
+
+    onAssistantDraftAdapterChange(async (params) => {
+      if (params.entityId !== null && params.entityId !== state.draft.id) {
+        return {
+          completion: null,
+          failureMessage: "The current visible agent draft does not match the requested target.",
+          status: "failed",
+        };
+      }
+
+      const guardMessage = getAgentDraftEditGuardMessage({
+        isArchived: state.source.agent?.archived === true,
+      });
+      if (guardMessage !== null) {
+        return {
+          completion: null,
+          failureMessage: guardMessage,
+          status: "failed",
+        };
+      }
+
+      const normalizedPatch = {
+        ...(params.patch.name === undefined ? {} : { name: params.patch.name }),
+        ...(params.patch.systemPrompt === undefined
+          ? {}
+          : { systemPrompt: params.patch.systemPrompt }),
+        ...(params.patch.verbosity === undefined
+          ? {}
+          : { verbosity: params.patch.verbosity ?? "" }),
+        ...(params.patch.temperature === undefined
+          ? {}
+          : {
+              temperature:
+                params.patch.temperature === null ? "" : String(params.patch.temperature),
+            }),
+        ...(params.patch.tags === undefined ? {} : { tagsInput: params.patch.tags.join(", ") }),
+        ...(params.patch.modelRefOrNull === undefined
+          ? {}
+          : {
+              modelSelection:
+                params.patch.modelRefOrNull === null
+                  ? ""
+                  : `${params.patch.modelRefOrNull.providerId}:${params.patch.modelRefOrNull.modelId}`,
+            }),
+      };
+      const appliedFieldLabels = toAppliedFieldLabels(params.patch);
+
+      setState((current) =>
+        current.status !== "ready"
+          ? current
+          : { ...current, draft: { ...current.draft, ...normalizedPatch } },
+      );
+
+      return {
+        completion: {
+          output: {
+            appliedFieldLabels,
+            entityId: state.draft.id,
+            patch: params.patch,
+          },
+          userSummary: `Updated the current agent draft ${appliedFieldLabels.join(", ")}.`,
+        },
+        failureMessage: null,
+        status: "completed",
+      };
+    });
+
+    return () => {
+      onAssistantDraftAdapterChange(null);
+    };
+  }, [isActive, onAssistantDraftAdapterChange, state]);
+
+  const close = useCallback(
+    (force = false): void => {
+      if (!force && hasUnsavedDraft) {
+        setState((current) =>
+          current.status !== "ready" ? current : { ...current, showDiscardDialog: true },
+        );
+        return;
+      }
+      onClose("agents");
+    },
+    [hasUnsavedDraft, onClose],
+  );
 
   const updateDraft = (patch: Partial<AgentEditorDraft>): void => {
     if (Object.hasOwn(patch, "tagsInput")) {
@@ -189,58 +321,219 @@ export const AgentEditorScreen = ({
     removeTag(lastTag);
   };
 
-  const save = async (): Promise<void> => {
-    if (state.status !== "ready") {
-      return;
-    }
-    const normalizedTagsResult = normalizeTagsDraft({
-      tagsInput: state.draft.tagsInput,
-      maxTags: COUNCIL_CONFIG_MAX_TAGS,
-    });
-    if (!normalizedTagsResult.ok) {
-      pushToast("warning", normalizedTagsResult.message);
-      setTagMessage(normalizedTagsResult.message);
+  const save = useCallback(
+    async (options?: {
+      closeOnSuccess?: boolean;
+      forAssistant?: boolean;
+    }): Promise<AssistantDraftReconciliation | undefined> => {
+      if (state.status !== "ready") {
+        return options?.forAssistant
+          ? {
+              completion: null,
+              failureMessage: "The current agent editor is not ready to save yet.",
+              status: "failed",
+            }
+          : undefined;
+      }
+
+      const normalizedTagsResult = normalizeTagsDraft({
+        tagsInput: state.draft.tagsInput,
+        maxTags: COUNCIL_CONFIG_MAX_TAGS,
+      });
+      if (!normalizedTagsResult.ok) {
+        pushToast("warning", normalizedTagsResult.message);
+        setTagMessage(normalizedTagsResult.message);
+        setState((current) =>
+          current.status !== "ready"
+            ? current
+            : { ...current, message: normalizedTagsResult.message },
+        );
+        return options?.forAssistant
+          ? {
+              completion: null,
+              failureMessage: normalizedTagsResult.message,
+              status: "failed",
+            }
+          : undefined;
+      }
+
+      const parsedTemperature =
+        state.draft.temperature.trim().length === 0
+          ? null
+          : Number.parseFloat(state.draft.temperature);
+      if (Number.isNaN(parsedTemperature ?? 0)) {
+        const message = "Temperature must be a valid number.";
+        pushToast("warning", message);
+        setState((current) => (current.status !== "ready" ? current : { ...current, message }));
+        return options?.forAssistant
+          ? {
+              completion: null,
+              failureMessage: message,
+              status: "failed",
+            }
+          : undefined;
+      }
+
+      setState((current) =>
+        current.status !== "ready" ? current : { ...current, isSaving: true, message: "" },
+      );
+      const result = await window.api.agents.save({
+        viewKind: "agentEdit",
+        id: state.draft.id,
+        name: state.draft.name,
+        systemPrompt: state.draft.systemPrompt,
+        verbosity: state.draft.verbosity.trim().length === 0 ? null : state.draft.verbosity,
+        temperature: parsedTemperature,
+        tags: normalizedTagsResult.tags,
+        modelRefOrNull: toModelRef(state.draft.modelSelection),
+      });
+      if (!result.ok) {
+        pushToast("error", result.error.userMessage);
+        setState((current) =>
+          current.status !== "ready"
+            ? current
+            : { ...current, isSaving: false, message: result.error.userMessage },
+        );
+        return options?.forAssistant
+          ? {
+              completion: null,
+              failureMessage: result.error.userMessage,
+              status: "failed",
+            }
+          : undefined;
+      }
+
+      const closeOnSuccess = options?.closeOnSuccess ?? true;
+      if (closeOnSuccess) {
+        setTagMessage("");
+        pushToast("info", "Agent saved.");
+        close(true);
+        return options?.forAssistant
+          ? {
+              completion: {
+                output: {
+                  agentId: result.value.agent.id,
+                  agentName: result.value.agent.name,
+                },
+                userSummary: `Saved ${result.value.agent.name}.`,
+              },
+              failureMessage: null,
+              status: "completed",
+            }
+          : undefined;
+      }
+
+      const refreshed = await window.api.agents.getEditorView({
+        viewKind: "agentEdit",
+        agentId: result.value.agent.id,
+      });
+      if (!refreshed.ok) {
+        pushToast("error", refreshed.error.userMessage);
+        setState((current) =>
+          current.status !== "ready"
+            ? current
+            : { ...current, isSaving: false, message: refreshed.error.userMessage },
+        );
+        return options?.forAssistant
+          ? {
+              completion: null,
+              failureMessage: refreshed.error.userMessage,
+              status: "failed",
+            }
+          : undefined;
+      }
+
+      const refreshedDraft = toAgentEditorDraft(refreshed.value.agent);
+      setTagMessage("");
       setState((current) =>
         current.status !== "ready"
           ? current
-          : { ...current, message: normalizedTagsResult.message },
+          : {
+              ...current,
+              source: refreshed.value,
+              draft: refreshedDraft,
+              initialFingerprint: JSON.stringify(refreshedDraft),
+              isSaving: false,
+              message: "Agent saved.",
+            },
       );
+
+      return options?.forAssistant
+        ? {
+            completion: {
+              output: {
+                agentId: result.value.agent.id,
+                agentName: result.value.agent.name,
+              },
+              userSummary: `Saved ${result.value.agent.name}.`,
+            },
+            failureMessage: null,
+            status: "completed",
+          }
+        : undefined;
+    },
+    [close, pushToast, state],
+  );
+
+  useEffect(() => {
+    if (!isActive || state.status !== "ready") {
+      onAssistantSaveAdapterChange(null);
       return;
     }
-    const parsedTemperature =
-      state.draft.temperature.trim().length === 0
-        ? null
-        : Number.parseFloat(state.draft.temperature);
-    if (Number.isNaN(parsedTemperature ?? 0)) {
-      pushToast("warning", "Temperature must be a valid number.");
-      return;
-    }
-    setState((current) =>
-      current.status !== "ready" ? current : { ...current, isSaving: true, message: "" },
-    );
-    const result = await window.api.agents.save({
-      viewKind: "agentEdit",
-      id: state.draft.id,
-      name: state.draft.name,
-      systemPrompt: state.draft.systemPrompt,
-      verbosity: state.draft.verbosity.trim().length === 0 ? null : state.draft.verbosity,
-      temperature: parsedTemperature,
-      tags: normalizedTagsResult.tags,
-      modelRefOrNull: toModelRef(state.draft.modelSelection),
-    });
-    if (!result.ok) {
-      pushToast("error", result.error.userMessage);
+
+    onAssistantSaveAdapterChange(async (params) => {
+      if (params.entityId !== null && params.entityId !== state.draft.id) {
+        return {
+          completion: null,
+          failureMessage: "The current visible agent draft does not match the requested target.",
+          status: "failed",
+        };
+      }
+
+      const refreshed = await window.api.agents.getEditorView({
+        viewKind: "agentEdit",
+        agentId: params.entityId,
+      });
+      if (!refreshed.ok) {
+        pushToast("error", refreshed.error.userMessage);
+        setState((current) =>
+          current.status !== "ready"
+            ? current
+            : { ...current, isSaving: false, message: refreshed.error.userMessage },
+        );
+        return {
+          completion: null,
+          failureMessage: refreshed.error.userMessage,
+          status: "failed",
+        };
+      }
+
+      const refreshedDraft = toAgentEditorDraft(refreshed.value.agent);
+      setTagMessage("");
       setState((current) =>
         current.status !== "ready"
           ? current
-          : { ...current, isSaving: false, message: result.error.userMessage },
+          : {
+              ...current,
+              source: refreshed.value,
+              draft: refreshedDraft,
+              initialFingerprint: JSON.stringify(refreshedDraft),
+              isSaving: false,
+              message: "Agent saved.",
+            },
       );
-      return;
-    }
-    setTagMessage("");
-    pushToast("info", "Agent saved.");
-    close(true);
-  };
+
+      return {
+        completion: null,
+        failureMessage: null,
+        status: "completed",
+      };
+    });
+
+    return () => {
+      onAssistantSaveAdapterChange(null);
+    };
+  }, [isActive, onAssistantSaveAdapterChange, pushToast, state]);
 
   const remove = async (): Promise<void> => {
     if (state.status !== "ready" || state.draft.id === null) {
@@ -350,6 +643,7 @@ export const AgentEditorScreen = ({
   if (state.status === "loading") {
     return (
       <DetailScreenShell
+        assistantLauncher={assistantLauncher}
         onBack={() => close()}
         statusMessage="Loading agent editor..."
         title={agentId === null ? "New Agent" : "Edit Agent"}
@@ -359,6 +653,7 @@ export const AgentEditorScreen = ({
   if (state.status === "error") {
     return (
       <DetailScreenShell
+        assistantLauncher={assistantLauncher}
         onBack={() => close()}
         statusMessage={`Error: ${state.message}`}
         title="Agent Editor"
@@ -378,6 +673,7 @@ export const AgentEditorScreen = ({
     <main className="shell">
       <header className="section-header">
         <div className="button-row">
+          {assistantLauncher}
           <button className="secondary" onClick={() => close()} type="button">
             Back
           </button>

@@ -1,14 +1,14 @@
 # Test-to-Requirement Index (Generated)
 
-Generated at: 2026-03-12T01:10:33.364Z
+Generated at: 2026-03-13T08:59:01.966Z
 
 ## Summary
 
-- Spec files tracked: 39
-- Test cases tracked: 241
-- Annotated test cases: 241
+- Spec files tracked: 46
+- Test cases tracked: 319
+- Annotated test cases: 319
 - Unmapped test cases: 0
-- Unique mapped requirement IDs: 214
+- Unique mapped requirement IDs: 227
 
 ## Index
 
@@ -26,7 +26,40 @@ Generated at: 2026-03-12T01:10:33.364Z
   - [itReq] `returns the configured default agents page size through ipc` -> A3, R1.1, R1.2, R1.20, R1.22, R6.1, R6.2, U4.3, U4.6
   - [itReq] `archives agent through ipc handler` -> A3, R1.1, R1.2, R1.20, R1.22, R6.1, R6.2, U4.3, U4.6
 - `tests/integration/assistant-ipc.contract.integration.spec.ts`
+  - [itReq] `keeps current agent draft edits pending until renderer reconciliation acknowledges completion metadata` -> A1, A3, R9.11, R9.14, R9.17, R9.18, R9.22
+  - [itReq] `keeps current council draft edits pending until renderer reconciliation acknowledges completion metadata` -> A1, A3, R9.11, R9.14, R9.17, R9.18, R9.22
+  - [itReq] `creates an agent through the authoritative save handler and waits for visible completion before success` -> A3, R9.11, R9.17, R9.18, R9.22, U18.10, U18.11, U18.8
+  - [itReq] `returns authoritative saved council fields for update reconciliation` -> A1, A3, R9.11, R9.17, R9.18, R9.22
+  - [itReq] `patches the current council draft and then saves it through the normal save flow` -> A1, A3, R9.11, R9.14, R9.17, R9.18, R9.22
+  - [itReq] `requires confirmation before replacing a dirty draft with another assistant action` -> A1, A3, R9.11, R9.13, R9.14, U18.9
+  - [itReq] `rejects high-risk confirmation execution when the confirmation token is missing or stale` -> A1, A3, R9.12, R9.13, U18.9
+  - [itReq] `executes confirmed destructive actions only after explicit confirmation and waits for list reconciliation` -> A1, A3, R9.12, R9.13, R9.17, R9.18, R9.22, U18.9
+  - [itReq] `requires explicit confirmation for settings mutations before execution` -> A1, A3, R9.12, R9.13, R9.17, R9.18, R9.22, U18.9
+  - [itReq] `requires explicit confirmation before export actions execute and reconcile` -> A1, A3, R9.12, R9.13, R9.17, R9.18, R9.22, U18.9
+  - [itReq] `surfaces safe validation blockers from the authoritative save rules` -> A3, R9.14, R9.17, R9.18, R9.22, U18.8
+  - [itReq] `fails current draft edits when the request targets a different editor entity` -> A1, A3, R9.11, R9.14, R9.22
+  - [itReq] `fails current draft edits when the current agent editor is archived` -> A1, A3, R9.11, R9.14, R9.22
+  - [itReq] `fails current draft edits when the current council editor is archived or mode-locked` -> A1, A3, R9.11, R9.14, R9.22
+  - [itReq] `preserves model changes when rewriting a current-agent update into an in-place draft patch` -> A1, A3, R9.11, R9.14, R9.17, R9.22
+  - [itReq] `preserves conductor and member changes when rewriting a current-council update into an in-place draft patch` -> A1, A3, R9.11, R9.14, R9.17, R9.22
+  - [itReq] `uses the deterministic current agent draft shortcut when the request is explicit` -> A1, D5, R9.1, R9.11, R9.14, R9.17, U18.7
+  - [itReq] `fails closed when the global default model is missing or invalid` -> A1, D1, D5, R9.3
+  - [itReq] `passes the global default model through the planner request in main` -> A1, D1, D5, R9.3
+  - [itReq] `loops clarification through the same session and then executes the stored plan` -> A3, D5, R9.18, R9.19, R9.20, R9.7
+  - [itReq] `resolves open council clarifications locally when the planner already asked for a council name` -> A3, D5, R9.18, R9.19, R9.20, R9.7
+  - [itReq] `blocks stored clarification follow-up turns when the global default model becomes invalid` -> A3, D5, R9.19, R9.3, R9.7
+  - [itReq] `executes supported read and navigation tools into a final assistant result` -> A1, A3, D5, R9.18, R9.19, R9.20, R9.22, R9.3, R9.7
+  - [itReq] `uses the council runtime read tool for runtime-status follow-up questions on the open council` -> A1, D5, R9.18, R9.19, R9.22, U18.10, U18.11, U18.8
+  - [itReq] `executes runtime mutation tools only from the active council view lease and waits for reconciliation` -> A1, A3, R9.11, R9.17, R9.18, R9.21, R9.22, U18.10
+  - [itReq] `preserves non-zero lease epoch when runtime mutation refreshes council view` -> A1, A3, R9.11, R9.17, R9.18, R9.21, R9.22, U18.10
+  - [itReq] `fails runtime mutation tools when council runtime lease scope is stale` -> A1, A3, R9.11, R9.21, R9.22
+  - [itReq] `rejects runtime mutation tools when the council view lease token is forged` -> A1, A3, R9.11, R9.21, R9.22
+  - [itReq] `invalidates pending runtime execution when council view lease context disappears` -> A1, A3, R9.11, R9.17, R9.21, R9.22, U18.10
+  - [itReq] `supports the remaining phase 1 home, entity, and list read tools` -> A1, A3, D5, R9.18, R9.19, R9.20, R9.22, R9.3, R9.7
+  - [itReq] `fails navigation reconciliation closed when the visible destination never appears` -> A3, D5, R9.17, R9.18, R9.22, U18.10, U18.11, U18.8
   - [itReq] `rejects submits whose context view kind does not match the session scope` -> A3, R9.22, R9.3, R9.4
+  - [itReq] `rejects planner terminal success and partial results so main owns final execution outcomes` -> A3, D5, R9.17, R9.3, R9.7
+  - [itReq] `does not report stale runtime success after closing an in-flight runtime execution` -> A3, D5, R9.16, R9.21, R9.22
   - [itReq] `rejects a second concurrent submit for the same session` -> A3, D5, R9.20, R9.21, R9.3
   - [itReq] `keeps a stale cancelled submit from clearing newer in-flight work` -> A3, D5, R9.20, R9.21
   - [itReq] `validates assistant session payloads` -> A3, D5, R9.11, R9.16, R9.19, R9.20, R9.21, R9.3, R9.4
@@ -40,6 +73,7 @@ Generated at: 2026-03-12T01:10:33.364Z
 - `tests/integration/boundary-check-script.integration.spec.ts`
   - [itReq] `passes for baseline source tree` -> A3, IMPL-005
 - `tests/integration/councils-handlers.integration.spec.ts`
+  - [itReq] `rotates runtime leases on reload and switch epochs and fails stale tokens closed` -> A1, A3, R9.11, R9.21, R9.22
   - [itReq] `creates councils and paginates list results` -> E1, E2, E4, F1, R1.11, R1.23, R1.24, R1.26, R1.3, R1.6, R1.7, R1.8, R2.1, R2.10, R2.11, R2.12, R2.13, R2.14, R2.15, R2.16, R2.17, R2.18, R2.19, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.29, R3.3, R3.30, R3.31, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R4.18, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U16.1, U16.2, U16.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
   - [itReq] `filters councils by committed exact-match tag chips with AND semantics` -> E1, E2, E4, F1, R1.11, R1.23, R1.24, R1.26, R1.3, R1.6, R1.7, R1.8, R2.1, R2.10, R2.11, R2.12, R2.13, R2.14, R2.15, R2.16, R2.17, R2.18, R2.19, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.29, R3.3, R3.30, R3.31, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R4.18, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U16.1, U16.2, U16.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
   - [itReq] `keeps created councils not-started and enforces topic-required create flow` -> E1, E2, E4, F1, R1.11, R1.23, R1.24, R1.26, R1.3, R1.6, R1.7, R1.8, R2.1, R2.10, R2.11, R2.12, R2.13, R2.14, R2.15, R2.16, R2.17, R2.18, R2.19, R2.2, R2.20, R2.21, R2.22, R2.23, R2.24, R2.3, R2.4, R2.5, R2.6, R2.7, R2.8, R2.9, R3.10, R3.11, R3.13, R3.14, R3.15, R3.18, R3.19, R3.20, R3.21, R3.22, R3.23, R3.24, R3.25, R3.26, R3.27, R3.29, R3.3, R3.30, R3.31, R3.32, R3.33, R3.34, R3.7, R3.8, R3.9, R4.16, R4.18, R6.1, R6.2, R6.3, R6.4, R6.6, R8.2, R8.3, U11.7, U12.1, U12.2, U12.3, U12.4, U12.5, U12.6, U13.1, U13.2, U13.4, U16.1, U16.2, U16.4, U3.8, U3.9, U9.3, U9.6, U9.7, U9.8
@@ -138,22 +172,72 @@ Generated at: 2026-03-12T01:10:33.364Z
   - [itReq] `fully redacts path-like values that contain spaces` -> A3, F2, R9.19, R9.20
   - [itReq] `logs only sanitized assistant audit payloads` -> A3, F2, R9.19, R9.20
   - [itReq] `summarizes assistant request text instead of persisting it` -> A3, F2, R9.19, R9.20
+- `tests/unit/assistant-draft-edit-guards.spec.ts`
+  - [itReq] `blocks archived agent draft edits` -> A1, A3, R9.11, R9.14, R9.22
+  - [itReq] `blocks archived or mode-locked council draft edits` -> A1, A3, R9.11, R9.14, R9.22
 - `tests/unit/assistant-ipc-validators.spec.ts`
   - [itReq] `accepts valid assistant session and submit payloads` -> A3, R9.11, R9.17, R9.19, R9.4
   - [itReq] `rejects assistant payloads with invalid ids and unknown fields` -> A3, R9.11, R9.17, R9.19, R9.4
   - [itReq] `normalizes unsafe assistant context strings before they cross ipc` -> A3, R9.11, R9.17, R9.19, R9.4
   - [itReq] `sanitizes assistant submit text before it reaches main` -> A3, R9.11, R9.17, R9.19, R9.4
   - [itReq] `accepts normalized assistant result states` -> A3, R9.11, R9.17, R9.19, R9.4
+  - [itReq] `requires confirmation tokens for confirmation responses` -> A3, R9.11, R9.17, R9.19, R9.4
 - `tests/unit/assistant-plan-schema.spec.ts`
   - [itReq] `builds a planner prompt from sanitized context and tool catalog` -> R9.17, R9.3, R9.4, R9.7, R9.8
   - [itReq] `parses structured confirm responses` -> R9.17, R9.3, R9.4, R9.7, R9.8
+  - [itReq] `parses fenced planner responses with surrounding prose` -> R9.17, R9.3, R9.4, R9.7, R9.8
   - [itReq] `sanitizes valid planned call payloads before returning them` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
   - [itReq] `fails closed on invalid planner output` -> R9.17, R9.3, R9.4, R9.7, R9.8
+- `tests/unit/assistant-planner-shortcuts.spec.ts`
+  - [itReq] `builds a deterministic current agent draft shortcut plan` -> A1, D5, R9.1, R9.11, R9.14, R9.17, U18.7
+  - [itReq] `builds a deterministic create agent shortcut plan for commit flows` -> A1, D5, R9.11, R9.14, R9.17, R9.22, U18.13
+  - [itReq] `builds a deterministic save current agent draft shortcut plan` -> A1, D5, R9.11, R9.17, R9.18, R9.22, U18.13
+  - [itReq] `builds a deterministic rename and save current council draft shortcut plan` -> A1, D5, R9.11, R9.17, R9.18, R9.22, U18.13
+  - [itReq] `builds a deterministic current council rename shortcut plan` -> A1, D5, R9.11, R9.17, R9.18, R9.22, U18.13
+  - [itReq] `builds deterministic council runtime control shortcuts` -> A1, D5, R9.11, R9.17, R9.18, R9.21, R9.22
+  - [itReq] `builds deterministic phase 4 destructive and settings shortcuts` -> A1, D5, R9.11, R9.12, R9.17, R9.18, R9.22, U18.9
+  - [itReq] `ignores unsupported shortcut requests` -> A1, D5, R9.1, R9.11, R9.14, R9.17, U18.7
 - `tests/unit/assistant-policy.spec.ts`
   - [itReq] `validates known assistant tool payloads against shared schemas` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
   - [itReq] `rejects unknown assistant tools` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
   - [itReq] `requires confirmation before replacing a dirty draft` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
+  - [itReq] `treats saving the current dirty draft as an in-place action` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
+  - [itReq] `requires confirmation for always-confirm high-risk tools` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
   - [itReq] `tracks visible reconciliation completion separately from mutation success` -> A1, R9.11, R9.13, R9.14, R9.22, R9.9
+- `tests/unit/assistant-reconciliation-helpers.spec.ts`
+  - [itReq] `requires matching model-only agent draft updates before reconciliation completes` -> A1, A3, R9.11, R9.17, R9.22
+  - [itReq] `requires authoritative saved agent model fields to become visible before reconciliation completes` -> A1, A3, R9.17, R9.18, R9.22
+  - [itReq] `requires matching council conductor and member updates before reconciliation completes` -> A1, A3, R9.11, R9.17, R9.22
+  - [itReq] `requires authoritative saved council conductor and member fields to become visible before reconciliation completes` -> A1, A3, R9.17, R9.18, R9.22
+- `tests/unit/assistant-renderer-context.spec.ts`
+  - [itReq] `builds sanitized home context from the active list query` -> A3, D5, F2, R9.19, R9.4, U18.12
+  - [itReq] `summarizes agent draft changes without exposing prompt bodies or raw paths` -> A3, D5, F2, R9.19, R9.4, U18.12
+  - [itReq] `builds council view runtime context without transcript body details` -> A3, D5, F2, R9.19, R9.4, U18.12
+  - [itReq] `omits runtime lease context when council view has no active lease` -> A3, D5, R9.11, R9.21, R9.22
+- `tests/unit/assistant-scope.spec.ts`
+  - [itReq] `keeps council-view scope stable while the active council remains the same` -> R9.17, R9.18, R9.22, U18.10
+  - [itReq] `changes council-view scope when switching to a different council` -> R9.17, R9.18, R9.22, U18.10
+- `tests/unit/assistant-shell-controller.spec.ts`
+  - [itReq] `keeps the modal cancelled when delayed session creation resolves after stop` -> R9.17, R9.21, U18.12, U18.13, U18.14
+  - [itReq] `keeps the modal closed when delayed session creation resolves after close` -> R9.17, R9.21, U18.12, U18.13, U18.14
+  - [itReq] `keeps a rebased modal idle when delayed submit results resolve for the previous scope` -> R9.17, R9.21, U18.12, U18.14
+  - [itReq] `keeps the source session open while navigation reconciliation is still rebasing the modal` -> R9.17, R9.18, R9.21, U18.10, U18.11
+  - [itReq] `auto-continues execute plans and finalizes navigation after reconciliation acknowledgement` -> R9.17, R9.18, R9.7, U18.10, U18.11, U18.7
+  - [itReq] `forwards draft reconciliation completion metadata into the final reconciliation request` -> R9.17, R9.18, R9.22, U18.10, U18.11, U18.7
+  - [itReq] `keeps the modal cancelled when reconciliation effects resolve after stop` -> R9.17, R9.21, U18.12, U18.13, U18.14
+  - [itReq] `keeps a rebased modal idle when reconciliation effects resolve for the previous scope` -> R9.17, R9.21, U18.12, U18.14
+  - [itReq] `recreates the assistant session after navigation rebases the scope during reconciliation` -> R9.17, R9.18, R9.21, U18.10, U18.11, U18.7
+  - [itReq] `keeps the modal in failure when reconciliation completion fails` -> R9.17, R9.18, R9.22, U18.10, U18.11, U18.8
+- `tests/unit/assistant-ui-state.spec.ts`
+  - [itReq] `transitions through clarify confirm and result phases with visible conversation entries` -> R9.17, U18.10, U18.11, U18.15, U18.7, U18.8
+  - [itReq] `distinguishes active assistant work for keyboard submit and close confirmation behavior` -> R9.16, R9.17, U18.13, U18.14, U18.6
+  - [itReq] `accepts finalized reconciliation results after the renderer rebases the active scope` -> R9.17, R9.18, R9.21, U18.10, U18.11, U18.7
+  - [itReq] `rebases assistant state to a new scope without replaying stale follow-up work` -> R9.17, R9.21, U18.12, U18.14
+  - [itReq] `finalizes a rebased session into the destination scope before follow-up work resumes` -> R9.17, R9.18, R9.21, U18.10, U18.11, U18.14
+  - [itReq] `ignores a stopped-session update after the modal rebases to a different scope` -> R9.17, R9.21, U18.12, U18.14
+  - [itReq] `invalidates pending async work immediately when the assistant closes` -> R9.17, R9.21, U18.12, U18.14
+  - [itReq] `invalidates a cancelled in-flight submit even when the session stays in the same scope` -> R9.17, R9.21, U18.12, U18.14
+  - [itReq] `invalidates session setup work after stop before session creation finishes` -> R9.17, R9.21, U18.12, U18.14
 - `tests/unit/council-runtime-conductor.spec.ts`
   - [itReq] `builds a split prompt bundle with strict JSON contract` -> E1, E2, F1, R3.13, R3.14, R3.16, R3.17, R3.18, R3.20
   - [itReq] `parses valid manual-mode conductor decision` -> E1, E2, F1, R3.13, R3.14, R3.16, R3.17, R3.18, R3.20
@@ -248,6 +332,7 @@ Generated at: 2026-03-12T01:10:33.364Z
   - [itReq] `rejects invalid set archived payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
   - [itReq] `rejects invalid delete council payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
   - [itReq] `accepts valid council view payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
+  - [itReq] `rejects invalid council view lease epoch payload` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
   - [itReq] `rejects pause autopilot payload with invalid id` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
   - [itReq] `accepts valid start and resume council payloads` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2
   - [itReq] `rejects invalid max turn payloads` -> A3, C1, F1, R1.1, R1.2, R1.20, R1.22, R2.1, R2.3, R2.7, R3.1, R3.23, R3.32, R3.7, R3.8, R4.17, R4.22, R4.6, R4.8, R6.1, U10.1, U11.6, U12.2

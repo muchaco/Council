@@ -29,11 +29,13 @@ import type {
 } from "../../../shared/ipc/dto";
 import { ConfirmDialog } from "../../ConfirmDialog";
 import { AgentCard } from "../agents/AgentCard";
+import type { AssistantHomeListSnapshot } from "../assistant/assistant-context-builders";
 import { HomeListToolbar } from "../shared/HomeListToolbar";
 import { Card } from "../ui/card";
 
 type AgentsPanelProps = {
   isActive: boolean;
+  onAssistantListStateChange: (snapshot: AssistantHomeListSnapshot<AgentHomeListFilters>) => void;
   onOpenAgentEditor: () => void;
   onOpenAgentFromCard: (agentId: string) => void;
   onTotalChange: (total: number) => void;
@@ -42,6 +44,7 @@ type AgentsPanelProps = {
 
 export const AgentsPanel = ({
   isActive,
+  onAssistantListStateChange,
   onOpenAgentEditor,
   onOpenAgentFromCard,
   onTotalChange,
@@ -142,6 +145,14 @@ export const AgentsPanel = ({
     () => hasAppliedAgentHomeListPopoverFilters(appliedFilters),
     [appliedFilters],
   );
+
+  useEffect(() => {
+    onAssistantListStateChange({
+      appliedFilters,
+      hasPendingChanges,
+      total: agents.length,
+    });
+  }, [agents.length, appliedFilters, hasPendingChanges, onAssistantListStateChange]);
 
   const refreshAgents = useCallback((): void => {
     setAppliedFilters(draftFilters);

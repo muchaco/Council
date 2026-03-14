@@ -393,6 +393,58 @@ export const registerIpcHandlers = (): {
         viewKind,
       }),
     auditService: assistantAuditService,
+    listAgents: (params) => agentsSlice.listAgents(params),
+    getAgentEditorView: (params) => agentsSlice.getEditorView(params),
+    saveAgent: (params) => agentsSlice.saveAgent(params),
+    deleteAgent: (params) => agentsSlice.deleteAgent(params),
+    setAgentArchived: (params) => agentsSlice.setArchived(params),
+    listCouncils: (params) => councilsSlice.listCouncils(params),
+    getCouncilEditorView: (params) => councilsSlice.getEditorView(params),
+    saveCouncil: (params) => councilsSlice.saveCouncil(params),
+    deleteCouncil: (params) => councilsSlice.deleteCouncil(params),
+    setCouncilArchived: (params) => councilsSlice.setArchived(params),
+    exportCouncilTranscript: (params) => councilsSlice.exportTranscript(params),
+    saveProviderConfig: (params) => settingsSlice.saveProviderConfig(params),
+    disconnectProvider: (params) => settingsSlice.disconnectProvider(params),
+    refreshModelCatalog: (params) => settingsSlice.refreshModelCatalog(params),
+    setGlobalDefaultModel: (params) => settingsSlice.setGlobalDefaultModel(params),
+    getCouncilView: (params) => councilsSlice.getCouncilView(params),
+    validateAssistantRuntimeLease: (params) => councilsSlice.validateAssistantRuntimeLease(params),
+    startCouncil: (params) => councilsSlice.startCouncil(params),
+    pauseCouncilAutopilot: (params) => councilsSlice.pauseCouncilAutopilot(params),
+    resumeCouncilAutopilot: (params) => councilsSlice.resumeCouncilAutopilot(params),
+    generateManualTurn: (params) => councilsSlice.generateManualTurn(params),
+    injectConductorMessage: (params) => councilsSlice.injectConductorMessage(params),
+    cancelGeneration: (params) => councilsSlice.cancelGeneration(params),
+    planAssistantResponse: (request, abortSignal) =>
+      aiService
+        .generateText(
+          {
+            providerId: request.modelRef.providerId,
+            modelId: request.modelRef.modelId,
+            messages: [
+              {
+                role: "system",
+                content:
+                  "You are the Council desktop assistant planner. Reply with exactly one JSON object that matches the provided assistant planning schema. Use only the provided tools, preserve call ids, and prefer clarify over guessing when the request is underspecified.",
+              },
+              {
+                role: "user",
+                content: request.prompt,
+              },
+            ],
+            temperature: 0,
+          },
+          abortSignal,
+        )
+        .map((response) => response.text)
+        .mapErr((error) =>
+          domainError(
+            "ProviderError",
+            `Assistant planner request failed for ${error.providerId}:${error.modelId}: ${error.message}`,
+            "Assistant planning could not complete safely.",
+          ),
+        ),
   });
   const assistantHandlers = createAssistantIpcHandlers(assistantSlice);
   const agentsHandlers = createAgentsIpcHandlers(agentsSlice);
@@ -507,10 +559,14 @@ export const registerIpcHandlers = (): {
   ipcMain.handle("assistant:close-session", async (event, payload) =>
     assistantHandlers.closeSession(payload, event.sender.id),
   );
+  ipcMain.handle("assistant:complete-reconciliation", async (event, payload) =>
+    assistantHandlers.completeReconciliation(payload, event.sender.id),
+  );
 
   return {
     releaseWebContentsResources: (webContentsId: number): void => {
       settingsSlice.releaseViewSnapshots(webContentsId);
+      councilsSlice.releaseAssistantRuntimeLeases(webContentsId);
       assistantSlice.releaseWebContentsSessions(webContentsId);
     },
   };

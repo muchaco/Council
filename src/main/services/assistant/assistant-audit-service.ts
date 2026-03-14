@@ -4,6 +4,9 @@ import type { Logger } from "../../logging/index.js";
 export type AssistantAuditEventType =
   | "session-created"
   | "submit-started"
+  | "planner-returned"
+  | "execution-started"
+  | "execution-finished"
   | "submit-finished"
   | "session-cancelled"
   | "session-closed";

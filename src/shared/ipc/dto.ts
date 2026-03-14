@@ -285,6 +285,7 @@ export type GetCouncilEditorViewResponse = {
 export type GetCouncilViewRequest = {
   viewKind: "councilView";
   councilId: string;
+  leaseEpoch?: number;
 };
 
 export type GetCouncilViewResponse = {
@@ -293,6 +294,7 @@ export type GetCouncilViewResponse = {
   messages: ReadonlyArray<CouncilMessageDto>;
   briefing: CouncilRuntimeBriefingDto | null;
   generation: CouncilGenerationStateDto;
+  assistantRuntimeLeaseId: string;
   modelCatalog: ModelCatalogSnapshotDto;
   globalDefaultModelRef: ModelRef | null;
   canRefreshModels: boolean;
@@ -505,7 +507,20 @@ export type AssistantToolExecutionError = {
   details: Readonly<Record<string, unknown>> | null;
 };
 
+export type AssistantReconciliationCompletion = {
+  output: Readonly<Record<string, unknown>> | null;
+  userSummary: string | null;
+};
+
 export type AssistantToolExecutionResult =
+  | {
+      callId: string;
+      toolName: string;
+      status: "reconciling";
+      output: Readonly<Record<string, unknown>>;
+      userSummary: string;
+      reconciliationState: "follow-up-refresh-in-progress";
+    }
   | {
       callId: string;
       toolName: string;
@@ -538,8 +553,41 @@ export type AssistantDraftState = {
   summary: string;
 };
 
+export type AssistantAgentDraftExecutionSnapshot = {
+  id: string | null;
+  modelSelection: string;
+  name: string;
+  systemPrompt: string;
+  tagsInput: string;
+  temperature: string;
+  verbosity: string;
+};
+
+export type AssistantCouncilDraftExecutionSnapshot = {
+  conductorModelSelection: string;
+  goal: string;
+  id: string | null;
+  mode: "autopilot" | "manual";
+  selectedMemberIds: ReadonlyArray<string>;
+  tagsInput: string;
+  title: string;
+  topic: string;
+};
+
+export type AssistantExecutionSnapshot =
+  | {
+      kind: "agent";
+      draft: AssistantAgentDraftExecutionSnapshot;
+    }
+  | {
+      kind: "council";
+      draft: AssistantCouncilDraftExecutionSnapshot;
+    };
+
 export type AssistantRuntimeState = {
+  leaseId: string;
   councilId: string;
+  leaseEpoch?: number;
   status: "idle" | "running" | "paused";
   plannedNextSpeakerAgentId: string | null;
 };
@@ -570,6 +618,7 @@ export type AssistantUserTurnResponse =
   | {
       kind: "confirmation";
       approved: boolean;
+      confirmationToken: string;
     };
 
 export type AssistantPlannerResponse =
@@ -607,6 +656,7 @@ export type AssistantPlanResult =
       sessionId: string;
       message: string;
       planSummary: string;
+      confirmationToken: string;
       plannedCalls: ReadonlyArray<AssistantPlannedToolCall>;
       confirmation: AssistantConfirmationRequest;
     }
@@ -642,10 +692,26 @@ export type AssistantSubmitRequest = {
   sessionId: string;
   userRequest: string;
   context: AssistantContextEnvelope;
+  executionSnapshot?: AssistantExecutionSnapshot | null;
   response: AssistantUserTurnResponse | null;
 };
 
 export type AssistantSubmitResponse = {
+  result: AssistantPlanResult;
+};
+
+export type AssistantCompleteReconciliationRequest = {
+  sessionId: string;
+  reconciliations: ReadonlyArray<{
+    callId: string;
+    toolName: string;
+    status: "completed" | "failed";
+    failureMessage: string | null;
+    completion: AssistantReconciliationCompletion | null;
+  }>;
+};
+
+export type AssistantCompleteReconciliationResponse = {
   result: AssistantPlanResult;
 };
 

@@ -8,6 +8,7 @@ export type HomeTab = "councils" | "agents" | "settings";
 type HomeTopBarProps = {
   activeTab: HomeTab;
   agentsTotal: number;
+  assistantLauncher: JSX.Element;
   councilsTotal: number;
   homeTabButtonRefs: MutableRefObject<Record<HomeTab, HTMLButtonElement | null>>;
   onHomeTabKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>, currentTab: HomeTab) => void;
@@ -17,12 +18,14 @@ type HomeTopBarProps = {
 export const HomeTopBar = ({
   activeTab,
   agentsTotal,
+  assistantLauncher,
   councilsTotal,
   homeTabButtonRefs,
   onHomeTabKeyDown,
   onTabChange,
 }: HomeTopBarProps): JSX.Element => (
   <header className="home-topbar">
+    <div className="mb-3 flex items-center gap-3">{assistantLauncher}</div>
     <nav aria-label="Home sections" className="home-tabs" role="tablist">
       <button
         aria-label={`Councils (${formatHomeListTotal({ total: councilsTotal, singularLabel: "council" })})`}
